@@ -1,0 +1,101 @@
+import type { FlowNodeType } from '../../lib/flow-engine/types'
+import { FLOW_DND_MIME } from './FlowPalette'
+
+/**
+ * BuilderPalette
+ *
+ * Unified left palette for the form editor. Combines the form builder's field
+ * types (which add a `form_field` node preset to that type) with the flow's
+ * logic nodes (decision/calculator/payment/summary/redirect + field group).
+ *
+ * - Click → add to the primary path (List view convenience).
+ * - Drag onto the Canvas → the canvas reads the node type from dataTransfer.
+ *   Field items drop a `form_field`; the creator picks the field type after.
+ */
+
+const FIELD_ITEMS: { fieldType: string; label: string; icon: string }[] = [
+  { fieldType: 'text', label: 'Text', icon: 'T' },
+  { fieldType: 'email', label: 'Email', icon: '@' },
+  { fieldType: 'number', label: 'Number', icon: '#' },
+  { fieldType: 'textarea', label: 'Long Text', icon: '≡' },
+  { fieldType: 'select', label: 'Dropdown', icon: '▾' },
+  { fieldType: 'checkbox', label: 'Checkboxes', icon: '☑' },
+  { fieldType: 'radio', label: 'Radio', icon: '◉' },
+]
+
+const LOGIC_ITEMS: {
+  type: Exclude<FlowNodeType, 'start' | 'form_field'>
+  label: string
+  icon: string
+  accent: string
+  description: string
+}[] = [
+  { type: 'group', label: 'Field Group', icon: '⊞', accent: 'bg-[#f3e3da] text-[#a9583e]', description: 'Several fields on one step' },
+  { type: 'decision', label: 'Decision', icon: '◇', accent: 'bg-[#f7ecd0] text-[#9e7424]', description: 'Branch on a variable value' },
+  { type: 'calculator', label: 'Calculator', icon: '∑', accent: 'bg-[#e7ddf7] text-[#6b46a8]', description: 'Compute a value from an expression' },
+  { type: 'payment', label: 'Payment', icon: '$', accent: 'bg-[#d8f0e0] text-[#2f7d52]', description: 'Collect payment via a gateway' },
+  { type: 'summary', label: 'Summary', icon: '≡', accent: 'bg-[#ececea] text-[#57544d]', description: 'Show a dynamic result page' },
+  { type: 'redirect', label: 'Redirect', icon: '↗', accent: 'bg-[#ececea] text-[#57544d]', description: 'Send the user to a URL' },
+]
+
+interface BuilderPaletteProps {
+  /** Add a form_field node preset to this field type. */
+  onAddField: (fieldType: string) => void
+  /** Add a logic node (group/decision/calculator/payment/summary/redirect). */
+  onAddNode: (type: Exclude<FlowNodeType, 'start' | 'form_field'>) => void
+}
+
+export function BuilderPalette({ onAddField, onAddNode }: BuilderPaletteProps) {
+  return (
+    <aside className="flex flex-col gap-5">
+      {/* Fields */}
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-medium uppercase tracking-wider text-[#8e8b82]">Fields</p>
+        {FIELD_ITEMS.map(({ fieldType, label, icon }) => (
+          <button
+            key={fieldType}
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData(FLOW_DND_MIME, 'form_field')
+              e.dataTransfer.effectAllowed = 'move'
+            }}
+            onClick={() => onAddField(fieldType)}
+            className="flex items-center gap-3 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] px-3 py-2.5 text-left text-sm transition-colors hover:border-[#cc785c] hover:bg-[#efe9de] active:bg-[#e8e0d2]"
+          >
+            <span className="flex h-7 w-7 flex-none items-center justify-center rounded-md bg-[#efe9de] text-xs font-semibold text-[#cc785c]">
+              {icon}
+            </span>
+            <span className="text-[#141413]">{label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Logic */}
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-medium uppercase tracking-wider text-[#8e8b82]">Logic</p>
+        {LOGIC_ITEMS.map(({ type, label, icon, accent, description }) => (
+          <button
+            key={type}
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData(FLOW_DND_MIME, type)
+              e.dataTransfer.effectAllowed = 'move'
+            }}
+            onClick={() => onAddNode(type)}
+            className="flex items-start gap-3 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] px-3 py-2.5 text-left transition-colors hover:border-[#cc785c] hover:bg-[#efe9de] active:bg-[#e8e0d2]"
+          >
+            <span className={`flex h-7 w-7 flex-none items-center justify-center rounded-md text-xs font-semibold ${accent}`}>
+              {icon}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm text-[#141413]">{label}</span>
+              <span className="block text-xs text-[#8e8b82]">{description}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <p className="px-1 text-xs text-[#8e8b82]">Click to add, or drag onto the Canvas.</p>
+    </aside>
+  )
+}

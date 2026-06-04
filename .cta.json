@@ -1,0 +1,33 @@
+{
+  "projectName": "ponkoform",
+  "mode": "file-router",
+  "typescript": true,
+  "packageManager": "npm",
+  "includeExamples": false,
+  "tailwind": true,
+  "addOnOptions": {
+    "drizzle": {
+      "database": "postgresql"
+    }
+  },
+  "envVarValues": {
+    "VITE_CLERK_PUBLISHABLE_KEY": "pk_test_ZXhwZXJ0LXN0YXJmaXNoLTc1LmNsZXJrLmFjY291bnRzLmRldiQ"
+  },
+  "git": true,
+  "install": true,
+  "routerOnly": false,
+  "version": 1,
+  "framework": "react",
+  "chosenAddOns": [
+    "clerk",
+    "ai",
+    "compiler",
+    "db",
+    "drizzle",
+    "form",
+    "mcp",
+    "tanstack-query",
+    "neon",
+    "store"
+  ]
+}
