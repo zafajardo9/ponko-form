@@ -15,6 +15,13 @@
       "when": 1780391989487,
       "tag": "0001_thin_mother_askani",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780553228555,
+      "tag": "0002_curved_elektra",
+      "breakpoints": true
     }
   ]
 }

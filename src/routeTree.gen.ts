@@ -17,6 +17,7 @@ import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
 import { Route as FormsNewRouteImport } from './routes/forms/new'
 import { Route as DocsSlugRouteImport } from './routes/docs/$slug'
+import { Route as DashboardSettingsRouteImport } from './routes/dashboard/settings'
 import { Route as FormsSubmitFormIdRouteImport } from './routes/forms/submit/$formId'
 import { Route as FormsEmbedFormIdRouteImport } from './routes/forms/embed/$formId'
 import { Route as FormsFormIdSubmissionsRouteImport } from './routes/forms/$formId/submissions'
@@ -64,6 +65,11 @@ const DocsSlugRoute = DocsSlugRouteImport.update({
   path: '/docs/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DashboardSettingsRoute = DashboardSettingsRouteImport.update({
+  id: '/dashboard/settings',
+  path: '/dashboard/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FormsSubmitFormIdRoute = FormsSubmitFormIdRouteImport.update({
   id: '/forms/submit/$formId',
   path: '/forms/submit/$formId',
@@ -98,6 +104,7 @@ const FlowExecutionIdCompleteRoute = FlowExecutionIdCompleteRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/dashboard/settings': typeof DashboardSettingsRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/forms/new': typeof FormsNewRoute
   '/sign-in/$': typeof SignInSplatRoute
@@ -114,6 +121,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/dashboard/settings': typeof DashboardSettingsRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/forms/new': typeof FormsNewRoute
   '/sign-in/$': typeof SignInSplatRoute
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/dashboard/settings': typeof DashboardSettingsRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/forms/new': typeof FormsNewRoute
   '/sign-in/$': typeof SignInSplatRoute
@@ -149,6 +158,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/mcp'
+    | '/dashboard/settings'
     | '/docs/$slug'
     | '/forms/new'
     | '/sign-in/$'
@@ -165,6 +175,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/mcp'
+    | '/dashboard/settings'
     | '/docs/$slug'
     | '/forms/new'
     | '/sign-in/$'
@@ -181,6 +192,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/mcp'
+    | '/dashboard/settings'
     | '/docs/$slug'
     | '/forms/new'
     | '/sign-in/$'
@@ -198,6 +210,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   McpRoute: typeof McpRoute
+  DashboardSettingsRoute: typeof DashboardSettingsRoute
   DocsSlugRoute: typeof DocsSlugRoute
   FormsNewRoute: typeof FormsNewRoute
   SignInSplatRoute: typeof SignInSplatRoute
@@ -270,6 +283,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard/settings': {
+      id: '/dashboard/settings'
+      path: '/dashboard/settings'
+      fullPath: '/dashboard/settings'
+      preLoaderRoute: typeof DashboardSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/forms/submit/$formId': {
       id: '/forms/submit/$formId'
       path: '/forms/submit/$formId'
@@ -318,6 +338,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   McpRoute: McpRoute,
+  DashboardSettingsRoute: DashboardSettingsRoute,
   DocsSlugRoute: DocsSlugRoute,
   FormsNewRoute: FormsNewRoute,
   SignInSplatRoute: SignInSplatRoute,

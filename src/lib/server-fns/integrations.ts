@@ -1,117 +1,22 @@
 import { createServerFn } from '@tanstack/react-start'
-import { auth } from '@clerk/tanstack-react-start/server'
-import { eq } from 'drizzle-orm'
-import { db } from '../../db/index'
-import { integrationSettings, profiles } from '../../db/schema'
-import { decryptJson, encryptJson, maskSecret } from '../crypto'
+import { encryptJson } from '../crypto'
 import type {
-  IntegrationConfigs,
   IntegrationSettingsView,
   PayPalConfig,
   SmtpConfig,
   XenditConfig,
 } from '../integrations/types'
+import {
+  loadIntegrationConfigs,
+  requireProfile,
+  toIntegrationView,
+  upsertIntegrationConfig,
+} from '../integrations/credentials'
 
-// ── Internal helpers (server-only, not exposed as server fns) ──
-
-async function ensureProfile(clerkId: string) {
-  const existing = await db
-    .select()
-    .from(profiles)
-    .where(eq(profiles.clerkId, clerkId))
-    .limit(1)
-  if (existing.length > 0) return existing[0]
-  const [created] = await db.insert(profiles).values({ clerkId }).returning()
-  return created
-}
-
-async function requireProfile() {
-  const { userId } = await auth()
-  if (!userId) throw new Error('Unauthorized')
-  return ensureProfile(userId)
-}
-
-async function loadRow(profileId: number) {
-  const [row] = await db
-    .select()
-    .from(integrationSettings)
-    .where(eq(integrationSettings.profileId, profileId))
-    .limit(1)
-  return row ?? null
-}
-
-function decryptOrNull<T>(token: string | null): T | null {
-  if (!token) return null
-  try {
-    return decryptJson<T>(token)
-  } catch {
-    // Wrong/rotated key or corrupted data — treat as not configured rather than
-    // crashing the whole settings page.
-    return null
-  }
-}
-
-/**
- * Loads and decrypts every integration config for a profile. SERVER-ONLY —
- * returns raw secrets, so never call this from a path that serializes to the
- * client. Used by payment gateways / the email sender to pick up the form
- * owner's own credentials.
- */
-export async function loadIntegrationConfigs(
-  profileId: number,
-): Promise<IntegrationConfigs> {
-  const row = await loadRow(profileId)
-  return {
-    xendit: decryptOrNull<XenditConfig>(row?.xenditConfig ?? null),
-    paypal: decryptOrNull<PayPalConfig>(row?.paypalConfig ?? null),
-    smtp: decryptOrNull<SmtpConfig>(row?.smtpConfig ?? null),
-  }
-}
-
-function toView(configs: IntegrationConfigs): IntegrationSettingsView {
-  const { xendit, paypal, smtp } = configs
-  return {
-    xendit: {
-      configured: !!xendit,
-      secretKeyMask: xendit ? maskSecret(xendit.secretKey) : null,
-      hasWebhookToken: !!xendit?.webhookToken,
-    },
-    paypal: {
-      configured: !!paypal,
-      clientId: paypal?.clientId ?? null,
-      clientSecretMask: paypal ? maskSecret(paypal.clientSecret) : null,
-      mode: paypal?.mode ?? 'sandbox',
-    },
-    smtp: {
-      configured: !!smtp,
-      host: smtp?.host ?? null,
-      port: smtp?.port ?? null,
-      secure: smtp?.secure ?? true,
-      user: smtp?.user ?? null,
-      passwordSet: !!smtp?.password,
-      fromEmail: smtp?.fromEmail ?? null,
-      fromName: smtp?.fromName ?? null,
-    },
-  }
-}
-
-async function upsert(
-  profileId: number,
-  patch: Partial<
-    Pick<
-      typeof integrationSettings.$inferInsert,
-      'xenditConfig' | 'paypalConfig' | 'smtpConfig'
-    >
-  >,
-) {
-  await db
-    .insert(integrationSettings)
-    .values({ profileId, ...patch })
-    .onConflictDoUpdate({
-      target: integrationSettings.profileId,
-      set: { ...patch, updatedAt: new Date() },
-    })
-}
+// All DB/crypto access lives in `../integrations/credentials` (server-only).
+// These functions only reference it inside `.handler()` bodies, which the
+// TanStack Start compiler strips from the client bundle — keeping the Postgres
+// driver (and `Buffer`) out of the browser.
 
 // ── Server functions (client-callable) ──
 
@@ -123,7 +28,7 @@ export const getIntegrationSettings = createServerFn({ method: 'GET' }).handler(
   async (): Promise<IntegrationSettingsView> => {
     const profile = await requireProfile()
     const configs = await loadIntegrationConfigs(profile.id)
-    return toView(configs)
+    return toIntegrationView(configs)
   },
 )
 
@@ -146,7 +51,7 @@ export const saveXenditSettings = createServerFn({ method: 'POST' })
       secretKey,
       webhookToken: data.webhookToken?.trim() || undefined,
     }
-    await upsert(profile.id, { xenditConfig: encryptJson(config) })
+    await upsertIntegrationConfig(profile.id, { xenditConfig: encryptJson(config) })
     return { success: true }
   })
 
@@ -175,7 +80,7 @@ export const savePaypalSettings = createServerFn({ method: 'POST' })
       clientSecret,
       mode: data.mode === 'live' ? 'live' : 'sandbox',
     }
-    await upsert(profile.id, { paypalConfig: encryptJson(config) })
+    await upsertIntegrationConfig(profile.id, { paypalConfig: encryptJson(config) })
     return { success: true }
   })
 
@@ -212,7 +117,7 @@ export const saveSmtpSettings = createServerFn({ method: 'POST' })
       fromEmail: data.fromEmail.trim(),
       fromName: data.fromName?.trim() || undefined,
     }
-    await upsert(profile.id, { smtpConfig: encryptJson(config) })
+    await upsertIntegrationConfig(profile.id, { smtpConfig: encryptJson(config) })
     return { success: true }
   })
 
@@ -227,6 +132,6 @@ export const deleteIntegration = createServerFn({ method: 'POST' })
         : data.provider === 'paypal'
           ? { paypalConfig: null }
           : { smtpConfig: null }
-    await upsert(profile.id, column)
+    await upsertIntegrationConfig(profile.id, column)
     return { success: true }
   })

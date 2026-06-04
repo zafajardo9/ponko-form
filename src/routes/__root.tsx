@@ -109,6 +109,12 @@ function TopNav() {
               >
                 Dashboard
               </Link>
+              <Link
+                to="/dashboard/settings"
+                className="text-sm text-[#6c6a64] hover:text-[#141413] transition-colors [&.active]:text-[#141413] [&.active]:font-medium"
+              >
+                Settings
+              </Link>
             </Show>
             <Link
               to="/docs"
