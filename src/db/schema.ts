@@ -47,6 +47,35 @@ export const profiles = pgTable(
   (table) => [uniqueIndex('profiles_clerk_id_idx').on(table.clerkId)],
 )
 
+/**
+ * INTEGRATION SETTINGS
+ * Per-user (per-profile) credentials for external services: payment gateways
+ * (Xendit, PayPal) and outbound email (SMTP). Each `*Config` column holds an
+ * AES-256-GCM-encrypted JSON blob (see `src/lib/crypto.ts`) — the plaintext
+ * secrets are NEVER stored. A null column means that integration is not
+ * configured for this user. The non-secret presence/metadata needed by the UI
+ * is derived server-side after decryption and never exposes raw secrets to the
+ * client.
+ *
+ * Decrypted shapes:
+ *   xenditConfig: { secretKey: string, webhookToken?: string }
+ *   paypalConfig: { clientId: string, clientSecret: string, mode: 'sandbox' | 'live' }
+ *   smtpConfig:   { host: string, port: number, secure: boolean, user: string,
+ *                   password: string, fromEmail: string, fromName?: string }
+ */
+export const integrationSettings = pgTable('integration_settings', {
+  id: serial().primaryKey(),
+  profileId: integer('profile_id')
+    .notNull()
+    .unique()
+    .references(() => profiles.id, { onDelete: 'cascade' }),
+  xenditConfig: text('xendit_config'), // encrypted JSON, null = not configured
+  paypalConfig: text('paypal_config'), // encrypted JSON, null = not configured
+  smtpConfig: text('smtp_config'), // encrypted JSON, null = not configured
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
 export const forms = pgTable(
   'forms',
   {

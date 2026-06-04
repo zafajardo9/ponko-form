@@ -15,6 +15,21 @@ export interface PaymentResult {
 
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded'
 
+/**
+ * Per-merchant credentials passed to a gateway at call time. These come from the
+ * form owner's encrypted `integration_settings` row (see
+ * `loadIntegrationConfigs`). When omitted, gateways fall back to the
+ * platform-wide `process.env` keys for backward compatibility.
+ */
+export interface GatewayCredentials {
+  // Xendit
+  secretKey?: string
+  // PayPal
+  clientId?: string
+  clientSecret?: string
+  mode?: 'sandbox' | 'live'
+}
+
 export interface GatewayConfigField {
   key: string
   label: string

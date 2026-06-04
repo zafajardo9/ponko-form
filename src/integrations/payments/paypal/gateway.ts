@@ -1,5 +1,11 @@
 import { PaymentGateway } from '../base'
-import type { PaymentRequest, PaymentResult, PaymentStatus, GatewayConfigSchema } from '../types'
+import type {
+  PaymentRequest,
+  PaymentResult,
+  PaymentStatus,
+  GatewayConfigSchema,
+  GatewayCredentials,
+} from '../types'
 
 export class PayPalGateway extends PaymentGateway {
   getGatewaySlug(): string {
@@ -10,19 +16,20 @@ export class PayPalGateway extends PaymentGateway {
     return 'PayPal'
   }
 
-  private get baseUrl(): string {
-    const mode = process.env.PAYPAL_MODE ?? 'sandbox'
+  // Prefer the form owner's own mode/keys; fall back to platform env vars.
+  private baseUrl(credentials?: GatewayCredentials): string {
+    const mode = credentials?.mode ?? process.env.PAYPAL_MODE ?? 'sandbox'
     return mode === 'live'
       ? 'https://api-m.paypal.com'
       : 'https://api-m.sandbox.paypal.com'
   }
 
-  private async getAccessToken(): Promise<string> {
-    const clientId = process.env.PAYPAL_CLIENT_ID
-    const clientSecret = process.env.PAYPAL_CLIENT_SECRET
+  private async getAccessToken(credentials?: GatewayCredentials): Promise<string> {
+    const clientId = credentials?.clientId || process.env.PAYPAL_CLIENT_ID
+    const clientSecret = credentials?.clientSecret || process.env.PAYPAL_CLIENT_SECRET
     if (!clientId || !clientSecret) throw new Error('PayPal credentials not configured')
 
-    const response = await fetch(`${this.baseUrl}/v1/oauth2/token`, {
+    const response = await fetch(`${this.baseUrl(credentials)}/v1/oauth2/token`, {
       method: 'POST',
       headers: {
         Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
@@ -36,12 +43,15 @@ export class PayPalGateway extends PaymentGateway {
     return data.access_token
   }
 
-  async createPayment(request: PaymentRequest): Promise<PaymentResult> {
+  async createPayment(
+    request: PaymentRequest,
+    credentials?: GatewayCredentials,
+  ): Promise<PaymentResult> {
     try {
-      const accessToken = await this.getAccessToken()
+      const accessToken = await this.getAccessToken(credentials)
       const value = (request.amount / 100).toFixed(2)
 
-      const response = await fetch(`${this.baseUrl}/v2/checkout/orders`, {
+      const response = await fetch(`${this.baseUrl(credentials)}/v2/checkout/orders`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -87,11 +97,14 @@ export class PayPalGateway extends PaymentGateway {
     }
   }
 
-  async verifyPayment(gatewayPaymentId: string): Promise<PaymentStatus> {
+  async verifyPayment(
+    gatewayPaymentId: string,
+    credentials?: GatewayCredentials,
+  ): Promise<PaymentStatus> {
     try {
-      const accessToken = await this.getAccessToken()
+      const accessToken = await this.getAccessToken(credentials)
       const response = await fetch(
-        `${this.baseUrl}/v2/checkout/orders/${gatewayPaymentId}/capture`,
+        `${this.baseUrl(credentials)}/v2/checkout/orders/${gatewayPaymentId}/capture`,
         {
           method: 'POST',
           headers: {

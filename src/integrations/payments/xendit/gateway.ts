@@ -1,5 +1,11 @@
 import { PaymentGateway } from '../base'
-import type { PaymentRequest, PaymentResult, PaymentStatus, GatewayConfigSchema } from '../types'
+import type {
+  PaymentRequest,
+  PaymentResult,
+  PaymentStatus,
+  GatewayConfigSchema,
+  GatewayCredentials,
+} from '../types'
 
 export class XenditGateway extends PaymentGateway {
   getGatewaySlug(): string {
@@ -10,17 +16,21 @@ export class XenditGateway extends PaymentGateway {
     return 'Xendit'
   }
 
-  private get apiKey(): string {
-    const key = process.env.XENDIT_SECRET_KEY
+  // Prefer the form owner's own key; fall back to the platform env var.
+  private apiKey(credentials?: GatewayCredentials): string {
+    const key = credentials?.secretKey || process.env.XENDIT_SECRET_KEY
     if (!key) throw new Error('Xendit secret key not configured')
     return key
   }
 
-  private get authHeader(): string {
-    return `Basic ${Buffer.from(`${this.apiKey}:`).toString('base64')}`
+  private authHeader(credentials?: GatewayCredentials): string {
+    return `Basic ${Buffer.from(`${this.apiKey(credentials)}:`).toString('base64')}`
   }
 
-  async createPayment(request: PaymentRequest): Promise<PaymentResult> {
+  async createPayment(
+    request: PaymentRequest,
+    credentials?: GatewayCredentials,
+  ): Promise<PaymentResult> {
     try {
       const externalId = `ponkoform-${Date.now()}-${Math.random().toString(36).slice(2)}`
       const amount = request.amount / 100
@@ -28,7 +38,7 @@ export class XenditGateway extends PaymentGateway {
       const response = await fetch('https://api.xendit.co/v2/invoices', {
         method: 'POST',
         headers: {
-          Authorization: this.authHeader,
+          Authorization: this.authHeader(credentials),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -58,10 +68,13 @@ export class XenditGateway extends PaymentGateway {
     }
   }
 
-  async verifyPayment(gatewayPaymentId: string): Promise<PaymentStatus> {
+  async verifyPayment(
+    gatewayPaymentId: string,
+    credentials?: GatewayCredentials,
+  ): Promise<PaymentStatus> {
     try {
       const response = await fetch(`https://api.xendit.co/v2/invoices/${gatewayPaymentId}`, {
-        headers: { Authorization: this.authHeader },
+        headers: { Authorization: this.authHeader(credentials) },
       })
 
       if (!response.ok) return 'failed'
