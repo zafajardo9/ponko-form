@@ -7,8 +7,10 @@ import {
   flowExecutions,
   formSubmissions,
   forms,
+  payments,
+  paymentGateways,
 } from '../../db/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, desc } from 'drizzle-orm'
 import type {
   ExecutionStatus,
   ExecutionHistoryEntry,
@@ -202,6 +204,22 @@ export const getCompletionData = createServerFn({ method: 'GET', strict: false }
       nodes.find((n) => n.type === 'summary' && visitedIds.has(n.id)) ??
       nodes.find((n) => n.type === 'summary')
 
+    // Latest payment attempt for this run (if any), so the receipt can show a
+    // paid/failed state and the gateway used.
+    const [payment] = await db
+      .select({
+        status: payments.status,
+        amount: payments.amount,
+        currency: payments.currency,
+        gatewayPaymentId: payments.gatewayPaymentId,
+        gatewayName: paymentGateways.name,
+      })
+      .from(payments)
+      .innerJoin(paymentGateways, eq(payments.paymentGatewayId, paymentGateways.id))
+      .where(eq(payments.flowExecutionId, data.executionId))
+      .orderBy(desc(payments.id))
+      .limit(1)
+
     return {
       execution,
       formId: flow?.formId ?? null,
@@ -211,6 +229,15 @@ export const getCompletionData = createServerFn({ method: 'GET', strict: false }
         ? {
             title: (summaryNode.config as Record<string, unknown>).title as string | undefined,
             template: (summaryNode.config as Record<string, unknown>).template as string | undefined,
+          }
+        : null,
+      payment: payment
+        ? {
+            status: payment.status,
+            amount: payment.amount, // minor units (cents)
+            currency: payment.currency,
+            gatewayPaymentId: payment.gatewayPaymentId,
+            gatewayName: payment.gatewayName,
           }
         : null,
     }

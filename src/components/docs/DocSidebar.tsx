@@ -1,5 +1,6 @@
-import { Link } from '@tanstack/react-router'
-import type { DocMeta } from '../../lib/docs-parser'
+import { Link } from "@tanstack/react-router";
+import type { DocMeta } from "../../lib/docs-parser";
+import { ArrowLeft } from "lucide-react";
 
 /**
  * DocSidebar
@@ -9,12 +10,16 @@ import type { DocMeta } from '../../lib/docs-parser'
  * plus a link back to the docs index.
  */
 interface DocSidebarProps {
-  currentSlug: string
-  allDocs: DocMeta[]
-  headings: { level: number; text: string; id: string }[]
+  currentSlug: string;
+  allDocs: DocMeta[];
+  headings: { level: number; text: string; id: string }[];
 }
 
-export function DocSidebar({ currentSlug, allDocs, headings }: DocSidebarProps) {
+export function DocSidebar({
+  currentSlug,
+  allDocs,
+  headings,
+}: DocSidebarProps) {
   return (
     <aside className="w-64 flex-none">
       <div className="sticky top-24 flex flex-col gap-6">
@@ -23,12 +28,14 @@ export function DocSidebar({ currentSlug, allDocs, headings }: DocSidebarProps) 
           to="/docs"
           className="flex items-center gap-1.5 text-sm text-[#8e8b82] hover:text-[#141413] transition-colors"
         >
-          ← All docs
+          <ArrowLeft size={14} /> All docs
         </Link>
 
         {/* Current doc title */}
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-[#8e8b82]">On this page</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-[#8e8b82]">
+            On this page
+          </p>
           <nav className="mt-2 flex flex-col gap-1">
             {headings.map((h) => (
               <a
@@ -36,10 +43,10 @@ export function DocSidebar({ currentSlug, allDocs, headings }: DocSidebarProps) 
                 href={`#${h.id}`}
                 className={`text-sm transition-colors hover:text-[#141413] ${
                   h.level === 2
-                    ? 'pl-0 text-[#57544d]'
+                    ? "pl-0 text-[#57544d]"
                     : h.level === 3
-                      ? 'pl-3 text-[#8e8b82]'
-                      : 'pl-6 text-[#8e8b82]'
+                      ? "pl-3 text-[#8e8b82]"
+                      : "pl-6 text-[#8e8b82]"
                 }`}
               >
                 {h.text}
@@ -53,7 +60,9 @@ export function DocSidebar({ currentSlug, allDocs, headings }: DocSidebarProps) 
 
         {/* Other docs */}
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-[#8e8b82]">All docs</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-[#8e8b82]">
+            All docs
+          </p>
           <nav className="mt-2 flex flex-col gap-1">
             {allDocs
               .filter((d) => d.slug !== currentSlug)
@@ -72,5 +81,5 @@ export function DocSidebar({ currentSlug, allDocs, headings }: DocSidebarProps) 
         </div>
       </div>
     </aside>
-  )
+  );
 }

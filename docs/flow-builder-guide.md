@@ -120,13 +120,13 @@ Each node type has a specific purpose, configuration schema, and edge constraint
 - **UI:** Rectangle, purple accent, shows expression preview.
 
 ### 3.5 Payment $
-- **Purpose:** Collect payment through an integrated gateway (PayPal, Xendit, etc.).
+- **Purpose:** Collect a real payment through the form owner's own gateway accounts (PayPal, Xendit).
 - **Configuration:**
-  - `amountVariable` — the `money`-typed variable holding the amount to charge
+  - `amountVariable` — the `money`/`number` variable holding the amount to charge
   - `currency` — e.g., USD, PHP, EUR
-  - `gatewayId` — references an active payment gateway
+  - (No gateway is chosen on the node — the visitor picks at checkout from the methods you connected in **Settings**.)
 - **Edges:** 1 (success path) or 2 (success + failure). The first edge is the success path; the second (optional) is the failure path.
-- **Runtime behavior:** Shows the amount and gateway button. Currently performs a simulated charge (reference `SIM_…`). Live gateway redirect is planned.
+- **Runtime behavior:** Shows the amount and a button per connected gateway. On click, the server creates the order/invoice with your credentials and redirects the visitor to the gateway's hosted checkout; on return the charge is verified and the flow advances onto the success or failure edge. The verified gateway reference is available as `{{payment_ref}}`.
 - **UI:** Rectangle, green accent, shows amount variable.
 
 ### 3.6 Summary ≡
@@ -234,28 +234,44 @@ Every Calculator config has a **Test expression** button. It evaluates the curre
 
 ### 6.1 Setup Steps
 
-1. **Declare** a `money` variable for the amount (e.g., `total_cost`).
-2. **Add a Calculator** (optional) to compute the amount from other variables.
-3. **Add a Payment** node configured with:
-   - **Amount variable** — the `money` variable holding the amount
+1. **Connect a gateway** in **Settings** (`/dashboard/settings`): enter your own PayPal and/or
+   Xendit credentials. They're encrypted at rest; each form charges through *your* accounts.
+2. **Declare** a `money` variable for the amount (e.g., `total_cost`).
+3. **Add a Calculator** (optional) to compute the amount from other variables.
+4. **Add a Payment** node configured with:
+   - **Amount variable** — the `money`/`number` variable holding the amount
    - **Currency** — e.g., USD, PHP, EUR
-   - **Gateway** — the payment provider (PayPal, Xendit, etc.)
-4. **Connect edges**:
+5. **Connect edges**:
    - First edge = **success path** (where the flow goes after payment)
    - Second edge (optional) = **failure path** (where it goes if payment fails)
 
-### 6.2 Gateway Integration
+At checkout the visitor sees a button for each method you connected and picks one — no gateway
+is hard-coded on the node.
 
-Gateways are registered in the `payment_gateways` table. The existing architecture supports:
+### 6.2 How it works at runtime
 
-- **PayPal** — via `PayPalGateway` class
-- **Xendit** — via `XenditGateway` class
+1. Visitor reaches the Payment step → picks PayPal or Xendit.
+2. `initiatePayment` (server) reads the amount from the persisted execution, loads *your*
+   decrypted credentials, creates the gateway order/invoice, and returns its hosted checkout URL.
+3. The browser is redirected to the gateway; the visitor pays.
+4. The gateway returns to `/forms/payment-return?executionId=…`; `finalizePayment` verifies the
+   charge (PayPal captures the order, Xendit reads the invoice).
+5. The flow resumes (`FlowEngine.restore`) and advances onto the success or failure edge.
+   `{{payment_ref}}` holds the gateway's payment id.
 
-To add a new gateway, implement the `PaymentGateway` abstract class with `createPayment()`, `verifyPayment()`, and `getConfigSchema()` methods, then register it in the app bootstrap.
+A `payments` row records each attempt (linked to the flow execution). The amount and credentials
+are always resolved server-side, so a visitor can't tamper with what they're charged.
 
-### 6.3 Current Status
+> **Deployment:** set `APP_URL` to your deployed origin so return URLs are absolute. Webhook-based
+> confirmation of late/asynchronous settlements is a planned follow-up; today confirmation happens
+> on redirect-back.
 
-> **Note:** The runtime currently performs a **simulated charge** (reference prefixed `SIM_…`) so flows are fully testable end-to-end. Wiring the live gateway redirect is planned for a follow-up phase. The integration point is marked in `src/components/flow-execution/PaymentStep.tsx`.
+### 6.3 Adding a new gateway
+
+Implement the `PaymentGateway` abstract class (`createPayment`, `verifyPayment`, `getConfigSchema`)
+and register it in `src/integrations/payments/index.ts`. Add its credential shape to
+`src/lib/integrations/types.ts` + Settings, and a branch in `credentialsForSlug` /
+`getPaymentOptions` (`src/lib/server-fns/payments.ts`).
 
 ---
 

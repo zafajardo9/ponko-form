@@ -159,4 +159,58 @@ describe('FlowEngine', () => {
   it('throws when there is no start node', () => {
     expect(() => new FlowEngine([node(1, 'summary')], [], [])).toThrow('Start node')
   })
+
+  it('restores at a payment node and follows the success path (resume after redirect)', () => {
+    const nodes = [
+      node(1, 'start'),
+      node(2, 'form_field', { bindToVariable: 'email' }),
+      node(3, 'payment', { amountVariable: 'total' }),
+      node(4, 'summary', { template: 'Paid {{payment_ref}}' }),
+      node(5, 'summary', { template: 'Payment failed' }),
+    ]
+    const edges = [edge(1, 1, 2), edge(2, 2, 3), edge(3, 3, 4), edge(4, 3, 5)]
+    const vars = [variable(1, 'email', 'string'), variable(2, 'total', 'money')]
+
+    // Simulate the persisted snapshot at the moment the user left for the gateway.
+    const snapshot = {
+      currentNodeId: 3,
+      variables: { email: 'a@b.com', total: 100 },
+      history: [
+        { nodeId: 1, nodeType: 'start', enteredAt: 'x' },
+        { nodeId: 2, nodeType: 'form_field', enteredAt: 'x' },
+        { nodeId: 3, nodeType: 'payment', enteredAt: 'x' },
+      ],
+      completed: false,
+    }
+
+    const engine = FlowEngine.restore(nodes, edges, vars, snapshot)
+    expect(engine.getCurrentStep().nodeId).toBe(3)
+    expect(engine.getVariableValues().email).toBe('a@b.com')
+
+    engine.advance({ paymentResult: { success: true, gatewayPaymentId: 'INV-9' } })
+    expect(engine.getCurrentStep().nodeId).toBe(4)
+    expect(engine.isComplete()).toBe(true)
+    expect(engine.getVariableValues().payment_ref).toBe('INV-9')
+  })
+
+  it('restores at a payment node and follows the failure path', () => {
+    const nodes = [
+      node(1, 'start'),
+      node(2, 'payment', { amountVariable: 'total' }),
+      node(3, 'summary', { template: 'Paid' }),
+      node(4, 'summary', { template: 'Payment failed' }),
+    ]
+    const edges = [edge(1, 1, 2), edge(2, 2, 3), edge(3, 2, 4)]
+    const engine = FlowEngine.restore(nodes, edges, [], {
+      currentNodeId: 2,
+      variables: { total: 50 },
+      history: [
+        { nodeId: 1, nodeType: 'start', enteredAt: 'x' },
+        { nodeId: 2, nodeType: 'payment', enteredAt: 'x' },
+      ],
+    })
+
+    engine.advance({ paymentResult: { success: false } })
+    expect(engine.getCurrentStep().nodeId).toBe(4)
+  })
 })

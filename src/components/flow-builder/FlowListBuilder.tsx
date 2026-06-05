@@ -6,17 +6,37 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-} from '@dnd-kit/core'
+} from "@dnd-kit/core";
 import {
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
   arrayMove,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
-import type { FlowNode, FlowEdge, FlowNodeType } from '../../lib/flow-engine/types'
-import { linearizePrimaryPath, isPureLinear } from '../../lib/flow-engine/path-utils'
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import type {
+  FlowNode,
+  FlowEdge,
+  FlowNodeType,
+} from "../../lib/flow-engine/types";
+import {
+  linearizePrimaryPath,
+  isPureLinear,
+} from "../../lib/flow-engine/path-utils";
+import {
+  Play,
+  Square,
+  LayoutGrid,
+  Diamond,
+  Sigma,
+  DollarSign,
+  Menu,
+  ExternalLink,
+  GripVertical,
+  AlertCircle,
+  X,
+} from "lucide-react";
 
 /**
  * FlowListBuilder
@@ -29,52 +49,91 @@ import { linearizePrimaryPath, isPureLinear } from '../../lib/flow-engine/path-u
  * grouped under a "Branches" section.
  */
 
-const NODE_META: Record<FlowNodeType, { icon: string; accent: string; label: string }> = {
-  start: { icon: '▶', accent: 'bg-[#d8f0e0] text-[#2f7d52]', label: 'Start' },
-  form_field: { icon: '☐', accent: 'bg-[#dbe7f7] text-[#2f5a9e]', label: 'Form Field' },
-  group: { icon: '⊞', accent: 'bg-[#f3e3da] text-[#a9583e]', label: 'Field Group' },
-  decision: { icon: '◇', accent: 'bg-[#f7ecd0] text-[#9e7424]', label: 'Decision' },
-  calculator: { icon: '∑', accent: 'bg-[#e7ddf7] text-[#6b46a8]', label: 'Calculator' },
-  payment: { icon: '$', accent: 'bg-[#d8f0e0] text-[#2f7d52]', label: 'Payment' },
-  summary: { icon: '≡', accent: 'bg-[#ececea] text-[#57544d]', label: 'Summary' },
-  redirect: { icon: '↗', accent: 'bg-[#ececea] text-[#57544d]', label: 'Redirect' },
-}
+const NODE_META: Record<
+  FlowNodeType,
+  { icon: React.ReactNode; accent: string; label: string }
+> = {
+  start: {
+    icon: <Play size={14} />,
+    accent: "bg-[#d8f0e0] text-[#2f7d52]",
+    label: "Start",
+  },
+  form_field: {
+    icon: <Square size={14} />,
+    accent: "bg-[#dbe7f7] text-[#2f5a9e]",
+    label: "Form Field",
+  },
+  group: {
+    icon: <LayoutGrid size={14} />,
+    accent: "bg-[#f3e3da] text-[#a9583e]",
+    label: "Field Group",
+  },
+  decision: {
+    icon: <Diamond size={14} />,
+    accent: "bg-[#f7ecd0] text-[#9e7424]",
+    label: "Decision",
+  },
+  calculator: {
+    icon: <Sigma size={14} />,
+    accent: "bg-[#e7ddf7] text-[#6b46a8]",
+    label: "Calculator",
+  },
+  payment: {
+    icon: <DollarSign size={14} />,
+    accent: "bg-[#d8f0e0] text-[#2f7d52]",
+    label: "Payment",
+  },
+  summary: {
+    icon: <Menu size={14} />,
+    accent: "bg-[#ececea] text-[#57544d]",
+    label: "Summary",
+  },
+  redirect: {
+    icon: <ExternalLink size={14} />,
+    accent: "bg-[#ececea] text-[#57544d]",
+    label: "Redirect",
+  },
+};
 
-const TERMINAL = new Set<FlowNodeType>(['summary', 'redirect'])
+const TERMINAL = new Set<FlowNodeType>(["summary", "redirect"]);
 
 /** Short subtitle describing a node's current configuration. */
 function nodeDetail(node: FlowNode): string {
-  const c = node.config
+  const c = node.config;
   switch (node.type) {
-    case 'form_field':
-      return c.fieldType ? `${c.fieldType}${c.required ? ' · required' : ''}` : 'Not configured'
-    case 'group':
-      return `${(c.fields as unknown[] | undefined)?.length ?? 0} fields on one step`
-    case 'decision':
-      return `${(c.branches as unknown[] | undefined)?.length ?? 0} branches`
-    case 'calculator':
-      return (c.expression as string) || 'No expression'
-    case 'payment':
-      return c.amountVariable ? `Charge {{${c.amountVariable}}}` : 'No amount set'
-    case 'summary':
-      return (c.title as string) || 'Summary'
-    case 'redirect':
-      return (c.urlTemplate as string) || 'No URL'
+    case "form_field":
+      return c.fieldType
+        ? `${c.fieldType}${c.required ? " · required" : ""}`
+        : "Not configured";
+    case "group":
+      return `${(c.fields as unknown[] | undefined)?.length ?? 0} fields on one step`;
+    case "decision":
+      return `${(c.branches as unknown[] | undefined)?.length ?? 0} branches`;
+    case "calculator":
+      return (c.expression as string) || "No expression";
+    case "payment":
+      return c.amountVariable
+        ? `Charge {{${c.amountVariable}}}`
+        : "No amount set";
+    case "summary":
+      return (c.title as string) || "Summary";
+    case "redirect":
+      return (c.urlTemplate as string) || "No URL";
     default:
-      return ''
+      return "";
   }
 }
 
 interface FlowListBuilderProps {
-  nodes: FlowNode[]
-  edges: FlowEdge[]
-  selectedNodeId: number | null
-  byNodeErrors: Map<number, string[]>
-  onSelect: (nodeId: number | null) => void
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  selectedNodeId: number | null;
+  byNodeErrors: Map<number, string[]>;
+  onSelect: (nodeId: number | null) => void;
   /** Full new primary-chain order (Start first, terminal last). */
-  onReorder: (orderedNodeIds: number[]) => void
-  onDelete: (nodeId: number) => void
-  onEditBranchesInCanvas: () => void
+  onReorder: (orderedNodeIds: number[]) => void;
+  onDelete: (nodeId: number) => void;
+  onEditBranchesInCanvas: () => void;
 }
 
 export function FlowListBuilder({
@@ -89,32 +148,36 @@ export function FlowListBuilder({
 }: FlowListBuilderProps) {
   const sensors = useSensors(
     useSensor(PointerSensor),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  )
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
-  const byId = new Map(nodes.map((n) => [n.id, n]))
-  const { ordered, offPath } = linearizePrimaryPath(nodes, edges)
-  const canReorder = isPureLinear(nodes, edges)
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const { ordered, offPath } = linearizePrimaryPath(nodes, edges);
+  const canReorder = isPureLinear(nodes, edges);
 
-  const orderedNodes = ordered.map((id) => byId.get(id)!).filter(Boolean)
-  const startNode = orderedNodes.find((n) => n.type === 'start') ?? null
-  const middle = orderedNodes.filter((n) => n.type !== 'start' && !TERMINAL.has(n.type))
-  const terminals = orderedNodes.filter((n) => TERMINAL.has(n.type))
-  const offPathNodes = offPath.map((id) => byId.get(id)!).filter(Boolean)
+  const orderedNodes = ordered.map((id) => byId.get(id)!).filter(Boolean);
+  const startNode = orderedNodes.find((n) => n.type === "start") ?? null;
+  const middle = orderedNodes.filter(
+    (n) => n.type !== "start" && !TERMINAL.has(n.type),
+  );
+  const terminals = orderedNodes.filter((n) => TERMINAL.has(n.type));
+  const offPathNodes = offPath.map((id) => byId.get(id)!).filter(Boolean);
 
   function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const oldIndex = middle.findIndex((n) => n.id === active.id)
-    const newIndex = middle.findIndex((n) => n.id === over.id)
-    if (oldIndex < 0 || newIndex < 0) return
-    const newMiddle = arrayMove(middle, oldIndex, newIndex)
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = middle.findIndex((n) => n.id === active.id);
+    const newIndex = middle.findIndex((n) => n.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const newMiddle = arrayMove(middle, oldIndex, newIndex);
     const full = [
       ...(startNode ? [startNode.id] : []),
       ...newMiddle.map((n) => n.id),
       ...terminals.map((n) => n.id),
-    ]
-    onReorder(full)
+    ];
+    onReorder(full);
   }
 
   return (
@@ -123,7 +186,7 @@ export function FlowListBuilder({
       {startNode && (
         <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-[#8e8b82]">
           <span className="flex h-5 w-5 items-center justify-center rounded bg-[#d8f0e0] text-[10px] text-[#2f7d52]">
-            ▶
+            <Play size={12} />
           </span>
           Start
         </div>
@@ -135,18 +198,27 @@ export function FlowListBuilder({
         </div>
       )}
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={middle.map((n) => n.id)} strategy={verticalListSortingStrategy}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={middle.map((n) => n.id)}
+          strategy={verticalListSortingStrategy}
+        >
           <div className="flex flex-col gap-2">
             {middle.map((node) => (
               <SortableNodeRow
                 key={node.id}
                 node={node}
-                draggable={canReorder && node.type !== 'decision'}
+                draggable={canReorder && node.type !== "decision"}
                 isSelected={selectedNodeId === node.id}
                 errors={byNodeErrors.get(node.id)}
-                isBranchSource={node.type === 'decision'}
-                onSelect={() => onSelect(selectedNodeId === node.id ? null : node.id)}
+                isBranchSource={node.type === "decision"}
+                onSelect={() =>
+                  onSelect(selectedNodeId === node.id ? null : node.id)
+                }
                 onDelete={() => onDelete(node.id)}
                 onEditBranchesInCanvas={onEditBranchesInCanvas}
               />
@@ -157,8 +229,11 @@ export function FlowListBuilder({
 
       {!canReorder && middle.length > 1 && (
         <p className="px-1 text-xs text-[#8e8b82]">
-          This form has branches — reorder steps in{' '}
-          <button onClick={onEditBranchesInCanvas} className="text-[#cc785c] underline">
+          This form has branches — reorder steps in{" "}
+          <button
+            onClick={onEditBranchesInCanvas}
+            className="text-[#cc785c] underline"
+          >
             Canvas view
           </button>
           .
@@ -197,47 +272,58 @@ export function FlowListBuilder({
               isSelected={selectedNodeId === node.id}
               errors={byNodeErrors.get(node.id)}
               muted
-              onSelect={() => onSelect(selectedNodeId === node.id ? null : node.id)}
+              onSelect={() =>
+                onSelect(selectedNodeId === node.id ? null : node.id)
+              }
             />
           ))}
         </div>
       )}
     </div>
-  )
+  );
 }
 
 interface NodeRowProps {
-  node: FlowNode
-  isSelected: boolean
-  errors?: string[]
-  muted?: boolean
-  isBranchSource?: boolean
-  onSelect: () => void
-  onDelete?: () => void
-  onEditBranchesInCanvas?: () => void
-  dragHandle?: React.ReactNode
+  node: FlowNode;
+  isSelected: boolean;
+  errors?: string[];
+  muted?: boolean;
+  isBranchSource?: boolean;
+  onSelect: () => void;
+  onDelete?: () => void;
+  onEditBranchesInCanvas?: () => void;
+  dragHandle?: React.ReactNode;
 }
 
 /** Static (non-sortable) row — used for terminal and off-path nodes. */
 function NodeRow(props: NodeRowProps) {
-  const { node, isSelected, errors, muted, onSelect, onDelete, isBranchSource, onEditBranchesInCanvas, dragHandle } =
-    props
-  const meta = NODE_META[node.type]
-  const hasError = !!errors?.length
+  const {
+    node,
+    isSelected,
+    errors,
+    muted,
+    onSelect,
+    onDelete,
+    isBranchSource,
+    onEditBranchesInCanvas,
+    dragHandle,
+  } = props;
+  const meta = NODE_META[node.type];
+  const hasError = !!errors?.length;
 
   return (
     <div
       className={`group relative flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
         isSelected
-          ? 'border-[#cc785c] ring-2 ring-[#cc785c]/20 bg-[#faf9f5]'
+          ? "border-[#cc785c] ring-2 ring-[#cc785c]/20 bg-[#faf9f5]"
           : hasError
-            ? 'border-[#e3b5ab] bg-[#fbf3f0]'
-            : 'border-[#e6dfd8] bg-[#faf9f5] hover:border-[#cc785c]/50'
-      } ${muted ? 'opacity-80' : ''}`}
+            ? "border-[#e3b5ab] bg-[#fbf3f0]"
+            : "border-[#e6dfd8] bg-[#faf9f5] hover:border-[#cc785c]/50"
+      } ${muted ? "opacity-80" : ""}`}
     >
       {dragHandle}
       <span
-        className={`flex h-7 w-7 flex-none items-center justify-center rounded-md text-xs font-semibold ${meta.accent}`}
+        className={`flex h-7 w-7 flex-none items-center justify-center rounded-md ${meta.accent}`}
       >
         {meta.icon}
       </span>
@@ -246,7 +332,7 @@ function NodeRow(props: NodeRowProps) {
           <span className="text-xs font-medium uppercase tracking-wider text-[#8e8b82]">
             {meta.label}
           </span>
-          {hasError && <span className="text-xs text-[#c64545]">⚠ {errors!.length}</span>}
+          {hasError && <AlertCircle size={12} className="text-[#c64545]" />}
         </div>
         <p className="mt-0.5 truncate text-sm font-medium text-[#141413]">
           {node.label || meta.label}
@@ -265,17 +351,17 @@ function NodeRow(props: NodeRowProps) {
       {onDelete && (
         <button
           onClick={(e) => {
-            e.stopPropagation()
-            onDelete()
+            e.stopPropagation();
+            onDelete();
           }}
           className="hidden flex-none text-sm text-[#8e8b82] hover:text-[#c64545] group-hover:block"
           aria-label="Delete step"
         >
-          ✕
+          <X size={14} />
         </button>
       )}
     </div>
-  )
+  );
 }
 
 /** Sortable wrapper around NodeRow for the draggable middle nodes. */
@@ -289,24 +375,31 @@ function SortableNodeRow({
   onDelete,
   onEditBranchesInCanvas,
 }: {
-  node: FlowNode
-  draggable: boolean
-  isSelected: boolean
-  errors?: string[]
-  isBranchSource: boolean
-  onSelect: () => void
-  onDelete: () => void
-  onEditBranchesInCanvas: () => void
+  node: FlowNode;
+  draggable: boolean;
+  isSelected: boolean;
+  errors?: string[];
+  isBranchSource: boolean;
+  onSelect: () => void;
+  onDelete: () => void;
+  onEditBranchesInCanvas: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
     id: node.id,
     disabled: !draggable,
-  })
+  });
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-  }
+  };
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -323,15 +416,17 @@ function SortableNodeRow({
             {...attributes}
             {...listeners}
             className={`flex-none touch-none text-[#8e8b82] ${
-              draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-default opacity-30'
+              draggable
+                ? "cursor-grab active:cursor-grabbing"
+                : "cursor-default opacity-30"
             }`}
             aria-label="Drag to reorder"
             disabled={!draggable}
           >
-            ⠿
+            <GripVertical size={16} />
           </button>
         }
       />
     </div>
-  )
+  );
 }

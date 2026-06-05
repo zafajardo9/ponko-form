@@ -8,29 +8,37 @@ import {
   advanceExecution,
   completeExecution,
 } from '../../lib/server-fns/flow-executions'
+import { getResumeData } from '../../lib/server-fns/payments'
 import { Card } from '../ui/Card'
 import { FlowStepRenderer } from './FlowStepRenderer'
 
 /**
  * FlowExecutionContainer
  *
- * Drives the end-user, step-by-step flow experience:
- *   1. Creates a server-side execution record (startFlowExecution)
- *   2. Runs a client-side FlowEngine over the flow definition
- *   3. Renders each step via FlowStepRenderer
- *   4. Persists progress on each step (advanceExecution)
- *   5. On completion, records the submission (completeExecution) and shows the
- *      terminal step (redirect nodes navigate to their URL)
+ * Drives the end-user, step-by-step flow experience. Two entry modes:
+ *
+ * - Fresh start (default): create a new execution, run a client-side FlowEngine
+ *   over the flow definition passed as props, render each step, persist progress,
+ *   and on completion record the submission.
+ *
+ * - Resume (after a payment redirect): given an existing executionId and the
+ *   payment result, fetch the persisted execution + flow definition, rebuild the
+ *   engine at the payment node via FlowEngine.restore(), inject the result to
+ *   advance onto the success/failure path, then continue normally.
  */
 interface FlowExecutionContainerProps {
-  flowId: number
-  title: string
+  /** Fresh-start props (omitted in resume mode — fetched via getResumeData). */
+  flowId?: number
+  title?: string
   description?: string | null
-  nodes: FlowNode[]
-  edges: FlowEdge[]
-  variables: FlowVariable[]
-  /** Map of gatewayId → name for the payment step label. */
-  gateways: { id: number; name: string }[]
+  nodes?: FlowNode[]
+  edges?: FlowEdge[]
+  variables?: FlowVariable[]
+  /** Resume mode: continue an existing execution with a known payment result. */
+  resume?: {
+    executionId: number
+    paymentResult: { success: boolean; gatewayPaymentId?: string }
+  }
 }
 
 export function FlowExecutionContainer({
@@ -40,7 +48,7 @@ export function FlowExecutionContainer({
   nodes,
   edges,
   variables,
-  gateways,
+  resume,
 }: FlowExecutionContainerProps) {
   const navigate = useNavigate()
   const engineRef = useRef<FlowEngine | null>(null)
@@ -50,8 +58,12 @@ export function FlowExecutionContainer({
   const [ready, setReady] = useState(false)
   const [, force] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [meta, setMeta] = useState<{ title: string; description?: string | null }>({
+    title: title ?? 'Form',
+    description,
+  })
 
-  const startMut = useMutation({ mutationFn: () => startFlowExecution({ data: { flowId } }) })
+  const startMut = useMutation({ mutationFn: (id: number) => startFlowExecution({ data: { flowId: id } }) })
   const advanceMut = useMutation({
     mutationFn: (vars: {
       executionId: number
@@ -66,22 +78,40 @@ export function FlowExecutionContainer({
       completeExecution({ data: vars }),
   })
 
-  // Initialise: create the execution record and the engine, then skip the Start node.
+  // Initialise once: either start a new run or resume an existing one.
   useEffect(() => {
     if (startedRef.current) return
     startedRef.current = true
     ;(async () => {
       try {
-        const execution = await startMut.mutateAsync()
-        executionIdRef.current = execution.id
-        const engine = new FlowEngine(nodes, edges, variables, execution.variables ?? {})
-        engine.advance() // move past Start to the first interactive step
-        engineRef.current = engine
+        if (resume) {
+          const data = await getResumeData({ data: { executionId: resume.executionId } })
+          executionIdRef.current = data.execution.id
+          setMeta({ title: data.title, description: data.description })
+          const engine = FlowEngine.restore(data.nodes, data.edges, data.variables, {
+            currentNodeId: data.execution.currentNodeId!,
+            variables: (data.execution.variables as Record<string, unknown>) ?? {},
+            history: (data.execution.history as any[]) ?? [],
+            completed: false,
+          })
+          // Apply the payment outcome to move onto the success/failure path.
+          engine.advance({ paymentResult: resume.paymentResult })
+          engineRef.current = engine
+        } else {
+          if (!flowId || !nodes || !edges || !variables) {
+            throw new Error('Missing flow definition')
+          }
+          const execution = await startMut.mutateAsync(flowId)
+          executionIdRef.current = execution.id
+          const engine = new FlowEngine(nodes, edges, variables, execution.variables ?? {})
+          engine.advance() // move past Start to the first interactive step
+          engineRef.current = engine
+        }
         persist()
         maybeComplete()
         setReady(true)
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not start the flow.')
+        setError(e instanceof Error ? e.message : 'Could not load the form.')
       }
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -159,22 +189,20 @@ export function FlowExecutionContainer({
 
   const engine = engineRef.current
   const step = engine.getCurrentStep()
-  const config = step.config as Record<string, unknown>
-  const gatewayName = gateways.find((g) => g.id === (config.gatewayId as number))?.name
 
   return (
     <div className="mx-auto max-w-xl px-6 py-16">
       <Card>
         <div className="mb-8">
-          <h1 className="text-2xl font-medium text-[#141413]">{title}</h1>
-          {description && <p className="mt-2 text-[#6c6a64]">{description}</p>}
+          <h1 className="text-2xl font-medium text-[#141413]">{meta.title}</h1>
+          {meta.description && <p className="mt-2 text-[#6c6a64]">{meta.description}</p>}
         </div>
 
         <FlowStepRenderer
           step={step}
           values={engine.getVariableValues()}
           complete={engine.isComplete()}
-          gatewayName={gatewayName}
+          executionId={executionIdRef.current}
           stepNumber={engine.getCurrentStepNumber()}
           totalSteps={engine.getTotalSteps()}
           canGoBack={engine.getCurrentStepNumber() > 1 && !engine.isComplete()}

@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { getFields } from '../../lib/server-fns/fields'
-import { getForms } from '../../lib/server-fns/forms'
+import { getPublicForm } from '../../lib/server-fns/forms'
 import { getFlow } from '../../lib/server-fns/flows'
-import { getActiveGateways } from '../../lib/server-fns/gateways'
 import { submitFormResponse } from '../../lib/server-fns/submissions'
 import { FieldRenderer } from '../form-builder/fields/FieldRenderer'
 import { FlowExecutionContainer } from '../flow-execution/FlowExecutionContainer'
@@ -35,9 +34,9 @@ export function PublicFormView({ formId, embed = false }: PublicFormViewProps) {
   const [errors, setErrors] = useState<Record<number, string>>({})
   const [submitted, setSubmitted] = useState(false)
 
-  const { data: allForms = [], isLoading: formsLoading } = useQuery({
-    queryKey: ['public-forms'],
-    queryFn: () => getForms(),
+  const { data: form, isLoading: formsLoading } = useQuery({
+    queryKey: ['public-form', String(formId)],
+    queryFn: () => getPublicForm({ data: { formId } }),
   })
 
   const { data: fields = [], isLoading: fieldsLoading } = useQuery({
@@ -50,18 +49,11 @@ export function PublicFormView({ formId, embed = false }: PublicFormViewProps) {
     queryFn: () => getFlow({ data: { formId } }),
   })
 
-  const { data: gateways = [] } = useQuery({
-    queryKey: ['gateways'],
-    queryFn: () => getActiveGateways(),
-  })
-
   const submitMutation = useMutation({
     mutationFn: (formData: Record<string, unknown>) =>
       submitFormResponse({ data: { formId, formData } }),
     onSuccess: () => setSubmitted(true),
   })
-
-  const form = (allForms as any[]).find((f) => f.id === formId)
 
   // Outer wrapper: centered card on the standalone page, fluid full-width when embedded.
   const wrapperClass = embed
@@ -76,7 +68,7 @@ export function PublicFormView({ formId, embed = false }: PublicFormViewProps) {
     )
   }
 
-  if (!form || form.status !== 'published') {
+  if (!form) {
     return (
       <div className={embed ? 'w-full px-4 py-12 text-center' : 'mx-auto max-w-xl px-6 py-24 text-center'}>
         <h1 className="text-2xl font-medium text-[#141413]">Form not found</h1>
@@ -97,7 +89,6 @@ export function PublicFormView({ formId, embed = false }: PublicFormViewProps) {
         nodes={flow.nodes}
         edges={flow.edges}
         variables={flow.variables}
-        gateways={gateways as { id: number; name: string }[]}
       />
     )
   }

@@ -3,38 +3,38 @@ import { Button } from '../ui/Button'
 /**
  * FlowToolbar
  *
- * Action bar above the canvas. Most edits auto-save (config on blur, positions
- * on drag-stop), so "Save now" simply flushes positions and confirms. Validate
- * toggles the error list, Preview opens the test-run panel, Variables toggles
- * the variables manager, and Auto-layout tidies node positions.
+ * Action bar shown above the builder in BOTH List and Canvas views. Most edits
+ * auto-save (config on blur, positions on drag-stop, list reorder), so "Save
+ * now" simply flushes and confirms. Validate toggles the error list, Variables
+ * toggles the variables manager, and Auto-layout (Canvas only) tidies node
+ * positions. Preview lives in the page header, so it is intentionally not here.
  */
 interface FlowToolbarProps {
   errorCount: number
   validateOpen: boolean
-  previewing: boolean
+  variablesOpen: boolean
   saving: boolean
   saved: boolean
   onSave: () => void
   onToggleValidate: () => void
-  onTogglePreview: () => void
   onToggleVariables: () => void
-  onAutoLayout: () => void
+  /** Canvas-only: auto-layout has no meaning in the List view. */
+  onAutoLayout?: () => void
 }
 
 export function FlowToolbar({
   errorCount,
   validateOpen,
-  previewing,
+  variablesOpen,
   saving,
   saved,
   onSave,
   onToggleValidate,
-  onTogglePreview,
   onToggleVariables,
   onAutoLayout,
 }: FlowToolbarProps) {
   return (
-    <div className="flex items-center gap-2 border-b border-[#e6dfd8] bg-[#faf9f5] px-4 py-2">
+    <div className="flex flex-1 items-center gap-2">
       <Button variant="secondary" size="sm" onClick={onSave} disabled={saving}>
         {saving ? 'Saving…' : 'Save now'}
       </Button>
@@ -51,14 +51,17 @@ export function FlowToolbar({
         >
           {errorCount > 0 ? `${errorCount} issue${errorCount > 1 ? 's' : ''}` : 'Valid ✓'}
         </button>
-        <Button variant="secondary" size="sm" onClick={onAutoLayout}>
-          Auto-layout
-        </Button>
-        <Button variant="secondary" size="sm" onClick={onToggleVariables}>
+        {onAutoLayout && (
+          <Button variant="secondary" size="sm" onClick={onAutoLayout}>
+            Auto-layout
+          </Button>
+        )}
+        <Button
+          variant={variablesOpen ? 'primary' : 'secondary'}
+          size="sm"
+          onClick={onToggleVariables}
+        >
           Variables
-        </Button>
-        <Button variant={previewing ? 'primary' : 'primary'} size="sm" onClick={onTogglePreview}>
-          {previewing ? 'Close preview' : 'Preview'}
         </Button>
       </div>
     </div>

@@ -155,6 +155,13 @@ export const payments = pgTable('payments', {
   paymentGatewayId: integer('payment_gateway_id')
     .notNull()
     .references(() => paymentGateways.id),
+  // Links a payment to its in-progress flow run. The form_submission row only
+  // exists once the flow completes, so payments are tracked by execution first
+  // and the submission is backfilled at completion.
+  flowExecutionId: integer('flow_execution_id').references(
+    () => flowExecutions.id,
+    { onDelete: 'set null' },
+  ),
   amount: integer('amount').notNull(),
   currency: varchar('currency', { length: 3 }).notNull().default('USD'),
   status: paymentStatusEnum('status').default('pending').notNull(),

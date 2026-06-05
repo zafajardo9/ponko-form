@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "@tanstack/react-router";
 import { Badge } from "../ui/Badge";
+import { Edit, Trash2 } from "lucide-react";
 
 interface FormCardProps {
   form: {
@@ -51,10 +52,19 @@ export function FormCard({ form, onDelete }: FormCardProps) {
           className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8e8b82] hover:bg-[#e8e0d2] hover:text-[#141413] transition-colors"
           aria-label="Actions"
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <circle cx="8" cy="3" r="1.5" />
-            <circle cx="8" cy="8" r="1.5" />
-            <circle cx="8" cy="13" r="1.5" />
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="12" cy="5" r="1" />
+            <circle cx="12" cy="12" r="1" />
+            <circle cx="12" cy="19" r="1" />
           </svg>
         </button>
 
@@ -71,8 +81,8 @@ export function FormCard({ form, onDelete }: FormCardProps) {
                 className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#141413] hover:bg-[#f5f0e8] transition-colors"
                 onClick={() => setMenuOpen(false)}
               >
-                <span className="w-5 text-center text-xs text-[#cc785c]">
-                  ◆
+                <span className="w-5 text-center text-[#cc785c]">
+                  <Edit size={14} />
                 </span>
                 Edit
               </Link>
@@ -88,7 +98,9 @@ export function FormCard({ form, onDelete }: FormCardProps) {
                 }}
                 className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-[#c64545] hover:bg-[#fbeaea] transition-colors"
               >
-                <span className="w-5 text-center text-xs">✕</span>
+                <span className="w-5 text-center text-[#c64545]">
+                  <Trash2 size={14} />
+                </span>
                 Delete
               </button>
             </div>

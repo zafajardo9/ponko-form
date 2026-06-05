@@ -22,6 +22,13 @@
       "when": 1780553228555,
       "tag": "0002_curved_elektra",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1780578044846,
+      "tag": "0003_fuzzy_zuras",
+      "breakpoints": true
     }
   ]
 }

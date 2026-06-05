@@ -81,7 +81,8 @@ function ChromeNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isPublicForm =
     pathname.startsWith("/forms/submit/") ||
-    pathname.startsWith("/forms/embed/");
+    pathname.startsWith("/forms/embed/") ||
+    pathname.startsWith("/forms/payment-return");
   if (isPublicForm) return null;
   return <TopNav />;
 }

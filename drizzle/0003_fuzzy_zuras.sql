@@ -1,0 +1,2 @@
+ALTER TABLE "payments" ADD COLUMN "flow_execution_id" integer;--> statement-breakpoint
+ALTER TABLE "payments" ADD CONSTRAINT "payments_flow_execution_id_flow_executions_id_fk" FOREIGN KEY ("flow_execution_id") REFERENCES "public"."flow_executions"("id") ON DELETE set null ON UPDATE no action;

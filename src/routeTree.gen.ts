@@ -15,6 +15,7 @@ import { Route as DocsIndexRouteImport } from './routes/docs/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
+import { Route as FormsPaymentReturnRouteImport } from './routes/forms/payment-return'
 import { Route as FormsNewRouteImport } from './routes/forms/new'
 import { Route as DocsSlugRouteImport } from './routes/docs/$slug'
 import { Route as DashboardSettingsRouteImport } from './routes/dashboard/settings'
@@ -53,6 +54,11 @@ const SignUpSplatRoute = SignUpSplatRouteImport.update({
 const SignInSplatRoute = SignInSplatRouteImport.update({
   id: '/sign-in/$',
   path: '/sign-in/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FormsPaymentReturnRoute = FormsPaymentReturnRouteImport.update({
+  id: '/forms/payment-return',
+  path: '/forms/payment-return',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FormsNewRoute = FormsNewRouteImport.update({
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/forms/new': typeof FormsNewRoute
+  '/forms/payment-return': typeof FormsPaymentReturnRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/dashboard/': typeof DashboardIndexRoute
@@ -124,6 +131,7 @@ export interface FileRoutesByTo {
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/forms/new': typeof FormsNewRoute
+  '/forms/payment-return': typeof FormsPaymentReturnRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/dashboard': typeof DashboardIndexRoute
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/forms/new': typeof FormsNewRoute
+  '/forms/payment-return': typeof FormsPaymentReturnRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/dashboard/': typeof DashboardIndexRoute
@@ -161,6 +170,7 @@ export interface FileRouteTypes {
     | '/dashboard/settings'
     | '/docs/$slug'
     | '/forms/new'
+    | '/forms/payment-return'
     | '/sign-in/$'
     | '/sign-up/$'
     | '/dashboard/'
@@ -178,6 +188,7 @@ export interface FileRouteTypes {
     | '/dashboard/settings'
     | '/docs/$slug'
     | '/forms/new'
+    | '/forms/payment-return'
     | '/sign-in/$'
     | '/sign-up/$'
     | '/dashboard'
@@ -195,6 +206,7 @@ export interface FileRouteTypes {
     | '/dashboard/settings'
     | '/docs/$slug'
     | '/forms/new'
+    | '/forms/payment-return'
     | '/sign-in/$'
     | '/sign-up/$'
     | '/dashboard/'
@@ -213,6 +225,7 @@ export interface RootRouteChildren {
   DashboardSettingsRoute: typeof DashboardSettingsRoute
   DocsSlugRoute: typeof DocsSlugRoute
   FormsNewRoute: typeof FormsNewRoute
+  FormsPaymentReturnRoute: typeof FormsPaymentReturnRoute
   SignInSplatRoute: typeof SignInSplatRoute
   SignUpSplatRoute: typeof SignUpSplatRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
@@ -267,6 +280,13 @@ declare module '@tanstack/react-router' {
       path: '/sign-in/$'
       fullPath: '/sign-in/$'
       preLoaderRoute: typeof SignInSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forms/payment-return': {
+      id: '/forms/payment-return'
+      path: '/forms/payment-return'
+      fullPath: '/forms/payment-return'
+      preLoaderRoute: typeof FormsPaymentReturnRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forms/new': {
@@ -341,6 +361,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardSettingsRoute: DashboardSettingsRoute,
   DocsSlugRoute: DocsSlugRoute,
   FormsNewRoute: FormsNewRoute,
+  FormsPaymentReturnRoute: FormsPaymentReturnRoute,
   SignInSplatRoute: SignInSplatRoute,
   SignUpSplatRoute: SignUpSplatRoute,
   DashboardIndexRoute: DashboardIndexRoute,

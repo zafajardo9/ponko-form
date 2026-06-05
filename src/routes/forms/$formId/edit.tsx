@@ -79,6 +79,9 @@ function UnifiedEditorPage() {
   const [validateOpen, setValidateOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [rightPanelWidth, setRightPanelWidth] = useState(288);
+  const rightPanelRef = useRef<HTMLDivElement>(null);
+  const isResizing = useRef(false);
   const ensuredRef = useRef(false);
 
   const { data: allForms = [] } = useQuery({
@@ -178,7 +181,11 @@ function UnifiedEditorPage() {
   });
 
   const addNodeMutation = useMutation({
-    mutationFn: (vars: { type: FlowNodeType; positionX: number; positionY: number }) =>
+    mutationFn: (vars: {
+      type: FlowNodeType;
+      positionX: number;
+      positionY: number;
+    }) =>
       addFlowNode({
         data: {
           flowId: flowId!,
@@ -232,8 +239,9 @@ function UnifiedEditorPage() {
   });
 
   const saveLayoutMutation = useMutation({
-    mutationFn: (layout: { id: number; positionX: number; positionY: number }[]) =>
-      saveFlowLayout({ data: { flowId: flowId!, nodes: layout } }),
+    mutationFn: (
+      layout: { id: number; positionX: number; positionY: number }[],
+    ) => saveFlowLayout({ data: { flowId: flowId!, nodes: layout } }),
   });
 
   const updateNodeMutation = useMutation({
@@ -322,8 +330,15 @@ function UnifiedEditorPage() {
   );
 
   const handleDropNode = useCallback(
-    (type: Exclude<FlowNodeType, "start">, position: { x: number; y: number }) => {
-      addNodeMutation.mutate({ type, positionX: position.x, positionY: position.y });
+    (
+      type: Exclude<FlowNodeType, "start">,
+      position: { x: number; y: number },
+    ) => {
+      addNodeMutation.mutate({
+        type,
+        positionX: position.x,
+        positionY: position.y,
+      });
     },
     [addNodeMutation],
   );
@@ -393,13 +408,19 @@ function UnifiedEditorPage() {
     const layout: { id: number; positionX: number; positionY: number }[] = [];
     for (const [lvl, ids] of byLevel) {
       ids.forEach((id, i) => {
-        layout.push({ id, positionX: 120 + i * 280, positionY: 60 + lvl * 150 });
+        layout.push({
+          id,
+          positionX: 120 + i * 280,
+          positionY: 60 + lvl * 150,
+        });
       });
     }
     setNodes((nds) =>
       nds.map((n) => {
         const pos = layout.find((l) => l.id === Number(n.id));
-        return pos ? { ...n, position: { x: pos.positionX, y: pos.positionY } } : n;
+        return pos
+          ? { ...n, position: { x: pos.positionX, y: pos.positionY } }
+          : n;
       }),
     );
     saveLayoutMutation.mutate(layout);
@@ -408,14 +429,17 @@ function UnifiedEditorPage() {
   const selectedNode =
     flowData?.nodes.find((n) => String(n.id) === selectedNodeId) ?? null;
 
-  const loading = isLoading || (flowData === null) || ensureMutation.isPending;
+  const loading = isLoading || flowData === null || ensureMutation.isPending;
 
   return (
     <div className="flex h-[calc(100vh-64px)] flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[#e6dfd8] bg-[#faf9f5] px-6 py-3">
         <div className="flex items-center gap-3">
-          <Link to="/dashboard" className="text-sm text-[#6c6a64] hover:text-[#141413]">
+          <Link
+            to="/dashboard"
+            className="text-sm text-[#6c6a64] hover:text-[#141413]"
+          >
             ← Dashboard
           </Link>
           <span className="text-[#e6dfd8]">/</span>
@@ -423,7 +447,9 @@ function UnifiedEditorPage() {
             {form?.title ?? "Loading…"}
           </span>
           {form && (
-            <Badge variant={form.status as "draft" | "published"}>{form.status}</Badge>
+            <Badge variant={form.status as "draft" | "published"}>
+              {form.status}
+            </Badge>
           )}
         </div>
 
@@ -442,20 +468,8 @@ function UnifiedEditorPage() {
             </Link>
           </nav>
 
-          <button
-            onClick={() => {
-              setShowVariables((s) => !s);
-              setSelectedNodeId(null);
-            }}
-            className={`rounded-md border px-3 py-1.5 text-sm transition-colors ${
-              showVariables
-                ? "border-[#cc785c] bg-[#efe9de] text-[#141413]"
-                : "border-[#e6dfd8] bg-[#f5f0e8] text-[#6c6a64] hover:bg-[#e8e0d2] hover:text-[#141413]"
-            }`}
-          >
-            Variables
-          </button>
-
+          {/* Variables & Valid live in the build sub-toolbar (shown in both
+              List and Canvas); only page-level actions remain in the header. */}
           <button
             onClick={() => {
               setPreviewOpen(true);
@@ -465,19 +479,6 @@ function UnifiedEditorPage() {
             className="rounded-md border border-[#e6dfd8] bg-[#f5f0e8] px-3 py-1.5 text-sm text-[#6c6a64] hover:bg-[#e8e0d2] hover:text-[#141413] transition-colors"
           >
             Preview
-          </button>
-
-          <button
-            onClick={() => setValidateOpen((v) => !v)}
-            className={`rounded-md border px-3 py-1.5 text-sm transition-colors ${
-              validation.errors.length > 0
-                ? "border-[#e3b5ab] bg-[#fbf3f0] text-[#c64545]"
-                : "border-[#e6dfd8] bg-[#f5f0e8] text-[#6c6a64] hover:bg-[#e8e0d2]"
-            }`}
-          >
-            {validation.errors.length > 0
-              ? `${validation.errors.length} issue${validation.errors.length === 1 ? "" : "s"}`
-              : "Valid ✓"}
           </button>
 
           {isPublished && (
@@ -492,7 +493,9 @@ function UnifiedEditorPage() {
           <Button
             variant={isPublished ? "secondary" : "primary"}
             size="sm"
-            onClick={() => publishMutation.mutate(isPublished ? "draft" : "published")}
+            onClick={() =>
+              publishMutation.mutate(isPublished ? "draft" : "published")
+            }
             disabled={publishMutation.isPending}
           >
             {isPublished ? "Unpublish" : "Publish"}
@@ -502,7 +505,10 @@ function UnifiedEditorPage() {
 
       {/* Dialogs */}
       {previewOpen && flowData && (
-        <PreviewDialog title={form?.title ?? "Form"} onClose={() => setPreviewOpen(false)}>
+        <PreviewDialog
+          title={form?.title ?? "Form"}
+          onClose={() => setPreviewOpen(false)}
+        >
           <FlowPreviewModal
             nodes={flowData.nodes}
             edges={flowData.edges}
@@ -522,7 +528,9 @@ function UnifiedEditorPage() {
       {validateOpen && (
         <div className="max-h-44 overflow-y-auto border-b border-[#e6dfd8] bg-[#fbf6f0] px-6 py-2">
           {validation.errors.length === 0 ? (
-            <p className="text-sm text-[#2f7d52]">No validation issues. This form is ready.</p>
+            <p className="text-sm text-[#2f7d52]">
+              No validation issues. This form is ready.
+            </p>
           ) : (
             <ul className="flex flex-col gap-1">
               {validation.errors.map((e, i) => (
@@ -554,7 +562,10 @@ function UnifiedEditorPage() {
         <div className="flex flex-1 overflow-hidden">
           {/* Left: unified palette */}
           <div className="w-60 flex-none overflow-y-auto border-r border-[#e6dfd8] bg-[#faf9f5] p-4">
-            <BuilderPalette onAddField={handleAddField} onAddNode={handleAddLogic} />
+            <BuilderPalette
+              onAddField={handleAddField}
+              onAddNode={handleAddLogic}
+            />
           </div>
 
           {/* Center: view toggle + (list | canvas) */}
@@ -582,29 +593,22 @@ function UnifiedEditorPage() {
                   ◇ Canvas
                 </button>
               </div>
-              {view === "canvas" && (
-                <div className="flex-1">
-                  <FlowToolbar
-                    errorCount={validation.errors.length}
-                    validateOpen={validateOpen}
-                    previewing={false}
-                    saving={saveLayoutMutation.isPending}
-                    saved={!saveLayoutMutation.isPending}
-                    onSave={handleSaveNow}
-                    onToggleValidate={() => setValidateOpen((v) => !v)}
-                    onTogglePreview={() => {
-                      setPreviewOpen(true);
-                      setSelectedNodeId(null);
-                      setShowVariables(false);
-                    }}
-                    onToggleVariables={() => {
-                      setShowVariables((s) => !s);
-                      setSelectedNodeId(null);
-                    }}
-                    onAutoLayout={handleAutoLayout}
-                  />
-                </div>
-              )}
+              {/* Shared action bar — shown in both List and Canvas. Auto-layout
+                  is Canvas-only; Preview lives in the page header. */}
+              <FlowToolbar
+                errorCount={validation.errors.length}
+                validateOpen={validateOpen}
+                variablesOpen={showVariables}
+                saving={saveLayoutMutation.isPending}
+                saved={!saveLayoutMutation.isPending}
+                onSave={handleSaveNow}
+                onToggleValidate={() => setValidateOpen((v) => !v)}
+                onToggleVariables={() => {
+                  setShowVariables((s) => !s);
+                  setSelectedNodeId(null);
+                }}
+                onAutoLayout={view === "canvas" ? handleAutoLayout : undefined}
+              />
             </div>
 
             {view === "list" ? (
@@ -612,7 +616,10 @@ function UnifiedEditorPage() {
                 className="flex-1 overflow-y-auto bg-[#f5f0e8] p-6"
                 onClick={() => setSelectedNodeId(null)}
               >
-                <div className="mx-auto max-w-2xl" onClick={(e) => e.stopPropagation()}>
+                <div
+                  className="mx-auto max-w-2xl"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   {flowData && (
                     <FlowListBuilder
                       nodes={flowData.nodes}
@@ -629,7 +636,8 @@ function UnifiedEditorPage() {
                       }
                       onDelete={(nodeId) => {
                         removeNodeMutation.mutate(nodeId);
-                        if (selectedNodeId === String(nodeId)) setSelectedNodeId(null);
+                        if (selectedNodeId === String(nodeId))
+                          setSelectedNodeId(null);
                       }}
                       onEditBranchesInCanvas={() => setView("canvas")}
                     />
@@ -659,40 +667,75 @@ function UnifiedEditorPage() {
           </div>
 
           {/* Right: variables, node config, or hint */}
-          <div className="w-72 flex-none overflow-y-auto border-l border-[#e6dfd8] bg-[#faf9f5] p-4">
-            {showVariables ? (
-              flowData && (
-                <VariablesManager
-                  variables={flowData.variables}
-                  nodes={flowData.nodes}
-                  onCreate={(v) => createVarMutation.mutate(v)}
-                  onUpdate={(varId, changes) =>
-                    updateVarMutation.mutate({ varId, ...changes })
-                  }
-                  onDelete={(varId) => deleteVarMutation.mutate(varId)}
-                  onClose={() => setShowVariables(false)}
-                />
-              )
-            ) : selectedNode && flowData ? (
-              <NodeConfigPanel
-                node={selectedNode}
-                variables={flowData.variables}
-                gateways={gateways as { id: number; name: string }[]}
-                onUpdate={(nodeId, patch) =>
-                  updateNodeMutation.mutate({ nodeId, ...patch })
+          <div
+            ref={rightPanelRef}
+            className="relative flex-none overflow-y-auto border-l border-[#e6dfd8] bg-[#faf9f5]"
+            style={{ width: rightPanelWidth + "px" }}
+          >
+            {/* Resize handle */}
+            <div
+              onMouseDown={(e) => {
+                e.preventDefault();
+                isResizing.current = true;
+                const startX = e.clientX;
+                const startWidth = rightPanelWidth;
+
+                function onMouseMove(ev: MouseEvent) {
+                  if (!isResizing.current) return;
+                  const newWidth = startWidth - (ev.clientX - startX);
+                  setRightPanelWidth(Math.max(240, Math.min(600, newWidth)));
                 }
-                onClose={() => setSelectedNodeId(null)}
-                onDelete={(nodeId) => {
-                  removeNodeMutation.mutate(nodeId);
-                  setSelectedNodeId(null);
-                }}
-              />
-            ) : (
-              <div className="pt-8 text-center text-sm text-[#8e8b82]">
-                Click a step to configure it. Add fields and logic from the left
-                panel.
-              </div>
-            )}
+
+                function onMouseUp() {
+                  isResizing.current = false;
+                  document.removeEventListener("mousemove", onMouseMove);
+                  document.removeEventListener("mouseup", onMouseUp);
+                  document.body.style.cursor = "";
+                  document.body.style.userSelect = "";
+                }
+
+                document.addEventListener("mousemove", onMouseMove);
+                document.addEventListener("mouseup", onMouseUp);
+                document.body.style.cursor = "col-resize";
+                document.body.style.userSelect = "none";
+              }}
+              className="absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-[#cc785c]/30 active:bg-[#cc785c]/50 transition-colors"
+            />
+            <div className="p-4">
+              {showVariables ? (
+                flowData && (
+                  <VariablesManager
+                    variables={flowData.variables}
+                    nodes={flowData.nodes}
+                    onCreate={(v) => createVarMutation.mutate(v)}
+                    onUpdate={(varId, changes) =>
+                      updateVarMutation.mutate({ varId, ...changes })
+                    }
+                    onDelete={(varId) => deleteVarMutation.mutate(varId)}
+                    onClose={() => setShowVariables(false)}
+                  />
+                )
+              ) : selectedNode && flowData ? (
+                <NodeConfigPanel
+                  node={selectedNode}
+                  variables={flowData.variables}
+                  gateways={gateways as { id: number; name: string }[]}
+                  onUpdate={(nodeId, patch) =>
+                    updateNodeMutation.mutate({ nodeId, ...patch })
+                  }
+                  onClose={() => setSelectedNodeId(null)}
+                  onDelete={(nodeId) => {
+                    removeNodeMutation.mutate(nodeId);
+                    setSelectedNodeId(null);
+                  }}
+                />
+              ) : (
+                <div className="pt-8 text-center text-sm text-[#8e8b82]">
+                  Click a step to configure it. Add fields and logic from the
+                  left panel.
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -1,77 +1,89 @@
 import { useState } from 'react'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { getPaymentOptions, initiatePayment } from '../../lib/server-fns/payments'
 import { Button } from '../ui/Button'
 
 /**
  * PaymentStep
  *
- * Renders the payment interface during flow execution. It shows the amount to
- * charge and the selected gateway, then hands off to the gateway.
- *
- * NOTE: The live gateway redirect/inline flow belongs to the main plan's
- * payment phase (Phase 6 — Payment-Enabled Forms), which is not yet built.
- * Until that exists, this performs a clearly-labeled simulated charge so the
- * flow runtime is fully exercisable end-to-end. When the real payment API
- * lands, replace `processPayment` with a call to createPayment + gateway
- * redirect, then resolve via the redirect-back handler.
+ * Real payment handoff during flow execution. Shows the amount and the gateways
+ * the FORM OWNER has connected (PayPal / Xendit). The visitor picks one; we ask
+ * the server to create the order/invoice (with the owner's own credentials) and
+ * then redirect the browser to the gateway's hosted checkout. After paying, the
+ * gateway returns the visitor to `/forms/payment-return`, which verifies the
+ * charge and resumes the flow on the success or failure path.
  */
 interface PaymentStepProps {
+  executionId: number | null
   amount: number | string
   currency: string
-  gatewayName?: string
-  onResult: (result: { success: boolean; gatewayPaymentId?: string }) => void
 }
 
-export function PaymentStep({ amount, currency, gatewayName, onResult }: PaymentStepProps) {
-  const [status, setStatus] = useState<'idle' | 'processing' | 'failed'>('idle')
+export function PaymentStep({ executionId, amount, currency }: PaymentStepProps) {
+  const [redirecting, setRedirecting] = useState(false)
 
+  const { data: options, isLoading } = useQuery({
+    queryKey: ['payment-options', String(executionId)],
+    queryFn: () => getPaymentOptions({ data: { executionId: executionId! } }),
+    enabled: executionId != null,
+  })
+
+  const initiate = useMutation({
+    mutationFn: (gatewaySlug: 'paypal' | 'xendit') =>
+      initiatePayment({ data: { executionId: executionId!, gatewaySlug } }),
+    onSuccess: ({ paymentUrl }) => {
+      setRedirecting(true)
+      window.location.href = paymentUrl
+    },
+  })
+
+  const displayAmount = options?.amount ?? amount
+  const displayCurrency = options?.currency ?? currency
   const formattedAmount =
-    typeof amount === 'number'
-      ? amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      : amount
+    typeof displayAmount === 'number'
+      ? displayAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : displayAmount
 
-  async function processPayment() {
-    setStatus('processing')
-    // Simulated gateway handoff — see note above.
-    await new Promise((r) => setTimeout(r, 900))
-    const ref = `SIM_${Date.now().toString(36).toUpperCase()}`
-    onResult({ success: true, gatewayPaymentId: ref })
-  }
+  const gateways = options?.gateways ?? []
+  const busy = initiate.isPending || redirecting
 
   return (
     <div className="flex flex-col items-center gap-5 py-4 text-center">
       <div>
         <p className="text-sm text-[#6c6a64]">Amount due</p>
         <p className="mt-1 text-4xl font-semibold text-[#141413]">
-          {currency} {formattedAmount}
+          {displayCurrency} {formattedAmount}
         </p>
       </div>
 
-      {gatewayName && (
-        <p className="text-sm text-[#6c6a64]">
-          Paying via <span className="font-medium text-[#141413]">{gatewayName}</span>
+      {isLoading ? (
+        <div className="h-10 w-48 animate-pulse rounded-md bg-[#efe9de]" />
+      ) : gateways.length === 0 ? (
+        <p className="max-w-xs text-sm text-[#c64545]">
+          This form isn’t ready to accept payments yet — the form owner hasn’t connected a payment
+          method.
         </p>
+      ) : (
+        <div className="flex w-full max-w-xs flex-col gap-2">
+          {gateways.length > 1 && (
+            <p className="text-sm text-[#6c6a64]">Choose how you’d like to pay</p>
+          )}
+          {gateways.map((g) => (
+            <Button key={g.slug} onClick={() => initiate.mutate(g.slug)} disabled={busy}>
+              {busy ? 'Redirecting…' : `Pay with ${g.name}`}
+            </Button>
+          ))}
+        </div>
       )}
 
-      <div className="flex w-full max-w-xs flex-col gap-2">
-        <Button onClick={processPayment} disabled={status === 'processing'}>
-          {status === 'processing' ? 'Processing…' : `Pay ${currency} ${formattedAmount}`}
-        </Button>
-        <Button
-          variant="text-link"
-          size="sm"
-          disabled={status === 'processing'}
-          onClick={() => onResult({ success: false })}
-        >
-          Payment failed / cancel
-        </Button>
-      </div>
-
-      {status === 'failed' && (
-        <p className="text-sm text-[#c64545]">Payment did not complete. Please try again.</p>
+      {initiate.isError && (
+        <p className="max-w-xs text-sm text-[#c64545]">
+          {(initiate.error as Error).message || 'Could not start the payment. Please try again.'}
+        </p>
       )}
 
       <p className="flex items-center gap-1.5 text-xs text-[#8e8b82]">
-        <span aria-hidden>🔒</span> Secure checkout
+        <span aria-hidden>🔒</span> Secure checkout — you’ll be redirected to complete payment
       </p>
     </div>
   )

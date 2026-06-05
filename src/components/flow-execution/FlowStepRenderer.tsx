@@ -22,7 +22,8 @@ interface FlowStepRendererProps {
   step: FlowStep
   values: Record<string, unknown>
   complete: boolean
-  gatewayName?: string
+  /** The in-progress execution id — required by the payment step to charge. */
+  executionId: number | null
   stepNumber: number
   totalSteps: number
   canGoBack: boolean
@@ -34,7 +35,7 @@ export function FlowStepRenderer({
   step,
   values,
   complete,
-  gatewayName,
+  executionId,
   stepNumber,
   totalSteps,
   canGoBack,
@@ -95,12 +96,7 @@ export function FlowStepRenderer({
     return (
       <div className="flex flex-col gap-6">
         {progress}
-        <PaymentStep
-          amount={amount}
-          currency={(config.currency as string) ?? 'USD'}
-          gatewayName={gatewayName}
-          onResult={(paymentResult) => onNext({ paymentResult })}
-        />
+        <PaymentStep executionId={executionId} amount={amount} currency={(config.currency as string) ?? 'USD'} />
         {canGoBack && (
           <Button variant="text-link" size="sm" onClick={onBack}>
             ← Back

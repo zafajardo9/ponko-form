@@ -28,6 +28,33 @@ export const getForms = createServerFn({ method: 'GET' }).handler(async () => {
     .orderBy(desc(forms.updatedAt))
 })
 
+/**
+ * getPublicForm({ formId })
+ * PUBLIC (no auth) — fetches a single form by id for the shareable/embeddable
+ * pages. Only returns the form if it is PUBLISHED, so unpublished drafts are
+ * never exposed. Returns null when not found or not published.
+ *
+ * The public form pages must NOT use `getForms` (auth-gated + owner-scoped):
+ * anonymous visitors have no Clerk session, so it would throw "Unauthorized".
+ */
+export const getPublicForm = createServerFn({ method: 'GET' })
+  .inputValidator((data: { formId: number }) => data)
+  .handler(async ({ data }) => {
+    const [form] = await db
+      .select({
+        id: forms.id,
+        title: forms.title,
+        description: forms.description,
+        status: forms.status,
+      })
+      .from(forms)
+      .where(eq(forms.id, data.formId))
+      .limit(1)
+
+    if (!form || form.status !== 'published') return null
+    return form
+  })
+
 export const createForm = createServerFn({ method: 'POST' })
   .inputValidator((data: { title: string; description?: string }) => data)
   .handler(async ({ data }) => {

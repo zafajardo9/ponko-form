@@ -1,5 +1,6 @@
-import { Link } from '@tanstack/react-router'
-import type { DocMeta } from '../../lib/docs-parser'
+import { Link } from "@tanstack/react-router";
+import type { DocMeta } from "../../lib/docs-parser";
+import { ArrowRight } from "lucide-react";
 
 /**
  * DocCard
@@ -8,7 +9,7 @@ import type { DocMeta } from '../../lib/docs-parser'
  * description, and a "Read more" link.
  */
 interface DocCardProps {
-  doc: DocMeta
+  doc: DocMeta;
 }
 
 export function DocCard({ doc }: DocCardProps) {
@@ -21,11 +22,16 @@ export function DocCard({ doc }: DocCardProps) {
       <h2 className="text-lg font-medium text-[#141413] group-hover:text-[#cc785c] transition-colors">
         {doc.title}
       </h2>
-      <p className="mt-2 line-clamp-2 text-sm text-[#6c6a64]">{doc.description}</p>
+      <p className="mt-2 line-clamp-2 text-sm text-[#6c6a64]">
+        {doc.description}
+      </p>
       <div className="mt-4 flex items-center gap-1 text-sm text-[#cc785c]">
         <span>Read more</span>
-        <span className="transition-transform group-hover:translate-x-0.5">→</span>
+        <ArrowRight
+          size={14}
+          className="transition-transform group-hover:translate-x-0.5"
+        />
       </div>
     </Link>
-  )
+  );
 }

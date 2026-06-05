@@ -201,9 +201,8 @@ export class FlowValidator {
           } else if (!varNames.has(config.amountVariable as string)) {
             errors.push({ nodeId: node.id, type: 'missing_config', message: `Payment: variable "${config.amountVariable}" is not declared.` })
           }
-          if (!config.gatewayId) {
-            errors.push({ nodeId: node.id, type: 'missing_config', message: 'Payment: gateway is required. Select one from the Payment Gateways.' })
-          }
+          // No gateway requirement: the visitor picks from the payment methods
+          // the form owner connected in Settings (resolved at checkout).
           break
 
         case 'summary':

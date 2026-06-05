@@ -3,7 +3,6 @@ import { FlowEngine, type StepInput } from '../../lib/flow-engine/FlowEngine'
 import type { FlowNode, FlowEdge, FlowVariable } from '../../lib/flow-engine/types'
 import { FieldRenderer, type FieldConfig } from '../form-builder/fields/FieldRenderer'
 import { FlowProgressBar } from '../flow-execution/FlowProgressBar'
-import { PaymentStep } from '../flow-execution/PaymentStep'
 import { Button } from './Button'
 
 /**
@@ -106,18 +105,39 @@ export function FlowPreviewModal({ nodes, edges, variables }: FlowPreviewModalPr
     <FlowProgressBar current={engine.getCurrentStepNumber()} total={engine.getTotalSteps()} />
   )
 
-  // ── Payment ──
+  // ── Payment (simulated in the builder preview — no real gateway/execution) ──
   if (step.isPayment) {
     const amountVar = config.amountVariable as string | undefined
     const amount = amountVar ? (values[amountVar] as number | string) ?? 0 : 0
+    const currency = (config.currency as string) ?? 'USD'
+    const formatted =
+      typeof amount === 'number'
+        ? amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : amount
     return (
       <div className="flex flex-col gap-6">
         {progress}
-        <PaymentStep
-          amount={amount}
-          currency={(config.currency as string) ?? 'USD'}
-          onResult={(r) => next({ paymentResult: r })}
-        />
+        <div className="flex flex-col items-center gap-5 py-4 text-center">
+          <div>
+            <p className="text-sm text-[#6c6a64]">Amount due</p>
+            <p className="mt-1 text-4xl font-semibold text-[#141413]">
+              {currency} {formatted}
+            </p>
+          </div>
+          <p className="text-xs text-[#8e8b82]">Preview only — no real charge is made.</p>
+          <div className="flex w-full max-w-xs flex-col gap-2">
+            <Button onClick={() => next({ paymentResult: { success: true, gatewayPaymentId: 'PREVIEW' } })}>
+              Simulate successful payment
+            </Button>
+            <Button
+              variant="text-link"
+              size="sm"
+              onClick={() => next({ paymentResult: { success: false } })}
+            >
+              Simulate failed payment
+            </Button>
+          </div>
+        </div>
       </div>
     )
   }

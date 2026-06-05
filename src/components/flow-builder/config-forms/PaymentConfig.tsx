@@ -2,12 +2,17 @@ import { Field, Select, VariableSelect, type ConfigFormProps } from './controls'
 
 const CURRENCIES = ['USD', 'PHP', 'EUR', 'GBP', 'SGD', 'AUD']
 
-/** Config form for a Payment node: amount variable, currency, and gateway. */
-export function PaymentConfig({ config, variables, onChange, gateways = [] }: ConfigFormProps) {
+/**
+ * Config form for a Payment node: amount variable + currency.
+ *
+ * The gateway is NOT chosen here. At checkout the visitor picks from whichever
+ * payment methods YOU (the form owner) have connected in Settings (PayPal,
+ * Xendit) — using your own credentials. So a Payment node just needs to know
+ * what to charge.
+ */
+export function PaymentConfig({ config, variables, onChange }: ConfigFormProps) {
   const amountVar = config.amountVariable as string | undefined
   const currency = (config.currency as string) ?? 'USD'
-  const gatewayId = config.gatewayId as number | undefined
-  const gatewayName = gateways.find((g) => g.id === gatewayId)?.name
 
   return (
     <div className="flex flex-col gap-4">
@@ -30,29 +35,14 @@ export function PaymentConfig({ config, variables, onChange, gateways = [] }: Co
         </Select>
       </Field>
 
-      <Field label="Payment gateway">
-        <Select
-          value={gatewayId ? String(gatewayId) : ''}
-          onChange={(v) => onChange({ gatewayId: v ? Number(v) : null })}
-        >
-          <option value="">Select a gateway…</option>
-          {gateways.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.name}
-            </option>
-          ))}
-        </Select>
-        {gateways.length === 0 && (
-          <p className="text-xs text-[#c64545]">
-            No active payment gateways. Add one before publishing a payment flow.
-          </p>
-        )}
-      </Field>
+      <p className="rounded-lg border border-[#e6dfd8] bg-white px-3 py-2 text-xs text-[#57544d]">
+        Customers choose how to pay (PayPal, Xendit) from the payment methods you connect in{' '}
+        <span className="font-medium">Settings</span>. Connect at least one to accept payments.
+      </p>
 
-      {amountVar && gatewayName && (
+      {amountVar && (
         <p className="rounded-lg border border-[#e6dfd8] bg-white px-3 py-2 text-xs text-[#57544d]">
-          Will charge <span className="font-medium">{`{{${amountVar}}}`}</span> {currency} via{' '}
-          <span className="font-medium">{gatewayName}</span>.
+          Will charge <span className="font-medium">{`{{${amountVar}}}`}</span> in {currency}.
         </p>
       )}
     </div>

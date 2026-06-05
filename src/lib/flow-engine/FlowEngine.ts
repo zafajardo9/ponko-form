@@ -99,6 +99,35 @@ export class FlowEngine {
   }
 
   /**
+   * Rebuild an engine positioned at a previously-persisted point in a run,
+   * instead of at the Start node. Used to RESUME an execution — most importantly
+   * after a payment gateway redirects the user back to us: the flow left the
+   * page at the Payment node, and we restore it there (with its variables and
+   * history) so we can inject the payment result and advance onto the
+   * success/failure edge.
+   *
+   * Unlike the constructor, this does NOT record a fresh Start entry — it
+   * adopts the persisted history verbatim.
+   */
+  static restore(
+    nodes: FlowNode[],
+    edges: FlowEdge[],
+    variables: FlowVariable[],
+    snapshot: {
+      currentNodeId: number
+      variables: Record<string, unknown>
+      history: ExecutionHistoryEntry[]
+      completed?: boolean
+    },
+  ): FlowEngine {
+    const engine = new FlowEngine(nodes, edges, variables, snapshot.variables)
+    engine.currentNodeId = snapshot.currentNodeId
+    engine.history = [...snapshot.history]
+    engine.completed = snapshot.completed ?? false
+    return engine
+  }
+
+  /**
    * Get the current step to render in the UI.
    */
   getCurrentStep(): FlowStep {
