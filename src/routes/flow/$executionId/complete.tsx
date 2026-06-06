@@ -6,6 +6,7 @@ import { TemplateInterpolator } from '../../../lib/flow-engine/TemplateInterpola
 import { Card } from '../../../components/ui/Card'
 import { Button } from '../../../components/ui/Button'
 import { buildInvoice } from '../../../components/flow-execution/invoice'
+import { themeVars, type FormTheme } from '../../../lib/theme'
 import type { FlowVariable } from '../../../lib/flow-engine/types'
 
 // @react-pdf/renderer is browser-only; load it lazily and render only after
@@ -66,6 +67,7 @@ function CompletePage() {
         gatewayName={payment.gatewayName}
         reference={payment.gatewayPaymentId}
         formId={data.formId}
+        theme={data.theme}
       />
     )
   }
@@ -81,7 +83,7 @@ function CompletePage() {
   })
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-12">
+    <div className="mx-auto max-w-2xl px-6 py-12" style={themeVars(data.theme)}>
       {/* Success banner */}
       <div className="mb-5 flex flex-col items-center gap-2 text-center">
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#d8f0e0] text-2xl text-[#2f7d52]">
@@ -101,7 +103,7 @@ function CompletePage() {
             <p className="mt-0.5 text-xs text-[#8e8b82]">Receipt / Invoice</p>
           </div>
           <div className="text-right">
-            <p className="text-lg font-semibold tracking-wide text-[#cc785c]">INVOICE</p>
+            <p className="text-lg font-semibold tracking-wide text-[var(--ponko-primary,#cc785c)]">INVOICE</p>
             <p className="mt-0.5 text-xs text-[#8e8b82]">{invoice.invoiceNo}</p>
             <p className="text-xs text-[#8e8b82]">{invoice.dateText}</p>
             {invoice.paid && (
@@ -155,7 +157,7 @@ function CompletePage() {
         {mounted && (
           <Suspense
             fallback={
-              <span className="inline-flex h-10 items-center rounded-md bg-[#cc785c]/60 px-5 text-sm font-medium text-white">
+              <span className="inline-flex h-10 items-center rounded-[var(--ponko-radius,8px)] bg-[var(--ponko-primary-soft,#cc785c99)] px-5 text-sm font-medium text-white">
                 Preparing PDF…
               </span>
             }
@@ -179,15 +181,17 @@ function FailedView({
   gatewayName,
   reference,
   formId,
+  theme,
 }: {
   title?: string
   message?: string
   gatewayName?: string | null
   reference?: string | null
   formId?: number | null
+  theme?: FormTheme | null
 }) {
   return (
-    <div className="mx-auto max-w-md px-6 py-16">
+    <div className="mx-auto max-w-md px-6 py-16" style={themeVars(theme)}>
       <Card className="!bg-white text-center">
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#fbe4e1] text-3xl text-[#c64545]">
           ✕

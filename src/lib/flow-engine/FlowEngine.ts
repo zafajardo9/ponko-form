@@ -312,7 +312,7 @@ export class FlowEngine {
       case 'form_field': {
         const bindTo = node.config.bindToVariable as string | undefined
         if (bindTo && input?.formValue !== undefined) {
-          this.variableValues[bindTo] = input.formValue
+          this.variableValues[bindTo] = this.coerceForVariable(bindTo, input.formValue)
         }
         break
       }
@@ -322,7 +322,10 @@ export class FlowEngine {
         const groupValues = input?.groupValues ?? {}
         for (const field of fields) {
           if (field.bindToVariable && groupValues[field.id] !== undefined) {
-            this.variableValues[field.bindToVariable] = groupValues[field.id]
+            this.variableValues[field.bindToVariable] = this.coerceForVariable(
+              field.bindToVariable,
+              groupValues[field.id],
+            )
           }
         }
         break
@@ -352,6 +355,30 @@ export class FlowEngine {
         break
       }
     }
+  }
+
+  /**
+   * Coerce a respondent's raw input to the declared type of the variable it
+   * binds to. Form inputs always arrive as strings (or string[] for multi-select
+   * checkboxes); a variable typed `number`/`money` needs an actual number so it
+   * works in Calculator expressions, and `boolean` needs a real boolean. This is
+   * what lets a creator set an option's stored value (e.g. a price `5000`) and
+   * have it flow straight into calculations. String variables and multi-select
+   * arrays are left untouched.
+   */
+  private coerceForVariable(varName: string | undefined, value: unknown): unknown {
+    if (!varName || Array.isArray(value)) return value
+    const type = this.variables.find((v) => v.name === varName)?.type
+    if (type === 'number' || type === 'money') {
+      const n = parseFloat(String(value))
+      return Number.isFinite(n) ? n : value
+    }
+    if (type === 'boolean') {
+      if (typeof value === 'boolean') return value
+      const s = String(value).trim().toLowerCase()
+      return s === 'true' || s === '1' || s === 'yes'
+    }
+    return value
   }
 
   private recordEntry(node: FlowNode): void {

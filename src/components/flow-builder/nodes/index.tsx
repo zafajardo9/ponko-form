@@ -1,5 +1,9 @@
-import type { NodeProps, NodeTypes } from '@xyflow/react'
+import { Handle, Position, type NodeProps, type NodeTypes } from '@xyflow/react'
 import { NodeShell, type FlowNodeData } from './NodeShell'
+import { FlowValidationBadge } from '../FlowValidationBadge'
+import { GroupFieldsEditor } from '../config-forms/GroupFieldsEditor'
+import { TextField } from '../config-forms/controls'
+import type { FlowVariable, GroupedField } from '../../../lib/flow-engine/types'
 
 /**
  * Custom React Flow node components — one per flow node type.
@@ -39,19 +43,84 @@ export function FormFieldNode({ data, selected }: Props) {
   )
 }
 
+/**
+ * GroupNode — a Field Group rendered on the canvas as a container ("page"),
+ * mirroring the List view: a header (draggable) plus an inline, editable list
+ * of the group's fields. Field editing happens in place; the body is guarded
+ * with `nodrag`/`nopan` so interacting with inputs never drags or pans the
+ * canvas. `variables` and `onUpdateConfig` are injected into the node `data`
+ * by the editor so edits can bind to variables and persist.
+ */
 export function GroupNode({ data, selected }: Props) {
-  const count = (data.config.fields as unknown[] | undefined)?.length ?? 0
+  const fields = (data.config.fields as GroupedField[] | undefined) ?? []
+  const variables = (data.variables as FlowVariable[] | undefined) ?? []
+  const onUpdateConfig = data.onUpdateConfig as
+    | ((config: Record<string, unknown>) => void)
+    | undefined
+
   return (
-    <NodeShell
-      icon="⊞"
-      accent="bg-[#f3e3da] text-[#a9583e]"
-      label={data.label || 'Field Group'}
-      detail={count === 0 ? 'No fields yet' : `${count} field${count === 1 ? '' : 's'} on one step`}
-      selected={selected}
-      hasError={data.hasError}
-      errorCount={data.errorCount}
-      errorMessages={data.errorMessages}
-    />
+    <div
+      className={`relative w-72 rounded-xl border bg-[#f3e3da]/40 shadow-sm transition-colors ${
+        selected
+          ? 'border-[#cc785c] ring-2 ring-[#cc785c]/40'
+          : data.hasError
+            ? 'border-[#c64545]'
+            : 'border-[#e3cdbf]'
+      }`}
+    >
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="!h-2.5 !w-2.5 !border-2 !border-white !bg-[#8e8b82]"
+      />
+
+      {/* Header (draggable) */}
+      <div className="flex items-center gap-2.5 border-b border-[#e3cdbf] px-3 py-2.5">
+        <span className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-[#f3e3da] text-sm font-semibold text-[#a9583e]">
+          ⊞
+        </span>
+        <div className="min-w-0">
+          <div className="truncate text-sm font-medium text-[#141413]">
+            {data.label || 'Field Group'}
+          </div>
+          <div className="text-xs text-[#8e8b82]">
+            {fields.length === 0
+              ? 'No fields yet'
+              : `${fields.length} field${fields.length === 1 ? '' : 's'} on one page`}
+          </div>
+        </div>
+      </div>
+
+      {/* Body (inline field editor) */}
+      <div className="nodrag nopan flex flex-col gap-2 px-3 py-3">
+        <TextField
+          resetKey={data.label}
+          value={(data.config.title as string) ?? ''}
+          onCommit={(v) =>
+            onUpdateConfig?.({ ...data.config, title: v })
+          }
+          placeholder="Page title (optional)"
+        />
+        <GroupFieldsEditor
+          fields={fields}
+          variables={variables}
+          insideCanvas
+          onChange={(next) =>
+            onUpdateConfig?.({ ...data.config, fields: next })
+          }
+        />
+      </div>
+
+      {data.hasError && (
+        <FlowValidationBadge count={data.errorCount ?? 1} messages={data.errorMessages} />
+      )}
+
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className="!h-2.5 !w-2.5 !border-2 !border-white !bg-[#cc785c]"
+      />
+    </div>
   )
 }
 

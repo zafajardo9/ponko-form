@@ -1,5 +1,5 @@
 import { Field, Select, VariableSelect, Toggle, TextField, type ConfigFormProps } from './controls'
-import { Button } from '../../ui/Button'
+import { OptionsEditor } from './OptionsEditor'
 
 const FIELD_TYPES = ['text', 'email', 'number', 'textarea', 'select', 'checkbox', 'radio'] as const
 const OPTION_TYPES = ['select', 'checkbox', 'radio']
@@ -54,39 +54,7 @@ export function FormFieldConfig({ nodeId, config, variables, onChange }: ConfigF
 
       {hasOptions && (
         <Field label="Options">
-          <div className="flex flex-col gap-2">
-            {options.map((opt, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <TextField
-                  resetKey={`${nodeId}-${i}`}
-                  value={opt.label}
-                  onCommit={(label) =>
-                    setOptions(
-                      options.map((o, idx) =>
-                        idx === i ? { label, value: label.toLowerCase().replace(/\s+/g, '_') } : o,
-                      ),
-                    )
-                  }
-                  placeholder="Option label"
-                />
-                <button
-                  onClick={() => setOptions(options.filter((_, idx) => idx !== i))}
-                  className="text-sm text-[#8e8b82] hover:text-[#c64545]"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() =>
-                setOptions([...options, { label: `Option ${options.length + 1}`, value: `option_${options.length + 1}` }])
-              }
-            >
-              + Add option
-            </Button>
-          </div>
+          <OptionsEditor options={options} onChange={setOptions} resetKeyPrefix={nodeId} />
         </Field>
       )}
 

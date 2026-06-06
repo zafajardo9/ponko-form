@@ -17,7 +17,7 @@ interface FieldRendererProps {
 
 export function FieldRenderer({ field, value, onChange, error, readOnly }: FieldRendererProps) {
   const inputBase =
-    'w-full rounded-md border border-[#e6dfd8] bg-[#faf9f5] px-3.5 py-2.5 text-sm text-[#141413] placeholder:text-[#8e8b82] outline-none focus:border-[#cc785c] focus:ring-2 focus:ring-[#cc785c]/20 transition-colors disabled:opacity-60'
+    'w-full rounded-[var(--ponko-radius,6px)] border border-[#e6dfd8] bg-[#faf9f5] px-3.5 py-2.5 text-sm text-[#141413] placeholder:text-[#8e8b82] outline-none focus:border-[var(--ponko-primary,#cc785c)] focus:ring-2 focus:ring-[var(--ponko-primary-soft,#cc785c29)] transition-colors disabled:opacity-60'
 
   const errorClass = error ? 'border-[#c64545] focus:border-[#c64545] focus:ring-[#c64545]/20' : ''
 
@@ -110,7 +110,7 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
                     onChange(arrValue.filter((v) => v !== opt.value))
                   }
                 }}
-                className="h-4 w-4 rounded border-[#e6dfd8] accent-[#cc785c]"
+                className="h-4 w-4 rounded border-[#e6dfd8] accent-[var(--ponko-primary,#cc785c)]"
               />
               <span className="text-sm text-[#3d3d3a]">{opt.label}</span>
             </label>
@@ -128,7 +128,7 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
                 checked={strValue === opt.value}
                 disabled={readOnly}
                 onChange={() => onChange(opt.value)}
-                className="h-4 w-4 border-[#e6dfd8] accent-[#cc785c]"
+                className="h-4 w-4 border-[#e6dfd8] accent-[var(--ponko-primary,#cc785c)]"
               />
               <span className="text-sm text-[#3d3d3a]">{opt.label}</span>
             </label>

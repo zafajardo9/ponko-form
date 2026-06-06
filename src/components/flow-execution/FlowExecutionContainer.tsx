@@ -181,7 +181,7 @@ export function FlowExecutionContainer({
 
   if (!ready || !engineRef.current) {
     return (
-      <div className="mx-auto max-w-xl px-6 py-16">
+      <div className="mx-auto max-w-xl px-4 py-8 sm:px-6 sm:py-16">
         <div className="h-64 animate-pulse rounded-xl bg-[#efe9de]" />
       </div>
     )
@@ -191,7 +191,7 @@ export function FlowExecutionContainer({
   const step = engine.getCurrentStep()
 
   return (
-    <div className="mx-auto max-w-xl px-6 py-16">
+    <div className="mx-auto max-w-xl px-4 py-8 sm:px-6 sm:py-16">
       <Card>
         <div className="mb-8">
           <h1 className="text-2xl font-medium text-[#141413]">{meta.title}</h1>

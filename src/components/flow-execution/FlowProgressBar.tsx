@@ -23,9 +23,9 @@ export function FlowProgressBar({ current, total }: FlowProgressBarProps) {
               key={i}
               className={`h-1.5 flex-1 rounded-full transition-colors ${
                 state === 'done'
-                  ? 'bg-[#cc785c]'
+                  ? 'bg-[var(--ponko-primary,#cc785c)]'
                   : state === 'current'
-                    ? 'bg-[#cc785c]/60'
+                    ? 'bg-[var(--ponko-primary-soft,#cc785c99)]'
                     : 'bg-[#e6dfd8]'
               }`}
             />

@@ -224,6 +224,7 @@ export const getCompletionData = createServerFn({ method: 'GET', strict: false }
       execution,
       formId: flow?.formId ?? null,
       formTitle: form?.title ?? 'Form',
+      theme: form?.theme ?? null,
       variables: variables as FlowVariable[],
       summary: summaryNode
         ? {

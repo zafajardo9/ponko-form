@@ -3,6 +3,7 @@ import { auth } from '@clerk/tanstack-react-start/server'
 import { db } from '../../db/index'
 import { forms, profiles } from '../../db/schema'
 import { eq, desc } from 'drizzle-orm'
+import type { FormTheme } from '../theme'
 
 async function ensureProfile(clerkId: string) {
   const existing = await db
@@ -69,13 +70,14 @@ export const createForm = createServerFn({ method: 'POST' })
     return form
   })
 
-export const updateForm = createServerFn({ method: 'POST' })
+export const updateForm = createServerFn({ method: 'POST', strict: false })
   .inputValidator(
     (data: {
       id: number
       title?: string
       description?: string
       status?: 'draft' | 'published'
+      theme?: FormTheme | null
     }) => data,
   )
   .handler(async ({ data }) => {

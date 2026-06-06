@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   DndContext,
   closestCenter,
@@ -19,11 +20,15 @@ import type {
   FlowNode,
   FlowEdge,
   FlowNodeType,
+  FlowVariable,
+  GroupedField,
 } from "../../lib/flow-engine/types";
 import {
   linearizePrimaryPath,
   isPureLinear,
 } from "../../lib/flow-engine/path-utils";
+import { GroupFieldsEditor } from "./config-forms/GroupFieldsEditor";
+import { TextField } from "./config-forms/controls";
 import {
   Play,
   Square,
@@ -35,6 +40,7 @@ import {
   ExternalLink,
   GripVertical,
   AlertCircle,
+  FolderInput,
   X,
 } from "lucide-react";
 
@@ -129,10 +135,16 @@ interface FlowListBuilderProps {
   edges: FlowEdge[];
   selectedNodeId: number | null;
   byNodeErrors: Map<number, string[]>;
+  /** Declared flow variables — needed so Field Group fields can bind to them. */
+  variables: FlowVariable[];
   onSelect: (nodeId: number | null) => void;
   /** Full new primary-chain order (Start first, terminal last). */
   onReorder: (orderedNodeIds: number[]) => void;
   onDelete: (nodeId: number) => void;
+  /** Persists a node's full (merged) config — used by inline Group editing. */
+  onUpdateNode: (nodeId: number, config: Record<string, unknown>) => void;
+  /** Folds an existing standalone field node into a Field Group's fields. */
+  onMoveFieldToGroup: (nodeId: number, groupId: number) => void;
   onEditBranchesInCanvas: () => void;
 }
 
@@ -141,9 +153,12 @@ export function FlowListBuilder({
   edges,
   selectedNodeId,
   byNodeErrors,
+  variables,
   onSelect,
   onReorder,
   onDelete,
+  onUpdateNode,
+  onMoveFieldToGroup,
   onEditBranchesInCanvas,
 }: FlowListBuilderProps) {
   const sensors = useSensors(
@@ -156,6 +171,15 @@ export function FlowListBuilder({
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const { ordered, offPath } = linearizePrimaryPath(nodes, edges);
   const canReorder = isPureLinear(nodes, edges);
+
+  // Field Groups that a standalone field can be moved into.
+  const groupTargets = nodes
+    .filter((n) => n.type === "group")
+    .map((n) => ({
+      id: n.id,
+      label:
+        (n.config.title as string) || n.label || `Field Group #${n.id}`,
+    }));
 
   const orderedNodes = ordered.map((id) => byId.get(id)!).filter(Boolean);
   const startNode = orderedNodes.find((n) => n.type === "start") ?? null;
@@ -208,21 +232,37 @@ export function FlowListBuilder({
           strategy={verticalListSortingStrategy}
         >
           <div className="flex flex-col gap-2">
-            {middle.map((node) => (
-              <SortableNodeRow
-                key={node.id}
-                node={node}
-                draggable={canReorder && node.type !== "decision"}
-                isSelected={selectedNodeId === node.id}
-                errors={byNodeErrors.get(node.id)}
-                isBranchSource={node.type === "decision"}
-                onSelect={() =>
-                  onSelect(selectedNodeId === node.id ? null : node.id)
-                }
-                onDelete={() => onDelete(node.id)}
-                onEditBranchesInCanvas={onEditBranchesInCanvas}
-              />
-            ))}
+            {middle.map((node) =>
+              node.type === "group" ? (
+                <SortableGroupContainer
+                  key={node.id}
+                  node={node}
+                  draggable={canReorder}
+                  variables={variables}
+                  errors={byNodeErrors.get(node.id)}
+                  onUpdateNode={onUpdateNode}
+                  onDelete={() => onDelete(node.id)}
+                />
+              ) : (
+                <SortableNodeRow
+                  key={node.id}
+                  node={node}
+                  draggable={canReorder && node.type !== "decision"}
+                  isSelected={selectedNodeId === node.id}
+                  errors={byNodeErrors.get(node.id)}
+                  isBranchSource={node.type === "decision"}
+                  moveTargets={node.type === "form_field" ? groupTargets : []}
+                  onMoveToGroup={(groupId) =>
+                    onMoveFieldToGroup(node.id, groupId)
+                  }
+                  onSelect={() =>
+                    onSelect(selectedNodeId === node.id ? null : node.id)
+                  }
+                  onDelete={() => onDelete(node.id)}
+                  onEditBranchesInCanvas={onEditBranchesInCanvas}
+                />
+              ),
+            )}
           </div>
         </SortableContext>
       </DndContext>
@@ -289,6 +329,9 @@ interface NodeRowProps {
   errors?: string[];
   muted?: boolean;
   isBranchSource?: boolean;
+  /** Field Groups this field can be moved into (empty = no move action). */
+  moveTargets?: { id: number; label: string }[];
+  onMoveToGroup?: (groupId: number) => void;
   onSelect: () => void;
   onDelete?: () => void;
   onEditBranchesInCanvas?: () => void;
@@ -302,6 +345,8 @@ function NodeRow(props: NodeRowProps) {
     isSelected,
     errors,
     muted,
+    moveTargets,
+    onMoveToGroup,
     onSelect,
     onDelete,
     isBranchSource,
@@ -310,6 +355,8 @@ function NodeRow(props: NodeRowProps) {
   } = props;
   const meta = NODE_META[node.type];
   const hasError = !!errors?.length;
+  const [moveOpen, setMoveOpen] = useState(false);
+  const canMove = !!moveTargets?.length && !!onMoveToGroup;
 
   return (
     <div
@@ -348,6 +395,53 @@ function NodeRow(props: NodeRowProps) {
           branches ↳
         </button>
       )}
+      {canMove && (
+        <div className="relative flex-none">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setMoveOpen((o) => !o);
+            }}
+            className="hidden text-[#8e8b82] hover:text-[#cc785c] group-hover:block aria-expanded:block"
+            aria-label="Move field into a group"
+            aria-expanded={moveOpen}
+            title="Move into Field Group"
+          >
+            <FolderInput size={15} />
+          </button>
+          {moveOpen && (
+            <>
+              {/* Click-away backdrop */}
+              <div
+                className="fixed inset-0 z-10"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMoveOpen(false);
+                }}
+              />
+              <div className="absolute right-0 top-6 z-20 w-52 overflow-hidden rounded-lg border border-[#e6dfd8] bg-white py-1 shadow-lg">
+                <p className="px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-[#8e8b82]">
+                  Move into…
+                </p>
+                {moveTargets!.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMoveOpen(false);
+                      onMoveToGroup!(t.id);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[#141413] hover:bg-[#f5f0e8]"
+                  >
+                    <LayoutGrid size={13} className="flex-none text-[#a9583e]" />
+                    <span className="truncate">{t.label}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
       {onDelete && (
         <button
           onClick={(e) => {
@@ -364,6 +458,115 @@ function NodeRow(props: NodeRowProps) {
   );
 }
 
+/**
+ * A Field Group rendered as a container ("page") in the List view: a header
+ * with the group title + a nested, inline-editable list of its fields. The
+ * whole container is one sortable item along the primary path; only the header
+ * grip drags it, so editing the fields inside never starts a reorder.
+ */
+function SortableGroupContainer({
+  node,
+  draggable,
+  variables,
+  errors,
+  onUpdateNode,
+  onDelete,
+}: {
+  node: FlowNode;
+  draggable: boolean;
+  variables: FlowVariable[];
+  errors?: string[];
+  onUpdateNode: (nodeId: number, config: Record<string, unknown>) => void;
+  onDelete: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: node.id, disabled: !draggable });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const fields = (node.config.fields as GroupedField[] | undefined) ?? [];
+  const hasError = !!errors?.length;
+  const meta = NODE_META.group;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`rounded-xl border bg-[#f3e3da]/30 ${
+        hasError ? "border-[#e3b5ab]" : "border-[#e3cdbf]"
+      }`}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-2 border-b border-[#e3cdbf] px-3 py-2.5">
+        <button
+          {...attributes}
+          {...listeners}
+          className={`flex-none touch-none text-[#a9583e]/60 ${
+            draggable
+              ? "cursor-grab active:cursor-grabbing"
+              : "cursor-default opacity-30"
+          }`}
+          aria-label="Drag to reorder"
+          disabled={!draggable}
+        >
+          <GripVertical size={16} />
+        </button>
+        <span
+          className={`flex h-7 w-7 flex-none items-center justify-center rounded-md ${meta.accent}`}
+        >
+          {meta.icon}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium uppercase tracking-wider text-[#a9583e]">
+              {meta.label} · page
+            </span>
+            {hasError && <AlertCircle size={12} className="text-[#c64545]" />}
+          </div>
+          <TextField
+            resetKey={node.id}
+            value={(node.config.title as string) ?? ""}
+            onCommit={(v) =>
+              onUpdateNode(node.id, { ...node.config, title: v })
+            }
+            placeholder="Page title (optional)"
+          />
+        </div>
+        <button
+          onClick={onDelete}
+          className="flex-none text-[#8e8b82] hover:text-[#c64545]"
+          aria-label="Delete field group"
+        >
+          <X size={15} />
+        </button>
+      </div>
+
+      {/* Fields container */}
+      <div className="px-3 py-3">
+        <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-[#8e8b82]">
+          {fields.length} field{fields.length === 1 ? "" : "s"} on this page
+        </p>
+        <GroupFieldsEditor
+          fields={fields}
+          variables={variables}
+          onChange={(next) =>
+            onUpdateNode(node.id, { ...node.config, fields: next })
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
 /** Sortable wrapper around NodeRow for the draggable middle nodes. */
 function SortableNodeRow({
   node,
@@ -371,6 +574,8 @@ function SortableNodeRow({
   isSelected,
   errors,
   isBranchSource,
+  moveTargets,
+  onMoveToGroup,
   onSelect,
   onDelete,
   onEditBranchesInCanvas,
@@ -380,6 +585,8 @@ function SortableNodeRow({
   isSelected: boolean;
   errors?: string[];
   isBranchSource: boolean;
+  moveTargets?: { id: number; label: string }[];
+  onMoveToGroup?: (groupId: number) => void;
   onSelect: () => void;
   onDelete: () => void;
   onEditBranchesInCanvas: () => void;
@@ -408,6 +615,8 @@ function SortableNodeRow({
         isSelected={isSelected}
         errors={errors}
         isBranchSource={isBranchSource}
+        moveTargets={moveTargets}
+        onMoveToGroup={onMoveToGroup}
         onSelect={onSelect}
         onDelete={onDelete}
         onEditBranchesInCanvas={onEditBranchesInCanvas}

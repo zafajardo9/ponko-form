@@ -67,6 +67,34 @@ describe('FlowEngine', () => {
     expect(engine.getCurrentStep().renderedOutput).toBe('Ada Lovelace')
   })
 
+  it('coerces a selected option value to its variable type for calculations', () => {
+    // A radio whose chosen option stores "5000" (a string from the UI) bound to
+    // a money variable, then doubled by a calculator — should compute to 10000,
+    // proving the stored value is coerced to a real number.
+    const nodes = [
+      node(1, 'start'),
+      node(2, 'form_field', {
+        fieldType: 'radio',
+        bindToVariable: 'plan_price',
+        options: [
+          { label: 'Basic', value: '5000' },
+          { label: 'Premium', value: '9000' },
+        ],
+      }),
+      node(3, 'calculator', { targetVariable: 'total', expression: '{{plan_price}} * 2' }),
+      node(4, 'summary', { template: 'Total {{total}}' }),
+    ]
+    const edges = [edge(1, 1, 2), edge(2, 2, 3), edge(3, 3, 4)]
+    const vars = [variable(1, 'plan_price', 'money'), variable(2, 'total', 'money')]
+    const engine = new FlowEngine(nodes, edges, vars)
+
+    engine.advance() // start -> form_field
+    engine.advance({ formValue: '5000' }) // pick "Basic" -> calculator -> summary
+    expect(engine.getVariableValues().plan_price).toBe(5000)
+    expect(engine.getVariableValues().total).toBeCloseTo(10000)
+    expect(engine.isComplete()).toBe(true)
+  })
+
   it('computes a calculator value and auto-advances', () => {
     const nodes = [
       node(1, 'start'),

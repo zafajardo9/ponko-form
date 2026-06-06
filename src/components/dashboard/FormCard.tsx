@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "@tanstack/react-router";
 import { Badge } from "../ui/Badge";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Eye, Share2, Trash2 } from "lucide-react";
 
 interface FormCardProps {
   form: {
@@ -12,9 +12,10 @@ interface FormCardProps {
     updatedAt: Date | string;
   };
   onDelete: (id: number) => void;
+  onShare: (id: number) => void;
 }
 
-export function FormCard({ form, onDelete }: FormCardProps) {
+export function FormCard({ form, onDelete, onShare }: FormCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -86,6 +87,35 @@ export function FormCard({ form, onDelete }: FormCardProps) {
                 </span>
                 Edit
               </Link>
+
+              {/* Preview */}
+              <Link
+                to="/forms/submit/$formId"
+                params={{ formId: String(form.id) }}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#141413] hover:bg-[#f5f0e8] transition-colors"
+                onClick={() => setMenuOpen(false)}
+              >
+                <span className="w-5 text-center text-[#cc785c]">
+                  <Eye size={14} />
+                </span>
+                Preview
+              </Link>
+
+              {/* Share */}
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  onShare(form.id);
+                }}
+                className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-[#141413] hover:bg-[#f5f0e8] transition-colors"
+              >
+                <span className="w-5 text-center text-[#cc785c]">
+                  <Share2 size={14} />
+                </span>
+                Share
+              </button>
 
               {/* Divider */}
               <div className="mx-3 my-1 border-t border-[#e6dfd8]" />

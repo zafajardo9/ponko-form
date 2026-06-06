@@ -22,6 +22,7 @@ import {
   insertNodeInPath,
   removeNodeFromPath,
   reorderPath,
+  moveFieldIntoGroup,
 } from "../../../lib/server-fns/flow-nodes";
 import {
   createFlowVariable,
@@ -41,11 +42,18 @@ import { PreviewDialog } from "../../../components/ui/PreviewDialog";
 import { FlowPreviewModal } from "../../../components/ui/FlowPreviewModal";
 import { ShareDialog } from "../../../components/dashboard/ShareDialog";
 import { FlowValidator } from "../../../lib/flow-engine/FlowValidator";
-import { linearizePrimaryPath } from "../../../lib/flow-engine/path-utils";
+import {
+  linearizePrimaryPath,
+  primaryOutgoingEdge,
+} from "../../../lib/flow-engine/path-utils";
 import type {
+  FlowNode,
+  FlowEdge,
+  FlowVariable,
   FlowNodeType,
   FlowVariableType,
   FlowValidationError,
+  GroupedField,
 } from "../../../lib/flow-engine/types";
 import type { FlowNodeData } from "../../../components/flow-builder/nodes/NodeShell";
 
@@ -106,6 +114,61 @@ function UnifiedEditorPage() {
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["flow", formId] });
 
+  // ── Optimistic updates ──
+  // Mutating the cached flow in `onMutate` makes the List/Canvas reflect a
+  // change instantly (no waiting for the POST + refetch round-trips). The
+  // server runs in the background; `onSettled` refetches to swap any temp IDs
+  // for real ones, and `onError` rolls back to the pre-mutation snapshot.
+  type FlowCache = {
+    flow: { id: number } & Record<string, unknown>;
+    nodes: FlowNode[];
+    edges: FlowEdge[];
+    variables: FlowVariable[];
+  };
+  const flowKey = ["flow", formId];
+
+  function optimistic<TVars>(apply: (draft: FlowCache, vars: TVars) => void) {
+    return {
+      onMutate: async (vars: TVars) => {
+        await queryClient.cancelQueries({ queryKey: flowKey });
+        const prev = queryClient.getQueryData<FlowCache>(flowKey);
+        if (prev) {
+          const draft = structuredClone(prev);
+          apply(draft, vars);
+          queryClient.setQueryData(flowKey, draft);
+        }
+        return { prev };
+      },
+      onError: (_e: unknown, _v: TVars, ctx?: { prev?: FlowCache }) => {
+        if (ctx?.prev) queryClient.setQueryData(flowKey, ctx.prev);
+      },
+      onSettled: () => {
+        invalidate();
+      },
+    };
+  }
+
+  /** Remove a node and re-stitch its primary predecessor → successor in place. */
+  function spliceNodeOut(draft: FlowCache, nodeId: number) {
+    const incoming = draft.edges
+      .filter((e) => e.targetNodeId === nodeId)
+      .sort((a, b) => a.id - b.id)[0];
+    const outgoing = primaryOutgoingEdge(draft.edges, nodeId);
+    draft.edges = draft.edges.filter(
+      (e) => e.sourceNodeId !== nodeId && e.targetNodeId !== nodeId,
+    );
+    draft.nodes = draft.nodes.filter((n) => n.id !== nodeId);
+    if (incoming && outgoing && incoming.sourceNodeId !== outgoing.targetNodeId) {
+      draft.edges.push({
+        id: -Math.floor(Math.random() * 1e9),
+        flowId: draft.flow.id,
+        sourceNodeId: incoming.sourceNodeId,
+        targetNodeId: outgoing.targetNodeId,
+        metadata: {},
+      });
+    }
+  }
+
   // Lazily ensure every form is flow-backed: if there's no flow yet, build one
   // (from existing fields, or a blank Start → Summary).
   const ensureMutation = useMutation({
@@ -158,6 +221,10 @@ function UnifiedEditorPage() {
             hasError: !!messages,
             errorCount: messages?.length,
             errorMessages: messages,
+            // Injected for the Field Group container's inline editing (Canvas).
+            variables: flowData.variables,
+            onUpdateConfig: (config: Record<string, unknown>) =>
+              updateNodeMutation.mutate({ nodeId: n.id, config }),
           } as FlowNodeData,
         };
       }),
@@ -211,13 +278,56 @@ function UnifiedEditorPage() {
   const removeNodeMutation = useMutation({
     mutationFn: (nodeId: number) =>
       removeNodeFromPath({ data: { flowId: flowId!, nodeId } }),
-    onSuccess: invalidate,
+    ...optimistic<number>((draft, nodeId) => spliceNodeOut(draft, nodeId)),
   });
 
   const reorderMutation = useMutation({
     mutationFn: (orderedNodeIds: number[]) =>
       reorderPath({ data: { flowId: flowId!, orderedNodeIds } }),
-    onSuccess: invalidate,
+    ...optimistic<number[]>((draft, orderedNodeIds) => {
+      const idSet = new Set(orderedNodeIds);
+      // Drop edges internal to the reordered set, then rebuild the chain.
+      const kept = draft.edges.filter(
+        (e) => !(idSet.has(e.sourceNodeId) && idSet.has(e.targetNodeId)),
+      );
+      let temp = -1;
+      const chain: FlowEdge[] = [];
+      for (let i = 0; i < orderedNodeIds.length - 1; i++) {
+        chain.push({
+          id: temp--,
+          flowId: draft.flow.id,
+          sourceNodeId: orderedNodeIds[i],
+          targetNodeId: orderedNodeIds[i + 1],
+          metadata: {},
+        });
+      }
+      draft.edges = [...kept, ...chain];
+    }),
+  });
+
+  const moveFieldToGroupMutation = useMutation({
+    mutationFn: (vars: { nodeId: number; groupId: number }) =>
+      moveFieldIntoGroup({ data: { flowId: flowId!, ...vars } }),
+    ...optimistic<{ nodeId: number; groupId: number }>(
+      (draft, { nodeId, groupId }) => {
+        const node = draft.nodes.find((n) => n.id === nodeId);
+        const group = draft.nodes.find((n) => n.id === groupId);
+        if (!node || !group) return;
+        const cfg = node.config ?? {};
+        const grouped: GroupedField = {
+          id: `temp_${Math.random().toString(36).slice(2, 10)}`,
+          fieldType: (cfg.fieldType as string) ?? "text",
+          label: (cfg.label as string) || node.label || "Field",
+          placeholder: cfg.placeholder as string | undefined,
+          required: Boolean(cfg.required),
+          options: cfg.options as { label: string; value: string }[] | undefined,
+          bindToVariable: cfg.bindToVariable as string | undefined,
+        };
+        const existing = (group.config.fields as GroupedField[] | undefined) ?? [];
+        group.config = { ...group.config, fields: [...existing, grouped] };
+        spliceNodeOut(draft, nodeId);
+      },
+    ),
   });
 
   const addEdgeMutation = useMutation({
@@ -229,7 +339,13 @@ function UnifiedEditorPage() {
   const deleteNodeMutation = useMutation({
     mutationFn: (nodeId: number) =>
       deleteFlowNode({ data: { flowId: flowId!, nodeId } }),
-    onSuccess: invalidate,
+    ...optimistic<number>((draft, nodeId) => {
+      // Canvas delete: drop the node and every edge touching it.
+      draft.nodes = draft.nodes.filter((n) => n.id !== nodeId);
+      draft.edges = draft.edges.filter(
+        (e) => e.sourceNodeId !== nodeId && e.targetNodeId !== nodeId,
+      );
+    }),
   });
 
   const deleteEdgeMutation = useMutation({
@@ -250,7 +366,17 @@ function UnifiedEditorPage() {
       config?: Record<string, unknown>;
       label?: string;
     }) => updateFlowNode({ data: { flowId: flowId!, ...vars } }),
-    onSuccess: invalidate,
+    ...optimistic<{
+      nodeId: number;
+      config?: Record<string, unknown>;
+      label?: string;
+    }>((draft, vars) => {
+      const node = draft.nodes.find((n) => n.id === vars.nodeId);
+      if (!node) return;
+      if (vars.config !== undefined)
+        node.config = vars.config as FlowNode["config"];
+      if (vars.label !== undefined) node.label = vars.label;
+    }),
   });
 
   const createVarMutation = useMutation({
@@ -628,17 +754,24 @@ function UnifiedEditorPage() {
                         selectedNodeId == null ? null : Number(selectedNodeId)
                       }
                       byNodeErrors={validation.byNode}
+                      variables={flowData.variables}
                       onSelect={(id) =>
                         setSelectedNodeId(id == null ? null : String(id))
                       }
                       onReorder={(orderedNodeIds) =>
                         reorderMutation.mutate(orderedNodeIds)
                       }
+                      onUpdateNode={(nodeId, config) =>
+                        updateNodeMutation.mutate({ nodeId, config })
+                      }
                       onDelete={(nodeId) => {
                         removeNodeMutation.mutate(nodeId);
                         if (selectedNodeId === String(nodeId))
                           setSelectedNodeId(null);
                       }}
+                      onMoveFieldToGroup={(nodeId, groupId) =>
+                        moveFieldToGroupMutation.mutate({ nodeId, groupId })
+                      }
                       onEditBranchesInCanvas={() => setView("canvas")}
                     />
                   )}

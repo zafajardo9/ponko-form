@@ -4,6 +4,7 @@ import type { GroupedField } from '../../lib/flow-engine/types'
 import { FieldRenderer, type FieldConfig } from '../form-builder/fields/FieldRenderer'
 import { Button } from '../ui/Button'
 import { FlowProgressBar } from './FlowProgressBar'
+import { GroupStepView } from './GroupStepView'
 import { PaymentStep } from './PaymentStep'
 
 /**
@@ -45,14 +46,10 @@ export function FlowStepRenderer({
   const config = step.config as Record<string, unknown>
   const [value, setValue] = useState<string | string[]>('')
   const [error, setError] = useState<string>('')
-  const [groupValues, setGroupValues] = useState<Record<string, string | string[]>>({})
-  const [groupErrors, setGroupErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
     setValue('')
     setError('')
-    setGroupValues({})
-    setGroupErrors({})
   }, [step.nodeId])
 
   // ── Terminal: summary ──
@@ -71,7 +68,7 @@ export function FlowStepRenderer({
     return (
       <div className="flex flex-col items-center gap-3 py-8 text-center">
         <div className="flex items-center gap-1.5 text-[#8e8b82]">
-          <span className="h-2 w-2 animate-bounce rounded-full bg-[#cc785c]" />
+          <span className="h-2 w-2 animate-bounce rounded-full bg-[var(--ponko-primary,#cc785c)]" />
           <span className="ml-1 text-sm">Redirecting…</span>
         </div>
       </div>
@@ -140,46 +137,17 @@ export function FlowStepRenderer({
     const title = (config.title as string) || step.label
     const fields = (config.fields as GroupedField[] | undefined) ?? []
 
-    function submitGroup() {
-      const errs: Record<string, string> = {}
-      for (const f of fields) {
-        const v = groupValues[f.id] ?? ''
-        const empty = Array.isArray(v) ? v.length === 0 : String(v).trim() === ''
-        if (f.required && empty) errs[f.id] = 'This field is required.'
-      }
-      if (Object.keys(errs).length > 0) {
-        setGroupErrors(errs)
-        return
-      }
-      onNext({ groupValues })
-    }
-
     return (
       <div className="flex flex-col gap-6">
         {progress}
-        {title && <p className="text-base font-medium text-[#141413]">{title}</p>}
-        <div className="flex flex-col gap-5">
-          {fields.map((f, i) => (
-            <FieldRenderer
-              key={f.id}
-              field={{
-                id: i,
-                type: (f.fieldType ?? 'text') as FieldConfig['type'],
-                label: f.label,
-                placeholder: f.placeholder,
-                required: Boolean(f.required),
-                options: f.options,
-              }}
-              value={groupValues[f.id] ?? ''}
-              onChange={(v) => {
-                setGroupValues((s) => ({ ...s, [f.id]: v }))
-                setGroupErrors((e) => ({ ...e, [f.id]: '' }))
-              }}
-              error={groupErrors[f.id]}
-            />
-          ))}
-        </div>
-        <StepNav onBack={onBack} canGoBack={canGoBack} onNext={submitGroup} />
+        <GroupStepView
+          key={step.nodeId}
+          title={title}
+          fields={fields}
+          canGoBack={canGoBack}
+          onBack={onBack}
+          onSubmit={(groupValues) => onNext({ groupValues })}
+        />
       </div>
     )
   }
@@ -195,8 +163,10 @@ export function FlowStepRenderer({
           {branches.map((b) => (
             <label
               key={b.value}
-              className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
-                value === b.value ? 'border-[#cc785c] bg-[#efe9de]' : 'border-[#e6dfd8] hover:bg-[#faf9f5]'
+              className={`flex cursor-pointer items-center gap-3 rounded-[var(--ponko-radius,8px)] border px-3 py-2.5 transition-colors ${
+                value === b.value
+                  ? 'border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary-soft,#cc785c29)]'
+                  : 'border-[#e6dfd8] hover:bg-[#faf9f5]'
               }`}
             >
               <input
@@ -204,7 +174,7 @@ export function FlowStepRenderer({
                 name="decision"
                 checked={value === b.value}
                 onChange={() => setValue(b.value)}
-                className="h-4 w-4 accent-[#cc785c]"
+                className="h-4 w-4 accent-[var(--ponko-primary,#cc785c)]"
               />
               <span className="text-sm text-[#141413]">{b.label}</span>
             </label>

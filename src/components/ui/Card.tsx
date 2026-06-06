@@ -6,13 +6,13 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
 
 export function Card({ variant = 'default', className = '', ...props }: CardProps) {
   const variants = {
-    default: 'bg-[#efe9de] border border-[#e6dfd8]',
+    default: 'bg-[var(--ponko-surface,#efe9de)] border border-[#e6dfd8]',
     dark: 'bg-[#181715] text-[#faf9f5]',
   }
 
   return (
     <div
-      className={`rounded-xl p-8 ${variants[variant]} ${className}`}
+      className={`rounded-[var(--ponko-radius-card,16px)] p-6 sm:p-8 ${variants[variant]} ${className}`}
       {...props}
     />
   )

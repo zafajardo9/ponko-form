@@ -58,7 +58,7 @@ export function PublicFormView({ formId, embed = false }: PublicFormViewProps) {
   // Outer wrapper: centered card on the standalone page, fluid full-width when embedded.
   const wrapperClass = embed
     ? 'w-full px-4 py-6'
-    : 'mx-auto max-w-xl px-6 py-16'
+    : 'mx-auto max-w-xl px-4 py-8 sm:px-6 sm:py-16'
 
   if (formsLoading || fieldsLoading || flowLoading) {
     return (

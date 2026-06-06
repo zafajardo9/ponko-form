@@ -1,9 +1,7 @@
 import { useState } from 'react'
-import { Button } from '../ui/Button'
-import { Select, TextField } from './config-forms/controls'
+import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { VariableDialog, type VariableDraft } from './VariableDialog'
 import type { FlowNode, FlowVariable, FlowVariableType } from '../../lib/flow-engine/types'
-
-const TYPES: FlowVariableType[] = ['string', 'number', 'boolean', 'money']
 
 const TYPE_BADGE: Record<FlowVariableType, string> = {
   string: 'bg-[#dbe7f7] text-[#2f5a9e]',
@@ -27,11 +25,17 @@ export function nodeReferencesVariable(config: Record<string, unknown>, name: st
 /**
  * VariablesManager
  *
- * Lists declared variables with editable name/type/default/description, a
- * reference count, and add/delete actions. Delete is disabled when a variable
- * is referenced by any node. Changes auto-save on blur (text) or on change
- * (selects).
+ * A clean, scannable list of the flow's declared variables. Each row shows the
+ * name, type, optional default, and how many nodes use it. Creating and editing
+ * happen in a dedicated {@link VariableDialog} (opened via "Add variable" or the
+ * per-row edit button), so the panel itself stays a simple list. Delete is
+ * disabled while a variable is referenced by any node.
  */
+type DialogState =
+  | { mode: 'create' }
+  | { mode: 'edit'; variable: FlowVariable }
+  | null
+
 interface VariablesManagerProps {
   variables: FlowVariable[]
   nodes: FlowNode[]
@@ -49,20 +53,35 @@ export function VariablesManager({
   onDelete,
   onClose,
 }: VariablesManagerProps) {
-  const [newName, setNewName] = useState('')
-  const [newType, setNewType] = useState<FlowVariableType>('string')
+  const [dialog, setDialog] = useState<DialogState>(null)
 
   function refCount(name: string): number {
     return nodes.filter((n) => nodeReferencesVariable(n.config, name)).length
   }
 
-  function addVariable() {
-    const name = newName.trim()
-    if (!name) return
-    onCreate({ name, type: newType })
-    setNewName('')
-    setNewType('string')
+  function handleSave(draft: VariableDraft) {
+    if (dialog?.mode === 'edit') {
+      onUpdate(dialog.variable.id, {
+        name: draft.name,
+        type: draft.type,
+        defaultValue: draft.defaultValue,
+        description: draft.description,
+      })
+    } else {
+      onCreate({
+        name: draft.name,
+        type: draft.type,
+        defaultValue: draft.defaultValue ?? undefined,
+        description: draft.description ?? undefined,
+      })
+    }
+    setDialog(null)
   }
+
+  // Names taken — excluding the one being edited (so renaming to itself is fine).
+  const takenNames = variables
+    .filter((v) => !(dialog?.mode === 'edit' && v.id === dialog.variable.id))
+    .map((v) => v.name)
 
   return (
     <aside className="flex flex-col gap-4">
@@ -73,76 +92,72 @@ export function VariablesManager({
         </button>
       </div>
 
-      {/* Add new */}
-      <div className="flex flex-col gap-2 rounded-lg border border-dashed border-[#e6dfd8] p-3">
-        <TextField value={newName} onCommit={setNewName} resetKey={variables.length} placeholder="variable_name (snake_case)" />
-        <Select value={newType} onChange={(v) => setNewType(v as FlowVariableType)}>
-          {TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </Select>
-        <Button size="sm" onClick={addVariable}>
-          + Add Variable
-        </Button>
-      </div>
+      <button
+        onClick={() => setDialog({ mode: 'create' })}
+        className="flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#cc785c]/50 px-3 py-2 text-sm font-medium text-[#cc785c] hover:bg-[#f3e3da]/40"
+      >
+        <Plus size={15} /> Add variable
+      </button>
 
       {/* List */}
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
         {variables.length === 0 && (
-          <p className="text-center text-sm text-[#8e8b82]">No variables yet.</p>
+          <p className="rounded-lg border border-dashed border-[#e6dfd8] px-3 py-6 text-center text-sm text-[#8e8b82]">
+            No variables yet. Add one to capture and compute values across your flow.
+          </p>
         )}
         {variables.map((v) => {
           const count = refCount(v.name)
           return (
-            <div key={v.id} className="flex flex-col gap-2 rounded-lg border border-[#e6dfd8] bg-white p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${TYPE_BADGE[v.type]}`}>
-                  {v.type}
+            <div
+              key={v.id}
+              className="group flex items-center gap-2.5 rounded-lg border border-[#e6dfd8] bg-white px-3 py-2.5"
+            >
+              <span
+                className={`flex-none rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${TYPE_BADGE[v.type]}`}
+              >
+                {v.type}
+              </span>
+              <button
+                onClick={() => setDialog({ mode: 'edit', variable: v })}
+                className="min-w-0 flex-1 text-left"
+              >
+                <span className="block truncate font-mono text-sm text-[#141413]">{v.name}</span>
+                <span className="block truncate text-xs text-[#8e8b82]">
+                  {v.defaultValue ? `= ${v.defaultValue} · ` : ''}
+                  {count === 0 ? 'Unused' : `Used by ${count} node${count === 1 ? '' : 's'}`}
                 </span>
-                <button
-                  disabled={count > 0}
-                  title={count > 0 ? `Referenced by ${count} node(s)` : 'Delete variable'}
-                  onClick={() => onDelete(v.id)}
-                  className="text-sm text-[#8e8b82] enabled:hover:text-[#c64545] disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <TextField
-                resetKey={v.id}
-                value={v.name}
-                onCommit={(name) => name !== v.name && onUpdate(v.id, { name })}
-                placeholder="name"
-              />
-              <Select value={v.type} onChange={(t) => onUpdate(v.id, { type: t as FlowVariableType })}>
-                {TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </Select>
-              <TextField
-                resetKey={v.id}
-                value={v.defaultValue ?? ''}
-                onCommit={(dv) => onUpdate(v.id, { defaultValue: dv === '' ? null : dv })}
-                placeholder="default value (optional)"
-              />
-              <TextField
-                resetKey={v.id}
-                value={v.description ?? ''}
-                onCommit={(d) => onUpdate(v.id, { description: d === '' ? null : d })}
-                placeholder="description (optional)"
-              />
-              <p className="text-xs text-[#8e8b82]">
-                {count === 0 ? 'Unused' : `Used by ${count} node${count === 1 ? '' : 's'}`}
-              </p>
+              </button>
+              <button
+                onClick={() => setDialog({ mode: 'edit', variable: v })}
+                className="hidden flex-none text-[#8e8b82] hover:text-[#cc785c] group-hover:block"
+                aria-label="Edit variable"
+              >
+                <Pencil size={14} />
+              </button>
+              <button
+                disabled={count > 0}
+                title={count > 0 ? `Referenced by ${count} node(s)` : 'Delete variable'}
+                onClick={() => onDelete(v.id)}
+                className="flex-none text-[#8e8b82] enabled:hover:text-[#c64545] disabled:cursor-not-allowed disabled:opacity-30"
+                aria-label="Delete variable"
+              >
+                <Trash2 size={14} />
+              </button>
             </div>
           )
         })}
       </div>
+
+      {dialog && (
+        <VariableDialog
+          mode={dialog.mode}
+          initial={dialog.mode === 'edit' ? dialog.variable : null}
+          existingNames={takenNames}
+          onSave={handleSave}
+          onClose={() => setDialog(null)}
+        />
+      )}
     </aside>
   )
 }

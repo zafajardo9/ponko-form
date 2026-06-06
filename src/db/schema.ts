@@ -86,6 +86,13 @@ export const forms = pgTable(
     title: varchar('title', { length: 255 }).notNull(),
     description: text('description'),
     status: formStatusEnum('status').default('draft').notNull(),
+    // Per-form theming for the respondent-facing form (accent/background/corners).
+    // See src/lib/theme.ts (FormTheme). Null = house default.
+    theme: jsonb('theme').$type<{
+      primaryColor?: string
+      backgroundColor?: string
+      radius?: 'sharp' | 'rounded' | 'pill'
+    }>(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },

@@ -315,6 +315,78 @@ export const removeNodeFromPath = createServerFn({ method: 'POST' })
   })
 
 /**
+ * moveFieldIntoGroup — fold an existing standalone `form_field` node into a
+ * Field Group's inline `config.fields`, then remove the node from the primary
+ * path (re-stitching prev → next so the chain stays connected).
+ *
+ * The field's `bindToVariable` is carried over unchanged, so the answer is
+ * still captured under the same variable — and the variable itself is left in
+ * place (it may be referenced elsewhere). This is the inverse of building a
+ * group field from scratch: the field simply moves from its own step onto the
+ * group's page.
+ */
+export const moveFieldIntoGroup = createServerFn({ method: 'POST' })
+  .inputValidator((data: { flowId: number; nodeId: number; groupId: number }) => data)
+  .handler(async ({ data }) => {
+    const { userId } = await auth()
+    if (!userId) throw new Error('Unauthorized')
+    await assertFlowOwner(data.flowId, userId)
+
+    const [node] = await db.select().from(flowNodes).where(eq(flowNodes.id, data.nodeId)).limit(1)
+    if (!node || node.flowId !== data.flowId) throw new Error('Field not found')
+    if (node.type !== 'form_field') throw new Error('Only form fields can be moved into a group')
+
+    const [group] = await db.select().from(flowNodes).where(eq(flowNodes.id, data.groupId)).limit(1)
+    if (!group || group.flowId !== data.flowId) throw new Error('Group not found')
+    if (group.type !== 'group') throw new Error('Target is not a Field Group')
+
+    // Convert the node's config into a grouped field entry.
+    const cfg = (node.config ?? {}) as Record<string, unknown>
+    const groupedField = {
+      id:
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `f_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      fieldType: (cfg.fieldType as string) ?? 'text',
+      label: (cfg.label as string) || node.label || 'Field',
+      placeholder: cfg.placeholder as string | undefined,
+      required: Boolean(cfg.required),
+      options: cfg.options as { label: string; value: string }[] | undefined,
+      bindToVariable: cfg.bindToVariable as string | undefined,
+    }
+
+    const groupCfg = (group.config ?? {}) as Record<string, unknown>
+    const existingFields = (groupCfg.fields as unknown[] | undefined) ?? []
+    await db
+      .update(flowNodes)
+      .set({ config: { ...groupCfg, fields: [...existingFields, groupedField] } })
+      .where(eq(flowNodes.id, data.groupId))
+
+    // Re-stitch the primary path around the removed node (prev → next).
+    const edges = (await db
+      .select()
+      .from(flowEdges)
+      .where(eq(flowEdges.flowId, data.flowId))) as FlowEdge[]
+    const incoming = edges
+      .filter((e) => e.targetNodeId === data.nodeId)
+      .sort((a, b) => a.id - b.id)[0]
+    const outgoing = primaryOutgoingEdge(edges, data.nodeId)
+
+    await db.delete(flowNodes).where(eq(flowNodes.id, data.nodeId))
+
+    if (incoming && outgoing && incoming.sourceNodeId !== outgoing.targetNodeId) {
+      await db.insert(flowEdges).values({
+        flowId: data.flowId,
+        sourceNodeId: incoming.sourceNodeId,
+        targetNodeId: outgoing.targetNodeId,
+      })
+    }
+
+    await touchFlow(data.flowId)
+    return { success: true }
+  })
+
+/**
  * reorderPath — rebuild the primary chain to match `orderedNodeIds` (Start
  * first, terminal last). Only safe for pure-linear flows; the List view guards
  * this and falls back to Canvas when branches exist. Edges whose endpoints are

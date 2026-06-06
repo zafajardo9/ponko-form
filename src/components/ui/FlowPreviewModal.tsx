@@ -1,9 +1,18 @@
-import { useMemo, useRef, useState } from 'react'
-import { FlowEngine, type StepInput } from '../../lib/flow-engine/FlowEngine'
-import type { FlowNode, FlowEdge, FlowVariable } from '../../lib/flow-engine/types'
-import { FieldRenderer, type FieldConfig } from '../form-builder/fields/FieldRenderer'
-import { FlowProgressBar } from '../flow-execution/FlowProgressBar'
-import { Button } from './Button'
+import { useMemo, useRef, useState } from "react";
+import { FlowEngine, type StepInput } from "../../lib/flow-engine/FlowEngine";
+import type {
+  FlowNode,
+  FlowEdge,
+  FlowVariable,
+  GroupedField,
+} from "../../lib/flow-engine/types";
+import {
+  FieldRenderer,
+  type FieldConfig,
+} from "../form-builder/fields/FieldRenderer";
+import { FlowProgressBar } from "../flow-execution/FlowProgressBar";
+import { GroupStepView } from "../flow-execution/GroupStepView";
+import { Button } from "./Button";
 
 /**
  * FlowPreviewModal
@@ -13,107 +22,152 @@ import { Button } from './Button'
  * Payments are simulated. No server persistence.
  */
 interface FlowPreviewModalProps {
-  nodes: FlowNode[]
-  edges: FlowEdge[]
-  variables: FlowVariable[]
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  variables: FlowVariable[];
 }
 
-export function FlowPreviewModal({ nodes, edges, variables }: FlowPreviewModalProps) {
-  const engineRef = useRef<FlowEngine | null>(null)
-  const [, force] = useState(0)
-  const [fieldValue, setFieldValue] = useState<string | string[]>('')
-  const [decisionValue, setDecisionValue] = useState<string>('')
-  const [fieldError, setFieldError] = useState('')
+export function FlowPreviewModal({
+  nodes,
+  edges,
+  variables,
+}: FlowPreviewModalProps) {
+  const engineRef = useRef<FlowEngine | null>(null);
+  const [, force] = useState(0);
+  const [fieldValue, setFieldValue] = useState<string | string[]>("");
+  const [decisionValue, setDecisionValue] = useState<string>("");
+  const [fieldError, setFieldError] = useState("");
+  const [skipRequired, setSkipRequired] = useState(false);
 
-  const [resetKey, setResetKey] = useState(0)
+  const [resetKey, setResetKey] = useState(0);
 
   useMemo(() => {
     try {
-      engineRef.current = new FlowEngine(nodes, edges, variables)
+      engineRef.current = new FlowEngine(nodes, edges, variables);
     } catch {
-      engineRef.current = null
+      engineRef.current = null;
     }
-    setFieldValue('')
-    setDecisionValue('')
-    setFieldError('')
-  }, [nodes, edges, variables, resetKey])
+    setFieldValue("");
+    setDecisionValue("");
+    setFieldError("");
+  }, [nodes, edges, variables, resetKey]);
 
-  const engine = engineRef.current
+  const engine = engineRef.current;
 
   if (!engine) {
     return (
       <div className="flex flex-col items-center gap-4 py-16 text-center">
-        <p className="text-sm text-[#c64545]">This flow has no Start node yet.</p>
+        <p className="text-sm text-[#c64545]">
+          This flow has no Start node yet.
+        </p>
       </div>
-    )
+    );
   }
 
-  const step = engine.getCurrentStep()
-  const values = engine.getVariableValues()
-  const complete = engine.isComplete()
-  const config = step.config as Record<string, unknown>
+  const step = engine.getCurrentStep();
+  const values = engine.getVariableValues();
+  const complete = engine.isComplete();
+  const config = step.config as Record<string, unknown>;
 
   function next(input?: StepInput) {
-    setFieldError('')
-    engine!.advance(input)
-    setFieldValue('')
-    setDecisionValue('')
-    force((n) => n + 1)
+    setFieldError("");
+    engine!.advance(input);
+    setFieldValue("");
+    setDecisionValue("");
+    force((n) => n + 1);
   }
 
   function handleBack() {
     if (engine!.goBack()) {
-      setFieldValue('')
-      setDecisionValue('')
-      setFieldError('')
-      force((n) => n + 1)
+      setFieldValue("");
+      setDecisionValue("");
+      setFieldError("");
+      force((n) => n + 1);
     }
   }
 
   // ── Terminal: summary ──
-  if (complete && step.nodeType === 'summary') {
+  if (complete && step.nodeType === "summary") {
     return (
       <div className="flex flex-col items-center gap-4 py-8 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#d8f0e0] text-3xl text-[#2f7d52]">✓</div>
-        <h2 className="text-xl font-medium text-[#141413]">{(config.title as string) ?? 'All done!'}</h2>
-        {step.renderedOutput && <p className="text-[#6c6a64]">{step.renderedOutput}</p>}
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#d8f0e0] text-3xl text-[#2f7d52]">
+          ✓
+        </div>
+        <h2 className="text-xl font-medium text-[#141413]">
+          {(config.title as string) ?? "All done!"}
+        </h2>
+        {step.renderedOutput && (
+          <p className="text-[#6c6a64]">{step.renderedOutput}</p>
+        )}
         <div className="mt-4 flex gap-3">
-          <Button variant="secondary" size="sm" onClick={() => setResetKey((k) => k + 1)}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setResetKey((k) => k + 1)}
+          >
             Restart preview
           </Button>
         </div>
       </div>
-    )
+    );
   }
 
   // ── Terminal: redirect ──
-  if (complete && step.nodeType === 'redirect') {
+  if (complete && step.nodeType === "redirect") {
     return (
       <div className="flex flex-col items-center gap-3 py-8 text-center">
         <p className="text-sm text-[#6c6a64]">Would redirect to:</p>
-        <p className="break-all text-sm font-mono text-[#141413]">{step.redirectUrl}</p>
+        <p className="break-all text-sm font-mono text-[#141413]">
+          {step.redirectUrl}
+        </p>
         <div className="mt-4 flex gap-3">
-          <Button variant="secondary" size="sm" onClick={() => setResetKey((k) => k + 1)}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setResetKey((k) => k + 1)}
+          >
             Restart preview
           </Button>
         </div>
       </div>
-    )
+    );
   }
 
+  const skipToggle = (
+    <div className="border-t border-[#e6dfd8] pt-3 flex items-center justify-center">
+      <label className="flex items-center gap-1.5 text-xs text-[#8e8b82] cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={skipRequired}
+          onChange={(e) => setSkipRequired(e.target.checked)}
+          className="accent-[#cc785c]"
+        />
+        Skip required fields
+      </label>
+    </div>
+  );
+
   const progress = (
-    <FlowProgressBar current={engine.getCurrentStepNumber()} total={engine.getTotalSteps()} />
-  )
+    <FlowProgressBar
+      current={engine.getCurrentStepNumber()}
+      total={engine.getTotalSteps()}
+    />
+  );
 
   // ── Payment (simulated in the builder preview — no real gateway/execution) ──
   if (step.isPayment) {
-    const amountVar = config.amountVariable as string | undefined
-    const amount = amountVar ? (values[amountVar] as number | string) ?? 0 : 0
-    const currency = (config.currency as string) ?? 'USD'
+    const amountVar = config.amountVariable as string | undefined;
+    const amount = amountVar
+      ? ((values[amountVar] as number | string) ?? 0)
+      : 0;
+    const currency = (config.currency as string) ?? "USD";
     const formatted =
-      typeof amount === 'number'
-        ? amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-        : amount
+      typeof amount === "number"
+        ? amount.toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })
+        : amount;
     return (
       <div className="flex flex-col gap-6">
         {progress}
@@ -124,9 +178,17 @@ export function FlowPreviewModal({ nodes, edges, variables }: FlowPreviewModalPr
               {currency} {formatted}
             </p>
           </div>
-          <p className="text-xs text-[#8e8b82]">Preview only — no real charge is made.</p>
+          <p className="text-xs text-[#8e8b82]">
+            Preview only — no real charge is made.
+          </p>
           <div className="flex w-full max-w-xs flex-col gap-2">
-            <Button onClick={() => next({ paymentResult: { success: true, gatewayPaymentId: 'PREVIEW' } })}>
+            <Button
+              onClick={() =>
+                next({
+                  paymentResult: { success: true, gatewayPaymentId: "PREVIEW" },
+                })
+              }
+            >
               Simulate successful payment
             </Button>
             <Button
@@ -139,48 +201,79 @@ export function FlowPreviewModal({ nodes, edges, variables }: FlowPreviewModalPr
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   // ── Form field ──
-  if (step.nodeType === 'form_field') {
+  if (step.nodeType === "form_field") {
     const field: FieldConfig = {
       id: step.nodeId,
-      type: ((config.fieldType as string) ?? 'text') as FieldConfig['type'],
+      type: ((config.fieldType as string) ?? "text") as FieldConfig["type"],
       label: (config.label as string) ?? step.label,
       placeholder: config.placeholder as string | undefined,
       required: Boolean(config.required),
       options: config.options as { label: string; value: string }[] | undefined,
-    }
+    };
 
     function submit() {
-      const empty = Array.isArray(fieldValue) ? fieldValue.length === 0 : String(fieldValue).trim() === ''
-      if (field.required && empty) {
-        setFieldError('This field is required.')
-        return
+      const empty = Array.isArray(fieldValue)
+        ? fieldValue.length === 0
+        : String(fieldValue).trim() === "";
+      if (field.required && empty && !skipRequired) {
+        setFieldError("This field is required.");
+        return;
       }
-      next({ formValue: fieldValue })
+      next({ formValue: fieldValue });
     }
 
     return (
       <div className="flex flex-col gap-6">
         {progress}
-        <FieldRenderer field={field} value={fieldValue} onChange={setFieldValue} error={fieldError} />
+        <FieldRenderer
+          field={field}
+          value={fieldValue}
+          onChange={setFieldValue}
+          error={fieldError}
+        />
         <div className="flex items-center justify-between">
           {engine.getCurrentStepNumber() > 1 ? (
             <Button variant="text-link" size="sm" onClick={handleBack}>
               ← Back
             </Button>
-          ) : <span />}
+          ) : (
+            <span />
+          )}
           <Button onClick={submit}>Continue</Button>
         </div>
+        {skipToggle}
       </div>
-    )
+    );
+  }
+
+  // ── Group: several fields on one step ──
+  if (step.nodeType === "group") {
+    const title = (config.title as string) || step.label;
+    const fields = (config.fields as GroupedField[] | undefined) ?? [];
+    return (
+      <div className="flex flex-col gap-6">
+        {progress}
+        <GroupStepView
+          key={step.nodeId}
+          title={title}
+          fields={fields}
+          canGoBack={engine.getCurrentStepNumber() > 1}
+          onBack={handleBack}
+          onSubmit={(groupValues) => next({ groupValues })}
+        />
+        {skipToggle}
+      </div>
+    );
   }
 
   // ── Decision ──
-  if (step.nodeType === 'decision') {
-    const branches = (config.branches as { value: string; label: string }[] | undefined) ?? []
+  if (step.nodeType === "decision") {
+    const branches =
+      (config.branches as { value: string; label: string }[] | undefined) ?? [];
     return (
       <div className="flex flex-col gap-6">
         {progress}
@@ -189,8 +282,10 @@ export function FlowPreviewModal({ nodes, edges, variables }: FlowPreviewModalPr
           {branches.map((b) => (
             <label
               key={b.value}
-              className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
-                decisionValue === b.value ? 'border-[#cc785c] bg-[#efe9de]' : 'border-[#e6dfd8] hover:bg-[#faf9f5]'
+              className={`flex cursor-pointer items-center gap-3 rounded-[var(--ponko-radius,8px)] border px-3 py-2.5 transition-colors ${
+                decisionValue === b.value
+                  ? "border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary-soft,#cc785c29)]"
+                  : "border-[#e6dfd8] hover:bg-[#faf9f5]"
               }`}
             >
               <input
@@ -198,7 +293,7 @@ export function FlowPreviewModal({ nodes, edges, variables }: FlowPreviewModalPr
                 name="decision"
                 checked={decisionValue === b.value}
                 onChange={() => setDecisionValue(b.value)}
-                className="h-4 w-4 accent-[#cc785c]"
+                className="h-4 w-4 accent-[var(--ponko-primary,#cc785c)]"
               />
               <span className="text-sm text-[#141413]">{b.label}</span>
             </label>
@@ -209,17 +304,23 @@ export function FlowPreviewModal({ nodes, edges, variables }: FlowPreviewModalPr
             <Button variant="text-link" size="sm" onClick={handleBack}>
               ← Back
             </Button>
-          ) : <span />}
-          <Button onClick={() => next({ decisionValue })} disabled={!decisionValue}>
+          ) : (
+            <span />
+          )}
+          <Button
+            onClick={() => next({ decisionValue })}
+            disabled={!decisionValue}
+          >
             Continue
           </Button>
         </div>
+        {skipToggle}
       </div>
-    )
+    );
   }
 
   // ── Calculator ──
-  if (step.nodeType === 'calculator') {
+  if (step.nodeType === "calculator") {
     return (
       <div className="flex flex-col items-center gap-4 py-8 text-center">
         {progress}
@@ -228,8 +329,9 @@ export function FlowPreviewModal({ nodes, edges, variables }: FlowPreviewModalPr
           {config.targetVariable as string} = {config.expression as string}
         </p>
         <Button onClick={() => next()}>Continue</Button>
+        {skipToggle}
       </div>
-    )
+    );
   }
 
   // ── Start or unknown — just advance ──
@@ -239,6 +341,7 @@ export function FlowPreviewModal({ nodes, edges, variables }: FlowPreviewModalPr
       <div className="flex justify-center">
         <Button onClick={() => next()}>Begin</Button>
       </div>
+      {skipToggle}
     </div>
-  )
+  );
 }
