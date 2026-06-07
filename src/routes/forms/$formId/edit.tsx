@@ -41,6 +41,8 @@ import { Badge } from "../../../components/ui/Badge";
 import { PreviewDialog } from "../../../components/ui/PreviewDialog";
 import { FlowPreviewModal } from "../../../components/ui/FlowPreviewModal";
 import { ShareDialog } from "../../../components/dashboard/ShareDialog";
+import { SettingsDialog } from "../../../components/flow-builder/SettingsDialog";
+import { themeVars, type FormTheme } from "../../../lib/theme";
 import { FlowValidator } from "../../../lib/flow-engine/FlowValidator";
 import {
   linearizePrimaryPath,
@@ -87,6 +89,7 @@ function UnifiedEditorPage() {
   const [validateOpen, setValidateOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [rightPanelWidth, setRightPanelWidth] = useState(288);
   const rightPanelRef = useRef<HTMLDivElement>(null);
   const isResizing = useRef(false);
@@ -244,6 +247,12 @@ function UnifiedEditorPage() {
   const publishMutation = useMutation({
     mutationFn: (status: "draft" | "published") =>
       updateForm({ data: { id: Number(formId), status } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["forms"] }),
+  });
+
+  const settingsMutation = useMutation({
+    mutationFn: (theme: FormTheme) =>
+      updateForm({ data: { id: Number(formId), theme } }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["forms"] }),
   });
 
@@ -607,6 +616,13 @@ function UnifiedEditorPage() {
             Preview
           </button>
 
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-[#e6dfd8] bg-[#f5f0e8] px-3 py-1.5 text-sm text-[#6c6a64] hover:bg-[#e8e0d2] hover:text-[#141413] transition-colors"
+          >
+            <span className="text-xs">⚙</span> Settings
+          </button>
+
           {isPublished && (
             <button
               onClick={() => setShareOpen(true)}
@@ -635,11 +651,16 @@ function UnifiedEditorPage() {
           title={form?.title ?? "Form"}
           onClose={() => setPreviewOpen(false)}
         >
-          <FlowPreviewModal
-            nodes={flowData.nodes}
-            edges={flowData.edges}
-            variables={flowData.variables}
-          />
+          <div
+            style={themeVars((form?.theme as FormTheme | null) ?? null)}
+            className="rounded-lg bg-[var(--ponko-bg,#faf9f5)] p-4 sm:p-6"
+          >
+            <FlowPreviewModal
+              nodes={flowData.nodes}
+              edges={flowData.edges}
+              variables={flowData.variables}
+            />
+          </div>
         </PreviewDialog>
       )}
       {shareOpen && (
@@ -647,6 +668,17 @@ function UnifiedEditorPage() {
           formId={Number(formId)}
           title={form?.title ?? "Form"}
           onClose={() => setShareOpen(false)}
+        />
+      )}
+      {settingsOpen && (
+        <SettingsDialog
+          formTitle={form?.title ?? "Form"}
+          theme={(form?.theme as FormTheme | null) ?? null}
+          onSave={(theme) => {
+            settingsMutation.mutate(theme);
+            setSettingsOpen(false);
+          }}
+          onClose={() => setSettingsOpen(false)}
         />
       )}
 

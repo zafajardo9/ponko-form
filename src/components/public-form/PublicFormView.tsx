@@ -9,6 +9,7 @@ import { FlowExecutionContainer } from '../flow-execution/FlowExecutionContainer
 import { validateForm } from '../../lib/form-utils'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
+import { themeVars, type FormTheme } from '../../lib/theme'
 import type { FieldConfig } from '../form-builder/fields/FieldRenderer'
 
 interface PublicFormViewProps {
@@ -60,21 +61,31 @@ export function PublicFormView({ formId, embed = false }: PublicFormViewProps) {
     ? 'w-full px-4 py-6'
     : 'mx-auto max-w-xl px-4 py-8 sm:px-6 sm:py-16'
 
+  // Per-form theming: set CSS vars on a full-bleed wrapper (standalone gets the
+  // themed page background; embed stays transparent to blend into the host site).
+  const theme = (form?.theme ?? null) as FormTheme | null
+  const themed = themeVars(theme)
+  const outerClass = embed ? 'w-full' : 'min-h-screen bg-[var(--ponko-bg,#faf9f5)]'
+
   if (formsLoading || fieldsLoading || flowLoading) {
     return (
-      <div className={wrapperClass}>
-        <div className="h-64 animate-pulse rounded-xl bg-[#efe9de]" />
+      <div className={outerClass} style={themed}>
+        <div className={wrapperClass}>
+          <div className="h-64 animate-pulse rounded-xl bg-[#efe9de]" />
+        </div>
       </div>
     )
   }
 
   if (!form) {
     return (
-      <div className={embed ? 'w-full px-4 py-12 text-center' : 'mx-auto max-w-xl px-6 py-24 text-center'}>
-        <h1 className="text-2xl font-medium text-[#141413]">Form not found</h1>
-        <p className="mt-2 text-[#6c6a64]">
-          This form is not available or hasn't been published yet.
-        </p>
+      <div className={outerClass} style={themed}>
+        <div className={embed ? 'w-full px-4 py-12 text-center' : 'mx-auto max-w-xl px-6 py-24 text-center'}>
+          <h1 className="text-2xl font-medium text-[#141413]">Form not found</h1>
+          <p className="mt-2 text-[#6c6a64]">
+            This form is not available or hasn't been published yet.
+          </p>
+        </div>
       </div>
     )
   }
@@ -89,18 +100,22 @@ export function PublicFormView({ formId, embed = false }: PublicFormViewProps) {
         nodes={flow.nodes}
         edges={flow.edges}
         variables={flow.variables}
+        theme={theme}
+        embed={embed}
       />
     )
   }
 
   if (submitted) {
     return (
-      <div className={wrapperClass}>
-        <Card className="text-center py-16">
-          <div className="mb-4 text-5xl">✓</div>
-          <h1 className="text-2xl font-medium text-[#141413]">Thank you!</h1>
-          <p className="mt-2 text-[#6c6a64]">Your response has been recorded.</p>
-        </Card>
+      <div className={outerClass} style={themed}>
+        <div className={wrapperClass}>
+          <Card className="text-center py-16">
+            <div className="mb-4 text-5xl">✓</div>
+            <h1 className="text-2xl font-medium text-[#141413]">Thank you!</h1>
+            <p className="mt-2 text-[#6c6a64]">Your response has been recorded.</p>
+          </Card>
+        </div>
       </div>
     )
   }
@@ -127,7 +142,8 @@ export function PublicFormView({ formId, embed = false }: PublicFormViewProps) {
   }
 
   return (
-    <div className={wrapperClass}>
+    <div className={outerClass} style={themed}>
+      <div className={wrapperClass}>
       <Card>
         <div className="mb-8">
           <h1 className="text-2xl font-medium text-[#141413]">{form.title}</h1>
@@ -158,6 +174,7 @@ export function PublicFormView({ formId, embed = false }: PublicFormViewProps) {
           </Button>
         </form>
       </Card>
+      </div>
     </div>
   )
 }

@@ -29,6 +29,13 @@
       "when": 1780578044846,
       "tag": "0003_fuzzy_zuras",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780832973259,
+      "tag": "0004_happy_silverclaw",
+      "breakpoints": true
     }
   ]
 }

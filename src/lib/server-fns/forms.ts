@@ -47,6 +47,7 @@ export const getPublicForm = createServerFn({ method: 'GET' })
         title: forms.title,
         description: forms.description,
         status: forms.status,
+        theme: forms.theme,
       })
       .from(forms)
       .where(eq(forms.id, data.formId))

@@ -298,6 +298,7 @@ export const getResumeData = createServerFn({ method: 'GET', strict: false })
       formId: flow.formId,
       title: form?.title ?? 'Form',
       description: form?.description ?? null,
+      theme: form?.theme ?? null,
       nodes: nodes as FlowNode[],
       edges: edges as FlowEdge[],
       variables: variables as FlowVariable[],

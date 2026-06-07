@@ -9,6 +9,7 @@ import {
   completeExecution,
 } from '../../lib/server-fns/flow-executions'
 import { getResumeData } from '../../lib/server-fns/payments'
+import { themeVars, type FormTheme } from '../../lib/theme'
 import { Card } from '../ui/Card'
 import { FlowStepRenderer } from './FlowStepRenderer'
 
@@ -39,6 +40,10 @@ interface FlowExecutionContainerProps {
     executionId: number
     paymentResult: { success: boolean; gatewayPaymentId?: string }
   }
+  /** Per-form theme (accent/background/corners). */
+  theme?: FormTheme | null
+  /** Embedded mode — transparent background to blend into the host site. */
+  embed?: boolean
 }
 
 export function FlowExecutionContainer({
@@ -49,6 +54,8 @@ export function FlowExecutionContainer({
   edges,
   variables,
   resume,
+  theme,
+  embed = false,
 }: FlowExecutionContainerProps) {
   const navigate = useNavigate()
   const engineRef = useRef<FlowEngine | null>(null)
@@ -62,6 +69,10 @@ export function FlowExecutionContainer({
     title: title ?? 'Form',
     description,
   })
+  // In resume mode the theme is fetched (getResumeData); fresh-start gets it via prop.
+  const [themeState, setThemeState] = useState<FormTheme | null>(theme ?? null)
+  const themed = themeVars(themeState)
+  const outerClass = embed ? 'w-full' : 'min-h-screen bg-[var(--ponko-bg,#faf9f5)]'
 
   const startMut = useMutation({ mutationFn: (id: number) => startFlowExecution({ data: { flowId: id } }) })
   const advanceMut = useMutation({
@@ -88,6 +99,7 @@ export function FlowExecutionContainer({
           const data = await getResumeData({ data: { executionId: resume.executionId } })
           executionIdRef.current = data.execution.id
           setMeta({ title: data.title, description: data.description })
+          setThemeState((data.theme ?? null) as FormTheme | null)
           const engine = FlowEngine.restore(data.nodes, data.edges, data.variables, {
             currentNodeId: data.execution.currentNodeId!,
             variables: (data.execution.variables as Record<string, unknown>) ?? {},
@@ -172,17 +184,21 @@ export function FlowExecutionContainer({
 
   if (error) {
     return (
-      <div className="mx-auto max-w-xl px-6 py-24 text-center">
-        <h1 className="text-2xl font-medium text-[#141413]">Something went wrong</h1>
-        <p className="mt-2 text-[#6c6a64]">{error}</p>
+      <div className={outerClass} style={themed}>
+        <div className="mx-auto max-w-xl px-6 py-24 text-center">
+          <h1 className="text-2xl font-medium text-[#141413]">Something went wrong</h1>
+          <p className="mt-2 text-[#6c6a64]">{error}</p>
+        </div>
       </div>
     )
   }
 
   if (!ready || !engineRef.current) {
     return (
-      <div className="mx-auto max-w-xl px-4 py-8 sm:px-6 sm:py-16">
-        <div className="h-64 animate-pulse rounded-xl bg-[#efe9de]" />
+      <div className={outerClass} style={themed}>
+        <div className="mx-auto max-w-xl px-4 py-8 sm:px-6 sm:py-16">
+          <div className="h-64 animate-pulse rounded-xl bg-[#efe9de]" />
+        </div>
       </div>
     )
   }
@@ -191,7 +207,8 @@ export function FlowExecutionContainer({
   const step = engine.getCurrentStep()
 
   return (
-    <div className="mx-auto max-w-xl px-4 py-8 sm:px-6 sm:py-16">
+    <div className={outerClass} style={themed}>
+      <div className="mx-auto max-w-xl px-4 py-8 sm:px-6 sm:py-16">
       <Card>
         <div className="mb-8">
           <h1 className="text-2xl font-medium text-[#141413]">{meta.title}</h1>
@@ -210,6 +227,7 @@ export function FlowExecutionContainer({
           onBack={handleBack}
         />
       </Card>
+      </div>
     </div>
   )
 }
