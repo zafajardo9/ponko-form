@@ -54,14 +54,17 @@ export function PaymentStep({ executionId, amount, currency }: PaymentStepProps)
         <p className="mt-1 text-4xl font-semibold text-[#141413]">
           {displayCurrency} {formattedAmount}
         </p>
+        <p className="mt-1 text-xs text-[#8e8b82]">
+          You’ll be charged in {displayCurrency}.
+        </p>
       </div>
 
       {isLoading ? (
         <div className="h-10 w-48 animate-pulse rounded-md bg-[#efe9de]" />
       ) : gateways.length === 0 ? (
         <p className="max-w-xs text-sm text-[#c64545]">
-          This form isn’t ready to accept payments yet — the form owner hasn’t connected a payment
-          method.
+          No payment method is available for {displayCurrency} right now — please contact the form
+          owner.
         </p>
       ) : (
         <div className="flex w-full max-w-xs flex-col gap-2">

@@ -24,6 +24,7 @@ export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded'
 export interface GatewayCredentials {
   // Xendit
   secretKey?: string
+  publicKey?: string
   // PayPal
   clientId?: string
   clientSecret?: string

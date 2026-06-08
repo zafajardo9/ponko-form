@@ -81,6 +81,7 @@ export function toIntegrationView(
     xendit: {
       configured: !!xendit,
       secretKeyMask: xendit ? maskSecret(xendit.secretKey) : null,
+      publicKey: xendit?.publicKey ?? null,
       hasWebhookToken: !!xendit?.webhookToken,
     },
     paypal: {

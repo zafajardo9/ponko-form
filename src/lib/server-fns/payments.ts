@@ -69,7 +69,12 @@ function credentialsForSlug(
   configs: Awaited<ReturnType<typeof loadIntegrationConfigs>>,
 ): GatewayCredentials | null {
   if (slug === 'xendit') {
-    return configs.xendit ? { secretKey: configs.xendit.secretKey } : null
+    return configs.xendit
+      ? {
+          secretKey: configs.xendit.secretKey,
+          publicKey: configs.xendit.publicKey,
+        }
+      : null
   }
   return configs.paypal
     ? {
@@ -118,9 +123,15 @@ export const getPaymentOptions = createServerFn({ method: 'GET', strict: false }
     const currency = (config.currency as string) ?? 'USD'
 
     const configs = await loadIntegrationConfigs(formProfileId)
-    const gateways: { slug: GatewaySlug; name: string }[] = []
-    if (configs.paypal) gateways.push({ slug: 'paypal', name: 'PayPal' })
-    if (configs.xendit) gateways.push({ slug: 'xendit', name: 'Xendit' })
+    const connected: { slug: GatewaySlug; name: string }[] = []
+    if (configs.paypal) connected.push({ slug: 'paypal', name: 'PayPal' })
+    if (configs.xendit) connected.push({ slug: 'xendit', name: 'Xendit' })
+
+    // Only offer gateways that can actually process this form's currency. (A USD
+    // form with only Xendit connected ends up with no options — handled by the UI.)
+    const gateways = connected.filter((g) =>
+      paymentRegistry.get(g.slug)?.getSupportedCurrencies().includes(currency),
+    )
 
     return { amount, currency, gateways }
   })

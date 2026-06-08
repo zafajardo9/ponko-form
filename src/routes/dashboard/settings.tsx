@@ -103,13 +103,15 @@ function XenditSection({
 }) {
   const x = view.xendit
   const [secretKey, setSecretKey] = useState('')
+  const [publicKey, setPublicKey] = useState(x.publicKey ?? '')
   const [webhookToken, setWebhookToken] = useState('')
 
   const save = useMutation({
     mutationFn: () =>
-      saveXenditSettings({ data: { secretKey, webhookToken } }),
+      saveXenditSettings({ data: { secretKey, publicKey, webhookToken } }),
     onSuccess: () => {
       setSecretKey('')
+      setWebhookToken('')
       onSaved()
     },
   })
@@ -133,6 +135,13 @@ function XenditSection({
           placeholder={x.configured ? `Saved (${x.secretKeyMask}) — leave blank to keep` : 'xnd_production_...'}
           value={secretKey}
           onChange={(e) => setSecretKey(e.target.value)}
+        />
+        <Input
+          label="Public API key (optional)"
+          autoComplete="off"
+          placeholder="xnd_public_production_..."
+          value={publicKey}
+          onChange={(e) => setPublicKey(e.target.value)}
         />
         <Input
           label="Webhook verification token (optional)"

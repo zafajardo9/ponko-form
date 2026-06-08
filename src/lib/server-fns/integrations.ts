@@ -38,7 +38,8 @@ export const getIntegrationSettings = createServerFn({ method: 'GET' }).handler(
  */
 export const saveXenditSettings = createServerFn({ method: 'POST' })
   .inputValidator(
-    (data: { secretKey?: string; webhookToken?: string }) => data,
+    (data: { secretKey?: string; publicKey?: string; webhookToken?: string }) =>
+      data,
   )
   .handler(async ({ data }) => {
     const profile = await requireProfile()
@@ -49,7 +50,8 @@ export const saveXenditSettings = createServerFn({ method: 'POST' })
 
     const config: XenditConfig = {
       secretKey,
-      webhookToken: data.webhookToken?.trim() || undefined,
+      publicKey: data.publicKey?.trim() || existing?.publicKey || undefined,
+      webhookToken: data.webhookToken?.trim() || existing?.webhookToken || undefined,
     }
     await upsertIntegrationConfig(profile.id, { xenditConfig: encryptJson(config) })
     return { success: true }

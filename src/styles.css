@@ -70,3 +70,43 @@ body {
   color: var(--color-body);
   background: var(--color-canvas);
 }
+
+/* Step transitions for the end-user flow runtime (next / back). Direction-aware
+   so forward slides in from the right and back from the left. Disabled for the
+   embedded form and when the visitor prefers reduced motion. */
+@keyframes ponko-step-forward {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes ponko-step-back {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.ponko-step-forward {
+  animation: ponko-step-forward 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ponko-step-back {
+  animation: ponko-step-back 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ponko-step-forward,
+  .ponko-step-back {
+    animation: none;
+  }
+}

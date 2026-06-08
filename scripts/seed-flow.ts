@@ -67,9 +67,9 @@ async function main() {
   await db.insert(flowVariables).values([
     { flowId: flow.id, name: 'payment_plan', type: 'string', defaultValue: 'full', description: 'Selected payment plan' },
     { flowId: flow.id, name: 'subtotal', type: 'money', defaultValue: '10000', description: 'Base price before VAT' },
-    { flowId: flow.id, name: 'vat_amount', type: 'money', description: 'Computed VAT (12%)' },
-    { flowId: flow.id, name: 'total_cost', type: 'money', description: 'Subtotal + VAT' },
-    { flowId: flow.id, name: 'monthly_payment', type: 'money', description: 'Total divided over 6 months' },
+    // Both branches write the amount the payment node charges, so whichever plan
+    // the visitor picks flows straight into checkout.
+    { flowId: flow.id, name: 'amount_due', type: 'money', description: 'Amount charged at checkout (full total or monthly installment)' },
     { flowId: flow.id, name: 'payment_ref', type: 'string', description: 'Gateway payment reference' },
   ])
 
@@ -130,7 +130,7 @@ async function main() {
       positionX: 80,
       positionY: 470,
       config: {
-        targetVariable: 'total_cost',
+        targetVariable: 'amount_due',
         expression: '{{subtotal}} * 1.12',
         label: 'Full payment total incl. 12% VAT',
       },
@@ -146,7 +146,7 @@ async function main() {
       positionX: 420,
       positionY: 470,
       config: {
-        targetVariable: 'monthly_payment',
+        targetVariable: 'amount_due',
         expression: 'round(({{subtotal}} * 1.12) / 6, 2)',
         label: 'Installment monthly payment over 6 months',
       },
@@ -162,7 +162,7 @@ async function main() {
       positionX: 250,
       positionY: 610,
       config: {
-        amountVariable: 'total_cost',
+        amountVariable: 'amount_due',
         currency: 'USD',
         gatewayId: gateway?.id ?? null,
         label: 'Complete your payment',
@@ -181,7 +181,7 @@ async function main() {
       config: {
         title: 'Order Confirmation',
         template:
-          'Thank you! Plan: {{payment_plan}}. Total: {{total_cost}}. Monthly: {{monthly_payment}}. Reference: {{payment_ref}}.',
+          'Thank you! Plan: {{payment_plan}}. Amount due: {{amount_due}}. Reference: {{payment_ref}}.',
       },
     })
     .returning()
@@ -201,7 +201,7 @@ async function main() {
   ])
 
   console.log('Seeded sample "Payment Plan" flow:')
-  console.log('  6 variables, 7 nodes, 7 edges')
+  console.log('  4 variables, 7 nodes, 7 edges')
   if (!gateway) {
     console.log('  Note: no payment gateway found — payment node gatewayId left null.')
   }

@@ -16,6 +16,12 @@ export class XenditGateway extends PaymentGateway {
     return 'Xendit'
   }
 
+  // Xendit invoices are settled in the account's home currency. Our accounts are
+  // provisioned for the Philippines, so only PHP is accepted here.
+  getSupportedCurrencies(): string[] {
+    return ['PHP']
+  }
+
   // Prefer the form owner's own key; fall back to the platform env var.
   private apiKey(credentials?: GatewayCredentials): string {
     const key = credentials?.secretKey || process.env.XENDIT_SECRET_KEY

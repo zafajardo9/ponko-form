@@ -38,6 +38,9 @@ export function FlowPreviewModal({
   const [decisionValue, setDecisionValue] = useState<string>("");
   const [fieldError, setFieldError] = useState("");
   const [skipRequired, setSkipRequired] = useState(false);
+  // Names of variables whose value changed on the latest step — highlighted in
+  // the variables panel so the creator can see what a decision/calculator did.
+  const [changed, setChanged] = useState<Set<string>>(new Set());
 
   const [resetKey, setResetKey] = useState(0);
 
@@ -50,6 +53,7 @@ export function FlowPreviewModal({
     setFieldValue("");
     setDecisionValue("");
     setFieldError("");
+    setChanged(new Set());
   }, [nodes, edges, variables, resetKey]);
 
   const engine = engineRef.current;
@@ -69,9 +73,20 @@ export function FlowPreviewModal({
   const complete = engine.isComplete();
   const config = step.config as Record<string, unknown>;
 
+  function diffChanged(before: Record<string, unknown>, after: Record<string, unknown>) {
+    const next = new Set<string>();
+    for (const v of variables) {
+      if (before[v.name] !== after[v.name]) next.add(v.name);
+    }
+    return next;
+  }
+
   function next(input?: StepInput) {
     setFieldError("");
+    const before = engine!.getVariableValues();
     engine!.advance(input);
+    const after = engine!.getVariableValues();
+    setChanged(diffChanged(before, after));
     setFieldValue("");
     setDecisionValue("");
     force((n) => n + 1);
@@ -79,6 +94,7 @@ export function FlowPreviewModal({
 
   function handleBack() {
     if (engine!.goBack()) {
+      setChanged(new Set());
       setFieldValue("");
       setDecisionValue("");
       setFieldError("");
@@ -86,6 +102,7 @@ export function FlowPreviewModal({
     }
   }
 
+  function renderStep(engine: FlowEngine) {
   // ── Terminal: summary ──
   if (complete && step.nodeType === "summary") {
     return (
@@ -342,6 +359,81 @@ export function FlowPreviewModal({
         <Button onClick={() => next()}>Begin</Button>
       </div>
       {skipToggle}
+    </div>
+  );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {renderStep(engine)}
+      <VariablesPanel variables={variables} values={values} changed={changed} />
+    </div>
+  );
+}
+
+/**
+ * Live view of the flow's variables as the preview runs. Lets a creator see what
+ * each decision pick or calculator actually does — values update every step, and
+ * the ones that just changed are highlighted. Builder-only debugging aid.
+ */
+function VariablesPanel({
+  variables,
+  values,
+  changed,
+}: {
+  variables: FlowVariable[];
+  values: Record<string, unknown>;
+  changed: Set<string>;
+}) {
+  if (variables.length === 0) return null;
+
+  function formatValue(v: FlowVariable): { text: string; unset: boolean } {
+    const raw = values[v.name];
+    if (raw === null || raw === undefined || raw === "") {
+      return { text: "—", unset: true };
+    }
+    if (v.type === "boolean") return { text: raw ? "yes" : "no", unset: false };
+    if (v.type === "money" || v.type === "number") {
+      const n = Number(raw);
+      if (Number.isFinite(n)) {
+        return {
+          text: n.toLocaleString("en-US", {
+            minimumFractionDigits: v.type === "money" ? 2 : 0,
+            maximumFractionDigits: v.type === "money" ? 2 : 6,
+          }),
+          unset: false,
+        };
+      }
+    }
+    return { text: String(raw), unset: false };
+  }
+
+  return (
+    <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] px-3 py-2.5">
+      <p className="mb-1.5 text-xs font-medium text-[#8e8b82]">Variables (preview)</p>
+      <dl className="flex flex-col gap-1">
+        {variables.map((v) => {
+          const { text, unset } = formatValue(v);
+          const isChanged = changed.has(v.name);
+          return (
+            <div
+              key={v.name}
+              className={`flex items-baseline justify-between gap-3 rounded px-1.5 py-0.5 text-xs ${
+                isChanged ? "bg-[#fbeed9]" : ""
+              }`}
+            >
+              <dt className="font-mono text-[#57544d]">{v.name}</dt>
+              <dd
+                className={`font-mono ${
+                  unset ? "text-[#b8b4ab]" : "text-[#141413]"
+                } ${isChanged ? "font-semibold" : ""}`}
+              >
+                {text}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
     </div>
   );
 }

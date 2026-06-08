@@ -7,6 +7,7 @@
 
 export interface XenditConfig {
   secretKey: string
+  publicKey?: string
   webhookToken?: string
 }
 
@@ -42,6 +43,7 @@ export interface IntegrationSettingsView {
   xendit: {
     configured: boolean
     secretKeyMask: string | null
+    publicKey: string | null
     hasWebhookToken: boolean
   }
   paypal: {

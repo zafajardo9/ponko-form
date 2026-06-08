@@ -63,7 +63,12 @@ export function FlowExecutionContainer({
   const startedRef = useRef(false)
   const completedRef = useRef(false)
   const [ready, setReady] = useState(false)
-  const [, force] = useState(0)
+  // Bumps on every navigation; `tick` re-keys the step wrapper (replaying the
+  // transition) and `dir` picks the forward/back animation.
+  const [nav, setNav] = useState<{ tick: number; dir: 'forward' | 'back' }>({
+    tick: 0,
+    dir: 'forward',
+  })
   const [error, setError] = useState<string | null>(null)
   const [meta, setMeta] = useState<{ title: string; description?: string | null }>({
     title: title ?? 'Form',
@@ -173,13 +178,13 @@ export function FlowExecutionContainer({
     engine.advance(input)
     persist()
     maybeComplete()
-    force((n) => n + 1)
+    setNav((s) => ({ tick: s.tick + 1, dir: 'forward' }))
   }
 
   function handleBack() {
     const engine = engineRef.current
     if (!engine) return
-    if (engine.goBack()) force((n) => n + 1)
+    if (engine.goBack()) setNav((s) => ({ tick: s.tick + 1, dir: 'back' }))
   }
 
   if (error) {
@@ -215,17 +220,24 @@ export function FlowExecutionContainer({
           {meta.description && <p className="mt-2 text-[#6c6a64]">{meta.description}</p>}
         </div>
 
-        <FlowStepRenderer
-          step={step}
-          values={engine.getVariableValues()}
-          complete={engine.isComplete()}
-          executionId={executionIdRef.current}
-          stepNumber={engine.getCurrentStepNumber()}
-          totalSteps={engine.getTotalSteps()}
-          canGoBack={engine.getCurrentStepNumber() > 1 && !engine.isComplete()}
-          onNext={handleNext}
-          onBack={handleBack}
-        />
+        {/* Re-key per navigation so the step transition replays. Embedded forms
+            skip the animation to stay calm inside a host page. */}
+        <div
+          key={embed ? undefined : nav.tick}
+          className={embed ? undefined : `ponko-step-${nav.dir}`}
+        >
+          <FlowStepRenderer
+            step={step}
+            values={engine.getVariableValues()}
+            complete={engine.isComplete()}
+            executionId={executionIdRef.current}
+            stepNumber={engine.getCurrentStepNumber()}
+            totalSteps={engine.getTotalSteps()}
+            canGoBack={engine.getCurrentStepNumber() > 1 && !engine.isComplete()}
+            onNext={handleNext}
+            onBack={handleBack}
+          />
+        </div>
       </Card>
       </div>
     </div>
