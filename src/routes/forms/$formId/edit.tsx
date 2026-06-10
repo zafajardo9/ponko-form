@@ -161,7 +161,11 @@ function UnifiedEditorPage() {
       (e) => e.sourceNodeId !== nodeId && e.targetNodeId !== nodeId,
     );
     draft.nodes = draft.nodes.filter((n) => n.id !== nodeId);
-    if (incoming && outgoing && incoming.sourceNodeId !== outgoing.targetNodeId) {
+    if (
+      incoming &&
+      outgoing &&
+      incoming.sourceNodeId !== outgoing.targetNodeId
+    ) {
       draft.edges.push({
         id: -Math.floor(Math.random() * 1e9),
         flowId: draft.flow.id,
@@ -329,10 +333,13 @@ function UnifiedEditorPage() {
           label: (cfg.label as string) || node.label || "Field",
           placeholder: cfg.placeholder as string | undefined,
           required: Boolean(cfg.required),
-          options: cfg.options as { label: string; value: string }[] | undefined,
+          options: cfg.options as
+            | { label: string; value: string }[]
+            | undefined,
           bindToVariable: cfg.bindToVariable as string | undefined,
         };
-        const existing = (group.config.fields as GroupedField[] | undefined) ?? [];
+        const existing =
+          (group.config.fields as GroupedField[] | undefined) ?? [];
         group.config = { ...group.config, fields: [...existing, grouped] };
         spliceNodeOut(draft, nodeId);
       },
@@ -600,6 +607,13 @@ function UnifiedEditorPage() {
               className="rounded-md px-3 py-1 text-[#6c6a64] hover:text-[#141413]"
             >
               Responses
+            </Link>
+            <Link
+              to="/forms/$formId/payments"
+              params={{ formId }}
+              className="rounded-md px-3 py-1 text-[#6c6a64] hover:text-[#141413]"
+            >
+              Payments
             </Link>
           </nav>
 

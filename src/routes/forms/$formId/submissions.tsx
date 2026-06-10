@@ -1,43 +1,61 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
-import { requireAuth } from '../../../lib/server-fns/auth'
-import { getSubmissions } from '../../../lib/server-fns/submissions'
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { requireAuth } from "../../../lib/server-fns/auth";
+import { getSubmissions } from "../../../lib/server-fns/submissions";
+import { Badge } from "../../../components/ui/Badge";
 
-export const Route = createFileRoute('/forms/$formId/submissions')({
+export const Route = createFileRoute("/forms/$formId/submissions")({
   beforeLoad: () => requireAuth(),
   component: SubmissionsPage,
-})
+});
 
 interface Column {
-  key: string
-  label: string
+  key: string;
+  label: string;
+}
+
+interface PaymentInfo {
+  status: string;
+  amount: number;
+  currency: string;
 }
 
 function SubmissionsPage() {
-  const { formId } = Route.useParams()
-  const [page, setPage] = useState(1)
-  const [selected, setSelected] = useState<{ sub: any; number: number } | null>(null)
+  const { formId } = Route.useParams();
+  const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<{ sub: any; number: number } | null>(
+    null,
+  );
 
   const { data, isLoading } = useQuery({
-    queryKey: ['submissions', formId, page],
+    queryKey: ["submissions", formId, page],
     queryFn: () => getSubmissions({ data: { formId: Number(formId), page } }),
-  })
+  });
 
-  const submissions = data?.submissions ?? []
-  const columns = (data?.columns ?? []) as Column[]
-  const form = data?.form
-  const previewColumns = columns.slice(0, 3)
+  const submissions = data?.submissions ?? [];
+  const columns = (data?.columns ?? []) as Column[];
+  const form = data?.form;
+  const paymentMap = (data?.paymentMap ?? {}) as Record<string, PaymentInfo>;
+  const previewColumns = columns.slice(0, 3);
+
+  const hasPaymentData = Object.keys(paymentMap).length > 0;
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
       <div className="mb-8 flex items-center justify-between">
         <div>
           <div className="mb-1 flex items-center gap-2 text-sm text-[#6c6a64]">
-            <Link to="/dashboard" className="hover:text-[#141413]">Dashboard</Link>
+            <Link to="/dashboard" className="hover:text-[#141413]">
+              Dashboard
+            </Link>
             <span>/</span>
-            <Link to="/forms/$formId/edit" params={{ formId }} className="hover:text-[#141413]">
-              {form?.title ?? 'Form'}
+            <Link
+              to="/forms/$formId/edit"
+              params={{ formId }}
+              className="hover:text-[#141413]"
+            >
+              {form?.title ?? "Form"}
             </Link>
             <span>/</span>
             <span className="text-[#141413]">Responses</span>
@@ -45,19 +63,37 @@ function SubmissionsPage() {
           <h1 className="text-2xl font-medium text-[#141413]">
             Responses
             {submissions.length > 0 && (
-              <span className="ml-2 text-base text-[#6c6a64]">({submissions.length})</span>
+              <span className="ml-2 text-base text-[#6c6a64]">
+                ({submissions.length})
+              </span>
             )}
           </h1>
         </div>
-        <Link to="/forms/$formId/edit" params={{ formId }}>
-          <span className="text-sm text-[#cc785c] hover:text-[#a9583e]">← Back to builder</span>
-        </Link>
+        <div className="flex items-center gap-3">
+          {hasPaymentData && (
+            <Link
+              to="/forms/$formId/payments"
+              params={{ formId }}
+              className="text-sm text-[#cc785c] hover:text-[#a9583e]"
+            >
+              View Payments →
+            </Link>
+          )}
+          <Link to="/forms/$formId/edit" params={{ formId }}>
+            <span className="text-sm text-[#cc785c] hover:text-[#a9583e]">
+              ← Back to builder
+            </span>
+          </Link>
+        </div>
       </div>
 
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-14 animate-pulse rounded-xl bg-[#efe9de]" />
+            <div
+              key={i}
+              className="h-14 animate-pulse rounded-xl bg-[#efe9de]"
+            />
           ))}
         </div>
       ) : submissions.length === 0 ? (
@@ -69,20 +105,35 @@ function SubmissionsPage() {
           <table className="w-full text-sm">
             <thead className="border-b border-[#e6dfd8] bg-[#f5f0e8]">
               <tr>
-                <th className="px-4 py-3 text-left font-medium text-[#6c6a64]">#</th>
-                <th className="px-4 py-3 text-left font-medium text-[#6c6a64]">Submitted</th>
+                <th className="px-4 py-3 text-left font-medium text-[#6c6a64]">
+                  #
+                </th>
+                <th className="px-4 py-3 text-left font-medium text-[#6c6a64]">
+                  Submitted
+                </th>
                 {previewColumns.map((c) => (
-                  <th key={c.key} className="px-4 py-3 text-left font-medium text-[#6c6a64]">
+                  <th
+                    key={c.key}
+                    className="px-4 py-3 text-left font-medium text-[#6c6a64]"
+                  >
                     {c.label}
                   </th>
                 ))}
+                {hasPaymentData && (
+                  <th className="px-4 py-3 text-left font-medium text-[#6c6a64]">
+                    Payment
+                  </th>
+                )}
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-[#e6dfd8] bg-[#faf9f5]">
               {submissions.map((sub: any, i: number) => {
-                const number = (page - 1) * 50 + i + 1
-                const formData = sub.formData as Record<string, unknown>
+                const number = (page - 1) * 50 + i + 1;
+                const formData = sub.formData as Record<string, unknown>;
+                const payment = paymentMap[String(sub.id)] as
+                  | PaymentInfo
+                  | undefined;
 
                 return (
                   <tr
@@ -95,15 +146,27 @@ function SubmissionsPage() {
                       {new Date(sub.submittedAt).toLocaleString()}
                     </td>
                     {previewColumns.map((c) => (
-                      <td key={c.key} className="max-w-[200px] truncate px-4 py-3 text-[#141413]">
+                      <td
+                        key={c.key}
+                        className="max-w-[200px] truncate px-4 py-3 text-[#141413]"
+                      >
                         {formatValue(formData[c.key])}
                       </td>
                     ))}
+                    {hasPaymentData && (
+                      <td className="px-4 py-3">
+                        {payment ? (
+                          <PaymentBadge status={payment.status} />
+                        ) : (
+                          <span className="text-xs text-[#8e8b82]">—</span>
+                        )}
+                      </td>
+                    )}
                     <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-[#cc785c]">
                       View →
                     </td>
                   </tr>
-                )
+                );
               })}
             </tbody>
           </table>
@@ -134,48 +197,70 @@ function SubmissionsPage() {
           number={selected.number}
           submission={selected.sub}
           columns={columns}
+          payment={
+            paymentMap[String(selected.sub.id)] as PaymentInfo | undefined
+          }
           onClose={() => setSelected(null)}
         />
       )}
     </div>
-  )
+  );
+}
+
+function PaymentBadge({ status }: { status: string }) {
+  switch (status) {
+    case "completed":
+      return <Badge variant="paid">Paid</Badge>;
+    case "pending":
+      return <Badge variant="pending">Pending</Badge>;
+    case "failed":
+      return <Badge variant="failed">Failed</Badge>;
+    case "refunded":
+      return <Badge variant="refunded">Refunded</Badge>;
+    default:
+      return <span className="text-xs text-[#8e8b82]">{status}</span>;
+  }
 }
 
 function ResponseDialog({
   number,
   submission,
   columns,
+  payment,
   onClose,
 }: {
-  number: number
-  submission: any
-  columns: Column[]
-  onClose: () => void
+  number: number;
+  submission: any;
+  columns: Column[];
+  payment?: PaymentInfo;
+  onClose: () => void;
 }) {
   // Close on Escape.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === "Escape") onClose();
     }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
-  const formData = (submission.formData as Record<string, unknown>) ?? {}
-  const paymentRef = formData.payment_ref as string | undefined
+  const formData = (submission.formData as Record<string, unknown>) ?? {};
+  const paymentRef = formData.payment_ref as string | undefined;
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
+        if (e.target === e.currentTarget) onClose();
       }}
     >
       <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl bg-[#faf9f5] shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#e6dfd8] px-6 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-[#141413]">Response #{number}</h2>
+            <h2 className="text-lg font-semibold text-[#141413]">
+              Response #{number}
+            </h2>
             <p className="mt-0.5 text-xs text-[#8e8b82]">
               Submitted {new Date(submission.submittedAt).toLocaleString()}
             </p>
@@ -192,7 +277,9 @@ function ResponseDialog({
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {columns.length === 0 ? (
-            <p className="text-sm text-[#8e8b82]">This form has no input fields to display.</p>
+            <p className="text-sm text-[#8e8b82]">
+              This form has no input fields to display.
+            </p>
           ) : (
             <dl className="divide-y divide-[#e6dfd8] rounded-lg border border-[#e6dfd8] bg-white">
               {columns.map((c) => (
@@ -211,20 +298,55 @@ function ResponseDialog({
             </dl>
           )}
 
-          {paymentRef && (
+          {/* Payment info section */}
+          {payment && (
+            <div className="mt-5 rounded-lg border border-[#e6dfd8] bg-white p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8e8b82]">
+                Payment
+              </p>
+              <div className="mt-2 flex items-center justify-between">
+                <span>
+                  <PaymentBadge status={payment.status} />
+                </span>
+                <span className="text-sm font-medium text-[#141413]">
+                  {formatMoney(payment.amount / 100, payment.currency)}
+                </span>
+              </div>
+              {paymentRef && (
+                <p className="mt-2 text-xs text-[#8e8b82]">
+                  Reference:{" "}
+                  <span className="font-mono text-[#57544d]">{paymentRef}</span>
+                </p>
+              )}
+            </div>
+          )}
+
+          {!payment && paymentRef && (
             <p className="mt-4 text-xs text-[#8e8b82]">
-              Payment reference: <span className="font-mono text-[#57544d]">{paymentRef}</span>
+              Payment reference:{" "}
+              <span className="font-mono text-[#57544d]">{paymentRef}</span>
             </p>
           )}
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 /** Render a stored answer value for display (joins multi-select arrays). */
 function formatValue(value: unknown): string {
-  if (value === undefined || value === null || value === '') return '—'
-  if (Array.isArray(value)) return value.length ? value.join(', ') : '—'
-  return String(value)
+  if (value === undefined || value === null || value === "") return "—";
+  if (Array.isArray(value)) return value.length ? value.join(", ") : "—";
+  return String(value);
+}
+
+function formatMoney(major: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+    }).format(major);
+  } catch {
+    return `${currency} ${major.toFixed(2)}`;
+  }
 }

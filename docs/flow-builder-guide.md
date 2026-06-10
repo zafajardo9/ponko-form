@@ -1,556 +1,575 @@
 # Flow Builder — Knowledge Base
 
-> **Feature:** FT001 Flow Builder
-> **Status:** Implemented ✅
-> **Tech Stack:** TanStack Start, Drizzle ORM (Neon/Postgres), React Flow, math.js, Clerk Auth
-> **Source:** `features/FT001-flow-builder/` (plan, spec, requirements, discussion)
-
-The Flow Builder transforms PonkoForm from a **linear form builder** into a **visual workflow engine**. Form creators compose multi-step, branching, calculator-enabled, payment-integrated flows by connecting nodes on a canvas — no code required.
-
-A form with a flow runs the step-by-step flow experience for respondents. A form *without* a flow behaves exactly as before (the classic single-page linear form), so existing forms are unaffected.
+> **Complete reference for the PonkoForm Flow Builder.** Covers everything from node types and variables to the runtime engine and database schema.
 
 ---
 
 ## Table of Contents
 
-### User Documentation (for form creators)
-1. [Quick Start](#1-quick-start)
-2. [Concepts](#2-concepts)
-3. [Node Types Reference](#3-node-types-reference)
-4. [Variables System](#4-variables-system)
-5. [Expression & Calculator Guide](#5-expression--calculator-guide)
-6. [Payment Flows](#6-payment-flows)
-7. [Flow Validation](#7-flow-validation)
-8. [Testing with Preview](#8-testing-with-preview)
-9. [Publishing & Respondent Experience](#9-publishing--respondent-experience)
-10. [Converting a Linear Form](#10-converting-a-linear-form)
+### User Reference (for form creators)
 
-### Developer Documentation (data model & architecture)
-11. [Database Schema](#11-database-schema)
-12. [Type System](#12-type-system)
-13. [Runtime Engine Architecture](#13-runtime-engine-architecture)
-14. [Server Functions API](#14-server-functions-api)
-15. [UI Component Tree](#15-ui-component-tree)
-16. [Routes & Navigation](#16-routes--navigation)
-17. [Validation Rules (Reference)](#17-validation-rules-reference)
-18. [Backward Compatibility](#18-backward-compatibility)
+1. [Node Types Reference](#1-node-types-reference)
+2. [Variables System](#2-variables-system)
+3. [Expression & Calculator Guide](#3-expression--calculator-guide)
+4. [Payment Flows](#4-payment-flows)
+5. [Flow Validation](#5-flow-validation)
+6. [Testing with Preview](#6-testing-with-preview)
+7. [Publishing & Respondent Experience](#7-publishing--respondent-experience)
+8. [Converting a Linear Form](#8-converting-a-linear-form)
 
----
+### Developer Reference (data model & architecture)
 
-## 1. Quick Start
-
-### Creating a New Flow
-
-1. **Create a form** — from the dashboard, click **New Form**, give it a title, and select **Flow Builder** as the mode.
-2. **Create the flow** — you'll land on the Flow Builder page. Click **Create Flow** to add the initial Start node.
-3. **Add nodes** — drag node types from the left palette onto the canvas, or click to add at a default position.
-4. **Connect nodes** — drag from a node's bottom handle (`●`) to another node's top handle (`●`).
-5. **Configure each node** — click a node to open its configuration panel on the right.
-6. **Declare variables** — open the **Variables** manager from the toolbar to declare typed variables.
-7. **Test** — click **Preview** to step through the flow in a dialog before publishing.
-8. **Publish** — switch to the **Edit** tab and click **Publish** to make the form live.
-
-### Converting an Existing Form
-
-On the dashboard, forms without a flow show a **Convert to Flow** option in the actions menu (three-dot icon). Converting creates a linear flow from your existing fields — you can then add decisions, calculators, and payments.
+9. [Database Schema](#9-database-schema)
+10. [Type System](#10-type-system)
+11. [Runtime Engine Architecture](#11-runtime-engine-architecture)
+12. [Server Functions API](#12-server-functions-api)
+13. [UI Component Tree](#13-ui-component-tree)
+14. [Routes & Navigation](#14-routes--navigation)
+15. [Validation Rules Reference](#15-validation-rules-reference)
+16. [Backward Compatibility](#16-backward-compatibility)
 
 ---
 
-## 2. Concepts
+# User Reference
 
-### Flow
-One per form. A flow is a directed acyclic graph (DAG) of nodes. Created from the form's **Flow** tab, or by converting an existing linear form.
+## 1. Node Types Reference
 
-### Nodes
-The steps in the workflow. There are 7 node types: Start, Form Field, Decision, Calculator, Payment, Summary, and Redirect.
+Each node type has a specific purpose, configuration fields, and behavior when executed.
 
-### Edges
-Directed connections between nodes that define the execution path. Edges for Decision nodes carry a `matchValue` that determines which branch to follow based on the respondent's selection.
+### 1.1 Start ▶️
 
-### Variables
-Typed values shared across all nodes in a flow. Form fields store answers in them, calculators transform them, and payments, summaries, and redirects read them.
+**The entry point — every flow must have exactly one.**
 
-### Execution
-When a respondent submits a flow-powered form, a runtime engine runs the flow step by step — showing one field at a time, evaluating decisions, computing calculators, and handling payment.
+| Property | Value |
+|---|---|
+| **Purpose** | Marks the beginning of the flow |
+| **Configuration** | None |
+| **Edges** | Exactly 1 outgoing |
+| **Created** | Automatically when a flow is created |
+| **UI** | Rounded shape, green accent |
 
-### Terminal Nodes
-**Summary** and **Redirect** are terminal — they end the flow and have no outgoing connections. Summary shows a dynamic receipt page; Redirect sends the user to an external URL.
+### 1.2 Form Field ☐
 
----
+**Collects input from the respondent — text, numbers, choices, etc.**
 
-## 3. Node Types Reference
-
-Each node type has a specific purpose, configuration schema, and edge constraints.
-
-### 3.1 Start ▶️
-- **Purpose:** Entry point of every flow. Exactly one per flow.
-- **Configuration:** None.
-- **Edges:** Exactly 1 outgoing.
-- **Created:** Automatically when the flow is created.
-- **UI:** Round shape, green accent, no target handle.
-
-### 3.2 Form Field ☐
-- **Purpose:** Collect input from the respondent (text, email, number, textarea, select, checkbox, radio).
-- **Configuration:**
-  - `fieldType` — one of: `text`, `email`, `number`, `textarea`, `select`, `checkbox`, `radio`
-  - `label` — the field label shown to the respondent
-  - `placeholder` — placeholder text (text/email/number/textarea only)
-  - `required` — whether the field must be filled
-  - `options` — array of `{ label, value }` (select/checkbox/radio only)
-  - `bindToVariable` — the variable name where the answer is stored
-- **Edges:** Exactly 1 outgoing.
-- **UI:** Rectangle, blue accent icon, shows field type detail.
-
-### 3.3 Decision ◇
-- **Purpose:** Branch the flow based on a variable's value.
-- **Configuration:**
-  - `sourceVariable` — the string variable to evaluate
-  - `branches` — array of `{ value, label }` pairs
-- **Edges:** One per branch. Each edge's `matchValue` metadata determines which branch fires.
-- **Runtime behavior:** When the engine reaches a Decision node, it reads the source variable, finds the outgoing edge whose `matchValue` matches, and follows it. If no match is found, it follows the first edge as a default.
-- **UI:** Diamond shape, amber accent, shows branch count.
-
-### 3.4 Calculator ∑
-- **Purpose:** Compute a value from an expression and store it in a variable.
-- **Configuration:**
-  - `targetVariable` — the variable (must be `number` or `money` type)
-  - `expression` — a math formula using `{{variable}}` placeholders
-- **Edges:** Exactly 1 outgoing.
-- **Runtime behavior:** Automatically evaluated — the respondent never sees the calculator node. The result is stored in the target variable. Results targeting `money` variables are rounded to 2 decimal places.
-- **UI:** Rectangle, purple accent, shows expression preview.
-
-### 3.5 Payment $
-- **Purpose:** Collect a real payment through the form owner's own gateway accounts (PayPal, Xendit).
-- **Configuration:**
-  - `amountVariable` — the `money`/`number` variable holding the amount to charge
-  - `currency` — e.g., USD, PHP, EUR
-  - (No gateway is chosen on the node — the visitor picks at checkout from the methods you connected in **Settings**.)
-- **Edges:** 1 (success path) or 2 (success + failure). The first edge is the success path; the second (optional) is the failure path.
-- **Runtime behavior:** Shows the amount and a button per connected gateway. On click, the server creates the order/invoice with your credentials and redirects the visitor to the gateway's hosted checkout; on return the charge is verified and the flow advances onto the success or failure edge. The verified gateway reference is available as `{{payment_ref}}`.
-- **UI:** Rectangle, green accent, shows amount variable.
-
-### 3.6 Summary ≡
-- **Purpose:** Show a dynamic result/receipt page to the respondent. Terminal node.
-- **Configuration:**
-  - `title` — heading text (e.g., "Thank you!")
-  - `template` — HTML/text with `{{variable}}` placeholders (e.g., "Your order total is {{total_cost}}")
-- **Edges:** 0 (terminal — no outgoing connections).
-- **Runtime behavior:** Renders the interpolated template, shows a success animation, and displays a receipt table of all variable values.
-- **UI:** Rectangle, gray accent, shows template preview.
-
-### 3.7 Redirect ↗
-- **Purpose:** Send the respondent to an external URL. Terminal node.
-- **Configuration:**
-  - `urlTemplate` — URL with `{{variable}}` placeholders (e.g., `https://example.com/course?ref={{payment_ref}}`)
-- **Edges:** 0 (terminal — no outgoing connections).
-- **Runtime behavior:** Shows a brief "Redirecting…" message, then navigates to the constructed URL.
-- **UI:** Rectangle, gray accent, shows URL preview.
-
----
-
-## 4. Variables System
-
-Variables are the data backbone of every flow. They are **typed, declared, and scoped** to a single flow.
-
-### 4.1 Variable Properties
-
-| Property | Description | Rules |
+| Field | Required | Description |
 |---|---|---|
-| `name` | Identifier used in expressions as `{{name}}` | Must be `snake_case` (lowercase letters, numbers, underscores; starting with a letter). Unique within a flow. |
-| `type` | The kind of data stored | `string`, `number`, `boolean`, or `money` |
-| `defaultValue` | Starting value when a flow run begins | Parsed by type at runtime |
-| `description` | Human-readable note | Shown on the completion receipt page |
+| `fieldType` | ✅ | One of: `text`, `email`, `number`, `textarea`, `select`, `checkbox`, `radio` |
+| `label` | ✅ | The question or prompt shown to the respondent |
+| `placeholder` | — | Hint text inside the field (text/email/number/textarea only) |
+| `required` | — | Whether the respondent must fill this field |
+| `options` | Depends | Array of `{ label, value }` — required for `select`/`checkbox`/`radio` |
+| `bindToVariable` | ✅ | The variable where the answer will be stored |
 
-### 4.2 Type Behaviors
+**Example config (a select field):**
+```
+fieldType: select
+label: "Choose your plan"
+required: true
+options: [
+  { label: "Full Payment", value: "full" },
+  { label: "Installment", value: "installment" }
+]
+bindToVariable: "payment_plan"
+```
 
-| Type | Default Parsing | Display Format | Calculator Target |
+### 1.3 Group 📋
+
+**Collects multiple related fields on a single step.** Useful for address blocks, service selection catalogs, or multi-field input.
+
+| Field | Required | Description |
+|---|---|---|
+| `title` | — | Heading shown above the group |
+| `fields` | ✅ | Array of field definitions (each with `id`, `label`, `fieldType`, `required`, `options`, `bindToVariable`) |
+
+**Example:** An address group with street, city, and zip fields on one page.
+
+### 1.4 Decision ◇
+
+**Branches the flow based on a respondent's answer.** Routes to different paths depending on what value a variable holds.
+
+| Field | Required | Description |
+|---|---|---|
+| `sourceVariable` | ✅ | The variable to check (must be a `string` or `boolean` variable) |
+| `branches` | ✅ | Array of `{ value, label }` — each value must match the edge's `matchValue` |
+
+**How it works:**
+1. The respondent selects an option on a prior form field
+2. That answer is stored in the `sourceVariable`
+3. The decision node checks the variable's value
+4. The runtime follows the edge whose `matchValue` matches the value
+
+**Example:** A "Payment Plan?" decision with branches for `full` and `installment`.
+
+> **Behavior when no branch matches:** The runtime follows the first outgoing edge as the default. Connect edges in order of priority.
+
+### 1.5 Calculator ∑
+
+**Runs a math expression and stores the result in a variable.** Calculators execute automatically — the respondent never sees them.
+
+| Field | Required | Description |
+|---|---|---|
+| `targetVariable` | ✅ | The variable to store the result into (must be `number` or `money` type) |
+| `expression` | ✅ | A math expression using variables (e.g., `{{subtotal}} * 1.12`) |
+| `label` | — | A human-readable label shown in the flow graph for context |
+
+**Key behavior:**
+- Executes immediately when the respondent reaches this node
+- Auto-advances to the next node (no user interaction)
+- Can read variables set by earlier form fields or calculators
+- Store results in variables that later nodes can read
+
+**Example:** `round(({{subtotal}} * 1.12) / 6, 2)` — adds 12% VAT and divides by 6, rounded to 2 decimals.
+
+### 1.6 Payment $
+
+**Charges the respondent via a connected payment gateway.**
+
+| Field | Required | Description |
+|---|---|---|
+| `amountVariable` | ✅ | A `money` variable holding the amount to charge |
+| `currency` | ✅ | Three-letter currency code (e.g., `PHP`, `USD`) |
+
+**How it works:**
+1. The amount variable must be set by a **Calculator** before this node
+2. The respondent sees the amount and chooses a payment method
+3. They're redirected to the gateway's checkout page
+4. On return, the flow continues along the **success** edge (first edge) or **failure** edge (optional second edge)
+
+### 1.7 Summary ≡
+
+**Shows a confirmation or receipt page — terminal node (flow ends here).**
+
+| Field | Required | Description |
+|---|---|---|
+| `title` | — | Heading text (e.g., "Order Confirmation") |
+| `template` | — | Message with `{{variable}}` placeholders that get replaced with actual values |
+
+**Example template:**
+```
+Thank you {{full_name}}! Your {{payment_plan}} plan is confirmed.
+Amount: {{amount_due}}
+Reference: {{payment_ref}}
+```
+
+### 1.8 Redirect ↗
+
+**Sends the respondent to an external URL — terminal node (flow ends here).**
+
+| Field | Required | Description |
+|---|---|---|
+| `urlTemplate` | ✅ | A URL with `{{variable}}` placeholders |
+
+**Example:** `https://example.com/access?ref={{payment_ref}}&name={{full_name}}`
+
+The redirect happens after a ~1.5 second pause so the respondent sees a brief "Redirecting..." message.
+
+---
+
+## 2. Variables System
+
+### 2.1 Variable Properties
+
+| Property | Description |
+|---|---|
+| **Name** | Unique `snake_case` identifier (e.g., `total_cost`, `payment_plan`) |
+| **Type** | `string`, `number`, `boolean`, or `money` |
+| **Default Value** | Optional — used if the variable is read before being assigned |
+| **Description** | Optional human-readable note for documentation |
+
+### 2.2 Variable Lifecycle
+
+```
+  Declare ──→ Assign ──→ Transform ──→ Use
+```
+
+1. **Declare:** Create the variable in the Variables Manager
+2. **Assign:** A form field stores the respondent's answer into the variable
+3. **Transform:** A calculator reads the variable, computes a new value, and stores it (possibly into a different variable)
+4. **Use:** A decision, payment, summary, or redirect reads the variable
+
+### 2.3 Type Behaviors
+
+| Type | Display Format | How to Set | How to Read |
 |---|---|---|---|
-| `string` | As-is text | Raw text | No |
-| `number` | `Number(value)` | Locale-formatted (e.g., `1,200`) | Yes |
-| `boolean` | `value === 'true'` | `true` / `false` | No |
-| `money` | `Number(value)` | `$1,200.00` (2 decimals, dollar sign) | Yes (auto-rounded to 2 decimals) |
+| `string` | Raw text | Form field binds to variable | `{{variable_name}}` in templates/expressions |
+| `number` | `1,234.56` | Calculator computes, or form field stores number | `{{variable_name}}` in expressions |
+| `money` | `₱1,234.00` (currency-aware) | Calculator computes (in minor units, e.g., `150000` = ₱1,500.00) | In templates: `{{var}}` formats automatically |
+| `boolean` | `true` / `false` | Checkbox or decision automatically | Conditionals: `if({{var}} == 'true', ...)` |
 
-### 4.3 Variable Lifecycle
+### 2.4 Best Practices
 
-1. **Declaration** — Creator declares a variable in the Variables Manager.
-2. **Binding** — A Form Field node stores the respondent's answer into the variable via `bindToVariable`.
-3. **Transformation** — A Calculator node reads one or more variables and writes the result to a target variable.
-4. **Reading** — Decision nodes check variable values; Payment and Summary nodes display them.
-5. **Persistence** — On completion, all variable values are saved into the `formSubmissions.formData` JSONB field.
-
-### 4.4 Safety
-
-A variable **cannot be deleted** while any node references it. The Variables Manager shows a "Used by N nodes" count and disables the delete button. References are checked across all config fields: `bindToVariable`, `sourceVariable`, `targetVariable`, `amountVariable`, and inside `expression`, `template`, and `urlTemplate` strings.
+- **Declare before using:** Create the variable before binding a form field or calculator to it
+- **Money = integer:** Store ₱1,500.00 as `150000` (centavos), never as `1500.00`
+- **Descriptive names:** Use `total_cost`, not `tc`
+- **Defaults for testing:** Set a default value for the first variable in a calculation chain so Preview mode works without filling every field
 
 ---
 
-## 5. Expression & Calculator Guide
+## 3. Expression & Calculator Guide
 
-Calculator expressions use [math.js](https://mathjs.org) in a **sandboxed scope** — no access to `eval`, `Function`, `window`, `document`, or global objects. Only pure math operations and the allowed function set are available.
+### 3.1 Syntax
 
-### 5.1 Syntax
+Calculators support standard arithmetic with variables referenced as `{{variable_name}}`:
 
 ```
-VARIABLE_REF  = '{{' IDENTIFIER '}}'
-IDENTIFIER    = [a-zA-Z_][a-zA-Z0-9_]*
-
-Operators:  +  -  *  /  ^  ( )
-Ternary:    condition ? value_if_true : value_if_false
+{{subtotal}} * 1.12          → add 12% VAT
+({{price}} + {{shipping}})    → parentheses for grouping
+round({{total}} / 6, 2)      → divide and round
+if({{age}} >= 18, 'adult', 'minor')  → conditional
+contains({{items}}, 'premium') → string contains check
 ```
 
-> ⚠️ **String comparisons:** math.js `==` does **not** compare strings. Use `equalText(a, b)` for string equality, or better — route on string values with a **Decision** node rather than a calculator.
+### 3.2 Built-in Functions
 
-### 5.2 Built-in Functions
+| Function | Signature | Description | Example |
+|---|---|---|---|
+| `round` | `round(value, decimals?)` | Rounds to N decimal places | `round({{total}} / 6, 2)` |
+| `if` | `if(condition, trueVal, falseVal)` | Ternary conditional | `if({{age}} >= 18, 'adult', 'minor')` |
+| `contains` | `contains(str, substr)` | String contains check | `contains({{items}}, 'premium')` |
 
-| Function | Purpose | Example |
-|---|---|---|
-| `round(x, decimals?)` | Round a number | `round({{total}}, 2)` |
-| `sum(a, b, ...)` | Sum values | `sum({{price1}}, {{price2}})` |
-| `min(a, b, ...)` | Minimum value | `min({{a}}, {{b}})` |
-| `max(a, b, ...)` | Maximum value | `max({{a}}, {{b}})` |
-| `abs(x)` | Absolute value | `abs({{difference}})` |
-| `equalText(a, b)` | String comparison | `equalText({{plan}}, "full")` |
+### 3.3 Common Expressions
 
-Plus the full math.js function set (trigonometric, logarithmic, statistical, etc.).
+| Goal | Expression |
+|---|---|
+| Subtotal × quantity | `{{qty}} * {{unit_price}}` |
+| Add 12% VAT | `{{subtotal}} * 1.12` |
+| Apply 10% discount | `{{total}} * 0.9` |
+| Monthly payment (6 months) | `round({{total}} / 6, 2)` |
+| Conditional discount | `if({{is_member}} == 'yes', {{total}} * 0.85, {{total}})` |
+| Total with fee + deposit | `{{fee_total}} + {{vat}} + {{deposit_total}}` |
+| Nested tier pricing | `if({{tier}} == 'gold', 100, if({{tier}} == 'silver', 50, 25))` |
 
-### 5.3 Real-World Examples
+### 3.4 Testing Expressions
 
-| Use Case | Variables | Expression |
-|---|---|---|
-| Add 12% VAT | `subtotal` (money) → `total_cost` (money) | `{{subtotal}} * 1.12` |
-| 6-month installment | `subtotal` (money) → `monthly` (money) | `round({{subtotal}} * 1.12 / 6, 2)` |
-| 10% discount | `price` (money) → `discounted` (money) | `{{price}} * 0.9` |
-| Quantity-based price | `qty` (number), `unit_price` (money) → `line_total` (money) | `{{qty}} * {{unit_price}}` |
-| Tiered pricing | `qty` (number) → `price` (money) | `{{qty}} > 10 ? 50 : 100` |
-| String-based conditional | `plan` (string) → `amount` (money) | `equalText({{plan}}, "full") ? 1000 : 500` |
-
-### 5.4 Testing Expressions
-
-Every Calculator config has a **Test expression** button. It evaluates the current expression against the variables' default values and shows the result inline — green if successful, red with an error message if not.
+Each Calculator config panel has a built-in **expression tester**. Plug in sample values and see the result instantly — no need to run through the full flow to verify math.
 
 ---
 
-## 6. Payment Flows
+## 4. Payment Flows
 
-### 6.1 Setup Steps
+See the dedicated [Payments Guide](payments-guide.md) for the complete walkthrough. Quick reference:
 
-1. **Connect a gateway** in **Settings** (`/dashboard/settings`): enter your own PayPal and/or
-   Xendit credentials. They're encrypted at rest; each form charges through *your* accounts.
-2. **Declare** a `money` variable for the amount (e.g., `total_cost`).
-3. **Add a Calculator** (optional) to compute the amount from other variables.
-4. **Add a Payment** node configured with:
-   - **Amount variable** — the `money`/`number` variable holding the amount
-   - **Currency** — e.g., USD, PHP, EUR
-5. **Connect edges**:
-   - First edge = **success path** (where the flow goes after payment)
-   - Second edge (optional) = **failure path** (where it goes if payment fails)
+### Payment Node Requirements
 
-At checkout the visitor sees a button for each method you connected and picks one — no gateway
-is hard-coded on the node.
+1. **Gateway connected** — PayPal or Xendit credentials in Settings
+2. **Amount variable** — a `money` variable set by a calculator before the payment node
+3. **Currency** — must be supported by the connected gateway
 
-### 6.2 How it works at runtime
+### Payment Flow Pattern
 
-1. Visitor reaches the Payment step → picks PayPal or Xendit.
-2. `initiatePayment` (server) reads the amount from the persisted execution, loads *your*
-   decrypted credentials, creates the gateway order/invoice, and returns its hosted checkout URL.
-3. The browser is redirected to the gateway; the visitor pays.
-4. The gateway returns to `/forms/payment-return?executionId=…`; `finalizePayment` verifies the
-   charge (PayPal captures the order, Xendit reads the invoice).
-5. The flow resumes (`FlowEngine.restore`) and advances onto the success or failure edge.
-   `{{payment_ref}}` holds the gateway's payment id.
+```
+... → [Calculator: compute amount_due] → [Payment: Charge] → [Summary: Receipt]
+                                                          └→ [Summary: Failed]
+```
 
-A `payments` row records each attempt (linked to the flow execution). The amount and credentials
-are always resolved server-side, so a visitor can't tamper with what they're charged.
+### Transaction Tracking
 
-> **Deployment:** set `APP_URL` to your deployed origin so return URLs are absolute. Webhook-based
-> confirmation of late/asynchronous settlements is a planned follow-up; today confirmation happens
-> on redirect-back.
-
-### 6.3 Adding a new gateway
-
-Implement the `PaymentGateway` abstract class (`createPayment`, `verifyPayment`, `getConfigSchema`)
-and register it in `src/integrations/payments/index.ts`. Add its credential shape to
-`src/lib/integrations/types.ts` + Settings, and a branch in `credentialsForSlug` /
-`getPaymentOptions` (`src/lib/server-fns/payments.ts`).
+Every payment is recorded in the database and viewable from the **Payments** tab in the form editor. See [Payments Guide](payments-guide.md#step-4-view-payment-transactions) for details.
 
 ---
 
-## 7. Flow Validation
+## 5. Flow Validation
 
-The Flow Builder validates continuously as you build. A count of issues appears in the toolbar. Open **Validate** to see the full list.
+Before a flow can be saved or published, it must pass validation. The system checks for:
 
-### 7.1 Validation Rules
+### Structural Rules
 
-| # | Rule | Error Type |
-|---|---|---|
-| 1 | Exactly one **Start** node must exist | `missing_start` |
-| 2 | All nodes must be **reachable** from Start via edges | `disconnected` |
-| 3 | No **cycles** — the flow must be a DAG | `cycle_detected` |
-| 4 | Required config fields must be filled per node type | `missing_config` |
-| 5 | All variable references (`bindToVariable`, `sourceVariable`, `targetVariable`, `amountVariable`) must point to declared variables | `missing_config` |
-| 6 | Decision branches must be a subset of the source field's options (if bound to a select/radio field) | `type_mismatch` |
-| 7 | Payment gateway must reference an active gateway | `missing_config` |
-| 8 | Calculator expression must be syntactically valid | `missing_config` |
-| 9 | Correct edge counts per node type (see Node Types Reference above) | `missing_config` |
-| 10 | Terminal nodes (Summary, Redirect) must have **zero** outgoing edges | `missing_config` |
+| Rule | Fail Condition |
+|---|---|
+| Exactly one Start node | 0 or 2+ Start nodes |
+| At least one terminal node | No Summary or Redirect node |
+| All nodes connected | A node with no incoming or outgoing edge |
+| No orphan nodes | A node not reachable from Start |
+| Decision branches match edges | Mismatch between branch count and edge count |
 
-### 7.2 How Validation Works
+### Configuration Rules
 
-- Validation runs whenever the flow definition changes (nodes, edges, or configs are saved).
-- Issues appear as **red badges** on the affected nodes in the canvas.
-- The toolbar shows a count: green "Valid ✓" or red "N issues".
-- Click an issue in the validation panel to **jump to and select** the offending node.
-- Nodes with validation issues show a red border and a numbered badge.
+| Rule | Fail Condition |
+|---|---|
+| Form field has a bindToVariable | Missing or empty |
+| Calculator has an expression | Missing or empty |
+| Calculator target variable exists | Target variable not declared |
+| Payment amount variable exists | Amount variable not declared |
+| Redirect has a URL | urlTemplate is empty |
+
+### 5.1 Running Validation
+
+Click **Validate** in the toolbar (✓ icon). Errors are shown as a list and as red indicators on the affected nodes. A flow with errors cannot be published.
 
 ---
 
-## 8. Testing with Preview
+## 6. Testing with Preview
 
-Click **Preview** in the toolbar to open a modal dialog that test-runs the flow entirely in the browser.
+### How Preview Works
 
-### What Preview Does
+The Preview dialog runs the flow **entirely client-side** — it uses the same FlowEngine that runs the real form, but without server persistence. This means:
 
-- **Instantiates** a client-side `FlowEngine` with the current flow data.
-- **Steps through** each node — fields render as the respondent would see them.
-- **Evaluates** decisions based on your selections.
-- **Computes** calculators and shows results.
-- **Simulates** payments (no real charge).
-- **Shows** the final summary or redirect.
+- You can test without publishing
+- Calculator results are instant
+- Payment nodes are **simulated** (no real charge)
+- "Skip required fields" checkbox lets you quickly jump through steps
 
 ### Preview Controls
 
-| Control | Action |
+| Control | What It Does |
 |---|---|
-| **Continue / Begin** | Advance to the next step |
-| **← Back** | Go back to the previous step |
-| **Reset** | Restart the preview from the beginning |
-| **Simulate success** | Simulate a successful payment |
-| **Simulate failure** | Simulate a failed payment |
-| **✕ Close** | Return to the builder |
+| **Next** | Advance to the next step (with current input) |
+| **Back** | Go to the previous step (clears inputs) |
+| **Skip required** | Bypasses field validation — lets you speed through |
+| **Close** | Exits preview (state is discarded) |
 
-> **No data is persisted** during Preview — no server calls, no execution records created.
+### Testing Checklist
 
----
-
-## 9. Publishing & Respondent Experience
-
-### 9.1 Publishing
-
-Publish the form from the **Edit** tab as usual (the Publish button in the header). The form's status changes to `published`.
-
-### 9.2 Respondent Flow Detection
-
-When a respondent opens the public form URL (`/forms/submit/{formId}`):
-
-1. The system checks if the form has a flow (`getFlow(formId)` returns non-null).
-2. **Has flow** → Renders the step-by-step `FlowExecutionContainer`.
-3. **No flow** → Renders the classic linear form (unchanged, backward compatible).
-
-### 9.3 Step-by-Step Runtime
-
-If the form has a flow, the respondent sees:
-
-1. **Form step** — a single field (progress bar at top, Back/Continue buttons).
-2. **Decision step** — radio buttons for each branch.
-3. **Calculator step** — auto-advances (respondent doesn't see it).
-4. **Payment step** — amount display + gateway payment button.
-5. **Summary step** — success animation + interpolated template + variable details table.
-6. **Redirect step** — brief "Redirecting…" then navigates to the constructed URL.
-
-### 9.4 Completion Receipt
-
-After completion, the respondent is directed to `/flow/{executionId}/complete` which shows:
-- A success checkmark animation
-- The Summary node's rendered template (if applicable)
-- A receipt-style table of all variable values (money values formatted as `$1,200.00`)
-- Payment reference ID (if applicable)
-- A "Submit another response" button
-
-### 9.5 Data Storage
-
-Each completed flow run creates a `formSubmission` record containing:
-- All variable values as `formData`
-- The execution path (visited nodes) under `__executionPath`
-- Payment reference IDs
-
-This means flow responses appear in the existing **Responses** view like any other form submission.
+- [ ] Walk through every path (try each branch of each Decision)
+- [ ] Verify Calculator results against a manual computation
+- [ ] Check the Summary template renders correctly
+- [ ] Test edge cases: empty fields, extreme numbers, all options selected
 
 ---
 
-## 10. Converting a Linear Form
+## 7. Publishing & Respondent Experience
 
-Forms created before the Flow Builder (or created in "Builder" or "Plain" mode) can be **converted** to flows.
+### 7.1 Publishing
+
+Click **Publish** in the form editor to make the form available to respondents. Once published:
+
+- The form receives a public URL: `/forms/submit/{formId}`
+- The embed code becomes available for embedding in external sites
+- Changes require re-publishing to take effect
+
+### 7.2 Step-by-Step Runtime
+
+When a respondent opens a published flow form:
+
+1. The form loads with a clean entry point
+2. **Start** node initializes variables with default values
+3. Each node executes in order, controlled by the client-side FlowEngine
+4. Field nodes show inputs, calculator nodes run automatically
+5. Decision nodes branch based on answers
+6. Payment nodes redirect to the gateway
+7. Terminal nodes show a receipt or redirect
+8. On completion, the execution is saved as a **form submission** with all variable values
+
+### 7.3 Completion Receipt
+
+After the flow finishes, the respondent sees a receipt page showing:
+
+- **Success/failure** banner
+- **Invoice-style receipt** with form title, invoice number, date
+- **All variable values** formatted by type (money shows with currency)
+- **Payment info:** status, gateway name, gateway reference
+- **Download as PDF** button
+
+### 7.4 Data Storage
+
+Each completed flow run creates two database records:
+
+1. **`flow_executions`** — tracks the entire run: which nodes were visited, current/previous state, variable values at each step
+2. **`form_submissions`** — the final submission record with all variable values stored in `form_data`
+
+---
+
+## 8. Converting a Linear Form
+
+### When to Convert
+
+Any existing linear form can be converted to a flow form. This is useful when a simple form has grown complex and needs branching or calculations.
 
 ### Conversion Process
 
-1. Click **Convert to Flow** from the dashboard actions menu.
-2. A confirmation dialog explains what will happen.
-3. On confirm, the system:
-   - Creates a new `flow` record for the form
-   - Creates a **Start** node
-   - Creates one **Form Field** node per existing field (in order)
-   - Creates one **variable** per field (snake_case name from the field label)
-   - Binds each field to its variable via `bindToVariable`
-   - Chains edges: Start → Field1 → Field2 → … → Last
-   - Creates a **Summary** node at the end with a default template
-4. You're redirected to the Flow Builder page to extend the flow.
+1. On the dashboard, click the **•••** menu on a form card
+2. Select **Convert to Flow**
+3. The system creates a Start → FormField (for each existing field) → Summary flow
+4. Open the form editor — the new flow is ready for you to add decisions, calculators, and payments
 
-### Important
+### What Changes
 
-- The original `formFields` table entries are **left untouched**.
-- If the flow is deleted, the form reverts to **linear mode** — no data loss.
-- Flow-powered forms still save responses to `formSubmissions`, so your existing Responses view works.
+| Aspect | Before (Linear) | After (Flow) |
+|---|---|---|
+| Fields | All on one page | One step per field |
+| Submission | Single POST | Step-by-step with execution tracking |
+| URL | Same form URL | Same URL (the system detects the flow at runtime) |
+| Existing submissions | Unaffected | Remain as classic submissions |
 
 ---
 
-## 11. Database Schema
+# Developer Reference
 
-5 new tables were added to `src/db/schema.ts`. All follow existing project conventions: `serial()` primary keys, `pgTable` with indexes, `jsonb` for flexible config, `varchar` enums with `.$type<>()`.
+## 9. Database Schema
 
-### 11.1 Entity Relationship Diagram
+### 9.1 Entity Relationship
 
 ```mermaid
 erDiagram
-    forms ||--o| flows : has
-    forms ||--o{ formFields : contains
-    forms ||--o{ formSubmissions : receives
-
-    flows ||--o{ flowVariables : declares
-    flows ||--o{ flowNodes : contains
-    flows ||--o{ flowEdges : connects
-    flows ||--o{ flowExecutions : runs
-
-    flowNodes ||--o{ flowEdges : source
-    flowNodes ||--o{ flowEdges : target
-    flowNodes ||--o{ flowExecutions : current
-
-    flowExecutions ||--o| formSubmissions : links
+    profiles ||--o| integrationSettings : "configures"
+    profiles ||--o{ forms : "owns"
+    forms ||--o| flows : "has one (optional)"
+    forms ||--o{ formFields : "contains"
+    forms ||--o{ formSubmissions : "receives"
+    forms ||--o| formPaymentConfigs : "has one (optional)"
+    flows ||--o{ flowVariables : "declares"
+    flows ||--o{ flowNodes : "contains"
+    flows ||--o{ flowEdges : "connects"
+    flows ||--o{ flowExecutions : "tracks runs"
+    flowNodes ||--o{ flowEdges : "source"
+    flowNodes ||--o{ flowEdges : "target"
+    flows |o--|| flowNodes : "start node"
+    paymentGateways ||--o{ formPaymentConfigs : "configured in"
+    paymentGateways ||--o{ payments : "processes"
+    formSubmissions ||--o{ payments : "has"
+    flowExecutions ||--o{ payments : "tracks"
+    flowExecutions |o--|| formSubmissions : "produces"
 ```
 
-### 11.2 Table: `flows`
+### 9.2 Key Tables
 
-Links a flow definition to a form. One flow per form (unique constraint).
+#### `forms`
 
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `id` | `serial` | PK | Auto-incrementing ID |
-| `form_id` | `integer` | NOT NULL, UNIQUE, FK → forms.id, ON DELETE CASCADE | Parent form |
-| `start_node_id` | `integer` | FK → flow_nodes.id | Reference to the Start node |
-| `created_at` | `timestamp` | NOT NULL, DEFAULT now() | Creation timestamp |
-| `updated_at` | `timestamp` | NOT NULL, DEFAULT now() | Last updated timestamp |
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `serial` PK | |
+| `profile_id` | `integer` FK → profiles | Owner |
+| `title` | `varchar(255)` | |
+| `status` | `enum` | `draft` or `published` |
+| `theme` | `jsonb` | Per-form styling: `{ primaryColor, backgroundColor, radius }` |
 
-**Indexes:** `flows_form_id_idx` on `form_id`.
+#### `flows`
 
-### 11.3 Table: `flow_variables`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `serial` PK | |
+| `form_id` | `integer` FK → forms (CASCADE) | One flow per form |
+| `start_node_id` | `integer` FK → flow_nodes | Set after node creation |
 
-Typed variable declarations scoped to a flow.
+#### `flow_nodes`
 
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `id` | `serial` | PK | Auto-incrementing ID |
-| `flow_id` | `integer` | NOT NULL, FK → flows.id, ON DELETE CASCADE | Parent flow |
-| `name` | `varchar(100)` | NOT NULL | snake_case identifier |
-| `type` | `varchar(20)` | NOT NULL | `string` / `number` / `boolean` / `money` |
-| `default_value` | `text` | | Stored as string, parsed by type at runtime |
-| `description` | `text` | | Human-readable note |
-| `created_at` | `timestamp` | NOT NULL, DEFAULT now() | Creation timestamp |
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `serial` PK | |
+| `flow_id` | `integer` FK → flows (CASCADE) | |
+| `type` | `varchar(30)` | `start`, `form_field`, `group`, `decision`, `calculator`, `payment`, `summary`, `redirect` |
+| `label` | `varchar(255)` | Display label |
+| `config` | `jsonb` | Type-specific config (see below) |
+| `positionX/Y` | `integer` | Canvas position |
 
-**Indexes:** `flow_variables_flow_id_name_idx` (UNIQUE) on `(flow_id, name)`.
+#### `flow_edges`
 
-### 11.4 Table: `flow_nodes`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `serial` PK | |
+| `flow_id` | `integer` FK → flows (CASCADE) | |
+| `source_node_id` | `integer` FK → flow_nodes (CASCADE) | |
+| `target_node_id` | `integer` FK → flow_nodes (CASCADE) | |
+| `metadata` | `jsonb` | `{ matchValue?, label? }` for decision branches |
 
-Each node in the flow graph. The `config` JSONB column stores type-specific configuration (see Node Types Reference for per-type shapes).
+#### `flow_variables`
 
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `id` | `serial` | PK | Auto-incrementing ID |
-| `flow_id` | `integer` | NOT NULL, FK → flows.id, ON DELETE CASCADE | Parent flow |
-| `type` | `varchar(30)` | NOT NULL | `start` / `form_field` / `decision` / `calculator` / `payment` / `summary` / `redirect` |
-| `label` | `varchar(255)` | | Display label on the canvas |
-| `config` | `jsonb` | NOT NULL, DEFAULT `{}` | Type-specific configuration |
-| `position_x` | `integer` | NOT NULL, DEFAULT 0 | Canvas X position |
-| `position_y` | `integer` | NOT NULL, DEFAULT 0 | Canvas Y position |
-| `created_at` | `timestamp` | NOT NULL, DEFAULT now() | Creation timestamp |
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `serial` PK | |
+| `flow_id` | `integer` FK → flows (CASCADE) | |
+| `name` | `varchar(100)` | `snake_case` identifier |
+| `type` | `varchar(20)` | `string`, `number`, `boolean`, `money` |
+| `default_value` | `text` | Parsed by type |
+| UNIQUE | `(flow_id, name)` | |
 
-**Indexes:** `flow_nodes_flow_id_idx` on `flow_id`.
+#### `flow_executions`
 
-**Config shapes by node type:**
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `serial` PK | |
+| `flow_id` | `integer` FK → flows (CASCADE) | |
+| `form_submission_id` | `integer` FK → form_submissions (SET NULL) | Backfilled at completion |
+| `status` | `varchar(20)` | `in_progress`, `payment_pending`, `payment_failed`, `completed`, `cancelled` |
+| `current_node_id` | `integer` FK → flow_nodes | |
+| `variables` | `jsonb` | Live variable values |
+| `history` | `jsonb` | Array of `{ nodeId, nodeType, enteredAt, data? }` |
+
+#### `payments`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `serial` PK | |
+| `form_submission_id` | `integer` FK → form_submissions (SET NULL) | |
+| `payment_gateway_id` | `integer` FK → payment_gateways | |
+| `flow_execution_id` | `integer` FK → flow_executions (SET NULL) | |
+| `amount` | `integer` | In smallest currency unit |
+| `currency` | `varchar(3)` | |
+| `status` | `enum` | `pending`, `completed`, `failed`, `refunded` |
+| `gateway_payment_id` | `text` | Gateway's reference |
+
+### 9.3 Config Shapes by Node Type
 
 ```jsonc
-// FormField
-{ "fieldType": "text", "label": "Your Name", "placeholder": "e.g. Alice",
-  "required": true, "options": [{"label":"A","value":"a"}],
-  "bindToVariable": "customer_name" }
+// form_field
+{
+  "fieldType": "text|email|number|textarea|select|checkbox|radio",
+  "label": "Field Label",
+  "placeholder": "Optional",
+  "required": true,
+  "options": [{"label": "Option 1", "value": "opt1"}],
+  "bindToVariable": "variable_name"
+}
 
-// Decision
-{ "sourceVariable": "payment_plan",
-  "branches": [{"value":"full","label":"Full Payment"}, {"value":"inst","label":"Installment"}] }
+// group
+{
+  "title": "Section Title",
+  "fields": [{ "id": "uid", "label": "Field 1", "fieldType": "text", "required": true, "options": [] }]
+}
 
-// Calculator
-{ "targetVariable": "total_cost", "expression": "{{subtotal}} * 1.12" }
+// decision
+{
+  "sourceVariable": "variable_name",
+  "branches": [{"value": "option", "label": "Display Label"}]
+}
 
-// Payment
-{ "amountVariable": "total_cost", "currency": "USD", "gatewayId": 1 }
+// calculator
+{
+  "targetVariable": "result_var",
+  "expression": "{{var1}} * 1.12",
+  "label": "Human label"
+}
 
-// Summary
-{ "title": "Thank you!", "template": "Your total is {{total_cost}}. Reference: {{payment_ref}}" }
+// payment
+{
+  "amountVariable": "total_cost",
+  "currency": "PHP"
+}
 
-// Redirect
-{ "urlTemplate": "https://example.com/course-access?ref={{payment_ref}}" }
+// summary
+{
+  "title": "Thank You",
+  "template": "Your total is {{total_cost}}"
+}
+
+// redirect
+{
+  "urlTemplate": "https://example.com/ref={{payment_ref}}"
+}
 ```
-
-### 11.5 Table: `flow_edges`
-
-Directed connections between nodes. Decision edges carry a `matchValue` to indicate which branch they represent.
-
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `id` | `serial` | PK | Auto-incrementing ID |
-| `flow_id` | `integer` | NOT NULL, FK → flows.id, ON DELETE CASCADE | Parent flow |
-| `source_node_id` | `integer` | NOT NULL, FK → flow_nodes.id, ON DELETE CASCADE | Source (upstream) node |
-| `target_node_id` | `integer` | NOT NULL, FK → flow_nodes.id, ON DELETE CASCADE | Target (downstream) node |
-| `metadata` | `jsonb` | DEFAULT `{}` | `{ matchValue?: string, label?: string }` |
-| `created_at` | `timestamp` | NOT NULL, DEFAULT now() | Creation timestamp |
-
-**Indexes:** `flow_edges_flow_id_idx` on `flow_id`.
-
-### 11.6 Table: `flow_executions`
-
-Records a single run of a flow by an end user. Stores the entire execution context at completion.
-
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `id` | `serial` | PK | Auto-incrementing ID |
-| `flow_id` | `integer` | NOT NULL, FK → flows.id, ON DELETE CASCADE | Parent flow |
-| `form_submission_id` | `integer` | FK → form_submissions.id, ON DELETE SET NULL | Linked submission record |
-| `status` | `varchar(20)` | NOT NULL, DEFAULT `in_progress` | `in_progress` / `completed` / `payment_pending` / `payment_failed` / `cancelled` |
-| `current_node_id` | `integer` | FK → flow_nodes.id | Where the execution is paused (for resume) |
-| `variables` | `jsonb` | DEFAULT `{}` | Snapshot of all variable values |
-| `history` | `jsonb` | DEFAULT `[]` | `[{ nodeId, nodeType, enteredAt, data? }]` |
-| `completed_at` | `timestamp` | | When the execution finished |
-| `created_at` | `timestamp` | NOT NULL, DEFAULT now() | Creation timestamp |
-
-**Indexes:** `flow_executions_flow_id_idx` on `flow_id`.
 
 ---
 
-## 12. Type System
-
-All core types are defined in `src/lib/flow-engine/types.ts`. These are shared between the Builder UI, the runtime engine, and the execution UI — no database or UI dependencies.
-
-### 12.1 Node & Graph Types
+## 10. Type System
 
 ```typescript
-type FlowNodeType =
-  | 'start' | 'form_field' | 'decision' | 'calculator'
-  | 'payment' | 'summary' | 'redirect'
+type FlowNodeType = 'start' | 'form_field' | 'group' | 'decision'
+  | 'calculator' | 'payment' | 'summary' | 'redirect'
+
+type FlowVariableType = 'string' | 'number' | 'boolean' | 'money'
+
+type ExecutionStatus = 'in_progress' | 'payment_pending'
+  | 'payment_failed' | 'completed' | 'cancelled'
+
+type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded'
 
 interface FlowNode {
   id: number
   flowId: number
   type: FlowNodeType
   label: string | null
-  config: FlowNodeConfig     // See Node Types Reference for per-type shape
+  config: Record<string, unknown>
   positionX: number
   positionY: number
 }
@@ -567,401 +586,261 @@ interface FlowVariable {
   id: number
   flowId: number
   name: string
-  type: 'string' | 'number' | 'boolean' | 'money'
+  type: FlowVariableType
   defaultValue: string | null
   description: string | null
 }
-```
 
-### 12.2 Runtime Types
-
-```typescript
-type ExecutionStatus =
-  | 'in_progress' | 'completed' | 'payment_pending'
-  | 'payment_failed' | 'cancelled'
-
-interface ExecutionHistoryEntry {
-  nodeId: number
-  nodeType: string
-  enteredAt: string          // ISO timestamp
-  data?: unknown             // Snapshot captured at this step
-}
-
-interface FlowExecutionContext {
-  executionId: number
-  flowId: number
-  status: ExecutionStatus
-  currentNodeId: number
-  variables: Record<string, unknown>
-  history: ExecutionHistoryEntry[]
-}
-```
-
-### 12.3 Flow Step Types (UI-facing)
-
-```typescript
 interface FlowStep {
   nodeId: number
-  nodeType: string
+  nodeType: FlowNodeType
   config: Record<string, unknown>
-  label: string
-  expectsInput: boolean       // FormField or Decision
-  isPayment: boolean
-  isTerminal: boolean         // Summary or Redirect
-  renderedOutput?: string     // Summary template output
-  redirectUrl?: string        // Redirect constructed URL
+  label: string | null
+  /** Calculator: redirects to the auto-computed result */
+  autoResult?: unknown
+  /** Redirect: the constructed URL */
+  redirectUrl?: string
 }
 
 interface StepInput {
   formValue?: string | string[]
   decisionValue?: string
+  groupValues?: Record<string, string | string[]>
   paymentResult?: { success: boolean; gatewayPaymentId?: string }
 }
 ```
 
-### 12.4 Validation Types
+---
 
-```typescript
-interface FlowValidationError {
-  nodeId?: number
-  type: 'missing_start' | 'disconnected' | 'cycle_detected' | 'missing_config'
-  message: string
-}
+## 11. Runtime Engine Architecture
+
+### 11.1 FlowEngine (`src/lib/flow-engine/FlowEngine.ts`)
+
+The FlowEngine is a **client-side runtime** that walks through the flow graph one node at a time. It manages:
+
+- **Current position** — which node is active
+- **Variable values** — the runtime state of all variables
+- **History** — the path the respondent has taken (for "back" navigation and final submission)
+- **Status** — whether the flow is in progress, complete, or waiting for payment
+
+**Lifecycle:**
+
 ```
+1. Constructor(nodes, edges, variables, initialValues)
+   → Builds adjacency maps, sets current node to Start
+
+2. advance(input?)
+   → Moves to the next node based on current type
+   → For calculators: evaluates expression, stores result, auto-advances
+   → For decisions: follows the edge matching input.decisionValue
+   → For payment: follows success/failure edge based on input.paymentResult
+
+3. goBack()
+   → Returns to the previous node (reverse of advance)
+
+4. getCurrentStep()
+   → Returns the FlowStep for the current node (what the UI renders)
+
+5. getSnapshot()
+   → Returns { currentNodeId, variables, history, status } for persistence
+
+6. restore(nodes, edges, variables, snapshot)
+   → Static method — rebuilds an engine from a saved snapshot
+   → Used when resuming after a payment redirect
+```
+
+### 11.2 ExpressionEvaluator (`src/lib/flow-engine/ExpressionEvaluator.ts`)
+
+Evaluates calculator expressions using math.js. Handles:
+
+- Variable substitution: `{{var_name}}` → actual value
+- Arithmetic: `+`, `-`, `*`, `/`, `()`
+- Functions: `round()`, `if()`, `contains()`
+- Type coercion: variables are auto-cast to numbers for expressions
+
+### 11.3 TemplateInterpolator (`src/lib/flow-engine/TemplateInterpolator.ts`)
+
+Renders summary templates by replacing `{{variable}}` placeholders with formatted values:
+
+- `money` types: formatted with currency (e.g., `₱1,500.00`)
+- `number` types: formatted with locale separators
+- `string` / `boolean`: raw text
+
+### 11.4 FlowValidator (`src/lib/flow-engine/FlowValidator.ts`)
+
+Checks a flow definition for structural and configuration errors. Called before save and publish.
 
 ---
 
-## 13. Runtime Engine Architecture
+## 12. Server Functions API
 
-### 13.1 Engine Overview
+All server functions live in `src/lib/server-fns/` and are exposed as `createServerFn` (TanStack Start). Each requires authentication unless noted.
 
-`src/lib/flow-engine/FlowEngine.ts` — pure TypeScript class (no UI, no DB dependencies).
+### 12.1 Flow CRUD (`flows.ts`)
 
-```
-┌─────────────┐     ┌──────────────┐     ┌──────────────────┐
-│  FlowEngine  │────▶│  Expression   │────▶│  Template         │
-│  (orchestr.) │     │  Evaluator    │     │  Interpolator     │
-└──────┬───────┘     └──────────────┘     └──────────────────┘
-       │
-       ▼
-┌─────────────┐
-│  FlowEngine  │
-│  (step loop) │
-└──────────────┘
-```
-
-### 13.2 Execution Loop
-
-```python
-1. Constructor: receives nodes[], edges[], variables[]
-2. Finds Start node, sets currentNodeId = start.id
-3. Records entry in history
-4. Calls advance():
-   a. Processes current node action (store form value, compute calculator, etc.)
-   b. Finds outgoing edges from current node
-   c. Routes based on node type:
-      - Start/FormField/Calculator → follow first (only) edge
-      - Decision → find edge matching sourceVariable value
-      - Payment → success edge or failure edge
-      - Redirect → mark complete (terminal)
-   d. Updates currentNodeId to next node
-   e. If next node is Calculator → auto-advance through it
-   f. If next node is Summary/Redirect → mark complete (terminal)
-5. Get current step via getCurrentStep() which renders:
-   - Summary → interpolated template
-   - Redirect → constructed URL
-   - Others → raw label + config
-```
-
-### 13.3 Key Behaviors
-
-- **Auto-advance:** Calculator nodes are evaluated immediately without user interaction. The respondent never sees a calculator step.
-- **Back navigation:** `goBack()` pops the last history entry and returns to the previous node. Cannot go back past the first step.
-- **Persistence:** `getSnapshot()` returns a serializable `FlowExecutionContext` that the server persists after every step advance.
-
-### 13.4 Expression Evaluator
-
-`src/lib/flow-engine/ExpressionEvaluator.ts`
-
-- Uses `math.js` (`create(all)` with restricted config)
-- `evaluate(expression, scope)` → `{ success, value }` or `{ success: false, error }`
-- `validate(expression)` → `{ valid }` or `{ valid: false, error }`
-- Resolves `{{variable}}` placeholders before evaluation
-- String values are quoted for math.js compatibility
-- No access to `eval()`, `Function`, `window`, or `document`
-
-### 13.5 Template Interpolator
-
-`src/lib/flow-engine/TemplateInterpolator.ts`
-
-- `interpolate(template, scope)` → string
-- Replaces `{{variable}}` placeholders with runtime values
-- Supports type-aware formatting (money → `$1,200.00`)
-- Missing variables render as empty string (no error)
-
-### 13.6 FlowValidator
-
-`src/lib/flow-engine/FlowValidator.ts`
-
-- `validate(nodes, edges, variables)` → `FlowValidationError[]`
-- Implements all 10 validation rules (see section 17)
-- BFS reachability check from Start node
-- DFS cycle detection (graph coloring algorithm)
-- Per-node-type config completeness checks
-
----
-
-## 14. Server Functions API
-
-All server functions are in `src/lib/server-fns/`. They use `createServerFn` from `@tanstack/react-start` with `requireAuth()` and ownership checks where applicable.
-
-### 14.1 Flow CRUD (`flows.ts`)
-
-| Function | Method | Auth | Purpose |
+| Function | Method | Input | Description |
 |---|---|---|---|
-| `getFlow(formId)` | GET | Public | Fetch complete flow (nodes, edges, variables). Returns `null` if no flow exists. |
-| `getFlowFormIds()` | GET | Required | Return IDs of the current user's forms that have a flow. |
-| `createFlow(formId)` | POST | Owner | Create a new flow with a single Start node at (250, 100). |
-| `deleteFlow(formId)` | POST | Owner | Delete flow and cascade to nodes, edges, variables, executions. |
-| `convertFormToFlow(formId)` | POST | Owner | Convert linear form to flow (see §10). |
+| `getFlow` | GET | `{ formId }` | Fetch flow + nodes + edges + variables |
+| `ensureFlow` | POST | `{ formId }` | Create a default flow if none exists |
+| `updateFlowStartNode` | POST | `{ formId, startNodeId }` | Update the start node reference |
 
-### 14.2 Flow Node & Edge CRUD (`flow-nodes.ts`)
+### 12.2 Node & Edge CRUD (`flow-nodes.ts`)
 
-| Function | Auth | Purpose |
-|---|---|---|
-| `addFlowNode(flowId, type, positionX, positionY, label?)` | Owner | Insert a new node |
-| `updateFlowNode(flowId, nodeId, config?, label?, position?)` | Owner | Update node config, label, and/or position |
-| `deleteFlowNode(flowId, nodeId)` | Owner | Delete node (cascade removes edges) |
-| `addFlowEdge(flowId, sourceNodeId, targetNodeId, metadata?)` | Owner | Connect two nodes |
-| `updateFlowEdge(flowId, edgeId, metadata)` | Owner | Update edge metadata (matchValue) |
-| `deleteFlowEdge(flowId, edgeId)` | Owner | Remove an edge |
-| `saveFlowLayout(flowId, nodes)` | Owner | Bulk-update node positions after drag |
+| Function | Description |
+|---|---|
+| `addFlowNode` | Insert a new node (type, position, flowId) |
+| `updateFlowNode` | Update a node's config and label |
+| `deleteFlowNode` | Remove a node (cascade deletes edges) |
+| `addFlowEdge` | Insert a new edge |
+| `deleteFlowEdge` | Remove an edge |
+| `saveFlowLayout` | Batch update node positions (for auto-layout) |
+| `insertNodeInPath` | Insert a node between two connected nodes |
+| `removeNodeFromPath` | Remove a node and reconnect its neighbors |
+| `reorderPath` | Reorder the primary path (List view) |
+| `moveFieldIntoGroup` | Move a form_field node into a Group node |
 
-### 14.3 Flow Variables CRUD (`flow-variables.ts`)
+### 12.3 Variables CRUD (`flow-variables.ts`)
 
-| Function | Auth | Purpose |
-|---|---|---|
-| `getFlowVariables(flowId)` | Public | List variables for a flow |
-| `createFlowVariable(flowId, name, type, default?, desc?)` | Owner | Declare new variable (validates snake_case + uniqueness) |
-| `updateFlowVariable(flowId, varId, changes)` | Owner | Update variable properties |
-| `deleteFlowVariable(flowId, varId)` | Owner | Remove variable (refuses if referenced by nodes) |
+| Function | Description |
+|---|---|
+| `createFlowVariable` | Declare a new variable |
+| `updateFlowVariable` | Change name, type, default, or description |
+| `deleteFlowVariable` | Remove a variable |
 
-### 14.4 Flow Execution (`flow-executions.ts`)
+### 12.4 Flow Execution (`flow-executions.ts`)
 
-| Function | Auth | Purpose |
-|---|---|---|
-| `startFlowExecution(flowId)` | Public | Create execution record with defaults, return it |
-| `advanceExecution(executionId, currentNodeId, variables, history, status?)` | Public | Persist current engine state |
-| `completeExecution(executionId, variables, history)` | Public | Mark complete, create formSubmission, link records |
-| `getCompletionData(executionId)` | Public | Everything for the receipt page (execution, form, variables, summary node) |
-| `getExecutionState(executionId)` | Public | Fetch current context (for page refresh / resume) |
+Public endpoints (no auth — called by respondents):
 
-### 14.5 Ownership Guards (`flow-helpers.ts`)
+| Function | Method | Input | Description |
+|---|---|---|---|
+| `startFlowExecution` | POST | `{ flowId }` | Create a new execution with default variable values |
+| `advanceExecution` | POST | `{ executionId, currentNodeId, variables, history }` | Persist the current snapshot |
+| `completeExecution` | POST | `{ executionId, variables, history }` | Mark completed, create form submission |
+| `getCompletionData` | GET | `{ executionId }` | Fetch all data for the receipt page |
+| `getExecutionState` | GET | `{ executionId }` | Fetch current execution state (for refresh/resume) |
 
-```typescript
-// Both throw 'Unauthorized' or 'Not found' if the check fails.
-assertFormOwner(formId, clerkId)  → checks profile owns the form
-assertFlowOwner(flowId, clerkId)  → resolves flow → form → checks ownership
-```
+### 12.5 Payments (`payments.ts`)
+
+| Function | Method | Input | Description |
+|---|---|---|---|
+| `getPaymentOptions` | GET | `{ executionId }` | Available gateways + amount for the payment step |
+| `initiatePayment` | POST | `{ executionId, gatewaySlug }` | Create gateway order, record pending payment |
+| `finalizePayment` | POST | `{ executionId }` | Verify payment on return from gateway |
+| `getResumeData` | GET | `{ executionId }` | Everything needed to resume after payment redirect |
+| `getFormPayments` | GET | `{ formId }` | All payment transactions for a form (auth required) |
+
+### 12.6 Submissions (`submissions.ts`)
+
+| Function | Method | Input | Description |
+|---|---|---|---|
+| `submitFormResponse` | POST | `{ formId, formData }` | Submit a linear form response |
+| `getSubmissions` | GET | `{ formId, page }` | List submissions with payment status map |
 
 ---
 
-## 15. UI Component Tree
+## 13. UI Component Tree
 
-### 15.1 Flow Builder (`src/components/flow-builder/`)
-
-```
-FlowBuilderPage (route)
-├── FlowPalette         — Left sidebar, draggable node type buttons
-├── FlowToolbar         — Top bar: Save, Validate, Auto-layout, Variables, Preview
-├── FlowCanvas          — Center: React Flow wrapper with snap-to-grid, minimap, controls
-│   └── Custom Nodes:
-│       ├── StartNode       ▶ green circle
-│       ├── FormFieldNode   ☐ blue rectangle
-│       ├── DecisionNode    ◇ amber diamond
-│       ├── CalculatorNode  ∑ purple rectangle
-│       ├── PaymentNode     $ green rectangle
-│       ├── SummaryNode     ≡ gray rectangle
-│       └── RedirectNode    ↗ gray rectangle
-│       └── NodeShell       — Shared chrome (icon, label, handles, badge)
-├── NodeConfigPanel     — Right sidebar, shows config form for selected node
-│   └── Config Forms:
-│       ├── FormFieldConfig  — Field type, label, placeholder, required, options, binding
-│       ├── DecisionConfig   — Source variable, branches editor
-│       ├── CalculatorConfig — Target variable, expression + variable/function pickers + test
-│       ├── PaymentConfig    — Amount variable, currency, gateway selector
-│       ├── SummaryConfig    — Title, template with live preview
-│       └── RedirectConfig   — URL template with variable picker
-├── VariablesManager    — Right sidebar: list/add/edit/delete typed variables
-├── FlowValidationBadge — Red dot overlay on nodes with errors
-└── (Preview via PreviewDialog)
-```
-
-### 15.2 Flow Execution (`src/components/flow-execution/`)
-
-```
-FlowExecutionContainer — Drives the respondent experience
-├── FlowStepRenderer   — Dispatches on step.nodeType
-│   ├── FieldRenderer  — Reuses existing form builder renderer
-│   ├── FlowProgressBar — Segmented step progress indicator
-│   ├── PaymentStep    — Amount display + gateway handoff
-│   └── CalculatorDisplay (unused in auto-advance)
-└── (navigates to /flow/{id}/complete on completion)
-```
-
-### 15.3 Shared UI (`src/components/ui/`)
+### 13.1 Flow Builder (`src/components/flow-builder/`)
 
 | Component | Purpose |
 |---|---|
-| `PreviewDialog` | Modal overlay for both Form Builder and Flow Builder previews |
-| `FlowPreviewModal` | Flow execution preview inside the dialog |
+| `FlowCanvas.tsx` | React Flow canvas — renders nodes and edges visually |
+| `FlowListBuilder.tsx` | Linear list view of the primary path |
+| `BuilderPalette.tsx` | Left sidebar — drag/click to add nodes |
+| `FlowPalette.tsx` | Legacy palette (superseded by BuilderPalette) |
+| `NodeConfigPanel.tsx` | Right panel — configuration for the selected node |
+| `VariablesManager.tsx` | Variables dialog — declare, edit, delete variables |
+| `VariableDialog.tsx` | Create/edit a single variable |
+| `FlowToolbar.tsx` | Top toolbar — View toggle, Validate, Preview, Variables |
+| `SettingsDialog.tsx` | Form settings (title, description, theme) |
+| `config-forms/` | Per-node-type config forms (FormField, Decision, Calculator, Payment, etc.) |
+| `nodes/` | Custom React Flow node renderers |
+
+### 13.2 Flow Execution (`src/components/flow-execution/`)
+
+| Component | Purpose |
+|---|---|
+| `FlowExecutionContainer.tsx` | Parent — drives engine, manages state, handles resume |
+| `FlowStepRenderer.tsx` | Renders the current step (form field, payment, summary, etc.) |
+| `PaymentStep.tsx` | Inline payment UI — amount display, gateway selection, pay button |
+| `invoice.ts` | Pure invoice model (no React dependencies — safe for SSR) |
+| `InvoicePDF.tsx` | @react-pdf/renderer wrapper for PDF download |
+
+### 13.3 Shared UI (`src/components/ui/`)
+
+| Component | Purpose |
+|---|---|
+| `Button.tsx` | Primary/secondary button |
+| `Badge.tsx` | Status badge (draft/published/paid/pending/failed/refunded) |
+| `Card.tsx` | Content card |
+| `FlowPreviewModal.tsx` | Preview dialog |
+| `PreviewDialog.tsx` | Dialog wrapper for preview |
 
 ---
 
-## 16. Routes & Navigation
+## 14. Routes & Navigation
 
-| Route | Page | Purpose | Auth |
-|---|---|---|---|
-| `/forms/$formId/flow` | `FlowBuilderPage` | Flow builder canvas | Required (owner) |
-| `/forms/$formId/edit` | `FormBuilderPage` | Classic form builder (with Preview dialog) | Required (owner) |
-| `/forms/submit/$formId` | `PublicFormPage` | Respondent form — detects flow vs linear | Public |
-| `/flow/$executionId/complete` | `CompletePage` | Post-completion receipt | Public |
+### Form Creator Routes (auth required)
 
-### Navigation Flow
-
-```
-Dashboard → /forms/new (mode picker: Flow / Builder / Plain)
-                                          │
-                    ┌─────────────────────┴─────────────────────┐
-                    ▼                                           ▼
-           /forms/$formId/flow                        /forms/$formId/edit
-           (Flow Builder)                             (Form Builder)
-                    │                                           │
-                    │  ┌─────────────────────────────────────────┘
-                    │  ▼
-                    │  /forms/$formId/submissions (Responses)
-                    │
-                    ▼
-           /forms/submit/$formId (public)
-                    │
-                    ▼
-           /flow/$executionId/complete (receipt)
-```
-
----
-
-## 17. Validation Rules Reference
-
-Full reference of all validation rules implemented in `FlowValidator.validate()`.
-
-| Rule | Check Method | Logic |
+| Route | Component | Purpose |
 |---|---|---|
-| **Start node exists** | `validateStartNode` | Exactly one node with `type === 'start'` |
-| **All nodes reachable** | `validateReachability` | BFS from Start; any unvisited node (non-start) is reported as disconnected |
-| **No cycles** | `validateCycles` | DFS with 3-color graph coloring (WHITE/GRAY/BLACK). If a GRAY node is revisited → cycle |
-| **FormField config** | `validateNodeConfigs` | `fieldType` required, `label` required, `bindToVariable` must reference declared variable |
-| **Decision config** | `validateNodeConfigs` | `sourceVariable` required and must reference declared variable |
-| **Calculator config** | `validateNodeConfigs` | `targetVariable` required and must reference declared `number`/`money` variable; `expression` required |
-| **Payment config** | `validateNodeConfigs` | `amountVariable` required and must reference declared variable; `gatewayId` required |
-| **Summary config** | `validateNodeConfigs` | `template` required |
-| **Redirect config** | `validateNodeConfigs` | `urlTemplate` required |
-| **Edge counts - Start** | `validateEdgesPerNode` | Exactly 1 outgoing |
-| **Edge counts - FormField/Calculator** | `validateEdgesPerNode` | Exactly 1 outgoing |
-| **Edge counts - Decision** | `validateEdgesPerNode` | At least as many outgoing edges as branches defined |
-| **Edge counts - Payment** | `validateEdgesPerNode` | 1 (success) or 2 (success + failure) |
-| **Edge counts - Summary/Redirect** | `validateEdgesPerNode` | 0 (terminal) |
+| `/dashboard` | `DashboardPage` | Form list |
+| `/dashboard/settings` | `SettingsPage` | Gateway + email settings |
+| `/forms/new` | `NewFormPage` | Create form |
+| `/forms/$formId/edit` | `UnifiedEditorPage` | Flow builder (List + Canvas) |
+| `/forms/$formId/submissions` | `SubmissionsPage` | Response list with payment status |
+| `/forms/$formId/payments` | `PaymentsPage` | Payment transactions table |
+| `/flow/$executionId/complete` | `CompletePage` | Receipt/invoice after completion |
+
+### Public Routes (no auth)
+
+| Route | Component | Purpose |
+|---|---|---|
+| `/forms/submit/$formId` | `PublicFormView` | Public form submission |
+| `/forms/embed/$formId` | `EmbedFormPage` | Embedded form (transparent) |
+| `/forms/payment-return` | `PaymentReturnPage` | Gateway redirect handler (resume after payment) |
 
 ---
 
-## 18. Backward Compatibility
+## 15. Validation Rules Reference
 
-### 18.1 Detection Logic
+| Rule | Check | Error Message |
+|---|---|---|
+| Start | Exactly 1 | "Flow must have exactly one Start node" |
+| Terminal | ≥ 1 | "Flow has no terminal node (Summary or Redirect)" |
+| Connectivity | All nodes reachable | "Unconnected nodes found" |
+| Decision branches | Branch count matches edges | "Decision node has N branches but M edges" |
+| FormField binding | bindToVariable is set | "Form field 'X' has no variable binding" |
+| Calculator expression | Expression is not empty | "Calculator node has no expression" |
+| Calculator target | Target variable exists | "Calculator target variable 'X' is not declared" |
+| Payment amount | Amount variable exists | "Payment node has no amount variable configured" |
+| Redirect URL | URL is not empty | "Redirect node has no URL template" |
 
-The submission route (`/forms/submit/{formId}`) detects whether a flow exists:
+---
+
+## 16. Backward Compatibility
+
+### 16.1 Form Type Detection
+
+At the route level, the system detects whether a form is flow-powered or linear:
 
 ```typescript
-const flow = await getFlow(formId)
+const [flow] = await db.select().from(flows).where(eq(flows.formId, formId)).limit(1)
 if (flow) {
-  renderFlowSubmission()   // New step-by-step runtime
+  // Render FlowExecutionContainer
 } else {
-  renderLegacyForm()       // Classic linear form (unchanged)
+  // Render classic linear form (all fields on one page)
 }
 ```
 
-This ensures **zero disruption** for existing forms. Creators opt in by creating a flow.
+### 16.2 Linear → Flow Conversion
 
-### 18.2 Convert to Flow
+Converting a linear form creates a Start → FormField nodes → Summary flow. Existing form fields become `form_field` nodes preserving their order, labels, types, and required flags.
 
-The `convertFormToFlow()` server function creates a linear flow from existing fields:
+### 16.3 Existing Submissions
 
-1. Creates a `flow` record for the form
-2. Creates a `Start` node at (250, 100)
-3. For each `formField` (ordered by `.order`):
-   - Creates a `FormField` node with the same config
-   - Creates a `flowVariable` with a snake_case name derived from the field label
-   - Sets `bindToVariable` on the node
-4. Creates edges: Start → Field1 → Field2 → … → Last
-5. Creates a `Summary` node with a default template
-6. Creates edge: LastField → Summary
-7. Sets `startNodeId` on the flow record
-
-The original `formFields` entries remain untouched, so deleting the flow reverts the form to linear mode without data loss.
+Submissions made before conversion remain as classic single-page submissions. New submissions after conversion go through the flow engine.
 
 ---
 
-## Appendix: File Index
-
-```
-src/
-├── db/schema.ts                           # 5 new tables (flows, flow_variables, flow_nodes, flow_edges, flow_executions)
-├── lib/
-│   ├── flow-engine/
-│   │   ├── types.ts                       # Core type definitions
-│   │   ├── ExpressionEvaluator.ts         # Sandboxed math.js evaluation
-│   │   ├── TemplateInterpolator.ts        # {{var}} substitution
-│   │   ├── FlowValidator.ts              # 10 validation rules
-│   │   ├── FlowEngine.ts                 # Step-by-step execution loop
-│   │   ├── index.ts                      # Barrel export
-│   │   ├── ExpressionEvaluator.test.ts
-│   │   ├── FlowEngine.test.ts
-│   │   └── FlowValidator.test.ts
-│   └── server-fns/
-│       ├── flows.ts                      # getFlow, createFlow, deleteFlow, getFlowFormIds, convertFormToFlow
-│       ├── flow-nodes.ts                 # Node/edge CRUD + saveFlowLayout
-│       ├── flow-variables.ts             # Variable CRUD with snake_case + uniqueness validation
-│       ├── flow-executions.ts            # start/advance/complete/getState/getCompletionData
-│       └── flow-helpers.ts               # Ownership guards (assertFormOwner, assertFlowOwner)
-├── components/
-│   ├── flow-builder/
-│   │   ├── FlowCanvas.tsx                # React Flow wrapper
-│   │   ├── FlowPalette.tsx               # Draggable node palette
-│   │   ├── FlowToolbar.tsx               # Save/Validate/Auto-layout/Variables/Preview
-│   │   ├── FlowValidationBadge.tsx       # Error badge overlay
-│   │   ├── NodeConfigPanel.tsx           # Right sidebar dispatcher
-│   │   ├── VariablesManager.tsx          # Variable CRUD UI
-│   │   ├── nodes/
-│   │   │   ├── NodeShell.tsx             # Shared node chrome
-│   │   │   └── index.tsx                 # 7 node components + nodeTypes registry
-│   │   └── config-forms/
-│   │       ├── controls.tsx              # Shared form controls (TextField, Select, VariableSelect, etc.)
-│   │       ├── FormFieldConfig.tsx
-│   │       ├── DecisionConfig.tsx
-│   │       ├── CalculatorConfig.tsx
-│   │       ├── PaymentConfig.tsx
-│   │       ├── SummaryConfig.tsx
-│   │       └── RedirectConfig.tsx
-│   ├── flow-execution/
-│   │   ├── FlowExecutionContainer.tsx    # Drives respondent experience
-│   │   ├── FlowStepRenderer.tsx          # Dispatches step types
-│   │   ├── FlowProgressBar.tsx           # Segmented step indicator
-│   │   ├── CalculatorDisplay.tsx         # Calculation animation
-│   │   └── PaymentStep.tsx              # Payment interface
-│   └── ui/
-│       ├── PreviewDialog.tsx             # Modal overlay for previews
-│       └── FlowPreviewModal.tsx          # Flow preview inside dialog
-└── routes/
-    ├── forms/$formId/flow.tsx            # Flow builder page
-    ├── forms/$formId/edit.tsx            # Form builder page (with Preview dialog)
-    ├── forms/submit/$formId.tsx          # Public form (flow-aware)
-    └── flow/$executionId/complete.tsx    # Completion receipt page
-```
+> **Need more help?** Check the [Flow Form Guide](flow-form-guide.md) for tutorials, the [Payments Guide](payments-guide.md) for payment setup, or the [system memory](../memory-ponko/README.md) for the full architecture overview.

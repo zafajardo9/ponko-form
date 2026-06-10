@@ -7,7 +7,7 @@ import hljs from "highlight.js";
  * Renders markdown content as styled HTML with:
  *   - highlight.js syntax highlighting for code blocks
  *   - Mermaid diagram rendering (loaded from CDN)
- *   - Tables, lists, blockquotes, headings, inline formatting
+ *   - Beautiful tables, lists, blockquotes, headings
  *   - Copy buttons on code blocks
  *   - Heading anchor links
  */
@@ -38,13 +38,11 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
     if (mermaidInitRef.current) return;
     mermaidInitRef.current = true;
 
-    // Check if mermaid is already loaded globally
     if (typeof window !== "undefined" && (window as any).mermaid) {
       (window as any).mermaid.run({ nodes: mermaidBlocks });
       return;
     }
 
-    // Load mermaid from CDN
     const script = document.createElement("script");
     script.src = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js";
     script.onload = () => {
@@ -69,50 +67,118 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
   return (
     <div
       ref={rootRef}
-      className="prose prose-sm max-w-none
+      className="
+        prose prose-sm max-w-none
+
+        /* ── Headings ── */
         prose-headings:font-semibold prose-headings:text-[#141413] prose-headings:tracking-tight
-        prose-h1:text-2xl prose-h1:mt-0 prose-h1:mb-6 prose-h1:pb-3 prose-h1:border-b prose-h1:border-[#e6dfd8]
-        prose-h2:text-xl prose-h2:mt-10 prose-h2:mb-4 prose-h2:pb-2 prose-h2:border-b prose-h2:border-[#e6dfd8]/60
-        prose-h3:text-base prose-h3:mt-7 prose-h3:mb-2
-        prose-h4:text-sm prose-h4:mt-6 prose-h4:mb-2 prose-h4:uppercase prose-h4:tracking-wider prose-h4:text-[#8e8b82]
-        prose-p:text-[#3d3d3a] prose-p:leading-relaxed prose-p:my-3
-        prose-a:text-[#cc785c] prose-a:no-underline prose-a:font-medium hover:prose-a:text-[#a9583e] hover:prose-a:underline
+        prose-h1:text-3xl prose-h1:mt-0 prose-h1:mb-6 prose-h1:pb-4 prose-h1:border-b prose-h1:border-[#e6dfd8]
+        prose-h2:text-2xl prose-h2:mt-14 prose-h2:mb-4 prose-h2:pb-2.5 prose-h2:border-b prose-h2:border-[#e6dfd8]/60
+        prose-h3:text-lg prose-h3:mt-10 prose-h3:mb-3
+        prose-h4:text-base prose-h4:mt-8 prose-h4:mb-2 prose-h4:uppercase prose-h4:tracking-wider prose-h4:text-[#8e8b82]
+
+        /* ── Body text ── */
+        prose-p:text-[#3d3d3a] prose-p:leading-relaxed prose-p:my-4 prose-p:text-[15px]
+
+        /* ── Links ── */
+        prose-a:text-[#cc785c] prose-a:no-underline prose-a:font-medium
+        hover:prose-a:text-[#a9583e] hover:prose-a:underline
+
+        /* ── Strong / emphasis ── */
         prose-strong:text-[#141413] prose-strong:font-semibold
+        prose-em:text-[#57544d]
+
+        /* ── Inline code ── */
         prose-code:text-sm prose-code:font-normal
         prose-code:bg-[#f5f0e8] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-[#6b46a8]
-        prose-pre:bg-[#1a1a2e] prose-pre:text-[#e4e4e7] prose-pre:rounded-xl prose-pre:border prose-pre:border-[#2a2a3e]
-        prose-pre:shadow-lg prose-pre:my-4 prose-pre:text-sm prose-pre:leading-relaxed
-        prose-blockquote:border-l-4 prose-blockquote:border-[#cc785c] prose-blockquote:bg-[#faf9f5] prose-blockquote:rounded-r-lg
-        prose-blockquote:px-5 prose-blockquote:py-3 prose-blockquote:my-4 prose-blockquote:text-[#57544d] prose-blockquote:italic
-        prose-ol:pl-6 prose-ol:my-3 prose-ul:pl-6 prose-ul:my-3
-        prose-li:my-1 prose-li:text-[#3d3d3a]
+        prose-code:before:content-none prose-code:after:content-none
+
+        /* ── Code blocks ── */
+        /* Override all prose pre defaults so our custom code blocks render cleanly */
+        prose-pre:!p-0 prose-pre:!m-0 prose-pre:!bg-transparent
+        prose-pre:!border-none prose-pre:!shadow-none prose-pre:!rounded-none
+        prose-pre:!overflow-visible prose-pre:!whitespace-normal
+        prose-pre:my-5
+        prose-pre:[&>code]:!bg-transparent prose-pre:[&>code]:!p-0
+
+        /* ── Blockquotes ── */
+        prose-blockquote:border-l-[3px] prose-blockquote:border-[#cc785c]
+        prose-blockquote:bg-[#faf9f5] prose-blockquote:rounded-r-lg
+        prose-blockquote:px-5 prose-blockquote:py-3.5 prose-blockquote:my-5
+        prose-blockquote:text-sm prose-blockquote:text-[#57544d] prose-blockquote:not-italic
+        prose-blockquote:leading-relaxed
+
+        /* ── Lists ── */
+        prose-ol:pl-6 prose-ol:my-4 prose-ul:pl-6 prose-ul:my-4
+        prose-li:my-1.5 prose-li:text-[#3d3d3a] prose-li:text-[15px]
         prose-li:marker:text-[#cc785c]
+
+        /* ── Tables ── */
         prose-table:w-full prose-table:my-6
-        prose-table:border-collapse prose-table:rounded-lg prose-table:overflow-hidden
-        prose-table:border prose-table:border-[#e6dfd8]
-        prose-th:bg-[#f5f0e8] prose-th:px-4 prose-th:py-2.5 prose-th:text-sm prose-th:font-semibold prose-th:text-[#141413] prose-th:text-left
+        prose-table:border-separate prose-table:border-spacing-0
+        prose-thead:border-b
+        prose-th:bg-[#f5f0e8] prose-th:px-4 prose-th:py-2.5
+        prose-th:text-sm prose-th:font-semibold prose-th:text-[#141413] prose-th:text-left
+        prose-th:border-y prose-th:border-[#e6dfd8]
+        prose-th:first:border-l prose-th:first:rounded-tl-lg
+        prose-th:last:border-r prose-th:last:rounded-tr-lg
         prose-td:px-4 prose-td:py-2.5 prose-td:text-sm prose-td:text-[#3d3d3a]
-        prose-td:border-t prose-td:border-[#e6dfd8]
+        prose-td:border-b prose-td:border-[#e6dfd8]
+        prose-td:first:border-l prose-td:last:border-r
         prose-tr:even:bg-[#faf9f5]
-        prose-img:rounded-xl prose-img:shadow-sm prose-img:my-6
-        prose-hr:border-[#e6dfd8] prose-hr:my-8
-        [&_code]:before:content-none [&_code]:after:content-none
-        [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-inherit
-        [&_pre_code]:text-sm [&_pre_code]:leading-relaxed
-        [&_pre]:relative
+        prose-tr:last:td:border-b-0
+        /* Bottom rounded corners on last row */
+        prose-tr:last:[&_td:first-child]:rounded-bl-lg
+        prose-tr:last:[&_td:last-child]:rounded-br-lg
+
+        /* ── Images ── */
+        prose-img:rounded-xl prose-img:shadow-sm prose-img:my-8
+
+        /* ── Horizontal rules ── */
+        prose-hr:border-[#e6dfd8] prose-hr:my-10
+
+        /* ── Code block wrapper ── */
+        [&_.code-block]:my-5 [&_.code-block]:rounded-xl [&_.code-block]:overflow-hidden
+        [&_.code-block]:border [&_.code-block]:border-[#2a2a3e]
+
+        /* ── Code block header (language label + copy button) ── */
         [&_.code-header]:flex [&_.code-header]:items-center [&_.code-header]:justify-between
-        [&_.code-header]:px-4 [&_.code-header]:py-2 [&_.code-header]:bg-[#252540]
-        [&_.code-header]:rounded-t-xl [&_.code-header]:border-b [&_.code-header]:border-[#2a2a3e]
+        [&_.code-header]:px-4 [&_.code-header]:py-2 [&_.code-header]:bg-[#1e1e2e]
+        [&_.code-header]:border-b [&_.code-header]:border-[#2a2a3e]
         [&_.code-header]:text-xs [&_.code-header]:text-[#8e8b82] [&_.code-header]:font-medium
-        [&_.code-body]:px-4 [&_.code-body]:py-3 [&_.code-body]:overflow-x-auto
-        [&_h2]:scroll-mt-24 [&_h3]:scroll-mt-24
-        [&_.heading-anchor]:opacity-0 [&_.heading-anchor]:ml-1.5 [&_.heading-anchor]:text-[#cc785c] [&_.heading-anchor]:no-underline
+
+        /* ── Code body ── */
+        [&_.code-body]:bg-[#1a1a2e]
+        [&_.code-body]:text-sm [&_.code-body]:leading-relaxed [&_.code-body]:text-[#e4e4e7]
+
+        /* ── Code inside the body ── */
+        [&_.code-body_pre]:!m-0 [&_.code-body_pre]:!p-0 [&_.code-body_pre]:!bg-transparent
+        [&_.code-body_pre]:!border-none [&_.code-body_pre]:!shadow-none [&_.code-body_pre]:!rounded-none
+        [&_.code-body_pre]:overflow-x-auto [&_.code-body_pre]:whitespace-pre
+        [&_.code-body_pre]:text-sm [&_.code-body_pre]:leading-relaxed [&_.code-body_pre]:font-mono
+        [&_.code-body_pre]:text-[#e4e4e7]
+        [&_.code-body_pre_code]:!bg-transparent [&_.code-body_pre_code]:!p-0
+        [&_.code-body_pre_code]:!text-inherit [&_.code-body_pre_code]:!font-inherit
+
+        /* ── Heading scroll margins ── */
+        [&_h2]:scroll-mt-24 [&_h3]:scroll-mt-24 [&_h4]:scroll-mt-24
+
+        /* ── Heading anchor links ── */
+        [&_.heading-anchor]:opacity-0 [&_.heading-anchor]:ml-1.5
+        [&_.heading-anchor]:text-[#cc785c] [&_.heading-anchor]:no-underline
         [&_.heading-anchor]:text-sm [&_.heading-anchor]:font-normal
         hover:[&_.heading-anchor]:opacity-100
         [&_h2:hover_.heading-anchor]:opacity-100
         [&_h3:hover_.heading-anchor]:opacity-100
-        [&_.mermaid]:my-6 [&_.mermaid]:p-4 [&_.mermaid]:bg-white [&_.mermaid]:rounded-xl
-        [&_.mermaid]:border [&_.mermaid]:border-[#e6dfd8] [&_.mermaid]:overflow-x-auto"
+
+        /* ── Mermaid diagrams ── */
+        [&_.mermaid]:my-8 [&_.mermaid]:p-6 [&_.mermaid]:bg-white [&_.mermaid]:rounded-xl
+        [&_.mermaid]:border [&_.mermaid]:border-[#e6dfd8] [&_.mermaid]:overflow-x-auto
+        [&_.mermaid]:shadow-sm
+
+        /* ── Blockquote strong text ── */
+        [&_blockquote_strong]:text-[#141413]
+      "
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
@@ -134,7 +200,6 @@ function renderMarkdown(md: string): string {
     // ── Fenced code blocks ──
     if (line.trim().startsWith("```")) {
       if (inCodeBlock) {
-        // Close code block
         const code = codeBuffer.join("\n");
         if (codeLang === "mermaid") {
           html.push(`<div class="mermaid">${escapeHtml(code)}</div>`);
@@ -147,7 +212,6 @@ function renderMarkdown(md: string): string {
         i++;
         continue;
       }
-      // Open code block
       inCodeBlock = true;
       codeLang = normalizeLang(line.trim().slice(3).trim());
       i++;
@@ -183,7 +247,6 @@ function renderMarkdown(md: string): string {
 
     // ── Horizontal rule ──
     if (/^---$/.test(trimmed) || /^\*\*\*$/.test(trimmed)) {
-      // Make sure it's not a heading underline (has at least 3 dashes alone)
       if (trimmed.length >= 3) {
         html.push("<hr />");
       }
@@ -280,15 +343,21 @@ function renderMarkdown(md: string): string {
   return html.join("\n");
 }
 
-/** Render a fenced code block with a language header and a copy button. */
+/** Render a fenced code block with a stylized header and copy button. */
 function renderCodeBlock(code: string, lang: string): string {
   const escaped = escapeHtml(code);
   const langLabel = lang || "text";
+  const langDisplay = langLabel === "plaintext" ? "text" : langLabel;
   const escapedForData = escapeAttr(code);
   return `
-<pre class="!p-0 !bg-transparent !border-none !shadow-none">
+<div class="code-block">
   <div class="code-header">
-    <span>${escapeHtml(langLabel)}</span>
+    <span class="flex items-center gap-2">
+      <span class="flex h-3 w-3 rounded-full bg-[#ff6b6b]" />
+      <span class="flex h-3 w-3 rounded-full bg-[#ffd93d]" />
+      <span class="flex h-3 w-3 rounded-full bg-[#6bcb77]" />
+      <span class="ml-2">${escapeHtml(langDisplay)}</span>
+    </span>
     <button
       onclick="(function(btn){
         var c = btn.getAttribute('data-code');
@@ -297,17 +366,17 @@ function renderCodeBlock(code: string, lang: string): string {
         setTimeout(function(){btn.textContent='Copy'},2000);
       })(this)"
       data-code="${escapedForData}"
-      class="text-[#8e8b82] hover:text-white transition-colors cursor-pointer bg-transparent border-none text-xs"
+      class="text-[#8e8b82] hover:text-white transition-colors cursor-pointer bg-transparent border-none text-xs font-medium"
     >Copy</button>
   </div>
   <div class="code-body">
-    <code class="language-${langLabel}">${escaped}</code>
+    <pre class="code-body_pre"><code class="language-${langLabel}">${escaped}</code></pre>
   </div>
-</pre>`;
+</div>`;
 }
 
 function renderInline(text: string): string {
-  // Escape HTML entities first so that < and > in code samples render correctly
+  // Escape HTML entities first
   // Inline code (do first to avoid interfering with other markers)
   text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
   // Bold
@@ -327,14 +396,12 @@ function renderInline(text: string): string {
 function renderTable(rows: string[]): string {
   if (rows.length < 2) return "";
 
-  // Find the header row and separator row
-  // The first row is always the header, second is the separator
   const headerCells = parseTableRow(rows[0]);
-  // Determine if there's a separator (starts and ends with |, contains dashes)
   const hasSep = rows.length > 1 && /^\|[-:| ]+\|$/.test(rows[1].trim());
   const bodyRows = hasSep ? rows.slice(2) : rows.slice(1);
 
-  let table = '<div class="overflow-x-auto"><table><thead><tr>';
+  let table =
+    '<div class="overflow-x-auto [&_table]:!border-0 [&_table]:!rounded-none"><table><thead><tr>';
   for (const cell of headerCells) {
     table += `<th>${renderInline(cell)}</th>`;
   }
@@ -358,7 +425,6 @@ function renderTable(rows: string[]): string {
 
 function parseTableRow(row: string): string[] {
   const trimmed = row.trim();
-  // Remove leading and trailing pipe, then split
   const inner = trimmed.replace(/^\|/, "").replace(/\|$/, "");
   return inner.split("|").map((c) => c.trim());
 }

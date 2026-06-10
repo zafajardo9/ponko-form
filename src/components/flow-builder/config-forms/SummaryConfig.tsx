@@ -1,46 +1,62 @@
-import { useEffect, useState } from 'react'
-import { Field, TextField, textAreaClass, type ConfigFormProps } from './controls'
-import { TemplateInterpolator } from '../../../lib/flow-engine/TemplateInterpolator'
+import { useEffect, useState } from "react";
+import {
+  Field,
+  TextField,
+  textAreaClass,
+  type ConfigFormProps,
+} from "./controls";
+import { TemplateInterpolator } from "../../../lib/flow-engine/TemplateInterpolator";
 
-const interpolator = new TemplateInterpolator()
+const interpolator = new TemplateInterpolator();
 
 /** Config form for a Summary node: title + template with a live preview. */
-export function SummaryConfig({ nodeId, config, variables, onChange }: ConfigFormProps) {
-  const [template, setTemplate] = useState((config.template as string) ?? '')
+export function SummaryConfig({
+  nodeId,
+  config,
+  variables,
+  onChange,
+}: ConfigFormProps) {
+  const [template, setTemplate] = useState((config.template as string) ?? "");
 
-  useEffect(() => setTemplate((config.template as string) ?? ''), [nodeId])
+  useEffect(() => setTemplate((config.template as string) ?? ""), [nodeId]);
 
   function commit(next: string) {
-    setTemplate(next)
-    onChange({ template: next })
+    setTemplate(next);
+    onChange({ template: next });
   }
 
   // Build a preview scope from variable defaults (or the variable name as a stand-in).
-  const previewVars: Record<string, unknown> = {}
-  const types: Record<string, 'string' | 'number' | 'boolean' | 'money'> = {}
+  const previewVars: Record<string, unknown> = {};
+  const types: Record<string, "string" | "number" | "boolean" | "money"> = {};
   for (const v of variables) {
-    types[v.name] = v.type
+    types[v.name] = v.type;
     previewVars[v.name] =
       v.defaultValue !== null
-        ? v.type === 'number' || v.type === 'money'
+        ? v.type === "number" || v.type === "money"
           ? Number(v.defaultValue)
           : v.defaultValue
-        : `‹${v.name}›`
+        : `‹${v.name}›`;
   }
-  const preview = interpolator.interpolate(template, { variables: previewVars, types })
+  const preview = interpolator.interpolate(template, {
+    variables: previewVars,
+    types,
+  });
 
   return (
     <div className="flex flex-col gap-4">
       <Field label="Title">
         <TextField
           resetKey={nodeId}
-          value={(config.title as string) ?? ''}
+          value={(config.title as string) ?? ""}
           onCommit={(v) => onChange({ title: v })}
           placeholder="Order Confirmation"
         />
       </Field>
 
-      <Field label="Template" hint="Use {{variable}} placeholders. Money-typed values format as $1,200.00.">
+      <Field
+        label="Template"
+        hint="Use {{variable}} placeholders. Money values format as 1,200.00. Add your own currency symbol in the text (e.g. ₱{{total_cost}})."
+      >
         <textarea
           value={template}
           rows={4}
@@ -55,7 +71,9 @@ export function SummaryConfig({ nodeId, config, variables, onChange }: ConfigFor
         {variables.map((v) => (
           <button
             key={v.id}
-            onClick={() => commit(template ? `${template} {{${v.name}}}` : `{{${v.name}}}`)}
+            onClick={() =>
+              commit(template ? `${template} {{${v.name}}}` : `{{${v.name}}}`)
+            }
             className="rounded-md border border-[#e6dfd8] bg-white px-2 py-1 text-xs text-[#57544d] hover:border-[#cc785c]"
           >
             {v.name}
@@ -71,5 +89,5 @@ export function SummaryConfig({ nodeId, config, variables, onChange }: ConfigFor
         </Field>
       )}
     </div>
-  )
+  );
 }

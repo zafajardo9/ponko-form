@@ -1,20 +1,15 @@
 # Flow Form Guide — Tutorial & Computation Handbook
 
-> **Feature:** FT001 Flow Builder
-> **Status:** Implemented ✅
-> **Audience:** Form creators building flow-powered forms
-> **Prerequisites:** Familiarity with the PonkoForm dashboard, basic math literacy
+> **Build real-world flow forms** — from simple contact forms to multi-service order forms with payment. This guide walks you through complete examples with step-by-step instructions.
 
-This guide teaches you how to **build real-world flow forms** by walking through complete examples, explaining how each node works in practice, and showing you the computation patterns step by step.
-
-If you need a reference for individual node types, variable types, or the database schema, see the [Flow Builder Knowledge Base](flow-builder-guide.md). This guide focuses on *how to build things*.
+**New here?** Start with the [Getting Started guide](getting-started.md) first.
 
 ---
 
 ## Table of Contents
 
 1. [What Is a Flow Form?](#1-what-is-a-flow-form)
-2. [Building Blocks — Nodes & Variables](#2-building-blocks--nodes--variables)
+2. [Building Blocks — Nodes, Variables & Edges](#2-building-blocks--nodes-variables--edges)
 3. [Tutorial 1: Payment Plan Flow](#3-tutorial-1-payment-plan-flow)
 4. [Tutorial 2: Multi-Service Order Flow](#4-tutorial-2-multi-service-order-flow)
 5. [Computation Patterns](#5-computation-patterns)
@@ -29,390 +24,376 @@ If you need a reference for individual node types, variable types, or the databa
 
 A **flow form** is a multi-step, interactive experience — think of it as a mini application rather than a single page of fields. The respondent:
 
-1. Fills in fields one at a time
-2. May be asked to make choices that determine what happens next
-3. Sees automatic calculations (e.g., adding VAT, computing totals)
-4. May be prompted to pay
-5. Lands on a summary/receipt page
+1. **Fills in fields** one step at a time
+2. **Makes choices** that determine what happens next
+3. **Sees automatic calculations** (VAT, totals, discounts)
+4. **May pay** via integrated checkout
+5. **Gets a receipt** or confirmation
 
-> **Flow form vs. linear form:** A linear form shows all fields on one page. A flow form guides the respondent step-by-step, branching and computing along the way.
+> **Flow form vs. linear form:** A linear form shows all fields on one page, same for everyone. A flow form guides each respondent on their own unique journey.
 
-### Example Flows
+### What Can You Build?
 
-| Flow | What It Does |
+| Example | Key Features |
 |---|---|
-| **Payment Plan** | User picks Full Payment or Installment → system calculates total with VAT → shows receipt |
-| **Service Order** | User selects multiple services from a catalog → system sums fees, adds VAT, adds deposits → shows full breakdown |
-| **Registration + Payment** | User fills in details → system calculates fee based on selections → charges card → confirmation |
+| **Payment Plan** | Branch (pick a plan) → Calculator (add VAT) → Payment → Receipt |
+| **Service Order** | Select services from catalog → Sum fees → Add deposits → Show breakdown |
+| **Registration + Payment** | Fill details → Calculate fee → Charge card → Confirmation |
+| **Quote Request** | Answer questions → Compute estimate → Email summary |
 
 ---
 
-## 2. Building Blocks — Nodes & Variables
+## 2. Building Blocks — Nodes, Variables & Edges
 
-Before you build a flow, understand the pieces you'll connect on the canvas.
+A flow is a **graph** made of three things:
+
+- **Nodes** — each step in the flow (a field, a calculation, a payment)
+- **Edges** — connections that determine the path through nodes
+- **Variables** — data that flows through the graph
 
 ### 2.1 Node Types at a Glance
 
-| Node | Shape | Color | What It Does | Visible to Respondent? |
-|---|---|---|---|---|
-| **Start** | Circle | Green | Entry point — every flow starts here | No |
-| **Form Field** | Rectangle | Blue | Collects input (text, email, select, checkbox, etc.) | Yes |
-| **Decision** | Diamond | Amber | Branches the path based on a variable value | Yes (as radio buttons) |
-| **Calculator** | Rectangle | Purple | Runs a math expression automatically | No (auto-advances) |
-| **Payment** | Rectangle | Green | Shows amount and payment button | Yes |
-| **Summary** | Rectangle | Gray | Shows final receipt — terminal node | Yes |
-| **Redirect** | Rectangle | Gray | Sends user to an external URL — terminal node | Briefly |
+```
+  Start ──→ Form Field ──→ Decision ──→ Calculator ──→ Payment ──→ Summary
+   (begin)    (ask)        (branch)      (compute)     (charge)     (end)
+```
+
+| Node | Icon | Purpose | Example |
+|---|---|---|---|
+| **Start** | ▶️ | Marks the beginning (auto-created) | — |
+| **Form Field** | ☐ | Asks the respondent for input | Name, email, dropdown, checkbox |
+| **Group** | 📋 | Collects multiple fields on one step | Address block (street + city + zip) |
+| **Decision** | ◇ | Branches based on an answer | "Are you a student? → Yes / No" |
+| **Calculator** | ∑ | Computes a value from other values | `subtotal * 1.12` (add 12% VAT) |
+| **Payment** | $ | Charges the respondent | Amount due via PayPal/Xendit |
+| **Summary** | ≡ | Shows a confirmation/receipt | "Thanks! Your order total is $120.00" |
+| **Redirect** | ↗ | Sends the respondent to a URL | "Click here to access your dashboard" |
 
 ### 2.2 Variables — The Data Backbone
 
-Variables are the *memory* of your flow. Every piece of data — a name typed by the user, a selected option, a computed total — is stored in a variable.
+Variables are the **memory** of your flow. Every answer, every calculation result — it's stored in a variable.
 
-**Variable types:**
+```
+  Step 1: "What's your name?"  →  stored in  {{full_name}}
+  Step 2: "How many items?"    →  stored in  {{quantity}}
+  Step 3: Calculator computes  →  stored in  {{total_cost}}  =  {{quantity}} * 10
+  Step 4: "Pay {{total_cost}}" →  Payment node charges that amount
+```
 
-| Type | What It Stores | Example Values |
+#### Variable Types
+
+| Type | Stores | Example Values |
 |---|---|---|
-| `string` | Text | `"Juan Dela Cruz"`, `"full"`, `'["service_a","service_b"]'` |
-| `number` | Numeric value | `5`, `1200.50` |
+| `string` | Text | `"Juan Dela Cruz"`, `"full"`, `"yes"` |
+| `number` | Plain numbers | `5`, `100`, `0.5` |
+| `money` | Currency amounts | `150000` (stored as cents — represents ₱1,500.00) |
 | `boolean` | True/false | `true`, `false` |
-| `money` | Monetary amount (stored as number, displayed as `₱1,200.00`) | `1500000` (interpreted as ₱15,000.00) |
 
-**How to think about variables:**
+> **Money is stored in the smallest currency unit** (cents, centavos, sen). ₱1,500.00 is stored as `150000`. When displayed, it auto-formats as `₱1,500.00`. **Never use decimals for money** — use integers and let the system format it.
 
-1. **Declare** the variable first in the Variables Manager.
-2. **Set** the variable by binding it to a Form Field (user fills it in) or a Calculator (system computes it).
-3. **Read** the variable in a Decision (branch), Payment (amount), or Summary (display).
+#### Variable Lifecycle
 
-> ✅ **Rule of thumb:** If you need to store, compute, or display a value, declare a variable for it.
+```
+  Declare ──→ Assign (by form field) ──→ Transform (by calculator) ──→ Use (payment/template)
+   (create      (respondent fills    (calculator computes     (payment charges,
+    variable)     in a field)          new value)               template displays)
+```
 
-### 2.3 Connecting Nodes
+### 2.3 How Edges Work
 
-Nodes are connected by **edges** (arrows). The flow runs from top to bottom in the order the edges define.
+Edges are the **arrows** connecting nodes. They determine:
 
-- **Source handle** (bottom of node) → drag to **target handle** (top of next node)
-- One Start node, one or more paths, ends at a terminal node (Summary or Redirect)
-- Decision nodes must have **one edge per branch option**
+- **The order** of steps (which node comes next)
+- **Branches** (which path to take based on a decision)
+- **Fallthrough** (when all branches lead to the same place)
+
+```
+  [Ask: Payment Plan?] ────"full"────→ [Calculator: Full Total]
+                      └───"installment"─→ [Calculator: Monthly]
+                                              │
+                                  Both converge here
+                                              │
+                                       [Payment: Charge]
+```
 
 ---
 
 ## 3. Tutorial 1: Payment Plan Flow
 
-**Goal:** Build a flow where the user picks "Full Payment" or "Installment (6 months)", and the system calculates the total with 12% VAT.
+**What you'll build:** A form where the respondent picks a payment plan (Full Payment or 6-month Installment), the system calculates the total with VAT, and charges accordingly.
+
+```
+  Start → Choose Plan → Decision → [Full: Calc Full Total] → Payment → Summary
+                                    [Installment: Calc Monthly]
+```
 
 ### Step 1: Plan Your Variables
 
-| Variable | Type | How It Gets Set | Purpose |
+First, declare these variables in the **Variables Manager** (click "Variables" in the toolbar):
+
+| Variable | Type | Default | Description |
 |---|---|---|---|
-| `payment_plan` | `string` | Form Field (select) | Stores the user's choice: `"full"` or `"installment"` |
-| `subtotal` | `money` | Default value: `10000` | Base price before VAT |
-| `vat_amount` | `money` | Calculator | Computed: 12% of subtotal |
-| `total_cost` | `money` | Calculator (full branch) | Subtotal × 1.12 |
-| `monthly_payment` | `money` | Calculator (installment branch) | Total ÷ 6 |
-| `payment_ref` | `string` | Payment node | Gateway reference |
+| `payment_plan` | string | `full` | Selected plan |
+| `subtotal` | money | `10000` | Base price (₱100.00) |
+| `amount_due` | money | — | Final amount to charge |
+| `payment_ref` | string | — | Gateway reference (auto-filled) |
+
+> **Tip:** Setting `subtotal`'s default to `10000` means you can test without filling in a field for it. Change it later to whatever your base price should be.
 
 ### Step 2: Build the Node Chain
 
+From the palette, add these nodes in order:
+
 ```
-Start → [Choose Payment Plan] → [Plan? Decision]
-                                    ├─ Full → [Full Total ×1.12] → [Pay Now] → [Confirmation]
-                                    └─ Installment → [Monthly ÷6] ──┘
+1. Start (auto-created)
+2. Form Field → "Select" type → label: "Choose Payment Plan"
+3. Decision
+4. Calculator (for Full Payment path)
+5. Calculator (for Installment path)
+6. Payment
+7. Summary
 ```
 
 ### Step 3: Configure Each Node
 
-**① Start** — No configuration needed. Automatically created.
+#### Form Field: "Choose Payment Plan"
 
-**② Form Field — "Choose Payment Plan"**
-
-| Setting | Value |
+| Field | Value |
 |---|---|
-| `fieldType` | `select` |
-| `label` | "Payment Plan" |
-| `required` | ✅ Yes |
-| `options` | `"Full Payment" → "full"`, `"Installment (6 months)" → "installment"` |
-| `bindToVariable` | `payment_plan` |
+| **Label** | `Choose your plan` |
+| **Field Type** | `Select` |
+| **Required** | ✅ |
+| **Options** | `Full Payment` → `full`, `Installment (6 months)` → `installment` |
+| **Bind to Variable** | `payment_plan` |
 
-**③ Decision — "Plan?"**
+#### Decision: Route by Plan
 
-| Setting | Value |
+| Field | Value |
 |---|---|
-| `sourceVariable` | `payment_plan` |
-| `branches` | `"full" → "Full Payment"`, `"installment" → "Installment"` |
+| **Source Variable** | `payment_plan` |
+| **Branches** | `full` → label "Full Payment", `installment` → label "Installment" |
 
-Connect the **Full Payment** edge from the Decision to the Full calculator node.
-Connect the **Installment** edge from the Decision to the Installment calculator node.
-Each edge automatically gets a `matchValue` metadata that tells the runtime which branch to follow.
+Connect the decision's `full` branch to **Calculator 1** and `installment` to **Calculator 2**.
 
-**④ Calculator — "Full Total (×1.12)"** (Full Payment branch only)
+#### Calculator 1: Full Payment Total
 
-| Setting | Value |
+| Field | Value |
 |---|---|
-| `targetVariable` | `total_cost` |
-| `expression` | `{{subtotal}} * 1.12` |
+| **Target Variable** | `amount_due` |
+| **Expression** | `{{subtotal}} * 1.12` |
+| **Label** | `Full payment total incl. 12% VAT` |
 
-**⑤ Calculator — "Monthly (÷6)"** (Installment branch only)
+This multiplies the subtotal by 1.12 (adds 12% VAT) and stores it in `amount_due`.
 
-| Setting | Value |
+#### Calculator 2: Installment Monthly
+
+| Field | Value |
 |---|---|
-| `targetVariable` | `monthly_payment` |
-| `expression` | `round(({{subtotal}} * 1.12) / 6, 2)` |
+| **Target Variable** | `amount_due` |
+| **Expression** | `round(({{subtotal}} * 1.12) / 6, 2)` |
+| **Label** | `Monthly payment over 6 months` |
 
-> **Why `round(..., 2)`?** Money values should always be rounded to 2 decimal places to avoid fractions of a centavo.
+Same VAT calculation, but divided by 6 months and rounded to 2 decimal places.
 
-**⑥ Payment — "Pay Now"**
+> **Both calculators write to `amount_due`** — whichever path the respondent takes, the payment node charges the correct amount. This is a common pattern: decisions route to different calculators, but they all write to the same variable.
 
-| Setting | Value |
+#### Payment: Charge
+
+| Field | Value |
 |---|---|
-| `amountVariable` | `total_cost` |
-| `currency` | `PHP` (or `USD` depending on your gateway) |
-| `gatewayId` | Select the active gateway |
+| **Amount Variable** | `amount_due` |
+| **Currency** | `USD` (or your preferred currency) |
 
-Connect from **both calculators** to this Payment node — regardless of which branch the user took, they end up here.
+> The gateway selection happens at checkout time — the respondent chooses from whatever payment methods you've connected in Settings.
 
-**⑦ Summary — "Confirmation"**
+#### Summary: Confirmation
 
-| Setting | Value |
+| Field | Value |
 |---|---|
-| `title` | "Order Confirmation" |
-| `template` | See below |
+| **Title** | `Order Confirmation` |
+| **Template** | `Thank you! Plan: {{payment_plan}}. Amount due: {{amount_due}}. Reference: {{payment_ref}}.` |
 
-Template (use the template editor — variables inside `{{}}` are replaced with actual values):
+### Step 4: Connect the Edges
+
+Your final flow should look like:
 
 ```
-Thank you for your order!
-
-Plan: {{payment_plan}}
-Subtotal: ₱{{subtotal}}
-VAT (12%): ₱{{vat_amount}}
-Total: ₱{{total_cost}}
-Monthly Payment: ₱{{monthly_payment}}
-Payment Ref: {{payment_ref}}
+  [Start]
+     │
+  [Choose Plan] (form_field)
+     │
+  [Decision: payment_plan]
+     ├─── "full" ───→ [Calc: Full Total] ──┐
+     └─── "installment" → [Calc: Monthly] ──┘
+                                              │
+                                          [Payment: Charge]
+                                              │
+                                          [Summary]
 ```
 
-### Step 4: Tips for This Flow
+### Step 5: Test It
 
-- Use the **Test Expression** button in each Calculator to verify your math before publishing.
-- The `vat_amount` variable isn't explicitly computed in this flow — you'd add another Calculator before the decision to compute `{{subtotal}} * 0.12` if needed.
-- Try previewing both branches to confirm the Decision routes correctly.
+1. Click **Preview**
+2. Pick "Full Payment" → the total should be `₱112.00` (₱100 × 1.12)
+3. Go back, pick "Installment" → the monthly should be `₱18.67` (₱112 ÷ 6)
+4. Verify the payment step shows the correct amount
 
 ---
 
 ## 4. Tutorial 2: Multi-Service Order Flow
 
-**Goal:** Build a flow where the user selects one or more services from a catalog. The system computes:
-- Sum of selected service fees
-- 12% VAT on the fee total
-- Total with VAT
-- Sum of security deposits
-- Grand total (fees + VAT + deposits)
+**What you'll build:** A service order form where respondents select multiple services from a catalog. The system calculates fees, adds VAT and deposits, and shows a full breakdown.
+
+```
+  Personal Info → Service Selection → Calculate Totals → Summary
+```
 
 ### Step 1: Plan Your Variables
 
-| Variable | Type | How It Gets Set | Purpose |
+| Variable | Type | Default | Description |
 |---|---|---|---|
-| `full_name` | `string` | Form Field | Client name |
-| `email` | `string` | Form Field | Client email |
-| `phone` | `string` | Form Field | Client phone |
-| `address` | `string` | Form Field | Client address |
-| `selected_services` | `string` | Form Field (checkbox) | JSON array of selected service keys |
-| `service_fees_total` | `money` | Calculator | Sum of fees for selected services |
-| `security_deposit_total` | `money` | Calculator | Sum of deposits for selected services |
-| `vat_amount` | `money` | Calculator | 12% × `service_fees_total` |
-| `total_with_vat` | `money` | Calculator | `service_fees_total + vat_amount` |
-| `grand_total` | `money` | Calculator | `total_with_vat + security_deposit_total` |
+| `full_name` | string | — | Client's full name |
+| `email` | string | — | Client's email |
+| `phone` | string | — | Contact number |
+| `address` | string | — | Client address |
+| `selected_services` | string | — | Comma-separated service slugs |
+| `total_fee` | money | `0` | Sum of all service fees |
+| `vat_amount` | money | `0` | 12% VAT on total fee |
+| `total_deposit` | money | `0` | Sum of all service deposits |
+| `grand_total` | money | `0` | Total fee + VAT + deposits |
 
 ### Step 2: Build the Node Chain
 
 ```
-Start → [Full Name] → [Email] → [Phone] → [Address]
-  → [Select Services (checkboxes)]
-  → [∑ Service Fees Total]
-  → [∑ Security Deposit Total]
-  → [∑ VAT (12%)]
-  → [∑ Total with VAT]
-  → [∑ Grand Total]
-  → [Summary & Confirmation]
+  Start → Full Name → Email → Phone → Address → Service Selector → Calc Fees → Calc VAT → Calc Deposits → Calc Grand Total → Summary
 ```
 
 ### Step 3: Configure Each Node
 
-**Form Fields — Personal Info**
+Add form fields for `full_name` (Text), `email` (Email), `phone` (Text), and `address` (Textarea). Each binds to its respective variable.
 
-Create four Form Field nodes in sequence:
+#### The Service Selector (Group node)
 
-| Node | `fieldType` | `label` | `bindToVariable` | `required` |
-|---|---|---|---|---|
-| Full Name | `text` | "Full Name" | `full_name` | ✅ |
-| Email | `email` | "Email Address" | `email` | ✅ |
-| Phone | `text` | "Phone Number" | `phone` | ✅ |
-| Address | `textarea` | "Address" | `address` | ❌ |
+A **Group** node collects multiple fields on one step. For the service catalog, add checkbox fields:
 
-**⑤ Form Field — "Select Services"**
+| Field | Label | Value | Bind To |
+|---|---|---|---|
+| Checkbox | `No Derogatory Check` | `no_derogatory_check` | `selected_services` |
+| Checkbox | `Tourist Visa Extension` | `tourist_visa_extension` | `selected_services` |
+| Checkbox | `Permanent Residence` | `permanent_residence` | `selected_services` |
+| Checkbox | `Work Permit Renewal` | `work_permit_renewal` | `selected_services` |
+| Checkbox | `Business Registration` | `business_registration` | `selected_services` |
 
-| Setting | Value |
+> Each service has an associated **fee** and **deposit** amount. In the flow, you'll use calculators to look up these amounts based on what the respondent selected.
+
+#### Calculator: Calculate Total Fees
+
+| Field | Value |
 |---|---|
-| `fieldType` | `checkbox` |
-| `label` | "Choose the services you want to avail" |
-| `required` | ✅ |
-| `bindToVariable` | `selected_services` |
-| `options` | One entry per service (see catalog) |
-| `serviceCatalog` | Lookup map of key → `{fee, deposit}` |
+| **Target Variable** | `total_fee` |
+| **Expression** | A calculator that sums fees based on selected services |
 
-Each option maps the user-facing label to a machine-readable key:
-
-```json
-[
-  { "label": "No Derogatory Check — Fee: ₱15,000.00  Deposit: ₱3,000.00", "value": "no_derogatory_check" },
-  { "label": "Tourist Visa Extension — Fee: ₱2,500.00  Deposit: ₱9,000.00", "value": "tourist_visa_extension" },
-  ...
-]
-```
-
-The `serviceCatalog` config (stored alongside the options) provides the runtime with fee/deposit amounts for each key:
-
-```json
-{
-  "no_derogatory_check": { "fee": 1500000, "deposit": 300000 },
-  "tourist_visa_extension": { "fee": 250000, "deposit": 900000 }
-}
-```
-
-> **How this works at runtime:** When the user checks services and submits, the runtime receives the array of selected keys (e.g., `["no_derogatory_check", "tourist_visa_extension"]`). The calculator nodes use custom functions `SUM_FEES()` and `SUM_DEPOSITS()` that look up amounts from the `serviceCatalog` config.
-
-**⑥ Calculator — "Service Fees Total"**
-
-| Setting | Value |
-|---|---|
-| `targetVariable` | `service_fees_total` |
-| `expression` | `SUM_FEES({{selected_services}})` |
-
-**⑦ Calculator — "Security Deposit Total"**
-
-| Setting | Value |
-|---|---|
-| `targetVariable` | `security_deposit_total` |
-| `expression` | `SUM_DEPOSITS({{selected_services}})` |
-
-**⑧ Calculator — "VAT (12%)"**
-
-| Setting | Value |
-|---|---|
-| `targetVariable` | `vat_amount` |
-| `expression` | `{{service_fees_total}} * 0.12` |
-
-**⑨ Calculator — "Total with VAT"**
-
-| Setting | Value |
-|---|---|
-| `targetVariable` | `total_with_vat` |
-| `expression` | `{{service_fees_total}} + {{vat_amount}}` |
-
-**⑩ Calculator — "Grand Total"**
-
-| Setting | Value |
-|---|---|
-| `targetVariable` | `grand_total` |
-| `expression` | `{{total_with_vat}} + {{security_deposit_total}}` |
-
-**⑪ Summary — "Summary & Confirmation"**
-
-Template:
+This is where the **service catalog** comes in. Use conditional expressions to sum fees:
 
 ```
---- Personal Information ---
-Name: {{full_name}}
-Email: {{email}}
-Phone: {{phone}}
-Address: {{address}}
-
---- Payment Breakdown ---
-Service Fees:        ₱{{service_fees_total}}
-VAT (12%):           ₱{{vat_amount}}
-Total (fees + VAT):  ₱{{total_with_vat}}
-Security Deposits:   ₱{{security_deposit_total}}
-────────────────────────────────
-GRAND TOTAL:         ₱{{grand_total}}
+if(contains({{selected_services}}, 'no_derogatory_check'), 5000, 0) + 
+if(contains({{selected_services}}, 'tourist_visa_extension'), 3000, 0) +
+...
 ```
+
+#### Calculator: Calculate VAT
+
+| Field | Value |
+|---|---|
+| **Target Variable** | `vat_amount` |
+| **Expression** | `{{total_fee}} * 0.12` |
+
+#### Calculator: Calculate Total Deposits
+
+Similar to fees — sum deposits for selected services.
+
+#### Calculator: Grand Total
+
+| Field | Value |
+|---|---|
+| **Target Variable** | `grand_total` |
+| **Expression** | `{{total_fee}} + {{vat_amount}} + {{total_deposit}}` |
 
 ### Step 4: Walk Through a Real Calculation
 
-Suppose the user selects **No Derogatory Check** (₱15,000 fee + ₱3,000 deposit) and **Tourist Visa Extension** (₱2,500 fee + ₱9,000 deposit):
+A respondent selects "No Derogatory Check" (₱5,000 fee, ₱3,000 deposit) and "Work Permit Renewal" (₱8,000 fee, ₱5,000 deposit):
 
-| Step | Variable | How It's Computed | Value |
-|---|---|---|---|
-| Selection | `selected_services` | User checks both boxes | `["no_derogatory_check", "tourist_visa_extension"]` |
-| 1 | `service_fees_total` | ₱15,000 + ₱2,500 | ₱17,500.00 |
-| 2 | `security_deposit_total` | ₱3,000 + ₱9,000 | ₱12,000.00 |
-| 3 | `vat_amount` | ₱17,500.00 × 0.12 | ₱2,100.00 |
-| 4 | `total_with_vat` | ₱17,500.00 + ₱2,100.00 | ₱19,600.00 |
-| 5 | `grand_total` | ₱19,600.00 + ₱12,000.00 | ₱31,600.00 |
+| Step | Calculation | Result |
+|---|---|---|
+| Total Fee | 5,000 + 8,000 | ₱13,000.00 |
+| VAT (12%) | 13,000 × 0.12 | ₱1,560.00 |
+| Total Deposit | 3,000 + 5,000 | ₱8,000.00 |
+| **Grand Total** | 13,000 + 1,560 + 8,000 | **₱22,560.00** |
 
 ---
 
 ## 5. Computation Patterns
 
-This section collects reusable patterns you can apply in your own flow forms.
+This section covers every calculation pattern you'll need. Each pattern includes a **template** and a **real example**.
 
 ### 5.1 Basic Arithmetic
 
-| Pattern | Expression | Use Case |
+| Pattern | Expression | Example |
 |---|---|---|
-| Multiply by percentage | `{{subtotal}} * 0.12` | Add 12% VAT |
-| Divide into installments | `round({{total}} / 6, 2)` | Split into 6 monthly payments |
-| Apply discount | `{{price}} * 0.9` | 10% discount |
-| Add fixed fee | `{{total}} + 5000` | Add shipping or processing fee |
-| Quantity × unit price | `{{qty}} * {{unit_price}}` | Line-item total |
+| Add | `{{price}} + {{shipping}}` | Item price + shipping cost |
+| Subtract | `{{total}} - {{discount}}` | Total minus discount |
+| Multiply | `{{quantity}} * {{unit_price}}` | Qty × price |
+| Divide | `{{total}} / {{installments}}` | Split into payments |
 
 ### 5.2 Conditional / Ternary
 
-Use ternary expressions for simple if-then logic inside a Calculator:
+```
+if({{variable}} == 'value', result_if_true, result_if_false)
+```
 
-| Condition | Expression | Result |
-|---|---|---|
-| Tiered pricing | `{{qty}} > 10 ? 50 : 100` | Price is 50 if qty > 10, else 100 |
-| Late fee | `{{days_late}} > 30 ? {{amount}} * 1.05 : {{amount}}` | 5% penalty if late > 30 days |
-| Minimum charge | `{{computed}} < 500 ? 500 : {{computed}}` | Floor at ₱500 |
-| Free shipping threshold | `{{subtotal}} >= 2000 ? 0 : 350` | Free shipping over ₱2,000 |
+**Example:** Discount for students
+```
+if({{user_type}} == 'student', {{total}} * 0.9, {{total}})
+```
+Gives 10% off if the respondent is a student, otherwise charges full price.
+
+**Nested conditional (multi-branch):**
+```
+if({{tier}} == 'premium', 100, if({{tier}} == 'standard', 50, 25))
+```
 
 ### 5.3 Multi-Step Computations
 
-When a calculation depends on intermediate results, **chain multiple Calculator nodes**.
-
-**Example:** Discounted total with tax and shipping
+Break complex math into multiple calculator nodes:
 
 ```
-[∑ Subtotal] = {{price}} * {{qty}}
-[∑ Discount] = {{subtotal}} * 0.1
-[∑ After Discount] = {{subtotal}} - {{discount}}
-[∑ Tax] = {{after_discount}} * 0.12
-[∑ With Tax] = {{after_discount}} + {{tax}}
-[∑ Shipping] = {{with_tax}} >= 2000 ? 0 : 350
-[∑ Grand Total] = {{with_tax}} + {{shipping}}
+Calculator 1: subtotal = sum of item prices
+Calculator 2: discount = subtotal * 0.1 (10% off)
+Calculator 3: after_discount = subtotal - discount
+Calculator 4: tax = after_discount * 0.12
+Calculator 5: total = after_discount + tax
 ```
 
-**Rule:** Each Calculator reads variables set by earlier nodes. The order of Calculator nodes in the chain matters — they execute in the order they're connected.
+Each calculator stores its result in a different variable. The next calculator reads from the previous one.
 
 ### 5.4 Working with Money
 
-Money variables are stored as integers in the **smallest currency unit** (centavos for PHP, cents for USD).
+| Pattern | Expression |
+|---|---|
+| Add VAT (12%) | `{{amount}} * 1.12` |
+| Apply discount (10%) | `{{amount}} * 0.9` |
+| Split into installments | `{{amount}} / 6` |
+| Round to 2 decimals | `round({{amount}}, 2)` |
 
-| Real Amount | Stored Value | Display |
+> **Always round money values:** `round({{amount}}, 2)` ensures you don't end up with fractions of a cent.
+
+### 5.5 Useful Built-in Functions
+
+| Function | What It Does | Example |
 |---|---|---|
-| ₱15,000.00 | `1500000` | `₱15,000.00` |
-| ₱2,500.00 | `250000` | `₱2,500.00` |
-| ₱0.12 × ₱17,500 | `210000` | `₱2,100.00` |
-
-> 🔢 **Why not decimals?** Storing money as integer centavos avoids floating-point rounding errors. Always use whole numbers (no decimal point) in expressions.
-
-### 5.5 Rounding
-
-Always round money results:
-
-```
-round({{value}}, 2)     → rounds to 2 decimal places
-round({{value}})        → rounds to nearest integer
-```
-
-Use `round` whenever you divide, apply a percentage, or compute a fraction.
+| `round(x, n)` | Rounds x to n decimal places | `round({{total}} / 6, 2)` |
+| `if(cond, a, b)` | Returns `a` if true, `b` if false | `if({{age}} >= 18, 'adult', 'minor')` |
+| `contains(str, substr)` | Checks if string contains substring | `contains({{items}}, 'premium')` |
 
 ---
 
@@ -421,70 +402,67 @@ Use `round` whenever you divide, apply a percentage, or compute a fraction.
 ### 6.1 Two-Way Branch (Yes/No)
 
 ```
-[Decision] ── "Yes" ──→ [Calculator A]
-            └── "No" ──→ [Calculator B]
+  [Decision: has_discount?]
+     ├─── "yes" ───→ [Calculator: Apply discount]
+     └─── "no" ────→ [Calculator: Full price]
+                          │
+                    Both converge
+                          │
+                      [Payment]
 ```
 
-Configure the Decision with `sourceVariable` set to a boolean or string variable. Add branches `"true"` and `"false"`. Connect each branch to its respective path. Both paths should eventually converge (e.g., both lead to the same Summary node).
+The decision's **Source Variable** should be a boolean or a form field with two options (e.g., "Yes"/"No").
 
 ### 6.2 Multi-Way Branch
 
 ```
-[Decision] ── "full" ────────→ [Calculator Full]
-            ├── "installment" → [Calculator Installment]
-            └── "waiver" ─────→ [Calculator Waiver]
+  [Decision: plan_type]
+     ├─── "basic" ──────→ [Calc: Basic pricing]
+     ├─── "pro" ────────→ [Calc: Pro pricing]
+     ├─── "enterprise" ──→ [Calc: Enterprise pricing]
+     └─── default ──────→ [Calc: Default pricing]
 ```
 
-Configure branches to match the possible values of `sourceVariable`. The runtime checks each edge's `matchValue` and follows the first match. If no edge matches, it follows the first edge as default.
+Each edge from the decision node has a **matchValue** that corresponds to one of the options. The runtime picks the matching edge.
 
 ### 6.3 Converging Paths
 
-After a branch, paths should **rejoin** at a common node. This is critical for flows that end in a single Payment or Summary:
+After branching, paths often need to come back together (converge). This is done by having multiple edges point to the same node:
 
 ```
-        ┌── Full ──┐
-Start ─→┤          ├─→ Pay ─→ Summary
-        └── Install ┘
+  [Branch A] ──→ [Calculator A] ──┐
+                                    ├──→ [Summary]
+  [Branch B] ──→ [Calculator B] ──┘
 ```
 
-Simply connect both branch endpoints to the same downstream node. The runtime handles this — whichever branch was taken, it flows into the common node.
+Both Calculator A and Calculator B connect to the same Summary node. Whichever branch was taken arrives at the same place.
 
-### 6.4 What NOT to Do with Decisions
+### 6.4 What NOT to Do
 
-| ❌ Don't | ✅ Do Instead |
-|---|---|
-| Use a calculator with ternary for string-based routing | Use a Decision node with branches |
-| Create two separate flows for two paths | Use one flow with branches that converge |
-| Leave a branch unconnected | Connect every branch to a downstream node |
-| Branch but never rejoin | Converge all branches before a terminal node |
+- **Don't create loops** — the flow engine is a directed graph. Going back to a previous node isn't supported.
+- **Don't fork without converging** — every split should eventually lead back to a common path (or both lead to terminal nodes).
+- **Don't leave a node disconnected** — every node (except terminal ones) must have an outgoing edge.
 
 ---
 
 ## 7. Payment Integration
 
-### 7.1 Setting Up a Payment Node
+See the dedicated [Payments Guide](payments-guide.md) for full details. Here's a quick summary:
 
-1. **Declare a `money` variable** that holds the amount (e.g., `total_cost`, `grand_total`).
-2. **Ensure the variable is set** by a Calculator node before the Payment node.
-3. **Add a Payment node** to the canvas.
-4. **Configure:**
-   - `amountVariable`: the money variable (e.g., `total_cost`)
-   - `currency`: `PHP` or `USD`
-   - `gatewayId`: select from available gateways
-5. **Connect edges:** The first outgoing edge is the **success path**. Optionally add a second edge for the **failure path** (e.g., to show an error message).
+### Setting Up a Payment Node
 
-### 7.2 Payment Flow Pattern
+1. Connect a gateway in **Settings** (PayPal or Xendit)
+2. Add a **Payment** node to your flow
+3. Set the **Amount Variable** — this variable must be computed by a calculator before the payment step
+4. Set the **Currency**
 
-```
-... → [Calculator: total_cost] → [Payment: Pay Now] → [Summary: Success]
-                                                  └─→ [Summary: Payment Failed]
-```
+### Transaction Records
 
-The failure path lets you show a different summary message (e.g., "Your payment did not go through. Please try again.").
+Every payment is automatically recorded. To view them:
 
-### 7.3 Simulated Payments (Preview)
-
-During Preview mode, payments are simulated — no real charge occurs. Use the **Simulate success** / **Simulate failure** buttons in the preview toolbar to test both paths.
+- **From the form editor:** Click the **Payments** tab
+- **From Responses:** Each response shows a payment status badge
+- **Detail view:** Click a transaction to see full details including gateway reference, payment channel, and raw gateway response
 
 ---
 
@@ -492,37 +470,49 @@ During Preview mode, payments are simulated — no real charge occurs. Use the *
 
 ### 8.1 Before You Publish
 
-1. **Click Preview** in the toolbar — tests the full flow client-side
-2. **Walk through every branch** — make sure each Decision path leads where you expect
-3. **Check Calculator values** — use the **Test expression** button on each Calculator to verify math
-4. **Test edge cases** — try selecting nothing (if a field is optional), entering extreme values, etc.
-5. **Verify the Summary** — does the template render correctly with all variables?
+1. **Use Preview** — click "Preview" in the editor to walk through your flow as a respondent would
+2. **Check every branch** — if you have a Decision node, test each option
+3. **Verify calculations** — use a calculator or spreadsheet to compute expected values, then compare
+4. **Test with "Skip Required"** — the checkbox at the bottom of each field step lets you quickly jump through
 
 ### 8.2 Common Calculator Bugs
 
-| Symptom | Likely Cause | Fix |
-|---|---|---|
-| Expression shows `NaN` | Variable referenced but not yet set | Make sure the prior node sets the variable, or provide a default value |
-| Expression shows `undefined` | Variable name is misspelled | Check that the `{{name}}` matches the declared variable name exactly |
-| Wrong decimal places | Missing `round()` | Wrap with `round(result, 2)` |
-| Money shows as `10000` not `100.00` | Variable not stored as centavos | Multiply by 100 before storing (or use the correct unit) |
-| Decision always takes the same branch | `matchValue` on edges doesn't match the variable value | Check that edge metadata `matchValue` exactly matches the option's `value` |
+| Symptom | Likely Cause |
+|---|---|
+| Result is `NaN` | Division by zero, or one of the variables hasn't been assigned a value yet |
+| Result is `undefined` | Variable name is misspelled in the expression |
+| Wrong total | Operator precedence: `{{a}} + {{b}} * {{c}}` multiplies first! Use parentheses: `({{a}} + {{b}}) * {{c}}` |
+| Money shows `0.00` | The variable default is `0` — make sure a calculator has run before it's displayed |
 
 ### 8.3 Debugging with the Summary Template
 
-Use the Summary template as a **debug readout** during development:
+The summary template is your best debugging tool. Use it to inspect intermediate values:
 
 ```
 === DEBUG ===
-payment_plan:   {{payment_plan}}
-subtotal:       {{subtotal}}
-vat_amount:     {{vat_amount}}
-total_cost:     {{total_cost}}
-monthly:        {{monthly_payment}}
-payment_ref:    {{payment_ref}}
+Subtotal: {{subtotal}}
+Discount: {{discount}}
+After discount: {{after_discount}}
+VAT: {{vat_amount}}
+Grand total: {{grand_total}}
+Selected plan: {{payment_plan}}
 ```
 
-If a variable shows `undefined` in the summary, it was never set — trace back through the flow to find the gap.
+Run through the flow in Preview and check that each value is what you expect.
+
+### 8.4 Calculator Expression Tester
+
+When configuring a Calculator node, use the built-in **tester** to plug in sample values and see the result instantly:
+
+```
+Expression:  round(({{subtotal}} * 1.12) / 6, 2)
+
+Sample values:
+  subtotal = 10000  →  Result: 1866.67
+  subtotal = 50000  →  Result: 9333.33
+```
+
+This lets you verify your expression before any respondent sees it.
 
 ---
 
@@ -530,58 +520,52 @@ If a variable shows `undefined` in the summary, it was never set — trace back 
 
 ### 9.1 Flow Won't Validate
 
-| Error | Why | Fix |
+| Error | What It Means | Fix |
 |---|---|---|
-| "Flow must have a Start node" | The Start node was deleted | Click **Add Start Node** or reset the flow |
-| "Unconnected nodes found" | A node is not connected to the graph | Connect it or remove it |
-| "Decision node has N edges but M branches" | Mismatch between branch count and edge count | Add or remove edges to match the branch count |
-| "Calculator references undeclared variable" | Variable name in expression is not in the Variables Manager | Declare the variable or fix the name |
-| "Form Field binds to undeclared variable" | `bindToVariable` references a variable that doesn't exist | Declare it or fix the binding |
-| "No terminal node found" | No Summary or Redirect node at the end | Add a Summary or Redirect node |
+| `Flow has no Start node` | The Start node was deleted | Add a new Start node from the palette |
+| `Node has no outgoing edge` | A node isn't connected to anything | Drag an edge from its output dot to the next node |
+| `Decision node has no branches` | No edges from the decision node | Connect edges with match values for each branch |
+| `Payment node has no amount variable` | The amount variable is not set | Open the Payment node config and pick a variable |
+| `Calculator target variable not set` | The target variable is missing | Open the Calculator config and set the target variable |
+| `Multiple start nodes detected` | There's more than one Start | Delete the extra Start nodes |
 
 ### 9.2 Preview Shows Wrong Values
 
-1. **Refresh the preview** — the preview modal caches the flow data at open time.
-2. **Check variable default values** — if a variable has a default, it's used until overwritten.
-3. **Verify edge connections** — an incorrectly routed edge can cause nodes to execute out of order.
-4. **Clear and reset** — click **Reset** in the preview to start fresh.
+1. **Check defaults** — variables with default values start with those values. Set defaults to `0` for money/number types.
+2. **Check expression order** — calculators run in the order they're connected. Make sure the calculator computing the total comes before the payment node.
+3. **Spelling matters** — `{{total_cost}}` and `{{totalcost}}` are different variables.
+4. **Use the Summary debug trick** — put `{{variable_name}}` in the summary template to see what value it holds.
 
 ### 9.3 Published Form Behaves Differently from Preview
 
-Preview runs entirely on the client side. The published form makes server calls. Differences are rare but can happen if:
-
-- A server function throws an error that the preview doesn't replicate
-- The database has stale data (e.g., a gateway was deactivated)
-- Permissions or authentication is blocking a server call
+| Possible Cause | Check |
+|---|---|
+| You changed the flow after publishing | Re-publish the form to apply changes |
+| The respondent is using a different browser | Test in the same browser |
+| Required fields are blocking progress | Make sure you filled all required fields in the test |
 
 ### 9.4 Performance Tips
 
-| Issue | Solution |
+| Tip | Why |
 |---|---|
-| Too many Calculator nodes in sequence | Combine simple expressions: instead of 3 calculators for `a * 0.12`, `a + vat`, `result + deposit`, use `({{a}} * 1.12) + {{deposit}}` |
-| Very long Summary template | Keep it concise — the template is rendered with all variables which can be slow |
-| Too many checkbox options in one field | Consider splitting into categories with Decision nodes |
+| **Limit Decision branches to 10** | More branches make the graph hard to read and maintain |
+| **Use Group nodes for related fields** | Fewer steps = faster completion |
+| **Set sensible defaults** | Respondents see pre-filled values when applicable |
+| **Test with realistic data** | A catalog with 50+ services may slow the calculator |
 
 ---
 
 ## Appendix: Quick Reference — Expression Examples
 
-Copy-paste these into your Calculator nodes:
-
-| What You Want | Expression | Target Variable | Input Variables |
-|---|---|---|---|
-| Add 12% VAT | `{{subtotal}} * 0.12` | `vat_amount` | `subtotal` |
-| Total with VAT | `{{subtotal}} * 1.12` | `total_cost` | `subtotal` |
-| Monthly installment (6 months) | `round({{total}} / 6, 2)` | `monthly` | `total` |
-| Monthly installment (12 months) | `round({{total}} / 12, 2)` | `monthly` | `total` |
-| 10% discount | `{{price}} * 0.9` | `discounted` | `price` |
-| Quantity × unit price | `{{qty}} * {{unit_price}}` | `line_total` | `qty`, `unit_price` |
-| Tiered pricing (>10 qty) | `{{qty}} > 10 ? 50 : 100` | `unit_price` | `qty` |
-| Grand total with deposits | `{{fees_total}} + {{vat_amount}} + {{deposits_total}}` | `grand_total` | `fees_total`, `vat_amount`, `deposits_total` |
-| Free shipping if over ₱2000 | `{{subtotal}} >= 2000 ? 0 : 350` | `shipping` | `subtotal` |
-| Minimum charge of ₱500 | `{{computed}} < 500 ? 500 : {{computed}}` | `final_amount` | `computed` |
-| Late payment penalty (5%) | `{{days}} > 30 ? {{amount}} * 1.05 : {{amount}}` | `amount_due` | `days`, `amount` |
-
----
-
-> **Next steps:** Try building these flows yourself using the **Preview** mode. Once you're comfortable, explore the [Flow Builder Knowledge Base](flow-builder-guide.md) for the complete technical reference including server API, validation rules, and architecture.
+| Goal | Expression |
+|---|---|
+| Add VAT (12%) | `{{subtotal}} * 1.12` |
+| Apply discount (10%) | `{{total}} * 0.9` |
+| Add two values | `{{price}} + {{shipping}}` |
+| Subtract | `{{total}} - {{discount}}` |
+| Divide into parts | `{{amount}} / {{parts}}` |
+| Round money | `round({{value}}, 2)` |
+| Conditional discount | `if({{is_member}} == 'yes', {{total}} * 0.85, {{total}})` |
+| String contains check | `contains({{items}}, 'premium')` |
+| Nested conditional | `if({{tier}} == 'gold', 100, if({{tier}} == 'silver', 50, 25))` |
+| Percentage of total | `({{part}} / {{total}}) * 100` |
