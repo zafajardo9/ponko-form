@@ -19,6 +19,8 @@ import { Route as FormsPaymentReturnRouteImport } from './routes/forms/payment-r
 import { Route as FormsNewRouteImport } from './routes/forms/new'
 import { Route as DocsSlugRouteImport } from './routes/docs/$slug'
 import { Route as DashboardSettingsRouteImport } from './routes/dashboard/settings'
+import { Route as DashboardIntegrationsRouteImport } from './routes/dashboard/integrations'
+import { Route as IntegrationsGoogleCallbackRouteImport } from './routes/integrations/google/callback'
 import { Route as FormsSubmitFormIdRouteImport } from './routes/forms/submit/$formId'
 import { Route as FormsEmbedFormIdRouteImport } from './routes/forms/embed/$formId'
 import { Route as FormsFormIdSubmissionsRouteImport } from './routes/forms/$formId/submissions'
@@ -77,6 +79,17 @@ const DashboardSettingsRoute = DashboardSettingsRouteImport.update({
   path: '/dashboard/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DashboardIntegrationsRoute = DashboardIntegrationsRouteImport.update({
+  id: '/dashboard/integrations',
+  path: '/dashboard/integrations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IntegrationsGoogleCallbackRoute =
+  IntegrationsGoogleCallbackRouteImport.update({
+    id: '/integrations/google/callback',
+    path: '/integrations/google/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const FormsSubmitFormIdRoute = FormsSubmitFormIdRouteImport.update({
   id: '/forms/submit/$formId',
   path: '/forms/submit/$formId',
@@ -116,6 +129,7 @@ const FlowExecutionIdCompleteRoute = FlowExecutionIdCompleteRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/dashboard/integrations': typeof DashboardIntegrationsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/forms/new': typeof FormsNewRoute
@@ -131,10 +145,12 @@ export interface FileRoutesByFullPath {
   '/forms/$formId/submissions': typeof FormsFormIdSubmissionsRoute
   '/forms/embed/$formId': typeof FormsEmbedFormIdRoute
   '/forms/submit/$formId': typeof FormsSubmitFormIdRoute
+  '/integrations/google/callback': typeof IntegrationsGoogleCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/dashboard/integrations': typeof DashboardIntegrationsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/forms/new': typeof FormsNewRoute
@@ -150,11 +166,13 @@ export interface FileRoutesByTo {
   '/forms/$formId/submissions': typeof FormsFormIdSubmissionsRoute
   '/forms/embed/$formId': typeof FormsEmbedFormIdRoute
   '/forms/submit/$formId': typeof FormsSubmitFormIdRoute
+  '/integrations/google/callback': typeof IntegrationsGoogleCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/dashboard/integrations': typeof DashboardIntegrationsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/forms/new': typeof FormsNewRoute
@@ -170,12 +188,14 @@ export interface FileRoutesById {
   '/forms/$formId/submissions': typeof FormsFormIdSubmissionsRoute
   '/forms/embed/$formId': typeof FormsEmbedFormIdRoute
   '/forms/submit/$formId': typeof FormsSubmitFormIdRoute
+  '/integrations/google/callback': typeof IntegrationsGoogleCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/mcp'
+    | '/dashboard/integrations'
     | '/dashboard/settings'
     | '/docs/$slug'
     | '/forms/new'
@@ -191,10 +211,12 @@ export interface FileRouteTypes {
     | '/forms/$formId/submissions'
     | '/forms/embed/$formId'
     | '/forms/submit/$formId'
+    | '/integrations/google/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/mcp'
+    | '/dashboard/integrations'
     | '/dashboard/settings'
     | '/docs/$slug'
     | '/forms/new'
@@ -210,10 +232,12 @@ export interface FileRouteTypes {
     | '/forms/$formId/submissions'
     | '/forms/embed/$formId'
     | '/forms/submit/$formId'
+    | '/integrations/google/callback'
   id:
     | '__root__'
     | '/'
     | '/mcp'
+    | '/dashboard/integrations'
     | '/dashboard/settings'
     | '/docs/$slug'
     | '/forms/new'
@@ -229,11 +253,13 @@ export interface FileRouteTypes {
     | '/forms/$formId/submissions'
     | '/forms/embed/$formId'
     | '/forms/submit/$formId'
+    | '/integrations/google/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   McpRoute: typeof McpRoute
+  DashboardIntegrationsRoute: typeof DashboardIntegrationsRoute
   DashboardSettingsRoute: typeof DashboardSettingsRoute
   DocsSlugRoute: typeof DocsSlugRoute
   FormsNewRoute: typeof FormsNewRoute
@@ -249,6 +275,7 @@ export interface RootRouteChildren {
   FormsFormIdSubmissionsRoute: typeof FormsFormIdSubmissionsRoute
   FormsEmbedFormIdRoute: typeof FormsEmbedFormIdRoute
   FormsSubmitFormIdRoute: typeof FormsSubmitFormIdRoute
+  IntegrationsGoogleCallbackRoute: typeof IntegrationsGoogleCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -323,6 +350,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard/integrations': {
+      id: '/dashboard/integrations'
+      path: '/dashboard/integrations'
+      fullPath: '/dashboard/integrations'
+      preLoaderRoute: typeof DashboardIntegrationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/integrations/google/callback': {
+      id: '/integrations/google/callback'
+      path: '/integrations/google/callback'
+      fullPath: '/integrations/google/callback'
+      preLoaderRoute: typeof IntegrationsGoogleCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/forms/submit/$formId': {
       id: '/forms/submit/$formId'
       path: '/forms/submit/$formId'
@@ -378,6 +419,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   McpRoute: McpRoute,
+  DashboardIntegrationsRoute: DashboardIntegrationsRoute,
   DashboardSettingsRoute: DashboardSettingsRoute,
   DocsSlugRoute: DocsSlugRoute,
   FormsNewRoute: FormsNewRoute,
@@ -393,6 +435,7 @@ const rootRouteChildren: RootRouteChildren = {
   FormsFormIdSubmissionsRoute: FormsFormIdSubmissionsRoute,
   FormsEmbedFormIdRoute: FormsEmbedFormIdRoute,
   FormsSubmitFormIdRoute: FormsSubmitFormIdRoute,
+  IntegrationsGoogleCallbackRoute: IntegrationsGoogleCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

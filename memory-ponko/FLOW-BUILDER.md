@@ -17,7 +17,7 @@ A form with a flow runs the step-by-step experience for respondents. A form *wit
 | Node | Shape | Color | Purpose | Visible to Respondent? |
 |---|---|---|---|---|
 | **Start** | Circle | Green | Entry point — exactly one per flow | No |
-| **Form Field** | Rectangle | Blue | Collects input (text, email, select, checkbox, etc.) | Yes |
+| **Form Field** | Rectangle | Blue | Collects input (text, email, select, checkbox, date, time, datetime, etc.) | Yes |
 | **Field Group** | Rectangle | Purple | Shows multiple fields on one step | Yes |
 | **Decision** | Diamond | Amber | Branches based on a variable's value | Yes (radio buttons) |
 | **Calculator** | Rectangle | Purple | Evaluates a math expression automatically | No (auto-advances) |
@@ -52,6 +52,9 @@ Variables are the **typed data backbone** of every flow. They are declared in th
 | `number` | Number | Locale-formatted (e.g., `1,200`) | Yes |
 | `boolean` | `true`/`false` | `true` / `false` | No |
 | `money` | Integer (centavos) | `₱1,200.00` (2 decimals) | Yes (auto-rounded) |
+| `date` | ISO string (`YYYY-MM-DD`) | Locale-formatted (e.g., `Jan 15, 2026`) | No |
+| `time` | ISO string (`HH:mm`) | Locale-formatted (e.g., `2:30 PM`) | No |
+| `datetime` | ISO string (`YYYY-MM-DDTHH:mm`) | Locale-formatted (e.g., `Jan 15, 2026, 2:30 PM`) | No |
 
 ### Variable Lifecycle
 
@@ -245,8 +248,22 @@ The form editor at `/forms/:formId/edit` has three views:
 ### Canvas View (React Flow)
 
 - **Left:** `FlowPalette` — draggable node type list
-- **Center:** `FlowCanvas` — React Flow canvas with custom node renderers, minimap, zoom controls
-- **Right:** `NodeConfigPanel` — type-specific config form for the selected node
+- **Center:** `FlowCanvas` — React Flow canvas with custom node renderers (in `nodes/index.tsx` + `nodes/NodeShell.tsx`), minimap, zoom controls
+- **Right:** `NodeConfigPanel` — type-specific config form for the selected node, delegates to `config-forms/{Type}Config.tsx` components. Shared form controls in `config-forms/controls.tsx`
+
+The config-forms directory contains one file per node type:
+- `FormFieldConfig.tsx` — text, email, number, select, checkbox, radio fields
+- `GroupConfig.tsx` — group title + `GroupFieldsEditor.tsx` for inline fields
+- `DecisionConfig.tsx` — source variable + branch options + `OptionsEditor.tsx`
+- `CalculatorConfig.tsx` — expression input with variable autocomplete
+- `PaymentConfig.tsx` — amount variable, currency, gateway selector
+- `SummaryConfig.tsx` — title + template with `{{var}}` interpolation
+- `RedirectConfig.tsx` — URL template with `{{var}}` interpolation
+
+Additional builder panels accessible from the toolbar:
+- **`SettingsDialog.tsx`** — Flow-level settings (title, redirect URL, etc.)
+- **`VariablesManager.tsx`** — Declare, edit, and delete flow variables
+- **`VariableDialog.tsx`** — Add/edit single variable (name, type, default)
 
 ### List View (dnd-kit)
 
@@ -302,16 +319,20 @@ Two complementary documents in `docs/`:
 
 | File | Lines (approx) | Why It Matters |
 |---|---|---|
-| `src/db/schema.ts` | ~300 | All database table definitions |
-| `src/lib/flow-engine/types.ts` | ~200 | Flow-related TypeScript types |
+| `src/db/schema.ts` | ~365 | All database table definitions (actual: 365 lines) |
+| `src/lib/flow-engine/types.ts` | ~150 | Flow-related TypeScript types |
 | `src/lib/flow-engine/FlowEngine.ts` | ~250 | Core execution engine |
 | `src/lib/flow-engine/FlowValidator.ts` | ~150 | Flow graph validation |
 | `src/lib/flow-engine/ExpressionEvaluator.ts` | ~80 | Math expression evaluator |
 | `src/lib/flow-engine/TemplateInterpolator.ts` | ~60 | `{{var}}` template replacement |
 | `src/lib/flow-engine/path-utils.ts` | ~100 | Graph traversal utilities |
+| `src/lib/theme.ts` | ~117 | Per-form theming (FormTheme, themeVars, accent presets) |
+| `src/lib/crypto.ts` | ~40 | AES-256-GCM encrypt/decrypt for integration secrets |
 | `src/routes/forms/$formId/edit.tsx` | ~700 | Form editor page (largest file) |
 | `src/components/flow-builder/NodeConfigPanel.tsx` | ~500 | Right-side config panel |
 | `src/components/flow-builder/FlowListBuilder.tsx` | ~400 | List view with sortable nodes |
 | `src/components/flow-builder/FlowCanvas.tsx` | ~110 | React Flow canvas wrapper |
 | `src/components/flow-builder/FlowPreviewPanel.tsx` | ~340 | Preview panel |
 | `src/components/flow-execution/` | ~500 | Runtime flow components for respondents |
+| `src/components/flow-builder/config-forms/` | ~400 | Per-node-type config forms (9 files) |
+| `src/components/flow-builder/nodes/` | ~80 | Custom React Flow node renderers (2 files) |

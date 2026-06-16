@@ -1,3 +1,5 @@
+import type { FlowVariableType } from './types'
+
 /**
  * TemplateInterpolator
  *
@@ -28,7 +30,7 @@ export class TemplateInterpolator {
     template: string,
     scope: {
       variables: Record<string, unknown>;
-      types?: Record<string, "string" | "number" | "boolean" | "money">;
+      types?: Record<string, FlowVariableType>;
     },
   ): string {
     return template.replace(/\{\{([^}]+)\}\}/g, (_match, varName) => {

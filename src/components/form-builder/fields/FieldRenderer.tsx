@@ -1,6 +1,6 @@
 export interface FieldConfig {
   id: number
-  type: 'text' | 'email' | 'number' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'payment'
+  type: 'text' | 'email' | 'number' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'payment' | 'date' | 'time' | 'datetime'
   label: string
   placeholder?: string | null
   required: boolean
@@ -134,6 +134,36 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
             </label>
           ))}
         </div>
+      )}
+
+      {field.type === 'date' && (
+        <input
+          type="date"
+          value={strValue}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={readOnly}
+          className={`${inputBase} ${errorClass} h-10`}
+        />
+      )}
+
+      {field.type === 'time' && (
+        <input
+          type="time"
+          value={strValue}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={readOnly}
+          className={`${inputBase} ${errorClass} h-10`}
+        />
+      )}
+
+      {field.type === 'datetime' && (
+        <input
+          type="datetime-local"
+          value={strValue}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={readOnly}
+          className={`${inputBase} ${errorClass} h-10`}
+        />
       )}
 
       {error && <p className="text-xs text-[#c64545]">{error}</p>}

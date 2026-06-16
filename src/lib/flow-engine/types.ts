@@ -17,7 +17,7 @@ export type FlowNodeType =
   | 'redirect'
 
 /** Supported variable value types. */
-export type FlowVariableType = 'string' | 'number' | 'boolean' | 'money'
+export type FlowVariableType = 'string' | 'number' | 'boolean' | 'money' | 'date' | 'time' | 'datetime'
 
 /**
  * A single field inside a Group node. Mirrors a FormField's config but lives

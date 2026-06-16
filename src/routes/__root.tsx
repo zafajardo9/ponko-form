@@ -116,6 +116,12 @@ function TopNav() {
               >
                 Settings
               </Link>
+              <Link
+                to="/dashboard/integrations"
+                className="text-sm text-[#6c6a64] hover:text-[#141413] transition-colors [&.active]:text-[#141413] [&.active]:font-medium"
+              >
+                Integrations
+              </Link>
             </Show>
             <Link
               to="/docs"

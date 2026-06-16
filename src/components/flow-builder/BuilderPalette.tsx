@@ -14,6 +14,9 @@ import {
   DollarSign,
   Menu,
   ExternalLink,
+  Calendar,
+  Clock,
+  CalendarClock,
 } from "lucide-react";
 
 /**
@@ -48,6 +51,9 @@ const FIELD_ITEMS: {
     icon: <CheckSquare size={14} />,
   },
   { fieldType: "radio", label: "Radio", icon: <CircleDot size={14} /> },
+  { fieldType: "date", label: "Date", icon: <Calendar size={14} /> },
+  { fieldType: "time", label: "Time", icon: <Clock size={14} /> },
+  { fieldType: "datetime", label: "Date & Time", icon: <CalendarClock size={14} /> },
 ];
 
 const LOGIC_ITEMS: {

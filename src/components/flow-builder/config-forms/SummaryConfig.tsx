@@ -5,7 +5,8 @@ import {
   textAreaClass,
   type ConfigFormProps,
 } from "./controls";
-import { TemplateInterpolator } from "../../../lib/flow-engine/TemplateInterpolator";
+import { TemplateInterpolator } from '../../../lib/flow-engine/TemplateInterpolator'
+import type { FlowVariableType } from '../../../lib/flow-engine/types'
 
 const interpolator = new TemplateInterpolator();
 
@@ -27,7 +28,7 @@ export function SummaryConfig({
 
   // Build a preview scope from variable defaults (or the variable name as a stand-in).
   const previewVars: Record<string, unknown> = {};
-  const types: Record<string, "string" | "number" | "boolean" | "money"> = {};
+  const types: Record<string, FlowVariableType> = {};
   for (const v of variables) {
     types[v.name] = v.type;
     previewVars[v.name] =

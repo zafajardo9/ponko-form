@@ -2,6 +2,7 @@ import type {
   FlowNode,
   FlowEdge,
   FlowVariable,
+  FlowVariableType,
   FlowExecutionContext,
   ExecutionHistoryEntry,
   GroupedField,
@@ -424,8 +425,8 @@ export class FlowEngine {
     return values
   }
 
-  private getVariableTypesMap(): Record<string, 'string' | 'number' | 'boolean' | 'money'> {
-    const types: Record<string, 'string' | 'number' | 'boolean' | 'money'> = {}
+  private getVariableTypesMap(): Record<string, FlowVariableType> {
+    const types: Record<string, FlowVariableType> = {}
     for (const v of this.variables) {
       types[v.name] = v.type
     }

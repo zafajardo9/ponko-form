@@ -7,7 +7,7 @@ import { Card } from '../../../components/ui/Card'
 import { Button } from '../../../components/ui/Button'
 import { buildInvoice } from '../../../components/flow-execution/invoice'
 import { themeVars, type FormTheme } from '../../../lib/theme'
-import type { FlowVariable } from '../../../lib/flow-engine/types'
+import type { FlowVariable, FlowVariableType } from '../../../lib/flow-engine/types'
 
 // @react-pdf/renderer is browser-only; load it lazily and render only after
 // mount so it never touches the SSR path.
@@ -48,7 +48,7 @@ function CompletePage() {
 
   const variables = data.variables as FlowVariable[]
   const values = (data.execution.variables as Record<string, unknown>) ?? {}
-  const typesMap: Record<string, 'string' | 'number' | 'boolean' | 'money'> = {}
+  const typesMap: Record<string, FlowVariableType> = {}
   for (const v of variables) typesMap[v.name] = v.type
 
   const rendered =

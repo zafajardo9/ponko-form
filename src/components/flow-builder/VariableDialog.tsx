@@ -4,13 +4,16 @@ import { Button } from '../ui/Button'
 import { Field, Select, textInputClass } from './config-forms/controls'
 import type { FlowVariable, FlowVariableType } from '../../lib/flow-engine/types'
 
-const TYPES: FlowVariableType[] = ['string', 'number', 'boolean', 'money']
+const TYPES: FlowVariableType[] = ['string', 'number', 'boolean', 'money', 'date', 'time', 'datetime']
 
 const TYPE_HINT: Record<FlowVariableType, string> = {
   string: 'Text — names, choices, codes.',
   number: 'Plain number — quantities, counts.',
   money: 'Currency amount — used in payments and totals.',
   boolean: 'True / false.',
+  date: 'A calendar date — YYYY-MM-DD.',
+  time: 'A time of day — HH:mm.',
+  datetime: 'A date with time — YYYY-MM-DDTHH:mm.',
 }
 
 export interface VariableDraft {
@@ -127,6 +130,27 @@ export function VariableDialog({ mode, initial, existingNames, onSave, onClose }
                 <option value="true">true</option>
                 <option value="false">false</option>
               </Select>
+            ) : type === 'date' ? (
+              <input
+                type="date"
+                value={defaultValue}
+                onChange={(e) => setDefaultValue(e.target.value)}
+                className={textInputClass}
+              />
+            ) : type === 'time' ? (
+              <input
+                type="time"
+                value={defaultValue}
+                onChange={(e) => setDefaultValue(e.target.value)}
+                className={textInputClass}
+              />
+            ) : type === 'datetime' ? (
+              <input
+                type="datetime-local"
+                value={defaultValue}
+                onChange={(e) => setDefaultValue(e.target.value)}
+                className={textInputClass}
+              />
             ) : (
               <input
                 value={defaultValue}

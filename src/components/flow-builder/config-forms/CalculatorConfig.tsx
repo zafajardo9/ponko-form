@@ -20,6 +20,9 @@ const VAR_CHIP: Record<FlowVariableType, string> = {
   number: "bg-[#e7ddf7] text-[#6b46a8]",
   boolean: "bg-[#f7ecd0] text-[#9e7424]",
   money: "bg-[#d8f0e0] text-[#2f7d52]",
+  date: "bg-[#f3e3da] text-[#a9583e]",
+  time: "bg-[#f3e3da] text-[#a9583e]",
+  datetime: "bg-[#f3e3da] text-[#a9583e]",
 };
 
 /** Variable names referenced as {{name}} inside an expression. */

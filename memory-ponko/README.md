@@ -21,10 +21,10 @@
 |---|---|
 | **Project** | PonkoForm — a form builder with flow automation, payments, and multi-tenant support |
 | **Stack** | TanStack Start + React 19, Vite 8, Tailwind CSS 4, Drizzle ORM, Neon/Postgres, Clerk Auth |
-| **Core Feature** | Flow Builder — visual workflow engine (React Flow) with 7 node types |
+| **Core Feature** | Flow Builder — visual workflow engine (React Flow) with 8 node types |
 | **Auth** | Clerk (TanStack React Start integration), TanStack Start SSR middleware |
 | **Database** | PostgreSQL via Neon (serverless). Drizzle ORM with schema in `src/db/schema.ts` |
-| **Package Manager** | npm (with `.npmrc legacy-peer-deps=true` due to Vite peer dep conflicts) |
+| **Package Manager** | npm (with `.npmrc legacy-peer-deps=true` due to Vite peer dep conflicts); pnpm also supported |
 | **Deploy** | Vercel (Node.js serverless via `api/index.ts` + Vercel serverless functions) |
 
 ### Running the project

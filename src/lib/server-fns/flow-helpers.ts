@@ -35,6 +35,9 @@ export async function assertFlowOwner(flowId: number, clerkId: string) {
 /** Map a legacy/form field type to a flow variable type. */
 export function variableTypeForField(fieldType: string): FlowVariableType {
   if (fieldType === 'number') return 'number'
+  if (fieldType === 'date') return 'date'
+  if (fieldType === 'time') return 'time'
+  if (fieldType === 'datetime') return 'datetime'
   return 'string'
 }
 

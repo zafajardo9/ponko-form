@@ -22,6 +22,9 @@ export const fieldTypeEnum = pgEnum('field_type', [
   'checkbox',
   'radio',
   'payment',
+  'date',
+  'time',
+  'datetime',
 ])
 export const paymentStatusEnum = pgEnum('payment_status', [
   'pending',
@@ -215,7 +218,7 @@ export const flowVariables = pgTable(
     name: varchar('name', { length: 100 }).notNull(), // snake_case identifier
     type: varchar('type', { length: 20 })
       .notNull()
-      .$type<'string' | 'number' | 'boolean' | 'money'>(),
+      .$type<'string' | 'number' | 'boolean' | 'money' | 'date' | 'time' | 'datetime'>(),
     defaultValue: text('default_value'), // Stored as string, parsed by type
     description: text('description'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -234,6 +237,7 @@ export const flowVariables = pgTable(
  * FormField:
  *   { fieldType: string, label: string, placeholder?: string, required: boolean,
  *     options?: {label:string,value:string}[], bindToVariable?: string }
+ *   fieldType values: text, email, number, textarea, select, checkbox, radio, date, time, datetime
  *
  * Group (several fields rendered together on one step):
  *   { title?: string, fields: { id: string, fieldType: string, label: string,
@@ -362,4 +366,30 @@ export const flowExecutions = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [index('flow_executions_flow_id_idx').on(table.flowId)],
+)
+
+// ── Integrations (FT-002) ──
+
+/**
+ * INTEGRATIONS
+ * Per-profile third-party service credentials. One row per (profile, provider).
+ * The `config` column holds an AES-256-GCM-encrypted JSON blob (see
+ * `src/lib/crypto.ts`) — plaintext secrets are NEVER stored. A null config
+ * means that provider is not configured for this user.
+ */
+export const integrations = pgTable(
+  'integrations',
+  {
+    id: serial().primaryKey(),
+    profileId: integer('profile_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    provider: varchar('provider', { length: 50 }).notNull(),
+    config: text('config'), // encrypted JSON; null = not configured
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('integrations_profile_provider_idx').on(table.profileId, table.provider),
+  ],
 )

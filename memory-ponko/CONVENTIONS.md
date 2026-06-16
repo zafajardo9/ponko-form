@@ -221,7 +221,14 @@ Prefer composing small, focused components over large monolithic ones. Example: 
 | `path-utils.ts` | Graph traversal: linearizes the primary path, finds branch-only nodes, checks if flow is pure-linear. |
 | `types.ts` | All flow-related TypeScript types (`FlowNode`, `FlowEdge`, `FlowVariable`, `FlowStep`, etc.). |
 
-### 6.2 Engine Execution Loop
+### 6.2 Supporting Libraries
+
+| File | Purpose |
+|---|---|
+| `src/lib/theme.ts` | Per-form theming system. `FormTheme` interface, `themeVars()` for CSS custom properties (`--ponko-*`), accent presets, color utilities (`darken`, `withAlpha`, `deriveSurface`). |
+| `src/lib/crypto.ts` | AES-256-GCM encrypt/decrypt. Used to protect `integration_settings` secret blobs (Xendit keys, PayPal secrets, SMTP passwords). |
+
+### 6.3 Engine Execution Loop
 
 ```
 1. Start at the Start node
@@ -257,6 +264,7 @@ Prefer composing small, focused components over large monolithic ones. Example: 
 | Issue | Solution |
 |---|---|
 | `npm install` fails on Vercel | `.npmrc` has `legacy-peer-deps=true` — this is intentional |
+| `npm install` fails locally | Try `npm install` (with `.npmrc`) or `pnpm install` — both work |
 | `server.preset: 'vercel'` doesn't exist | TanStack Start v1 doesn't support it. Use `api/index.ts` instead |
 | `dist/server/server.js` not found after build | Check that the Vercel `outputDirectory` is `dist/client` |
 | Money shows as `10000` instead of `100.00` | Values are stored as centavos (`10000` = ₱100.00). Format at display time. |

@@ -11,6 +11,8 @@ import {
   ChevronDown,
   Plus,
   X,
+  Calendar,
+  Clock,
 } from 'lucide-react'
 import { Field, Select, VariableSelect, Toggle, TextField } from './controls'
 import { OptionsEditor } from './OptionsEditor'
@@ -30,9 +32,9 @@ import type { FlowVariable, GroupedField } from '../../../lib/flow-engine/types'
  * `onChange` with the next `fields` array. The caller decides how to save.
  */
 
-const FIELD_TYPES = ['text', 'email', 'number', 'textarea', 'select', 'checkbox', 'radio'] as const
+const FIELD_TYPES = ['text', 'email', 'number', 'textarea', 'select', 'checkbox', 'radio', 'date', 'time', 'datetime'] as const
 const OPTION_TYPES = ['select', 'checkbox', 'radio']
-const TEXT_TYPES = ['text', 'email', 'number', 'textarea']
+const TEXT_TYPES = ['text', 'email', 'number', 'textarea', 'date', 'time', 'datetime']
 
 const FIELD_ICON: Record<string, React.ReactNode> = {
   text: <Type size={13} />,
@@ -42,6 +44,9 @@ const FIELD_ICON: Record<string, React.ReactNode> = {
   select: <ChevronDownSquare size={13} />,
   checkbox: <CheckSquare size={13} />,
   radio: <CircleDot size={13} />,
+  date: <Calendar size={13} />,
+  time: <Clock size={13} />,
+  datetime: <Calendar size={13} />,
 }
 
 function newId(): string {

@@ -27,7 +27,7 @@ interface GroupStepViewProps {
 
 /** Fields that read better spanning the full width of the group. */
 function isWide(fieldType: string): boolean {
-  return fieldType === 'textarea' || fieldType === 'checkbox' || fieldType === 'radio'
+  return fieldType === 'textarea' || fieldType === 'checkbox' || fieldType === 'radio' || fieldType === 'date' || fieldType === 'datetime'
 }
 
 export function GroupStepView({

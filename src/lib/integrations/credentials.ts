@@ -1,12 +1,16 @@
 import { auth } from '@clerk/tanstack-react-start/server'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db } from '../../db/index'
-import { integrationSettings, profiles } from '../../db/schema'
-import { decryptJson, maskSecret } from '../crypto'
+import { integrationSettings, integrations, profiles } from '../../db/schema'
+import { decryptJson, encryptJson, maskSecret } from '../crypto'
 import type {
+  IntegrationConfig,
   IntegrationConfigs,
   IntegrationSettingsView,
+  IntegrationStatus,
+  MayaConfig,
   PayPalConfig,
+  ProviderSlug,
   SmtpConfig,
   XenditConfig,
 } from './types'
@@ -60,10 +64,34 @@ function decryptOrNull<T>(token: string | null): T | null {
  * Loads and decrypts every integration config for a profile. Returns raw
  * secrets, so never serialize the result to the client. Used by payment
  * gateways / the email sender to pick up the form owner's own credentials.
+ *
+ * Checks the new integrations table first (FT-002), falls back to the legacy
+ * integration_settings table for backward compatibility.
  */
 export async function loadIntegrationConfigs(
   profileId: number,
 ): Promise<IntegrationConfigs> {
+  // Try new integrations table first
+  const newRows = await db
+    .select()
+    .from(integrations)
+    .where(eq(integrations.profileId, profileId))
+
+  const newConfig = (provider: string) => {
+    const row = newRows.find((r) => r.provider === provider)
+    return row?.config ?? null
+  }
+
+  const xendit = decryptOrNull<XenditConfig>(newConfig('xendit'))
+  const paypal = decryptOrNull<PayPalConfig>(newConfig('paypal'))
+  const smtp = decryptOrNull<SmtpConfig>(newConfig('smtp'))
+
+  // If all found in new table, return
+  if (xendit || paypal || smtp) {
+    return { xendit, paypal, smtp }
+  }
+
+  // Fall back to legacy integration_settings table
   const row = await loadRow(profileId)
   return {
     xendit: decryptOrNull<XenditConfig>(row?.xenditConfig ?? null),
@@ -120,4 +148,100 @@ export async function upsertIntegrationConfig(
       target: integrationSettings.profileId,
       set: { ...patch, updatedAt: new Date() },
     })
+}
+
+// ── NEW integrations table (FT-002) ──
+
+/**
+ * Extract non-secret metadata from a decrypted config for the client view.
+ */
+function integrationMeta(provider: ProviderSlug, config: IntegrationConfig | null): Record<string, string> | undefined {
+  if (!config) return undefined
+  switch (provider) {
+    case 'paypal':
+    case 'maya':
+      return { mode: (config as PayPalConfig & MayaConfig).mode }
+    case 'smtp':
+      return {
+        host: (config as SmtpConfig).host,
+        fromEmail: (config as SmtpConfig).fromEmail,
+      }
+    case 'resend':
+      return {} // no public metadata to show
+    default:
+      return undefined
+  }
+}
+
+/** Get the configuration status for all integrations for a profile. */
+export async function getAllIntegrationStatuses(profileId: number): Promise<IntegrationStatus[]> {
+  const rows = await db
+    .select()
+    .from(integrations)
+    .where(eq(integrations.profileId, profileId))
+
+  const allProviders: ProviderSlug[] = [
+    'xendit', 'paypal', 'stripe', 'paymongo', 'maya',
+    'smtp', 'resend',
+    'google-sheets',
+    'gemini',
+    'google-calendar', 'calendly',
+    'imagekit', 'cloudinary',
+  ]
+
+  return allProviders.map((provider) => {
+    const row = rows.find((r) => r.provider === provider)
+    const config = row?.config ? decryptJson<IntegrationConfig>(row.config) : null
+    return {
+      provider,
+      configured: !!row?.config,
+      meta: integrationMeta(provider, config),
+    }
+  })
+}
+
+/** Get the decrypted config for a single integration. */
+export async function getIntegrationConfig<T extends IntegrationConfig>(
+  profileId: number,
+  provider: ProviderSlug,
+): Promise<T | null> {
+  const [row] = await db
+    .select()
+    .from(integrations)
+    .where(and(
+      eq(integrations.profileId, profileId),
+      eq(integrations.provider, provider),
+    ))
+    .limit(1)
+  if (!row?.config) return null
+  return decryptJson<T>(row.config)
+}
+
+/** Save (upsert) an integration config. Encrypts before storing. */
+export async function saveIntegrationConfig(
+  profileId: number,
+  provider: ProviderSlug,
+  config: IntegrationConfig,
+): Promise<void> {
+  const encrypted = encryptJson(config)
+  await db
+    .insert(integrations)
+    .values({ profileId, provider, config: encrypted })
+    .onConflictDoUpdate({
+      target: [integrations.profileId, integrations.provider],
+      set: { config: encrypted, updatedAt: new Date() },
+    })
+}
+
+/** Remove an integration (delete its config row). */
+export async function removeIntegrationConfig(
+  profileId: number,
+  provider: ProviderSlug,
+): Promise<void> {
+  await db
+    .delete(integrations)
+    .where(and(
+      eq(integrations.profileId, profileId),
+      eq(integrations.provider, provider),
+    ))
 }

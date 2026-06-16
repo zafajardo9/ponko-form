@@ -31,7 +31,7 @@ export const addField = createServerFn({ method: 'POST' })
   .inputValidator(
     (data: {
       formId: number
-      type: 'text' | 'email' | 'number' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'payment'
+      type: 'text' | 'email' | 'number' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'payment' | 'date' | 'time' | 'datetime'
       label: string
     }) => data,
   )

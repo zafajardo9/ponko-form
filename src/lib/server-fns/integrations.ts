@@ -1,14 +1,20 @@
 import { createServerFn } from '@tanstack/react-start'
 import { encryptJson } from '../crypto'
 import type {
+  IntegrationConfig,
   IntegrationSettingsView,
+  IntegrationStatus,
   PayPalConfig,
+  ProviderSlug,
   SmtpConfig,
   XenditConfig,
 } from '../integrations/types'
 import {
+  getAllIntegrationStatuses,
   loadIntegrationConfigs,
+  removeIntegrationConfig,
   requireProfile,
+  saveIntegrationConfig,
   toIntegrationView,
   upsertIntegrationConfig,
 } from '../integrations/credentials'
@@ -135,5 +141,36 @@ export const deleteIntegration = createServerFn({ method: 'POST' })
           ? { paypalConfig: null }
           : { smtpConfig: null }
     await upsertIntegrationConfig(profile.id, column)
+    return { success: true }
+  })
+
+// ── Generic integration endpoints (new integrations table, FT-002) ──
+
+/** Get the configuration status for all providers. */
+export const getIntegrations = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<IntegrationStatus[]> => {
+    const profile = await requireProfile()
+    return getAllIntegrationStatuses(profile.id)
+  },
+)
+
+/** Save (upsert) a single integration's config. */
+export const saveIntegration = createServerFn({ method: 'POST' })
+  .inputValidator(
+    (data: { provider: ProviderSlug; config: Record<string, unknown> }) =>
+      data,
+  )
+  .handler(async ({ data }) => {
+    const profile = await requireProfile()
+    await saveIntegrationConfig(profile.id, data.provider, data.config as unknown as IntegrationConfig)
+    return { success: true }
+  })
+
+/** Delete a single integration's config. */
+export const deleteIntegrationByProvider = createServerFn({ method: 'POST' })
+  .inputValidator((data: { provider: ProviderSlug }) => data)
+  .handler(async ({ data }) => {
+    const profile = await requireProfile()
+    await removeIntegrationConfig(profile.id, data.provider)
     return { success: true }
   })

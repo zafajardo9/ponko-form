@@ -104,8 +104,22 @@ ponkoform/
 │   │   │   ├── FlowValidationBadge.tsx
 │   │   │   ├── NodeConfigPanel.tsx#   Right sidebar — node config
 │   │   │   ├── VariablesManager.tsx  # Variables manager panel
+│   │   │   ├── VariableDialog.tsx #   Add/edit variable dialog
+│   │   │   ├── SettingsDialog.tsx #   Flow-level settings (title, description, etc.)
 │   │   │   ├── config-forms/      #   Per-node-type config forms
+│   │   │   │   ├── FormFieldConfig.tsx
+│   │   │   │   ├── GroupFieldsEditor.tsx
+│   │   │   │   ├── OptionsEditor.tsx
+│   │   │   │   ├── GroupConfig.tsx
+│   │   │   │   ├── DecisionConfig.tsx
+│   │   │   │   ├── CalculatorConfig.tsx
+│   │   │   │   ├── PaymentConfig.tsx
+│   │   │   │   ├── SummaryConfig.tsx
+│   │   │   │   ├── RedirectConfig.tsx
+│   │   │   │   └── controls.tsx   #   Shared form controls (dropdowns, inputs)
 │   │   │   └── nodes/            #   Custom React Flow node renderers
+│   │   │       ├── index.tsx      #   Node type → renderer map
+│   │   │       └── NodeShell.tsx  #   Shared node wrapper (handles, labels, colors)
 │   │   ├── flow-execution/       # Runtime components for respondents
 │   │   │   ├── FlowExecutionContainer.tsx
 │   │   │   ├── FlowStepRenderer.tsx
@@ -121,6 +135,7 @@ ponkoform/
 │   │   │   ├── Button.tsx
 │   │   │   ├── Badge.tsx
 │   │   │   ├── Input.tsx
+│   │   │   ├── Card.tsx
 │   │   │   ├── PreviewDialog.tsx
 │   │   │   └── FlowPreviewModal.tsx
 │   │   └── header/               # App header
@@ -128,36 +143,47 @@ ponkoform/
 │   │   ├── index.ts              # Drizzle client (db) — import from here
 │   │   └── schema.ts             # Drizzle schema — ALL tables
 │   ├── integrations/
-│   │   └── clerk/                # Clerk provider setup
-│   ├── lib/
-│   │   ├── flow-engine/          # Flow Builder core engine
-│   │   │   ├── FlowEngine.ts     #   Client-side runtime engine
-│   │   │   ├── FlowValidator.ts  #   Flow validation logic
-│   │   │   ├── TemplateInterpolator.ts # {{var}} replacement
-│   │   │   ├── ExpressionEvaluator.ts  # math.js expression eval
-│   │   │   ├── path-utils.ts     #   Graph traversal utilities
+│   │   ├── clerk/                # Clerk provider setup
+│   │   ├── payments/             # Payment gateway implementations
+│   │   │   ├── base.ts           #   Abstract gateway interface
+│   │   │   ├── types.ts          #   Payment gateway types
+│   │   │   ├── currencies.ts     #   Supported currency definitions
+│   │   │   ├── registry.ts       #   Gateway registry (slug→gateway map)
 │   │   │   ├── index.ts          #   Barrel exports
-│   │   │   └── types.ts          #   Flow-related TypeScript types
-│   │   ├── server-fns/           # TanStack Start server functions
-│   │   │   ├── auth.ts           #   Auth helpers
-│   │   │   ├── forms.ts          #   Form CRUD (+ public getPublicForm)
-│   │   │   ├── flows.ts          #   Flow CRUD
-│   │   │   ├── flow-nodes.ts     #   Node & Edge CRUD
-│   │   │   ├── flow-variables.ts #   Variable CRUD
-│   │   │   ├── flow-executions.ts#   Execution CRUD
-│   │   │   ├── flow-helpers.ts   #   Shared flow server-fn helpers
-│   │   │   ├── submissions.ts    #   Form submission CRUD
-│   │   │   ├── gateways.ts       #   Payment gateway CRUD
-│   │   │   ├── payments.ts       #   Real PayPal/Xendit checkout + verify
-│   │   │   ├── integrations.ts   #   Per-user encrypted credential CRUD
-│   │   │   ├── docs.ts           #   Docs server fns
-│   │   │   └── fields.ts         #   Form field CRUD
-│   │   ├── integrations/         # Gateway credential resolution
-│   │   │   ├── credentials.ts    #   Decrypt + resolve per-user creds
-│   │   │   └── types.ts          #   Integration config types
-│   │   ├── crypto.ts             # AES-256-GCM encrypt/decrypt for secrets
-│   │   ├── form-utils.ts         # Form helpers
-│   │   └── docs-parser.ts        # Docs markdown parser
+│   │   │   ├── xendit/gateway.ts #   Xendit payment gateway
+│   │   │   └── paypal/gateway.ts #   PayPal payment gateway
+│   │   └── tanstack-query/       # TanStack Query client setup
+│   │   ├── lib/
+│   │   │   ├── flow-engine/          # Flow Builder core engine
+│   │   │   │   ├── FlowEngine.ts     #   Client-side runtime engine
+│   │   │   │   ├── FlowValidator.ts  #   Flow validation logic
+│   │   │   │   ├── TemplateInterpolator.ts # {{var}} replacement
+│   │   │   │   ├── ExpressionEvaluator.ts  # math.js expression eval
+│   │   │   │   ├── path-utils.ts     #   Graph traversal utilities
+│   │   │   │   ├── index.ts          #   Barrel exports
+│   │   │   │   └── types.ts          #   Flow-related TypeScript types
+│   │   │   ├── server-fns/           # TanStack Start server functions
+│   │   │   │   ├── auth.ts           #   Auth helpers
+│   │   │   │   ├── forms.ts          #   Form CRUD (+ public getPublicForm)
+│   │   │   │   ├── flows.ts          #   Flow CRUD
+│   │   │   │   ├── flow-nodes.ts     #   Node & Edge CRUD
+│   │   │   │   ├── flow-variables.ts #   Variable CRUD
+│   │   │   │   ├── flow-executions.ts#   Execution CRUD
+│   │   │   │   ├── flow-helpers.ts   #   Shared flow server-fn helpers
+│   │   │   │   ├── submissions.ts    #   Form submission CRUD
+│   │   │   │   ├── gateways.ts       #   Payment gateway CRUD
+│   │   │   │   ├── payments.ts       #   Real PayPal/Xendit checkout + verify
+│   │   │   │   ├── payments-view.ts  #   Payment listing/viewing server fns
+│   │   │   │   ├── integrations.ts   #   Per-user encrypted credential CRUD
+│   │   │   │   ├── docs.ts           #   Docs server fns
+│   │   │   │   └── fields.ts         #   Form field CRUD
+│   │   │   ├── integrations/         # Gateway credential resolution
+│   │   │   │   ├── credentials.ts    #   Decrypt + resolve per-user creds
+│   │   │   │   └── types.ts          #   Integration config types
+│   │   │   ├── theme.ts              # Per-form theming (FormTheme, themeVars, accent presets)
+│   │   │   ├── crypto.ts             # AES-256-GCM encrypt/decrypt for secrets
+│   │   │   ├── form-utils.ts         # Form helpers
+│   │   │   └── docs-parser.ts        # Docs markdown parser
 │   ├── routes/                   # File-based routing (TanStack Router)
 │   │   ├── __root.tsx            #   Root layout
 │   │   ├── index.tsx             #   Landing page
@@ -184,16 +210,15 @@ ponkoform/
 │   │   ├── mcp.ts                #   MCP server endpoint
 │   │   ├── sign-in.$.tsx         #   Clerk sign-in
 │   │   └── sign-up.$.tsx         #   Clerk sign-up
-│   ├── styles.css                # Global styles, Tailwind import
-│   └── config.ts                 # App config
+│   ├── styles.css                # Global styles, Tailwind import, per-form theme vars
 ├── .npmrc                        # legacy-peer-deps=true
 ├── vercel.json                   # Vercel deployment config
-├── vite.config.ts                # Vite config
+├── vite.config.ts                # Vite config (TanStack Start + Tailwind + React Compiler)
 ├── drizzle.config.ts             # Drizzle Kit config
 ├── neon-vite-plugin.ts           # Neon DB plugin
 ├── vitest.config.ts              # Vitest config
-├── tsconfig.json                 # TypeScript config
-├── package.json                  # Dependencies & scripts
+├── tsconfig.json                 # TypeScript config (strict, noEmit, bundler)
+├── package.json                  # Dependencies & scripts (npm or pnpm)
 └── README.md                     # Project README
 ```
 
@@ -226,6 +251,10 @@ TanStack Start outputs `dist/server/server.js` (a Web Fetch-API handler). Vercel
 ### 4.5 Peer Dependency Conflicts
 
 `vite-plugin-neon-new@0.8.0` only declares support for Vite 6/7 but works fine with Vite 8. The `.npmrc` with `legacy-peer-deps=true` suppresses this.
+
+### 4.6 Per-Form Theming
+
+Each form can have a `theme` (stored as JSONB on the `forms` table) that customizes the respondent-facing form's appearance: primary accent color, background color, and corner radius (sharp/rounded/pill). Theme values propagate through CSS custom properties (`--ponko-*`) defined in `src/lib/theme.ts`. Un-themed forms fall back to the house palette. Creators choose from curated accent presets or enter custom hex values.
 
 ---
 
@@ -265,6 +294,8 @@ Respondent opens /forms/submit/:formId
 | `src/db/schema.ts` | Single source of truth for ALL database tables |
 | `src/lib/flow-engine/FlowEngine.ts` | Heart of the flow runtime |
 | `src/lib/flow-engine/types.ts` | All flow-related TypeScript types |
+| `src/lib/theme.ts` | Per-form theming system (FormTheme, themeVars, accent presets) |
+| `src/lib/crypto.ts` | AES-256-GCM encrypt/decrypt for integration secrets |
 | `src/routes/forms/$formId/edit.tsx` | The big editor page — palette, canvas, list, config, preview |
 | `src/components/flow-builder/` | All builder UI components |
 | `api/index.ts` | Vercel serverless entry point |

@@ -1,7 +1,7 @@
 import { Field, Select, VariableSelect, Toggle, TextField, type ConfigFormProps } from './controls'
 import { OptionsEditor } from './OptionsEditor'
 
-const FIELD_TYPES = ['text', 'email', 'number', 'textarea', 'select', 'checkbox', 'radio'] as const
+const FIELD_TYPES = ['text', 'email', 'number', 'textarea', 'select', 'checkbox', 'radio', 'date', 'time', 'datetime'] as const
 const OPTION_TYPES = ['select', 'checkbox', 'radio']
 
 /** Config form for a FormField node — mirrors the form builder's FieldEditor. */
@@ -36,7 +36,7 @@ export function FormFieldConfig({ nodeId, config, variables, onChange }: ConfigF
         />
       </Field>
 
-      {['text', 'email', 'number', 'textarea'].includes(fieldType) && (
+      {['text', 'email', 'number', 'textarea', 'date', 'time', 'datetime'].includes(fieldType) && (
         <Field label="Placeholder">
           <TextField
             resetKey={nodeId}
