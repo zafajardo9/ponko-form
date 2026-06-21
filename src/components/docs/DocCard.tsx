@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { DocMeta } from "../../lib/docs-parser";
-import { ArrowRight, FileText, BookOpen, Zap, BookMarked } from "lucide-react";
+import { ArrowRight, FileText, BookOpen, Zap, BookMarked, CreditCard } from "lucide-react";
 
 /**
  * DocCard
@@ -16,7 +16,14 @@ const slugIcon: Record<string, typeof FileText> = {
   "getting-started": Zap,
   "flow-form-guide": BookOpen,
   "flow-builder-guide": BookMarked,
-  "payments-guide": FileText,
+  "payments-guide": CreditCard,
+};
+
+const slugMeta: Record<string, { label: string; time: string }> = {
+  "getting-started": { label: "Start here", time: "10 min" },
+  "flow-form-guide": { label: "Tutorial", time: "20 min" },
+  "flow-builder-guide": { label: "Reference", time: "15 min" },
+  "payments-guide": { label: "Payments", time: "8 min" },
 };
 
 export function DocCard({ doc }: DocCardProps) {
@@ -34,34 +41,37 @@ export function DocCard({ doc }: DocCardProps) {
             ? "bg-[#d8edf0] text-[#2a6b7a]"
             : "bg-[#f5f0e8] text-[#6c6a64]";
 
+  const meta = slugMeta[doc.slug] ?? { label: "Guide", time: "5 min" };
+
   return (
     <Link
       to="/docs/$slug"
       params={{ slug: doc.slug }}
-      className="group block rounded-xl border border-[#e6dfd8] bg-white p-5 transition-all hover:border-[#cc785c] hover:shadow-sm"
+      className="group flex min-h-[188px] flex-col rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-5 transition-all hover:-translate-y-0.5 hover:border-[#cc785c] hover:bg-white hover:shadow-sm"
     >
-      <div className="flex items-start gap-4">
-        {/* Icon */}
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${accent}`}
-        >
+      <div className="flex items-start justify-between gap-4">
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${accent}`}>
           <Icon size={18} />
         </div>
+        <span className="rounded-full border border-[#e6dfd8] px-2.5 py-1 text-[11px] font-medium text-[#8e8b82]">
+          {meta.label}
+        </span>
+      </div>
 
-        <div className="min-w-0 flex-1">
-          <h2 className="text-base font-medium text-[#141413] group-hover:text-[#cc785c] transition-colors leading-snug">
-            {doc.title}
-          </h2>
-          <p className="mt-1.5 line-clamp-2 text-sm text-[#6c6a64] leading-relaxed">
-            {doc.description}
-          </p>
-          <div className="mt-3 flex items-center gap-1 text-xs font-medium text-[#cc785c]">
-            <span>Read more</span>
-            <ArrowRight
-              size={12}
-              className="transition-transform group-hover:translate-x-0.5"
-            />
-          </div>
+      <div className="mt-5 min-w-0 flex-1">
+        <h2 className="text-lg font-medium leading-snug text-[#141413] transition-colors group-hover:text-[#cc785c]">
+          {doc.title}
+        </h2>
+        <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-[#6c6a64]">
+          {doc.description}
+        </p>
+      </div>
+
+      <div className="mt-5 flex items-center justify-between border-t border-[#e6dfd8] pt-4">
+        <span className="text-xs text-[#8e8b82]">{meta.time} read</span>
+        <div className="flex items-center gap-1 text-xs font-medium text-[#cc785c]">
+          <span>Open guide</span>
+          <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
         </div>
       </div>
     </Link>

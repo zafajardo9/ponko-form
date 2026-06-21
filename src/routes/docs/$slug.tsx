@@ -3,8 +3,9 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { listDocs, loadDoc } from "../../lib/server-fns/docs";
 import { MarkdownRenderer } from "../../components/docs/MarkdownRenderer";
+import { DocSidebar } from "../../components/docs/DocSidebar";
 import type { DocMeta, DocData } from "../../lib/docs-parser";
-import { ArrowLeft, Copy, Check, BookOpen, ChevronRight } from "lucide-react";
+import { ArrowLeft, Copy, Check, BookOpen, ChevronRight, Clock } from "lucide-react";
 
 export const Route = createFileRoute("/docs/$slug")({
   component: DocPage,
@@ -42,7 +43,7 @@ function DocPage() {
   }
 
   // Find prev/next docs for navigation.
-  const sorted = (allDocs as DocMeta[]).sort((a, b) =>
+  const sorted = [...(allDocs as DocMeta[])].sort((a, b) =>
     a.title.localeCompare(b.title),
   );
   const idx = sorted.findIndex((d) => d.slug === slug);
@@ -51,7 +52,7 @@ function DocPage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-4xl px-6 py-16">
+      <div className="mx-auto max-w-5xl px-6 py-12">
         <div className="mb-6 h-4 w-24 animate-pulse rounded bg-[#e6dfd8]" />
         <div className="mb-6 h-10 w-3/4 animate-pulse rounded-lg bg-[#e6dfd8]" />
         <div className="mb-8 h-5 w-1/2 animate-pulse rounded bg-[#e6dfd8]" />
@@ -90,81 +91,114 @@ function DocPage() {
     );
   }
 
+  const readingMinutes = Math.max(3, Math.ceil(docData.content.split(/\s+/).length / 220));
+
   return (
-    <div className="mx-auto max-w-4xl px-6 py-12">
-      {/* Breadcrumb */}
-      <div className="mb-6 flex items-center gap-2 text-sm text-[#8e8b82]">
-        <Link to="/docs" className="hover:text-[#141413] transition-colors">
-          Docs
-        </Link>
-        <ChevronRight size={12} />
-        <span className="text-[#57544d]">{docData.title}</span>
-      </div>
+    <div className="mx-auto max-w-7xl px-6 py-10">
+      <div className="flex gap-10">
+        <DocSidebar currentSlug={slug} allDocs={sorted} headings={docData.headings} />
 
-      {/* Title block */}
-      <div className="mb-10">
-        <h1 className="text-3xl font-semibold text-[#141413] tracking-tight leading-tight">
-          {docData.title}
-        </h1>
-        {docData.description && (
-          <p className="mt-3 text-lg text-[#6c6a64] leading-relaxed">
-            {docData.description}
-          </p>
-        )}
+        <main className="min-w-0 flex-1">
+          <div className="mb-6 flex items-center gap-2 text-sm text-[#8e8b82]">
+            <Link to="/docs" className="transition-colors hover:text-[#141413]">
+              Docs
+            </Link>
+            <ChevronRight size={12} />
+            <span className="truncate text-[#57544d]">{docData.title}</span>
+          </div>
 
-        {/* Meta bar */}
-        <div className="mt-5 flex flex-wrap items-center gap-4 border-b border-[#e6dfd8] pb-5">
-          <button
-            onClick={handleCopyMD}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] px-3 py-1.5 text-xs text-[#6c6a64] hover:bg-[#efe9de] hover:text-[#141413] transition-colors"
-          >
-            {copied ? (
-              <Check size={12} className="text-[#2d7a3e]" />
-            ) : (
-              <Copy size={12} />
+          <header className="mb-8 rounded-lg border border-[#e6dfd8] bg-[#efe9de] p-6 sm:p-8">
+            <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-[#6c6a64]">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#faf9f5] px-3 py-1 text-xs font-medium text-[#cc785c]">
+                <BookOpen size={13} />
+                Guide
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-xs">
+                <Clock size={13} />
+                {readingMinutes} min read
+              </span>
+            </div>
+
+            <h1 className="max-w-3xl text-4xl font-semibold leading-tight tracking-tight text-[#141413] sm:text-5xl">
+              {docData.title}
+            </h1>
+            {docData.description && (
+              <p className="mt-4 max-w-3xl text-base leading-relaxed text-[#6c6a64] sm:text-lg">
+                {docData.description}
+              </p>
             )}
-            {copied ? "Copied!" : "Copy markdown"}
-          </button>
-        </div>
+
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <button
+                onClick={handleCopyMD}
+                className="inline-flex items-center gap-1.5 rounded-md border border-[#e6dfd8] bg-[#faf9f5] px-3 py-2 text-xs font-medium text-[#6c6a64] transition-colors hover:bg-white hover:text-[#141413]"
+              >
+                {copied ? (
+                  <Check size={13} className="text-[#2d7a3e]" />
+                ) : (
+                  <Copy size={13} />
+                )}
+                {copied ? "Copied" : "Copy markdown"}
+              </button>
+            </div>
+          </header>
+
+          {docData.headings.length > 0 && (
+            <details className="mb-6 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-4 xl:hidden">
+              <summary className="cursor-pointer text-sm font-medium text-[#141413]">
+                On this page
+              </summary>
+              <nav className="mt-3 grid gap-2">
+                {docData.headings.map((h) => (
+                  <a
+                    key={h.id}
+                    href={`#${h.id}`}
+                    className="text-sm text-[#6c6a64] hover:text-[#cc785c]"
+                  >
+                    {h.text}
+                  </a>
+                ))}
+              </nav>
+            </details>
+          )}
+
+          <article className="min-w-0 rounded-lg border border-[#e6dfd8] bg-white px-5 py-7 shadow-sm sm:px-8 lg:px-10">
+            <MarkdownRenderer content={docData.content} />
+          </article>
+
+          <nav className="mt-8 grid gap-4 border-t border-[#e6dfd8] pt-8 sm:grid-cols-2">
+            {prevDoc ? (
+              <Link
+                to="/docs/$slug"
+                params={{ slug: prevDoc.slug }}
+                className="group rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-4 transition-all hover:border-[#cc785c] hover:bg-white hover:shadow-sm"
+              >
+                <span className="text-xs text-[#8e8b82]">Previous</span>
+                <p className="mt-1 truncate text-sm font-medium text-[#141413] transition-colors group-hover:text-[#cc785c]">
+                  {prevDoc.title}
+                </p>
+              </Link>
+            ) : (
+              <div />
+            )}
+
+            {nextDoc ? (
+              <Link
+                to="/docs/$slug"
+                params={{ slug: nextDoc.slug }}
+                className="group rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-4 text-right transition-all hover:border-[#cc785c] hover:bg-white hover:shadow-sm"
+              >
+                <span className="text-xs text-[#8e8b82]">Next</span>
+                <p className="mt-1 truncate text-sm font-medium text-[#141413] transition-colors group-hover:text-[#cc785c]">
+                  {nextDoc.title}
+                </p>
+              </Link>
+            ) : (
+              <div />
+            )}
+          </nav>
+        </main>
       </div>
-
-      {/* Content */}
-      <article className="min-w-0">
-        <MarkdownRenderer content={docData.content} />
-      </article>
-
-      {/* Prev / Next navigation */}
-      <nav className="mt-16 flex items-center justify-between gap-4 border-t border-[#e6dfd8] pt-8">
-        {prevDoc ? (
-          <Link
-            to="/docs/$slug"
-            params={{ slug: prevDoc.slug }}
-            className="group flex-1 rounded-xl border border-[#e6dfd8] bg-[#faf9f5] p-4 transition-all hover:border-[#cc785c] hover:shadow-sm"
-          >
-            <span className="text-xs text-[#8e8b82]">Previous</span>
-            <p className="mt-1 text-sm font-medium text-[#141413] group-hover:text-[#cc785c] transition-colors truncate">
-              {prevDoc.title}
-            </p>
-          </Link>
-        ) : (
-          <div className="flex-1" />
-        )}
-
-        {nextDoc ? (
-          <Link
-            to="/docs/$slug"
-            params={{ slug: nextDoc.slug }}
-            className="group flex-1 rounded-xl border border-[#e6dfd8] bg-[#faf9f5] p-4 text-right transition-all hover:border-[#cc785c] hover:shadow-sm"
-          >
-            <span className="text-xs text-[#8e8b82]">Next</span>
-            <p className="mt-1 text-sm font-medium text-[#141413] group-hover:text-[#cc785c] transition-colors truncate">
-              {nextDoc.title}
-            </p>
-          </Link>
-        ) : (
-          <div className="flex-1" />
-        )}
-      </nav>
     </div>
   );
 }

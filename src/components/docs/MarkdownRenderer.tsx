@@ -73,12 +73,12 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
         /* ── Headings ── */
         prose-headings:font-semibold prose-headings:text-[#141413] prose-headings:tracking-tight
         prose-h1:text-3xl prose-h1:mt-0 prose-h1:mb-6 prose-h1:pb-4 prose-h1:border-b prose-h1:border-[#e6dfd8]
-        prose-h2:text-2xl prose-h2:mt-14 prose-h2:mb-4 prose-h2:pb-2.5 prose-h2:border-b prose-h2:border-[#e6dfd8]/60
+        prose-h2:text-2xl prose-h2:mt-12 prose-h2:mb-4 prose-h2:pb-2.5 prose-h2:border-b prose-h2:border-[#e6dfd8]/60
         prose-h3:text-lg prose-h3:mt-10 prose-h3:mb-3
         prose-h4:text-base prose-h4:mt-8 prose-h4:mb-2 prose-h4:uppercase prose-h4:tracking-wider prose-h4:text-[#8e8b82]
 
         /* ── Body text ── */
-        prose-p:text-[#3d3d3a] prose-p:leading-relaxed prose-p:my-4 prose-p:text-[15px]
+        prose-p:text-[#3d3d3a] prose-p:leading-7 prose-p:my-4 prose-p:text-[15px]
 
         /* ── Links ── */
         prose-a:text-[#cc785c] prose-a:no-underline prose-a:font-medium
@@ -103,7 +103,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
 
         /* ── Blockquotes ── */
         prose-blockquote:border-l-[3px] prose-blockquote:border-[#cc785c]
-        prose-blockquote:bg-[#faf9f5] prose-blockquote:rounded-r-lg
+        prose-blockquote:bg-[#faf9f5] prose-blockquote:rounded-r-md
         prose-blockquote:px-5 prose-blockquote:py-3.5 prose-blockquote:my-5
         prose-blockquote:text-sm prose-blockquote:text-[#57544d] prose-blockquote:not-italic
         prose-blockquote:leading-relaxed
@@ -114,51 +114,48 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
         prose-li:marker:text-[#cc785c]
 
         /* ── Tables ── */
-        prose-table:w-full prose-table:my-6
-        prose-table:border-separate prose-table:border-spacing-0
-        prose-thead:border-b
-        prose-th:bg-[#f5f0e8] prose-th:px-4 prose-th:py-2.5
-        prose-th:text-sm prose-th:font-semibold prose-th:text-[#141413] prose-th:text-left
-        prose-th:border-y prose-th:border-[#e6dfd8]
-        prose-th:first:border-l prose-th:first:rounded-tl-lg
-        prose-th:last:border-r prose-th:last:rounded-tr-lg
-        prose-td:px-4 prose-td:py-2.5 prose-td:text-sm prose-td:text-[#3d3d3a]
-        prose-td:border-b prose-td:border-[#e6dfd8]
-        prose-td:first:border-l prose-td:last:border-r
-        prose-tr:even:bg-[#faf9f5]
-        prose-tr:last:td:border-b-0
-        /* Bottom rounded corners on last row */
-        prose-tr:last:[&_td:first-child]:rounded-bl-lg
-        prose-tr:last:[&_td:last-child]:rounded-br-lg
+        prose-table:my-0 prose-table:w-full prose-table:border-collapse
+        [&_.docs-table-wrap]:my-7 [&_.docs-table-wrap]:overflow-x-auto
+        [&_.docs-table-wrap]:rounded-lg [&_.docs-table-wrap]:border [&_.docs-table-wrap]:border-[#d8d0c5]
+        [&_.docs-table-wrap]:bg-white
+        [&_.docs-table]:min-w-full [&_.docs-table]:text-sm
+        [&_.docs-table_th]:border-r [&_.docs-table_th]:border-b [&_.docs-table_th]:border-[#d8d0c5]
+        [&_.docs-table_th]:bg-[#efe9de] [&_.docs-table_th]:px-4 [&_.docs-table_th]:py-3
+        [&_.docs-table_th]:text-left [&_.docs-table_th]:font-semibold [&_.docs-table_th]:text-[#141413]
+        [&_.docs-table_th:last-child]:border-r-0
+        [&_.docs-table_td]:border-r [&_.docs-table_td]:border-b [&_.docs-table_td]:border-[#e6dfd8]
+        [&_.docs-table_td]:bg-white [&_.docs-table_td]:px-4 [&_.docs-table_td]:py-3
+        [&_.docs-table_td]:align-top [&_.docs-table_td]:leading-relaxed [&_.docs-table_td]:text-[#3d3d3a]
+        [&_.docs-table_td:last-child]:border-r-0
+        [&_.docs-table_tr:nth-child(even)_td]:bg-[#faf9f5]
+        [&_.docs-table_tr:last-child_td]:border-b-0
 
         /* ── Images ── */
-        prose-img:rounded-xl prose-img:shadow-sm prose-img:my-8
+        prose-img:rounded-lg prose-img:shadow-sm prose-img:my-8
 
         /* ── Horizontal rules ── */
         prose-hr:border-[#e6dfd8] prose-hr:my-10
 
-        /* ── Code block wrapper ── */
-        [&_.code-block]:my-5 [&_.code-block]:rounded-xl [&_.code-block]:overflow-hidden
-        [&_.code-block]:border [&_.code-block]:border-[#2a2a3e]
-
-        /* ── Code block header (language label + copy button) ── */
+        /* ── Code samples ── */
+        [&_.code-block]:my-7 [&_.code-block]:overflow-hidden [&_.code-block]:rounded-lg
+        [&_.code-block]:border [&_.code-block]:border-[#252320] [&_.code-block]:bg-[#181715]
         [&_.code-header]:flex [&_.code-header]:items-center [&_.code-header]:justify-between
-        [&_.code-header]:px-4 [&_.code-header]:py-2 [&_.code-header]:bg-[#1e1e2e]
-        [&_.code-header]:border-b [&_.code-header]:border-[#2a2a3e]
-        [&_.code-header]:text-xs [&_.code-header]:text-[#8e8b82] [&_.code-header]:font-medium
-
-        /* ── Code body ── */
-        [&_.code-body]:bg-[#1a1a2e]
-        [&_.code-body]:text-sm [&_.code-body]:leading-relaxed [&_.code-body]:text-[#e4e4e7]
-
-        /* ── Code inside the body ── */
-        [&_.code-body_pre]:!m-0 [&_.code-body_pre]:!p-0 [&_.code-body_pre]:!bg-transparent
-        [&_.code-body_pre]:!border-none [&_.code-body_pre]:!shadow-none [&_.code-body_pre]:!rounded-none
-        [&_.code-body_pre]:overflow-x-auto [&_.code-body_pre]:whitespace-pre
-        [&_.code-body_pre]:text-sm [&_.code-body_pre]:leading-relaxed [&_.code-body_pre]:font-mono
-        [&_.code-body_pre]:text-[#e4e4e7]
-        [&_.code-body_pre_code]:!bg-transparent [&_.code-body_pre_code]:!p-0
-        [&_.code-body_pre_code]:!text-inherit [&_.code-body_pre_code]:!font-inherit
+        [&_.code-header]:gap-3 [&_.code-header]:border-b [&_.code-header]:border-[#34312c]
+        [&_.code-header]:bg-[#252320] [&_.code-header]:px-4 [&_.code-header]:py-2.5
+        [&_.code-title]:flex [&_.code-title]:min-w-0 [&_.code-title]:items-center [&_.code-title]:gap-2
+        [&_.code-dot]:h-2.5 [&_.code-dot]:w-2.5 [&_.code-dot]:rounded-full
+        [&_.code-lang]:truncate [&_.code-lang]:font-mono [&_.code-lang]:text-[11px]
+        [&_.code-lang]:font-medium [&_.code-lang]:uppercase [&_.code-lang]:tracking-wide [&_.code-lang]:text-[#a09d96]
+        [&_.code-copy]:shrink-0 [&_.code-copy]:rounded-md [&_.code-copy]:border [&_.code-copy]:border-[#474139]
+        [&_.code-copy]:bg-[#181715] [&_.code-copy]:px-2.5 [&_.code-copy]:py-1.5
+        [&_.code-copy]:text-xs [&_.code-copy]:font-medium [&_.code-copy]:text-[#faf9f5]
+        [&_.code-copy]:transition-colors hover:[&_.code-copy]:border-[#cc785c] hover:[&_.code-copy]:text-[#cc785c]
+        [&_.code-body]:bg-[#181715]
+        [&_.code-pre]:!m-0 [&_.code-pre]:overflow-x-auto [&_.code-pre]:!bg-transparent
+        [&_.code-pre]:!p-4 [&_.code-pre]:font-mono [&_.code-pre]:text-[13px] [&_.code-pre]:leading-6
+        [&_.code-pre]:text-[#f5f0e8]
+        [&_.code-pre_code]:!bg-transparent [&_.code-pre_code]:!p-0 [&_.code-pre_code]:!font-inherit
+        [&_.code-pre_code]:!text-inherit
 
         /* ── Heading scroll margins ── */
         [&_h2]:scroll-mt-24 [&_h3]:scroll-mt-24 [&_h4]:scroll-mt-24
@@ -172,7 +169,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
         [&_h3:hover_.heading-anchor]:opacity-100
 
         /* ── Mermaid diagrams ── */
-        [&_.mermaid]:my-8 [&_.mermaid]:p-6 [&_.mermaid]:bg-white [&_.mermaid]:rounded-xl
+        [&_.mermaid]:my-8 [&_.mermaid]:p-6 [&_.mermaid]:bg-[#faf9f5] [&_.mermaid]:rounded-lg
         [&_.mermaid]:border [&_.mermaid]:border-[#e6dfd8] [&_.mermaid]:overflow-x-auto
         [&_.mermaid]:shadow-sm
 
@@ -193,6 +190,7 @@ function renderMarkdown(md: string): string {
   let codeLang = "";
   let inTable = false;
   let tableBuffer: string[] = [];
+  let skippedFirstH1 = false;
 
   while (i < lines.length) {
     const line = lines[i];
@@ -259,6 +257,11 @@ function renderMarkdown(md: string): string {
     if (hMatch) {
       const level = hMatch[1].length;
       const text = hMatch[2];
+      if (level === 1 && !skippedFirstH1) {
+        skippedFirstH1 = true;
+        i++;
+        continue;
+      }
       const id = slugify(text);
       const anchor = `<a href="#${id}" class="heading-anchor">#</a>`;
       html.push(
@@ -348,29 +351,29 @@ function renderCodeBlock(code: string, lang: string): string {
   const escaped = escapeHtml(code);
   const langLabel = lang || "text";
   const langDisplay = langLabel === "plaintext" ? "text" : langLabel;
-  const escapedForData = escapeAttr(code);
+  const encodedForData = encodeURIComponent(code);
   return `
 <div class="code-block">
   <div class="code-header">
-    <span class="flex items-center gap-2">
-      <span class="flex h-3 w-3 rounded-full bg-[#ff6b6b]" />
-      <span class="flex h-3 w-3 rounded-full bg-[#ffd93d]" />
-      <span class="flex h-3 w-3 rounded-full bg-[#6bcb77]" />
-      <span class="ml-2">${escapeHtml(langDisplay)}</span>
+    <span class="code-title">
+      <span class="code-dot bg-[#c64545]"></span>
+      <span class="code-dot bg-[#d4a017]"></span>
+      <span class="code-dot bg-[#5db872]"></span>
+      <span class="code-lang">${escapeHtml(langDisplay)}</span>
     </span>
     <button
       onclick="(function(btn){
-        var c = btn.getAttribute('data-code');
+        var c = decodeURIComponent(btn.getAttribute('data-code') || '');
         navigator.clipboard.writeText(c);
         btn.textContent='Copied!';
         setTimeout(function(){btn.textContent='Copy'},2000);
       })(this)"
-      data-code="${escapedForData}"
-      class="text-[#8e8b82] hover:text-white transition-colors cursor-pointer bg-transparent border-none text-xs font-medium"
+      data-code="${encodedForData}"
+      class="code-copy"
     >Copy</button>
   </div>
   <div class="code-body">
-    <pre class="code-body_pre"><code class="language-${langLabel}">${escaped}</code></pre>
+    <pre class="code-pre"><code class="language-${langLabel}">${escaped}</code></pre>
   </div>
 </div>`;
 }
@@ -400,8 +403,7 @@ function renderTable(rows: string[]): string {
   const hasSep = rows.length > 1 && /^\|[-:| ]+\|$/.test(rows[1].trim());
   const bodyRows = hasSep ? rows.slice(2) : rows.slice(1);
 
-  let table =
-    '<div class="overflow-x-auto [&_table]:!border-0 [&_table]:!rounded-none"><table><thead><tr>';
+  let table = '<div class="docs-table-wrap"><table class="docs-table"><thead><tr>';
   for (const cell of headerCells) {
     table += `<th>${renderInline(cell)}</th>`;
   }
