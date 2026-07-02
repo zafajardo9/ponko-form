@@ -271,6 +271,12 @@ Additional builder panels accessible from the toolbar:
 - **Center:** `FlowListBuilder` — sortable vertical list of nodes along the primary path
 - **Right:** Same config panel as canvas view
 
+### Responsive Editor Layout
+
+- Desktop (`lg+`) uses the dense three-column editor: `BuilderPalette` left, List/Canvas center, `NodeConfigPanel` or `VariablesManager` right.
+- Mobile stacks the editor vertically. The palette becomes a compact top section, header actions and logic nodes use horizontal scrolling, and node config / variables render as full-width panels below the builder only when opened.
+- Keep the desktop layout intact when changing mobile behavior. The responsive shell lives primarily in `src/routes/forms/$formId/edit.tsx`, with supporting mobile layout in `BuilderPalette.tsx` and `FlowToolbar.tsx`.
+
 ### Preview
 
 - Opens a modal that runs the `FlowEngine` client-side

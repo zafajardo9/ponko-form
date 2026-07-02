@@ -100,7 +100,10 @@ The app uses a custom warm-toned palette with arbitrary values. Key tokens:
 ### 2.4 Responsive Design
 
 - Dashboard grid: `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`
-- Editor is a fixed three-column layout (not responsive — requires ≥1024px)
+- Form editor is responsive:
+  - Desktop (`lg+`) keeps the system-like three-column layout: palette left, builder center, config/variables right.
+  - Mobile stacks the editor vertically: header actions and logic palette may scroll horizontally, fields use compact grids, and config/variables open as full-width panels below the builder.
+  - Preserve desktop density when making mobile changes — use responsive classes (`sm:`, `lg:`) instead of replacing the desktop layout.
 - Forms are responsive on the respondent side
 
 ---

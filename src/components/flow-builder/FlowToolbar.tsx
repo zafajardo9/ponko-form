@@ -34,16 +34,18 @@ export function FlowToolbar({
   onAutoLayout,
 }: FlowToolbarProps) {
   return (
-    <div className="flex flex-1 items-center gap-2">
-      <Button variant="secondary" size="sm" onClick={onSave} disabled={saving}>
-        {saving ? 'Saving…' : 'Save now'}
-      </Button>
-      {saved && !saving && <span className="text-xs text-[#2f7d52]">All changes saved</span>}
+    <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="flex items-center gap-2">
+        <Button variant="secondary" size="sm" onClick={onSave} disabled={saving}>
+          {saving ? 'Saving…' : 'Save now'}
+        </Button>
+        {saved && !saving && <span className="text-xs text-[#2f7d52]">All changes saved</span>}
+      </div>
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:ml-auto sm:pb-0">
         <button
           onClick={onToggleValidate}
-          className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors ${
+          className={`flex h-8 flex-none items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors ${
             errorCount > 0
               ? 'border-[#c64545] text-[#c64545] hover:bg-[#fbeaea]'
               : 'border-[#e6dfd8] text-[#2f7d52] hover:bg-[#eef6f0]'

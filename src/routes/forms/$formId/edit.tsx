@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback, type CSSProperties } from "react";
 import {
   useNodesState,
   useEdgesState,
@@ -574,18 +574,18 @@ function UnifiedEditorPage() {
   const loading = isLoading || flowData === null || ensureMutation.isPending;
 
   return (
-    <div className="flex h-[calc(100vh-64px)] flex-col">
+    <div className="flex h-[calc(100dvh-64px)] min-h-0 flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-[#e6dfd8] bg-[#faf9f5] px-6 py-3">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3 border-b border-[#e6dfd8] bg-[#faf9f5] px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
           <Link
             to="/dashboard"
-            className="text-sm text-[#6c6a64] hover:text-[#141413]"
+            className="flex-none text-sm text-[#6c6a64] hover:text-[#141413]"
           >
             ← Dashboard
           </Link>
-          <span className="text-[#e6dfd8]">/</span>
-          <span className="text-sm font-medium text-[#141413]">
+          <span className="flex-none text-[#e6dfd8]">/</span>
+          <span className="min-w-0 max-w-[65vw] truncate text-sm font-medium text-[#141413] sm:max-w-none">
             {form?.title ?? "Loading…"}
           </span>
           {form && (
@@ -595,9 +595,9 @@ function UnifiedEditorPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:gap-3 sm:px-0 sm:pb-0">
           {/* Build | Responses tabs */}
-          <nav className="flex rounded-lg border border-[#e6dfd8] bg-[#f5f0e8] p-0.5 text-sm">
+          <nav className="flex flex-none rounded-lg border border-[#e6dfd8] bg-[#f5f0e8] p-0.5 text-sm">
             <span className="flex items-center gap-1 rounded-md bg-white px-3 py-1 font-medium text-[#141413] shadow-sm">
               <span className="text-xs text-[#cc785c]">◆</span> Build
             </span>
@@ -625,14 +625,14 @@ function UnifiedEditorPage() {
               setSelectedNodeId(null);
               setShowVariables(false);
             }}
-            className="rounded-md border border-[#e6dfd8] bg-[#f5f0e8] px-3 py-1.5 text-sm text-[#6c6a64] hover:bg-[#e8e0d2] hover:text-[#141413] transition-colors"
+            className="flex-none rounded-md border border-[#e6dfd8] bg-[#f5f0e8] px-3 py-1.5 text-sm text-[#6c6a64] transition-colors hover:bg-[#e8e0d2] hover:text-[#141413]"
           >
             Preview
           </button>
 
           <button
             onClick={() => setSettingsOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-md border border-[#e6dfd8] bg-[#f5f0e8] px-3 py-1.5 text-sm text-[#6c6a64] hover:bg-[#e8e0d2] hover:text-[#141413] transition-colors"
+            className="inline-flex flex-none items-center gap-1.5 rounded-md border border-[#e6dfd8] bg-[#f5f0e8] px-3 py-1.5 text-sm text-[#6c6a64] transition-colors hover:bg-[#e8e0d2] hover:text-[#141413]"
           >
             <span className="text-xs">⚙</span> Settings
           </button>
@@ -640,7 +640,7 @@ function UnifiedEditorPage() {
           {isPublished && (
             <button
               onClick={() => setShareOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-[#e6dfd8] bg-[#f5f0e8] px-3 py-1.5 text-sm text-[#6c6a64] hover:bg-[#e8e0d2] hover:text-[#141413] transition-colors"
+              className="inline-flex flex-none items-center gap-1.5 rounded-md border border-[#e6dfd8] bg-[#f5f0e8] px-3 py-1.5 text-sm text-[#6c6a64] transition-colors hover:bg-[#e8e0d2] hover:text-[#141413]"
             >
               <span className="text-xs">↗</span> Share
             </button>
@@ -653,6 +653,7 @@ function UnifiedEditorPage() {
               publishMutation.mutate(isPublished ? "draft" : "published")
             }
             disabled={publishMutation.isPending}
+            className="flex-none"
           >
             {isPublished ? "Unpublish" : "Publish"}
           </Button>
@@ -698,7 +699,7 @@ function UnifiedEditorPage() {
 
       {/* Validation list */}
       {validateOpen && (
-        <div className="max-h-44 overflow-y-auto border-b border-[#e6dfd8] bg-[#fbf6f0] px-6 py-2">
+        <div className="max-h-44 flex-none overflow-y-auto border-b border-[#e6dfd8] bg-[#fbf6f0] px-4 py-2 sm:px-6">
           {validation.errors.length === 0 ? (
             <p className="text-sm text-[#2f7d52]">
               No validation issues. This form is ready.
@@ -731,9 +732,9 @@ function UnifiedEditorPage() {
           Preparing editor…
         </div>
       ) : (
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 flex-col overflow-y-auto lg:min-h-0 lg:flex-row lg:overflow-hidden">
           {/* Left: unified palette */}
-          <div className="w-60 flex-none overflow-y-auto border-r border-[#e6dfd8] bg-[#faf9f5] p-4">
+          <div className="flex-none border-b border-[#e6dfd8] bg-[#faf9f5] p-4 lg:w-60 lg:overflow-y-auto lg:border-b-0 lg:border-r">
             <BuilderPalette
               onAddField={handleAddField}
               onAddNode={handleAddLogic}
@@ -741,12 +742,12 @@ function UnifiedEditorPage() {
           </div>
 
           {/* Center: view toggle + (list | canvas) */}
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <div className="flex items-center gap-2 border-b border-[#e6dfd8] bg-[#faf9f5] px-4 py-2">
-              <div className="flex rounded-lg border border-[#e6dfd8] bg-[#f5f0e8] p-0.5 text-sm">
+          <div className="flex min-h-[520px] flex-1 flex-col overflow-hidden lg:min-h-0">
+            <div className="flex flex-col gap-2 border-b border-[#e6dfd8] bg-[#faf9f5] px-4 py-2 sm:flex-row sm:items-center">
+              <div className="flex w-full rounded-lg border border-[#e6dfd8] bg-[#f5f0e8] p-0.5 text-sm sm:w-auto">
                 <button
                   onClick={() => setView("list")}
-                  className={`rounded-md px-3 py-1 ${
+                  className={`flex-1 rounded-md px-3 py-1 sm:flex-none ${
                     view === "list"
                       ? "bg-white font-medium text-[#141413] shadow-sm"
                       : "text-[#6c6a64] hover:text-[#141413]"
@@ -756,7 +757,7 @@ function UnifiedEditorPage() {
                 </button>
                 <button
                   onClick={() => setView("canvas")}
-                  className={`rounded-md px-3 py-1 ${
+                  className={`flex-1 rounded-md px-3 py-1 sm:flex-none ${
                     view === "canvas"
                       ? "bg-white font-medium text-[#141413] shadow-sm"
                       : "text-[#6c6a64] hover:text-[#141413]"
@@ -785,7 +786,7 @@ function UnifiedEditorPage() {
 
             {view === "list" ? (
               <div
-                className="flex-1 overflow-y-auto bg-[#f5f0e8] p-6"
+                className="flex-1 overflow-y-auto bg-[#f5f0e8] p-3 sm:p-6"
                 onClick={() => setSelectedNodeId(null)}
               >
                 <div
@@ -848,8 +849,14 @@ function UnifiedEditorPage() {
           {/* Right: variables, node config, or hint */}
           <div
             ref={rightPanelRef}
-            className="relative flex-none overflow-y-auto border-l border-[#e6dfd8] bg-[#faf9f5]"
-            style={{ width: rightPanelWidth + "px" }}
+            className={`relative flex-none overflow-y-auto border-t border-[#e6dfd8] bg-[#faf9f5] lg:border-l lg:border-t-0 ${
+              !showVariables && !selectedNode ? "hidden lg:block" : "block"
+            } w-full lg:w-[var(--right-panel-width)]`}
+            style={
+              {
+                "--right-panel-width": `${rightPanelWidth}px`,
+              } as CSSProperties
+            }
           >
             {/* Resize handle */}
             <div
@@ -878,7 +885,7 @@ function UnifiedEditorPage() {
                 document.body.style.cursor = "col-resize";
                 document.body.style.userSelect = "none";
               }}
-              className="absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-[#cc785c]/30 active:bg-[#cc785c]/50 transition-colors"
+              className="absolute left-0 top-0 z-10 hidden h-full w-1.5 cursor-col-resize transition-colors hover:bg-[#cc785c]/30 active:bg-[#cc785c]/50 lg:block"
             />
             <div className="p-4">
               {showVariables ? (
