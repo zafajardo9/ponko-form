@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { requireAuth } from '../../lib/server-fns/auth'
 import { IntegrationsHub } from '../../components/integrations/IntegrationsHub'
 
-export const Route = createFileRoute('/dashboard/integrations')({
+export const Route = createFileRoute('/settings/integrations')({
   beforeLoad: () => requireAuth(),
   component: IntegrationsPage,
 })

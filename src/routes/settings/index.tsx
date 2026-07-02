@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Puzzle } from 'lucide-react'
 
-export const Route = createFileRoute('/dashboard/settings')({
+export const Route = createFileRoute('/settings/')({
   beforeLoad: () => requireAuth(),
   component: SettingsPage,
 })
@@ -30,7 +30,7 @@ function SettingsPage() {
               file storage (ImageKit, Cloudinary), and more.
             </p>
           </div>
-          <Link to="/dashboard/integrations" className="shrink-0">
+          <Link to="/settings/integrations" className="shrink-0">
             <Button
               variant="secondary"
               size="sm"

@@ -11,15 +11,15 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SettingsIndexRouteImport } from './routes/settings/index'
+import { Route as FormsIndexRouteImport } from './routes/forms/index'
 import { Route as DocsIndexRouteImport } from './routes/docs/index'
-import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
+import { Route as SettingsIntegrationsRouteImport } from './routes/settings/integrations'
 import { Route as FormsPaymentReturnRouteImport } from './routes/forms/payment-return'
 import { Route as FormsNewRouteImport } from './routes/forms/new'
 import { Route as DocsSlugRouteImport } from './routes/docs/$slug'
-import { Route as DashboardSettingsRouteImport } from './routes/dashboard/settings'
-import { Route as DashboardIntegrationsRouteImport } from './routes/dashboard/integrations'
 import { Route as IntegrationsGoogleCallbackRouteImport } from './routes/integrations/google/callback'
 import { Route as FormsSubmitFormIdRouteImport } from './routes/forms/submit/$formId'
 import { Route as FormsEmbedFormIdRouteImport } from './routes/forms/embed/$formId'
@@ -39,14 +39,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsIndexRoute = SettingsIndexRouteImport.update({
+  id: '/settings/',
+  path: '/settings/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FormsIndexRoute = FormsIndexRouteImport.update({
+  id: '/forms/',
+  path: '/forms/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DocsIndexRoute = DocsIndexRouteImport.update({
   id: '/docs/',
   path: '/docs/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardIndexRoute = DashboardIndexRouteImport.update({
-  id: '/dashboard/',
-  path: '/dashboard/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignUpSplatRoute = SignUpSplatRouteImport.update({
@@ -57,6 +62,11 @@ const SignUpSplatRoute = SignUpSplatRouteImport.update({
 const SignInSplatRoute = SignInSplatRouteImport.update({
   id: '/sign-in/$',
   path: '/sign-in/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsIntegrationsRoute = SettingsIntegrationsRouteImport.update({
+  id: '/settings/integrations',
+  path: '/settings/integrations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FormsPaymentReturnRoute = FormsPaymentReturnRouteImport.update({
@@ -72,16 +82,6 @@ const FormsNewRoute = FormsNewRouteImport.update({
 const DocsSlugRoute = DocsSlugRouteImport.update({
   id: '/docs/$slug',
   path: '/docs/$slug',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardSettingsRoute = DashboardSettingsRouteImport.update({
-  id: '/dashboard/settings',
-  path: '/dashboard/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardIntegrationsRoute = DashboardIntegrationsRouteImport.update({
-  id: '/dashboard/integrations',
-  path: '/dashboard/integrations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IntegrationsGoogleCallbackRoute =
@@ -129,15 +129,15 @@ const FlowExecutionIdCompleteRoute = FlowExecutionIdCompleteRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
-  '/dashboard/integrations': typeof DashboardIntegrationsRoute
-  '/dashboard/settings': typeof DashboardSettingsRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/forms/new': typeof FormsNewRoute
   '/forms/payment-return': typeof FormsPaymentReturnRoute
+  '/settings/integrations': typeof SettingsIntegrationsRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
-  '/dashboard/': typeof DashboardIndexRoute
   '/docs/': typeof DocsIndexRoute
+  '/forms/': typeof FormsIndexRoute
+  '/settings/': typeof SettingsIndexRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
   '/forms/$formId/flow': typeof FormsFormIdFlowRoute
@@ -150,15 +150,15 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
-  '/dashboard/integrations': typeof DashboardIntegrationsRoute
-  '/dashboard/settings': typeof DashboardSettingsRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/forms/new': typeof FormsNewRoute
   '/forms/payment-return': typeof FormsPaymentReturnRoute
+  '/settings/integrations': typeof SettingsIntegrationsRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
-  '/dashboard': typeof DashboardIndexRoute
   '/docs': typeof DocsIndexRoute
+  '/forms': typeof FormsIndexRoute
+  '/settings': typeof SettingsIndexRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
   '/forms/$formId/flow': typeof FormsFormIdFlowRoute
@@ -172,15 +172,15 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
-  '/dashboard/integrations': typeof DashboardIntegrationsRoute
-  '/dashboard/settings': typeof DashboardSettingsRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/forms/new': typeof FormsNewRoute
   '/forms/payment-return': typeof FormsPaymentReturnRoute
+  '/settings/integrations': typeof SettingsIntegrationsRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
-  '/dashboard/': typeof DashboardIndexRoute
   '/docs/': typeof DocsIndexRoute
+  '/forms/': typeof FormsIndexRoute
+  '/settings/': typeof SettingsIndexRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
   '/forms/$formId/flow': typeof FormsFormIdFlowRoute
@@ -195,15 +195,15 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/mcp'
-    | '/dashboard/integrations'
-    | '/dashboard/settings'
     | '/docs/$slug'
     | '/forms/new'
     | '/forms/payment-return'
+    | '/settings/integrations'
     | '/sign-in/$'
     | '/sign-up/$'
-    | '/dashboard/'
     | '/docs/'
+    | '/forms/'
+    | '/settings/'
     | '/flow/$executionId/complete'
     | '/forms/$formId/edit'
     | '/forms/$formId/flow'
@@ -216,15 +216,15 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/mcp'
-    | '/dashboard/integrations'
-    | '/dashboard/settings'
     | '/docs/$slug'
     | '/forms/new'
     | '/forms/payment-return'
+    | '/settings/integrations'
     | '/sign-in/$'
     | '/sign-up/$'
-    | '/dashboard'
     | '/docs'
+    | '/forms'
+    | '/settings'
     | '/flow/$executionId/complete'
     | '/forms/$formId/edit'
     | '/forms/$formId/flow'
@@ -237,15 +237,15 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/mcp'
-    | '/dashboard/integrations'
-    | '/dashboard/settings'
     | '/docs/$slug'
     | '/forms/new'
     | '/forms/payment-return'
+    | '/settings/integrations'
     | '/sign-in/$'
     | '/sign-up/$'
-    | '/dashboard/'
     | '/docs/'
+    | '/forms/'
+    | '/settings/'
     | '/flow/$executionId/complete'
     | '/forms/$formId/edit'
     | '/forms/$formId/flow'
@@ -259,15 +259,15 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   McpRoute: typeof McpRoute
-  DashboardIntegrationsRoute: typeof DashboardIntegrationsRoute
-  DashboardSettingsRoute: typeof DashboardSettingsRoute
   DocsSlugRoute: typeof DocsSlugRoute
   FormsNewRoute: typeof FormsNewRoute
   FormsPaymentReturnRoute: typeof FormsPaymentReturnRoute
+  SettingsIntegrationsRoute: typeof SettingsIntegrationsRoute
   SignInSplatRoute: typeof SignInSplatRoute
   SignUpSplatRoute: typeof SignUpSplatRoute
-  DashboardIndexRoute: typeof DashboardIndexRoute
   DocsIndexRoute: typeof DocsIndexRoute
+  FormsIndexRoute: typeof FormsIndexRoute
+  SettingsIndexRoute: typeof SettingsIndexRoute
   FlowExecutionIdCompleteRoute: typeof FlowExecutionIdCompleteRoute
   FormsFormIdEditRoute: typeof FormsFormIdEditRoute
   FormsFormIdFlowRoute: typeof FormsFormIdFlowRoute
@@ -294,18 +294,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/': {
+      id: '/settings/'
+      path: '/settings'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof SettingsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forms/': {
+      id: '/forms/'
+      path: '/forms'
+      fullPath: '/forms/'
+      preLoaderRoute: typeof FormsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/docs/': {
       id: '/docs/'
       path: '/docs'
       fullPath: '/docs/'
       preLoaderRoute: typeof DocsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard/': {
-      id: '/dashboard/'
-      path: '/dashboard'
-      fullPath: '/dashboard/'
-      preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sign-up/$': {
@@ -320,6 +327,13 @@ declare module '@tanstack/react-router' {
       path: '/sign-in/$'
       fullPath: '/sign-in/$'
       preLoaderRoute: typeof SignInSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings/integrations': {
+      id: '/settings/integrations'
+      path: '/settings/integrations'
+      fullPath: '/settings/integrations'
+      preLoaderRoute: typeof SettingsIntegrationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forms/payment-return': {
@@ -341,20 +355,6 @@ declare module '@tanstack/react-router' {
       path: '/docs/$slug'
       fullPath: '/docs/$slug'
       preLoaderRoute: typeof DocsSlugRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard/settings': {
-      id: '/dashboard/settings'
-      path: '/dashboard/settings'
-      fullPath: '/dashboard/settings'
-      preLoaderRoute: typeof DashboardSettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard/integrations': {
-      id: '/dashboard/integrations'
-      path: '/dashboard/integrations'
-      fullPath: '/dashboard/integrations'
-      preLoaderRoute: typeof DashboardIntegrationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/integrations/google/callback': {
@@ -419,15 +419,15 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   McpRoute: McpRoute,
-  DashboardIntegrationsRoute: DashboardIntegrationsRoute,
-  DashboardSettingsRoute: DashboardSettingsRoute,
   DocsSlugRoute: DocsSlugRoute,
   FormsNewRoute: FormsNewRoute,
   FormsPaymentReturnRoute: FormsPaymentReturnRoute,
+  SettingsIntegrationsRoute: SettingsIntegrationsRoute,
   SignInSplatRoute: SignInSplatRoute,
   SignUpSplatRoute: SignUpSplatRoute,
-  DashboardIndexRoute: DashboardIndexRoute,
   DocsIndexRoute: DocsIndexRoute,
+  FormsIndexRoute: FormsIndexRoute,
+  SettingsIndexRoute: SettingsIndexRoute,
   FlowExecutionIdCompleteRoute: FlowExecutionIdCompleteRoute,
   FormsFormIdEditRoute: FormsFormIdEditRoute,
   FormsFormIdFlowRoute: FormsFormIdFlowRoute,

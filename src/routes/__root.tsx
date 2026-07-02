@@ -105,19 +105,19 @@ function TopNav() {
           <nav className="hidden items-center gap-6 sm:flex">
             <Show when="signed-in">
               <Link
-                to="/dashboard"
+                to="/forms"
                 className="text-sm text-[#6c6a64] hover:text-[#141413] transition-colors [&.active]:text-[#141413] [&.active]:font-medium"
               >
-                Dashboard
+                Forms
               </Link>
               <Link
-                to="/dashboard/settings"
+                to="/settings"
                 className="text-sm text-[#6c6a64] hover:text-[#141413] transition-colors [&.active]:text-[#141413] [&.active]:font-medium"
               >
                 Settings
               </Link>
               <Link
-                to="/dashboard/integrations"
+                to="/settings/integrations"
                 className="text-sm text-[#6c6a64] hover:text-[#141413] transition-colors [&.active]:text-[#141413] [&.active]:font-medium"
               >
                 Integrations

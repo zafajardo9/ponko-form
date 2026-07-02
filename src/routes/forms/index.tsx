@@ -8,12 +8,12 @@ import { EmptyState } from "../../components/dashboard/EmptyState";
 import { ShareDialog } from "../../components/dashboard/ShareDialog";
 import { Button } from "../../components/ui/Button";
 
-export const Route = createFileRoute("/dashboard/")({
+export const Route = createFileRoute("/forms/")({
   beforeLoad: () => requireAuth(),
-  component: DashboardPage,
+  component: FormsPage,
 });
 
-function DashboardPage() {
+function FormsPage() {
   const queryClient = useQueryClient();
   const [shareFormId, setShareFormId] = useState<number | null>(null);
 

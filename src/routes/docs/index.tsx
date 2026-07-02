@@ -3,7 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { listDocs } from "../../lib/server-fns/docs";
 import { DocCard } from "../../components/docs/DocCard";
 import type { DocMeta } from "../../lib/docs-parser";
-import { ArrowRight, BookOpen, Compass, CreditCard, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  BookOpen,
+  Compass,
+  CreditCard,
+  Sparkles,
+} from "lucide-react";
 
 export const Route = createFileRoute("/docs/")({
   component: DocsIndexPage,
@@ -28,7 +34,8 @@ function DocsIndexPage() {
       !reference.includes(d) &&
       !payments.includes(d),
   );
-  const featured = allDocs.find((d) => d.slug === "getting-started") ?? allDocs[0];
+  const featured =
+    allDocs.find((d) => d.slug === "getting-started") ?? allDocs[0];
 
   if (isLoading) {
     return (
@@ -82,17 +89,33 @@ function DocsIndexPage() {
           </p>
           <div className="mt-5 space-y-4">
             {[
-              { icon: Sparkles, label: "Start", text: "Create your first flow form." },
-              { icon: Compass, label: "Shape", text: "Add branches and calculations." },
-              { icon: CreditCard, label: "Collect", text: "Connect payments and receipts." },
+              {
+                icon: Sparkles,
+                label: "Start",
+                text: "Create your first flow form.",
+              },
+              {
+                icon: Compass,
+                label: "Shape",
+                text: "Add branches and calculations.",
+              },
+              {
+                icon: CreditCard,
+                label: "Collect",
+                text: "Connect payments and receipts.",
+              },
             ].map((item) => (
               <div key={item.label} className="flex gap-3">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#f5f0e8] text-[#cc785c]">
                   <item.icon size={17} />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-[#141413]">{item.label}</p>
-                  <p className="text-sm leading-relaxed text-[#6c6a64]">{item.text}</p>
+                  <p className="text-sm font-medium text-[#141413]">
+                    {item.label}
+                  </p>
+                  <p className="text-sm leading-relaxed text-[#6c6a64]">
+                    {item.text}
+                  </p>
                 </div>
               </div>
             ))}
@@ -180,11 +203,13 @@ function DocsIndexPage() {
       )}
 
       <div className="mt-12 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-6">
-        <h3 className="text-sm font-semibold text-[#141413]">Ready to build?</h3>
+        <h3 className="text-sm font-semibold text-[#141413]">
+          Ready to build?
+        </h3>
         <p className="mt-1 text-sm leading-relaxed text-[#6c6a64]">
           Check out the{" "}
-          <Link to="/dashboard" className="text-[#cc785c] hover:text-[#a9583e]">
-            Dashboard
+          <Link to="/forms" className="text-[#cc785c] hover:text-[#a9583e]">
+            Forms
           </Link>{" "}
           to start building forms, or visit the{" "}
           <Link to="/forms/new" className="text-[#cc785c] hover:text-[#a9583e]">
@@ -206,7 +231,9 @@ function SectionHeader({ title, description }: SectionHeaderProps) {
   return (
     <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight text-[#141413]">{title}</h2>
+        <h2 className="text-xl font-semibold tracking-tight text-[#141413]">
+          {title}
+        </h2>
         <p className="mt-1 text-sm text-[#6c6a64]">{description}</p>
       </div>
     </div>

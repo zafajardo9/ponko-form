@@ -1,6 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState, useCallback, type CSSProperties } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+  type CSSProperties,
+} from "react";
 import {
   useNodesState,
   useEdgesState,
@@ -579,10 +586,10 @@ function UnifiedEditorPage() {
       <div className="flex flex-col gap-3 border-b border-[#e6dfd8] bg-[#faf9f5] px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
           <Link
-            to="/dashboard"
+            to="/forms"
             className="flex-none text-sm text-[#6c6a64] hover:text-[#141413]"
           >
-            ← Dashboard
+            ← Forms
           </Link>
           <span className="flex-none text-[#e6dfd8]">/</span>
           <span className="min-w-0 max-w-[65vw] truncate text-sm font-medium text-[#141413] sm:max-w-none">

@@ -46,8 +46,8 @@ function SubmissionsPage() {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <div className="mb-1 flex items-center gap-2 text-sm text-[#6c6a64]">
-            <Link to="/dashboard" className="hover:text-[#141413]">
-              Dashboard
+            <Link to="/forms" className="hover:text-[#141413]">
+              Forms
             </Link>
             <span>/</span>
             <Link
