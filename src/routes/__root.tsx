@@ -105,6 +105,12 @@ function TopNav() {
           <nav className="hidden items-center gap-6 sm:flex">
             <Show when="signed-in">
               <Link
+                to="/dashboard"
+                className="text-sm text-[#6c6a64] hover:text-[#141413] transition-colors [&.active]:text-[#141413] [&.active]:font-medium"
+              >
+                Dashboard
+              </Link>
+              <Link
                 to="/forms"
                 className="text-sm text-[#6c6a64] hover:text-[#141413] transition-colors [&.active]:text-[#141413] [&.active]:font-medium"
               >

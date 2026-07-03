@@ -14,6 +14,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as FormsIndexRouteImport } from './routes/forms/index'
 import { Route as DocsIndexRouteImport } from './routes/docs/index'
+import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
 import { Route as SettingsIntegrationsRouteImport } from './routes/settings/integrations'
@@ -52,6 +53,11 @@ const FormsIndexRoute = FormsIndexRouteImport.update({
 const DocsIndexRoute = DocsIndexRouteImport.update({
   id: '/docs/',
   path: '/docs/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardIndexRoute = DashboardIndexRouteImport.update({
+  id: '/dashboard/',
+  path: '/dashboard/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignUpSplatRoute = SignUpSplatRouteImport.update({
@@ -135,6 +141,7 @@ export interface FileRoutesByFullPath {
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
+  '/dashboard/': typeof DashboardIndexRoute
   '/docs/': typeof DocsIndexRoute
   '/forms/': typeof FormsIndexRoute
   '/settings/': typeof SettingsIndexRoute
@@ -156,6 +163,7 @@ export interface FileRoutesByTo {
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
+  '/dashboard': typeof DashboardIndexRoute
   '/docs': typeof DocsIndexRoute
   '/forms': typeof FormsIndexRoute
   '/settings': typeof SettingsIndexRoute
@@ -178,6 +186,7 @@ export interface FileRoutesById {
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
+  '/dashboard/': typeof DashboardIndexRoute
   '/docs/': typeof DocsIndexRoute
   '/forms/': typeof FormsIndexRoute
   '/settings/': typeof SettingsIndexRoute
@@ -201,6 +210,7 @@ export interface FileRouteTypes {
     | '/settings/integrations'
     | '/sign-in/$'
     | '/sign-up/$'
+    | '/dashboard/'
     | '/docs/'
     | '/forms/'
     | '/settings/'
@@ -222,6 +232,7 @@ export interface FileRouteTypes {
     | '/settings/integrations'
     | '/sign-in/$'
     | '/sign-up/$'
+    | '/dashboard'
     | '/docs'
     | '/forms'
     | '/settings'
@@ -243,6 +254,7 @@ export interface FileRouteTypes {
     | '/settings/integrations'
     | '/sign-in/$'
     | '/sign-up/$'
+    | '/dashboard/'
     | '/docs/'
     | '/forms/'
     | '/settings/'
@@ -265,6 +277,7 @@ export interface RootRouteChildren {
   SettingsIntegrationsRoute: typeof SettingsIntegrationsRoute
   SignInSplatRoute: typeof SignInSplatRoute
   SignUpSplatRoute: typeof SignUpSplatRoute
+  DashboardIndexRoute: typeof DashboardIndexRoute
   DocsIndexRoute: typeof DocsIndexRoute
   FormsIndexRoute: typeof FormsIndexRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
@@ -313,6 +326,13 @@ declare module '@tanstack/react-router' {
       path: '/docs'
       fullPath: '/docs/'
       preLoaderRoute: typeof DocsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/': {
+      id: '/dashboard/'
+      path: '/dashboard'
+      fullPath: '/dashboard/'
+      preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sign-up/$': {
@@ -425,6 +445,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsIntegrationsRoute: SettingsIntegrationsRoute,
   SignInSplatRoute: SignInSplatRoute,
   SignUpSplatRoute: SignUpSplatRoute,
+  DashboardIndexRoute: DashboardIndexRoute,
   DocsIndexRoute: DocsIndexRoute,
   FormsIndexRoute: FormsIndexRoute,
   SettingsIndexRoute: SettingsIndexRoute,

@@ -41,6 +41,7 @@
     "@tanstack/router-plugin": "^1.132.0",
     "@tanstack/store": "latest",
     "@xyflow/react": "^12.11.0",
+    "date-fns": "^4.4.0",
     "drizzle-kit": "^0.31.9",
     "drizzle-orm": "^0.45.1",
     "highlight.js": "^11.11.1",
@@ -49,6 +50,7 @@
     "pg": "^8.16.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "recharts": "^3.9.1",
     "tailwindcss": "^4.1.18",
     "vite-plugin-neon-new": "^0.8.0",
     "zod": "^4.3.6"
