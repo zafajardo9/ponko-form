@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { GroupedField } from '../../lib/flow-engine/types'
-import { FieldRenderer, type FieldConfig } from '../form-builder/fields/FieldRenderer'
+import { FieldRenderer, type FieldConfig, type FieldValue } from '../form-builder/fields/FieldRenderer'
 import { Button } from '../ui/Button'
 
 /**
@@ -21,7 +21,7 @@ interface GroupStepViewProps {
   fields: GroupedField[]
   canGoBack: boolean
   onBack: () => void
-  onSubmit: (groupValues: Record<string, string | string[]>) => void
+  onSubmit: (groupValues: Record<string, FieldValue>) => void
   nextLabel?: string
 }
 
@@ -38,14 +38,18 @@ export function GroupStepView({
   onSubmit,
   nextLabel = 'Continue',
 }: GroupStepViewProps) {
-  const [values, setValues] = useState<Record<string, string | string[]>>({})
+  const [values, setValues] = useState<Record<string, FieldValue>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   function submit() {
     const errs: Record<string, string> = {}
     for (const f of fields) {
       const v = values[f.id] ?? ''
-      const empty = Array.isArray(v) ? v.length === 0 : String(v).trim() === ''
+      const empty = Array.isArray(v)
+        ? v.length === 0
+        : v && typeof v === 'object'
+          ? Object.values(v).every((item) => !String(item ?? '').trim())
+          : String(v).trim() === ''
       if (f.required && empty) errs[f.id] = 'This field is required.'
     }
     if (Object.keys(errs).length > 0) {

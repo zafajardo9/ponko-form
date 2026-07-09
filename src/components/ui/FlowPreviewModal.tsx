@@ -9,6 +9,8 @@ import type {
 import {
   FieldRenderer,
   type FieldConfig,
+  type FieldOption,
+  type FieldValue,
 } from "../form-builder/fields/FieldRenderer";
 import { FlowProgressBar } from "../flow-execution/FlowProgressBar";
 import { GroupStepView } from "../flow-execution/GroupStepView";
@@ -34,7 +36,7 @@ export function FlowPreviewModal({
 }: FlowPreviewModalProps) {
   const engineRef = useRef<FlowEngine | null>(null);
   const [, force] = useState(0);
-  const [fieldValue, setFieldValue] = useState<string | string[]>("");
+  const [fieldValue, setFieldValue] = useState<FieldValue>("");
   const [decisionValue, setDecisionValue] = useState<string>("");
   const [fieldError, setFieldError] = useState("");
   const [skipRequired, setSkipRequired] = useState(false);
@@ -229,13 +231,15 @@ export function FlowPreviewModal({
       label: (config.label as string) ?? step.label,
       placeholder: config.placeholder as string | undefined,
       required: Boolean(config.required),
-      options: config.options as { label: string; value: string }[] | undefined,
+      options: config.options as FieldOption[] | undefined,
     };
 
     function submit() {
       const empty = Array.isArray(fieldValue)
         ? fieldValue.length === 0
-        : String(fieldValue).trim() === "";
+        : fieldValue && typeof fieldValue === "object"
+          ? Object.values(fieldValue).every((item) => !String(item ?? "").trim())
+          : String(fieldValue).trim() === "";
       if (field.required && empty && !skipRequired) {
         setFieldError("This field is required.");
         return;

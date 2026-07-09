@@ -1,12 +1,29 @@
-import type { FieldConfig } from '../components/form-builder/fields/FieldRenderer'
+import type { FieldConfig, FieldValue } from '../components/form-builder/fields/FieldRenderer'
 
-export function validateField(field: FieldConfig, value: string | string[]): string | null {
-  const strVal = Array.isArray(value) ? value.join('') : value
+function isAddressEmpty(field: FieldConfig, value: FieldValue) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return true
+  const options = new Map((field.options ?? []).map((option) => [option.label, option.value]))
+  const isRequired = (key: string, fallback: boolean) => options.get(`required:${key}`) === 'true' || (options.get(`required:${key}`) == null && fallback)
+  return (isRequired('currentAddress', true) && !String(value.currentAddress ?? '').trim()) ||
+    (isRequired('apartment', false) && !String(value.apartment ?? '').trim()) ||
+    (isRequired('city', true) && !String(value.city ?? '').trim()) ||
+    (isRequired('stateProvince', true) && !String(value.stateProvince ?? '').trim()) ||
+    (isRequired('zipPostalCode', true) && !String(value.zipPostalCode ?? '').trim()) ||
+    (isRequired('country', true) && !String(value.country ?? '').trim())
+}
+
+export function validateField(field: FieldConfig, value: FieldValue): string | null {
+  const strVal = Array.isArray(value)
+    ? value.join('')
+    : value && typeof value === 'object'
+      ? Object.values(value).join('')
+      : value
   const arrVal = Array.isArray(value) ? value : []
 
   if (field.required) {
+    if (field.type === 'address' && isAddressEmpty(field, value)) return 'This field is required'
     if (Array.isArray(value) && arrVal.length === 0) return 'This field is required'
-    if (!Array.isArray(value) && !strVal.trim()) return 'This field is required'
+    if (!Array.isArray(value) && typeof value !== 'object' && !strVal.trim()) return 'This field is required'
   }
 
   if (strVal && field.type === 'email') {
@@ -22,7 +39,7 @@ export function validateField(field: FieldConfig, value: string | string[]): str
 
 export function validateForm(
   fields: FieldConfig[],
-  values: Record<number, string | string[]>,
+  values: Record<number, FieldValue>,
 ): Record<number, string> {
   const errors: Record<number, string> = {}
   for (const field of fields) {

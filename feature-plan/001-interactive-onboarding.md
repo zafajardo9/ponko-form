@@ -8,16 +8,16 @@
 
 ## 1. User Story
 
-> "As a new form creator, I want to understand what each part of PonkoForm does (dashboard, form editor, flow builder, variables, payments) in a guided, visual way — so I feel confident building my first form instead of guessing."
+> "As a new form creator, I want to understand what each part of PonkoForm does (dashboard, page-based form editor, conditional fields, payments) in a guided, visual way — so I feel confident building my first form instead of guessing."
 
 ---
 
 ## 2. Why This Matters
 
 - New users landing on the dashboard see an empty state and a docs link — no visual tour of the system's capabilities
-- The Flow Builder has 8 node types, variables, expressions, payment gateways — enough complexity to intimidate
+- New users should learn the page-based builder first: pages, fields, conditions, payments, and publishing. The legacy Flow Builder remains for older advanced forms, but it should not be the default onboarding story.
 - Competitors (Typeform, Jotform, Tally) all have onboarding overlays that reduce churn
-- A short GIF showing "this is how a form becomes a flow" is worth 1000 words of docs
+- A short GIF showing "this is how pages, fields, conditions, and payments fit together" is worth 1000 words of docs
 
 ---
 
@@ -60,25 +60,19 @@
     │  Step 3:      │
     │  Editor UI    │
     │  (palette,    │
-    │   canvas,     │
+    │   page tabs,  │
     │   config)     │
     └───────┬───────┘
             │ next
             ▼
     ┌───────────────┐
     │  Step 4:      │
-    │  Node Types   │
+    │  Conditions   │
     └───────┬───────┘
             │ next
             ▼
     ┌───────────────┐
     │  Step 5:      │
-    │  Variables    │
-    └───────┬───────┘
-            │ next
-            ▼
-    ┌───────────────┐
-    │  Step 6:      │
     │  Payments     │
     └───────┬───────┘
             │ next
@@ -126,48 +120,38 @@
 | Field | Content |
 |---|---|
 | **Title** | The Editor — where forms come to life |
-| **Description** | **Left palette** → drag fields onto the canvas. **Center canvas** → your flow graph. **Right panel** → configure the selected node. Toggle between Canvas view and List view. |
-| **Media** | `public/onboarding/03-editor.gif` — dragging a field, opening config |
+| **Description** | **Left palette** → add fields. **Top tabs** → organize the form into pages. **Center page** → arrange fields. **Right panel** → configure fields, conditions, payments, and the final page. |
+| **Media** | `public/onboarding/03-editor.gif` — adding a field, opening config |
 | **Spotlight** | The editor page layout |
 | **Actions** | Back · Next · Skip |
 
-### Step 4 — Node Types (Flow Builder)
+### Step 4 — Conditions
 
 | Field | Content |
 |---|---|
-| **Title** | Node types — your building blocks |
-| **Description** | 8 node types: Start, Form Field, Field Group, Decision (branching), Calculator (math), Payment, Summary (receipt), Redirect. Connect them to build multi-step experiences. |
-| **Media** | `public/onboarding/04-node-types.gif` — showing a completed flow graph |
-| **Spotlight** | The canvas / palette area |
+| **Title** | Conditions — show the right questions |
+| **Description** | Add simple show/hide rules to a field, such as showing dietary notes only when a respondent chooses a vegetarian meal. |
+| **Media** | `public/onboarding/04-conditions.gif` — adding a show/hide condition to a field |
+| **Spotlight** | The field settings panel |
 | **Actions** | Back · Next · Skip |
 
-### Step 5 — Variables
-
-| Field | Content |
-|---|---|
-| **Title** | Variables — the data backbone |
-| **Description** | Every answer, computed result, and payment amount flows through variables. Declare them with a type (string, number, money, date, etc.) and use `{{variable}}` placeholders in calculators and summary templates. |
-| **Media** | `public/onboarding/05-variables.gif` — adding a variable, seeing it in an expression |
-| **Spotlight** | The Variables panel |
-| **Actions** | Back · Next · Skip |
-
-### Step 6 — Payments
+### Step 5 — Payments
 
 | Field | Content |
 |---|---|
 | **Title** | Accept payments |
-| **Description** | Connect PayPal or Xendit in Settings. Add a Payment node to any flow. Amounts read from variables. Redirect → pay → verified → done. |
-| **Media** | `public/onboarding/06-payments.gif` — payment step flow |
-| **Spotlight** | A payment node on the canvas |
+| **Description** | Connect PayPal or Xendit in Settings. Mark a page as a payment page, choose an amount field, and publish. |
+| **Media** | `public/onboarding/05-payments.gif` — page payment settings and respondent checkout |
+| **Spotlight** | The page payment settings |
 | **Actions** | Back · Next · Skip |
 
-### Step 7 — Preview & Publish
+### Step 6 — Preview & Publish
 
 | Field | Content |
 |---|---|
 | **Title** | Preview, then publish |
-| **Description** | Click the Preview button to step through your flow as a respondent would. When it looks right, publish your form — respondents get a shareable link or embed code. |
-| **Media** | `public/onboarding/07-publish.gif` — preview + publish toggle |
+| **Description** | Click Preview to step through your pages as a respondent would. When it looks right, publish your form — respondents get a shareable link or embed code. |
+| **Media** | `public/onboarding/06-publish.gif` — preview + publish toggle |
 | **Spotlight** | The toolbar (Preview button) |
 | **Actions** | Back · Finish tour |
 

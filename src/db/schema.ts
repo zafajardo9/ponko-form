@@ -25,6 +25,9 @@ export const fieldTypeEnum = pgEnum('field_type', [
   'date',
   'time',
   'datetime',
+  'content',
+  'media',
+  'address',
 ])
 export const paymentStatusEnum = pgEnum('payment_status', [
   'pending',
@@ -111,13 +114,111 @@ export const formFields = pgTable(
       .references(() => forms.id, { onDelete: 'cascade' }),
     type: fieldTypeEnum('type').notNull(),
     label: varchar('label', { length: 255 }).notNull(),
-    placeholder: varchar('placeholder', { length: 255 }),
+    placeholder: text('placeholder'),
     required: boolean('required').default(false).notNull(),
-    options: jsonb('options').$type<{ label: string; value: string }[]>(),
+    options: jsonb('options').$type<{ label: string; value: string; price?: number | null }[]>(),
     order: integer('order').notNull().default(0),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [index('form_fields_form_id_order_idx').on(table.formId, table.order)],
+)
+
+// ── Page Builder (FT-007) ──
+
+export const formPages = pgTable(
+  'form_pages',
+  {
+    id: serial().primaryKey(),
+    formId: integer('form_id')
+      .notNull()
+      .references(() => forms.id, { onDelete: 'cascade' }),
+    title: varchar('title', { length: 255 }).notNull(),
+    description: text('description'),
+    position: integer('position').notNull().default(0),
+    isFinal: boolean('is_final').notNull().default(false),
+    finalTemplate: text('final_template'),
+    finalRedirectUrl: varchar('final_redirect_url', { length: 500 }),
+    hasPayment: boolean('has_payment').notNull().default(false),
+    paymentGatewayId: integer('payment_gateway_id').references(() => paymentGateways.id),
+    paymentAmountVariable: varchar('payment_amount_variable', { length: 100 }),
+    paymentCurrency: varchar('payment_currency', { length: 3 }).notNull().default('USD'),
+    paymentComputation: jsonb('payment_computation').$type<{
+      mode: 'field' | 'sum_priced_options' | 'sum_number_fields' | 'fixed'
+      fieldBindings?: string[]
+      fixedAmount?: number | null
+    }>(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [index('form_pages_form_id_position_idx').on(table.formId, table.position)],
+)
+
+export const formPageFields = pgTable(
+  'form_page_fields',
+  {
+    id: serial().primaryKey(),
+    pageId: integer('page_id')
+      .notNull()
+      .references(() => formPages.id, { onDelete: 'cascade' }),
+    fieldType: fieldTypeEnum('field_type').notNull(),
+    label: varchar('label', { length: 255 }).notNull(),
+    placeholder: varchar('placeholder', { length: 255 }),
+    required: boolean('required').notNull().default(false),
+    options: jsonb('options').$type<{ label: string; value: string; price?: number | null }[]>(),
+    bindVariable: varchar('bind_variable', { length: 100 }).notNull(),
+    position: integer('position').notNull().default(0),
+    width: varchar('width', { length: 20 })
+      .notNull()
+      .default('full')
+      .$type<'full' | 'half'>(),
+    validationRules: jsonb('validation_rules').$type<{
+      allowedCharacters?: 'any' | 'letters' | 'numbers' | 'alphanumeric' | 'custom'
+      customPattern?: string | null
+      minLength?: number | null
+      maxLength?: number | null
+      minValue?: number | null
+      maxValue?: number | null
+      message?: string | null
+      optionPricesEnabled?: boolean | null
+      addressRequired?: {
+        currentAddress?: boolean
+        apartment?: boolean
+        city?: boolean
+        stateProvince?: boolean
+        zipPostalCode?: boolean
+        country?: boolean
+      } | null
+    }>(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [index('form_page_fields_page_id_position_idx').on(table.pageId, table.position)],
+)
+
+export const fieldConditions = pgTable(
+  'field_conditions',
+  {
+    id: serial().primaryKey(),
+    fieldId: integer('field_id')
+      .notNull()
+      .references(() => formPageFields.id, { onDelete: 'cascade' }),
+    sourceFieldBinding: varchar('source_field_binding', { length: 100 }).notNull(),
+    operator: varchar('operator', { length: 20 })
+      .notNull()
+      .$type<
+        | 'equals'
+        | 'not_equals'
+        | 'contains'
+        | 'greater_than'
+        | 'less_than'
+        | 'is_empty'
+        | 'is_not_empty'
+      >(),
+    value: text('value'),
+    action: varchar('action', { length: 20 }).notNull().default('show').$type<'show' | 'hide'>(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [index('field_conditions_field_id_idx').on(table.fieldId)],
 )
 
 export const formSubmissions = pgTable(
@@ -132,6 +233,30 @@ export const formSubmissions = pgTable(
     submittedAt: timestamp('submitted_at').defaultNow().notNull(),
   },
   (table) => [index('form_submissions_form_id_idx').on(table.formId)],
+)
+
+export const formSubmissionSessions = pgTable(
+  'form_submission_sessions',
+  {
+    id: serial().primaryKey(),
+    formId: integer('form_id')
+      .notNull()
+      .references(() => forms.id, { onDelete: 'cascade' }),
+    formSubmissionId: integer('form_submission_id').references(
+      () => formSubmissions.id,
+      { onDelete: 'set null' },
+    ),
+    currentPageIndex: integer('current_page_index').notNull().default(0),
+    collectedData: jsonb('collected_data').$type<Record<string, unknown>>().notNull().default({}),
+    status: varchar('status', { length: 20 })
+      .notNull()
+      .default('in_progress')
+      .$type<'in_progress' | 'payment_pending' | 'payment_failed' | 'completed' | 'cancelled'>(),
+    completedAt: timestamp('completed_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [index('form_submission_sessions_form_id_idx').on(table.formId)],
 )
 
 export const paymentGateways = pgTable('payment_gateways', {

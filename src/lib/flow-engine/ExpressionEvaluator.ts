@@ -41,7 +41,8 @@ export class ExpressionEvaluator {
     this.math.config({
       number: 'number',
       precision: 64,
-      epsilon: 1e-12,
+      relTol: 1e-12,
+      absTol: 1e-12,
     })
   }
 

@@ -32,7 +32,7 @@ function NewFormPage() {
           description: description.trim() || undefined,
         },
       });
-      // The unified editor builds the flow (Start → Summary) on first open.
+      // New forms open in the page builder with Page 1 and a final thank-you page.
       navigate({ to: "/forms/$formId/edit", params: { formId: String(form.id) } });
     } catch {
       setError("Failed to create form. Please try again.");
@@ -45,7 +45,7 @@ function NewFormPage() {
       <div className="mb-10">
         <h1 className="text-3xl font-medium text-[#141413]">Create a new form</h1>
         <p className="mt-2 text-[#6c6a64]">
-          Give your form a name — you'll add fields and logic in the editor.
+          Give your form a name, then add pages and fields in the editor.
         </p>
       </div>
 

@@ -19,6 +19,7 @@ import {
 import { requireAuth } from "../../../lib/server-fns/auth";
 import { getForms, updateForm } from "../../../lib/server-fns/forms";
 import { getFlow, ensureFlow } from "../../../lib/server-fns/flows";
+import { ensurePageForm, getPageForm } from "../../../lib/server-fns/page-forms";
 import {
   addFlowNode,
   updateFlowNode,
@@ -47,6 +48,8 @@ import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { PreviewDialog } from "../../../components/ui/PreviewDialog";
 import { FlowPreviewModal } from "../../../components/ui/FlowPreviewModal";
+import { PageBuilderWorkspace } from "../../../components/page-builder/PageBuilderWorkspace";
+import { PageFormView } from "../../../components/page-form/PageFormView";
 import { ShareDialog } from "../../../components/dashboard/ShareDialog";
 import { SettingsDialog } from "../../../components/flow-builder/SettingsDialog";
 import { themeVars, type FormTheme } from "../../../lib/theme";
@@ -109,9 +112,25 @@ function UnifiedEditorPage() {
   const form = (allForms as any[]).find((f: any) => f.id === Number(formId));
   const isPublished = form?.status === "published";
 
-  const { data: flowData, isLoading } = useQuery({
+  const {
+    data: flowData,
+    isLoading,
+    isError: flowError,
+    error: flowQueryError,
+  } = useQuery({
     queryKey: ["flow", formId],
     queryFn: () => getFlow({ data: { formId: Number(formId) } }),
+    enabled: !!formId,
+  });
+
+  const {
+    data: pageForm,
+    isLoading: pageLoading,
+    isError: pageError,
+    error: pageQueryError,
+  } = useQuery({
+    queryKey: ["page-form", formId],
+    queryFn: () => getPageForm({ data: { formId: Number(formId) } }),
     enabled: !!formId,
   });
 
@@ -122,7 +141,10 @@ function UnifiedEditorPage() {
 
   const flowId = flowData?.flow.id ?? null;
   const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ["flow", formId] });
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["flow", formId] }),
+      queryClient.invalidateQueries({ queryKey: ["page-form", formId] }),
+    ]);
 
   // ── Optimistic updates ──
   // Mutating the cached flow in `onMutate` makes the List/Canvas reflect a
@@ -189,12 +211,18 @@ function UnifiedEditorPage() {
     mutationFn: () => ensureFlow({ data: { formId: Number(formId) } }),
     onSuccess: invalidate,
   });
+  const ensurePageMutation = useMutation({
+    mutationFn: () => ensurePageForm({ data: { formId: Number(formId) } }),
+    onSuccess: invalidate,
+  });
   useEffect(() => {
-    if (!isLoading && flowData === null && !ensuredRef.current) {
+    if (pageLoading || isLoading || ensuredRef.current) return;
+    if (pageForm) return;
+    if (flowData === null) {
       ensuredRef.current = true;
-      ensureMutation.mutate();
+      ensurePageMutation.mutate();
     }
-  }, [isLoading, flowData, ensureMutation]);
+  }, [pageLoading, isLoading, pageForm, flowData, ensurePageMutation]);
 
   // Validate the current flow whenever its definition changes.
   const validation = useMemo(() => {
@@ -578,7 +606,29 @@ function UnifiedEditorPage() {
   const selectedNode =
     flowData?.nodes.find((n) => String(n.id) === selectedNodeId) ?? null;
 
-  const loading = isLoading || flowData === null || ensureMutation.isPending;
+  const hasPageBuilder = !!pageForm?.pages.length;
+  const pageSetupStalled =
+    !pageLoading &&
+    !isLoading &&
+    !pageForm &&
+    flowData === null &&
+    ensuredRef.current &&
+    ensurePageMutation.isSuccess &&
+    !ensurePageMutation.isPending;
+  const setupError =
+    (pageError ? pageQueryError : null) ||
+    (flowError ? flowQueryError : null) ||
+    ensurePageMutation.error ||
+    ensureMutation.error ||
+    (pageSetupStalled
+      ? new Error("The page builder was created, but the editor could not reload it.")
+      : null);
+  const loading =
+    !setupError &&
+    (pageLoading ||
+      (hasPageBuilder
+        ? ensurePageMutation.isPending
+        : isLoading || flowData === null || ensureMutation.isPending));
 
   return (
     <div className="flex h-[calc(100dvh-64px)] min-h-0 flex-col overflow-hidden">
@@ -668,7 +718,7 @@ function UnifiedEditorPage() {
       </div>
 
       {/* Dialogs */}
-      {previewOpen && flowData && (
+      {previewOpen && (pageForm || flowData) && (
         <PreviewDialog
           title={form?.title ?? "Form"}
           onClose={() => setPreviewOpen(false)}
@@ -677,11 +727,21 @@ function UnifiedEditorPage() {
             style={themeVars((form?.theme as FormTheme | null) ?? null)}
             className="rounded-lg bg-[var(--ponko-bg,#faf9f5)] p-4 sm:p-6"
           >
-            <FlowPreviewModal
-              nodes={flowData.nodes}
-              edges={flowData.edges}
-              variables={flowData.variables}
-            />
+            {pageForm ? (
+              <PageFormView
+                title={form?.title ?? "Form"}
+                description={form?.description}
+                pages={pageForm.pages}
+                theme={(form?.theme as FormTheme | null) ?? null}
+                preview
+              />
+            ) : flowData ? (
+              <FlowPreviewModal
+                nodes={flowData.nodes}
+                edges={flowData.edges}
+                variables={flowData.variables}
+              />
+            ) : null}
           </div>
         </PreviewDialog>
       )}
@@ -734,10 +794,43 @@ function UnifiedEditorPage() {
       )}
 
       {/* Body */}
-      {loading ? (
+      {setupError ? (
+        <div className="flex flex-1 items-center justify-center bg-[#f5f0e8] p-6">
+          <div className="max-w-xl rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-6 shadow-sm">
+            <p className="text-sm font-medium text-[#c64545]">Editor setup failed</p>
+            <h2 className="mt-2 text-xl font-medium text-[#141413]">
+              This form could not finish preparing.
+            </h2>
+            <p className="mt-2 text-sm text-[#6c6a64]">
+              {(setupError as Error)?.message ??
+                "Check your database migration and Clerk session, then refresh this page."}
+            </p>
+            <Button
+              type="button"
+              className="mt-5"
+              onClick={() => {
+                ensuredRef.current = false;
+                queryClient.invalidateQueries({ queryKey: ["page-form", formId] });
+                queryClient.invalidateQueries({ queryKey: ["flow", formId] });
+              }}
+            >
+              Retry
+            </Button>
+          </div>
+        </div>
+      ) : loading ? (
         <div className="flex flex-1 items-center justify-center text-sm text-[#8e8b82]">
           Preparing editor…
         </div>
+      ) : hasPageBuilder && pageForm ? (
+        <PageBuilderWorkspace
+          formId={Number(formId)}
+          pages={pageForm.pages}
+          gateways={gateways as { id: number; name: string }[]}
+          onChanged={() => {
+            queryClient.invalidateQueries({ queryKey: ["page-form", formId] });
+          }}
+        />
       ) : (
         <div className="flex flex-1 flex-col overflow-y-auto lg:min-h-0 lg:flex-row lg:overflow-hidden">
           {/* Left: unified palette */}

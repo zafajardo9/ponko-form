@@ -1,18 +1,57 @@
+export interface AddressValue {
+  currentAddress?: string
+  apartment?: string
+  country?: string
+  city?: string
+  stateProvince?: string
+  zipPostalCode?: string
+}
+
+export type FieldValue = string | string[] | AddressValue
+
+export interface FieldOption {
+  label: string
+  value: string
+  price?: number | null
+}
+
 export interface FieldConfig {
   id: number
-  type: 'text' | 'email' | 'number' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'payment' | 'date' | 'time' | 'datetime'
+  type: 'text' | 'email' | 'number' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'payment' | 'date' | 'time' | 'datetime' | 'content' | 'media' | 'address'
   label: string
   placeholder?: string | null
   required: boolean
-  options?: { label: string; value: string }[] | null | undefined
+  options?: FieldOption[] | null | undefined
 }
 
 interface FieldRendererProps {
   field: FieldConfig
-  value: string | string[]
-  onChange: (value: string | string[]) => void
+  value: FieldValue
+  onChange: (value: FieldValue) => void
   error?: string
   readOnly?: boolean
+}
+
+function sanitizeRichTextHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
+    .replace(/\son\w+="[^"]*"/gi, '')
+    .replace(/\son\w+='[^']*'/gi, '')
+    .replace(/\shref=["']javascript:[^"']*["']/gi, '')
+    .replace(/\ssrc=["']javascript:[^"']*["']/gi, '')
+}
+
+export function richTextHtml(value: string | null | undefined): string {
+  if (!value) return ''
+  const htmlLike = /<\/?[a-z][\s\S]*>/i.test(value)
+  const html = htmlLike
+    ? value
+    : value
+        .split('\n')
+        .map((line) => `<p>${line}</p>`)
+        .join('')
+  return sanitizeRichTextHtml(html)
 }
 
 export function FieldRenderer({ field, value, onChange, error, readOnly }: FieldRendererProps) {
@@ -21,11 +60,61 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
 
   const errorClass = error ? 'border-[#c64545] focus:border-[#c64545] focus:ring-[#c64545]/20' : ''
 
-  const strValue = Array.isArray(value) ? value[0] ?? '' : value
+  const strValue = Array.isArray(value)
+    ? value[0] ?? ''
+    : value && typeof value === 'object'
+      ? ''
+      : value
   const arrValue = Array.isArray(value) ? value : []
+  const addressValue =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? { country: 'Philippines', ...value }
+      : { country: 'Philippines' }
 
   const options =
-    (field.options as { label: string; value: string }[] | null | undefined) ?? []
+    (field.options as FieldOption[] | null | undefined) ?? []
+  const mediaType = options.find((option) => option.label === 'type')?.value ?? 'image'
+  const caption = options.find((option) => option.label === 'caption')?.value ?? ''
+
+  if (field.type === 'content') {
+    const html = richTextHtml(field.placeholder)
+    return (
+      <div className="rounded-[var(--ponko-radius,6px)] border border-[#e6dfd8] bg-[#faf9f5] p-4">
+        {html && (
+          <div
+            className="rich-text-content text-sm leading-6 text-[#6c6a64]"
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  if (field.type === 'media') {
+    return (
+      <figure className="overflow-hidden rounded-[var(--ponko-radius,6px)] border border-[#e6dfd8] bg-[#faf9f5]">
+        {field.label && <figcaption className="border-b border-[#e6dfd8] px-4 py-3 text-sm font-medium text-[#141413]">{field.label}</figcaption>}
+        {field.placeholder ? (
+          mediaType === 'video' ? (
+            <video src={field.placeholder} controls className="max-h-[420px] w-full bg-black" />
+          ) : mediaType === 'embed' ? (
+            <iframe
+              src={field.placeholder}
+              title={field.label || 'Embedded media'}
+              className="h-72 w-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          ) : (
+            <img src={field.placeholder} alt={caption || field.label} className="max-h-[520px] w-full object-contain" />
+          )
+        ) : (
+          <div className="flex h-36 items-center justify-center text-sm text-[#8e8b82]">No media URL set.</div>
+        )}
+        {caption && <figcaption className="px-4 py-3 text-sm text-[#6c6a64]">{caption}</figcaption>}
+      </figure>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -164,6 +253,71 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
           disabled={readOnly}
           className={`${inputBase} ${errorClass} h-10`}
         />
+      )}
+
+      {field.type === 'address' && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="flex flex-col gap-1.5 sm:col-span-2">
+            <span className="text-xs font-medium text-[#6c6a64]">Current Address</span>
+            <input
+              type="text"
+              value={addressValue.currentAddress ?? ''}
+              onChange={(e) => onChange({ ...addressValue, currentAddress: e.target.value })}
+              disabled={readOnly}
+              className={`${inputBase} ${errorClass} h-10`}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-[#6c6a64]">Apartment</span>
+            <input
+              type="text"
+              value={addressValue.apartment ?? ''}
+              onChange={(e) => onChange({ ...addressValue, apartment: e.target.value })}
+              disabled={readOnly}
+              className={`${inputBase} ${errorClass} h-10`}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-[#6c6a64]">City</span>
+            <input
+              type="text"
+              value={addressValue.city ?? ''}
+              onChange={(e) => onChange({ ...addressValue, city: e.target.value })}
+              disabled={readOnly}
+              className={`${inputBase} ${errorClass} h-10`}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-[#6c6a64]">State/Province</span>
+            <input
+              type="text"
+              value={addressValue.stateProvince ?? ''}
+              onChange={(e) => onChange({ ...addressValue, stateProvince: e.target.value })}
+              disabled={readOnly}
+              className={`${inputBase} ${errorClass} h-10`}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-[#6c6a64]">ZIP/Postal Code</span>
+            <input
+              type="text"
+              value={addressValue.zipPostalCode ?? ''}
+              onChange={(e) => onChange({ ...addressValue, zipPostalCode: e.target.value })}
+              disabled={readOnly}
+              className={`${inputBase} ${errorClass} h-10`}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-[#6c6a64]">Country</span>
+            <input
+              type="text"
+              value={addressValue.country ?? 'Philippines'}
+              onChange={(e) => onChange({ ...addressValue, country: e.target.value })}
+              disabled={readOnly}
+              className={`${inputBase} ${errorClass} h-10`}
+            />
+          </label>
+        </div>
       )}
 
       {error && <p className="text-xs text-[#c64545]">{error}</p>}

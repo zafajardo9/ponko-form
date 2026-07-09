@@ -1,0 +1,1 @@
+ALTER TABLE "form_page_fields" ADD COLUMN "validation_rules" jsonb;

@@ -1,19 +1,20 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useEffect, useState, useCallback } from "react";
 import { requireAuth } from "../../../lib/server-fns/auth";
-import { getSubmissions } from "../../../lib/server-fns/submissions";
+import {
+  getSubmissions,
+  exportSubmissionsCsv,
+} from "../../../lib/server-fns/submissions";
+import type { ResponseColumn } from "../../../lib/server-fns/submissions";
 import { Badge } from "../../../components/ui/Badge";
+import { DataTable } from "../../../components/ui/DataTable";
+import type { DataTableColumn } from "../../../components/ui/DataTableTypes";
 
 export const Route = createFileRoute("/forms/$formId/submissions")({
   beforeLoad: () => requireAuth(),
   component: SubmissionsPage,
 });
-
-interface Column {
-  key: string;
-  label: string;
-}
 
 interface PaymentInfo {
   status: string;
@@ -21,28 +22,171 @@ interface PaymentInfo {
   currency: string;
 }
 
+interface SubmissionRow {
+  id: number;
+  formId: number;
+  formData: Record<string, unknown>;
+  submittedAt: string;
+  status: string;
+  payment?: PaymentInfo;
+}
+
 function SubmissionsPage() {
   const { formId } = Route.useParams();
   const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState<{ sub: any; number: number } | null>(
-    null,
-  );
+  const [sortKey, setSortKey] = useState<string>("submitted_at");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [filters, setFilters] = useState<Record<string, unknown>>({});
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<{
+    sub: any;
+    number: number;
+  } | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["submissions", formId, page],
-    queryFn: () => getSubmissions({ data: { formId: Number(formId), page } }),
+    queryKey: ["submissions", formId, page, sortKey, sortDir, filters, search],
+    queryFn: () =>
+      getSubmissions({
+        data: {
+          formId: Number(formId),
+          page,
+          sortKey,
+          sortDir,
+          filters,
+          search: search || undefined,
+        },
+      }),
   });
 
   const submissions = data?.submissions ?? [];
-  const columns = (data?.columns ?? []) as Column[];
+  const columns = (data?.columns ?? []) as ResponseColumn[];
   const form = data?.form;
   const paymentMap = (data?.paymentMap ?? {}) as Record<string, PaymentInfo>;
-  const previewColumns = columns.slice(0, 3);
+  const totalCount = data?.totalCount ?? 0;
 
   const hasPaymentData = Object.keys(paymentMap).length > 0;
 
+  // Build enriched rows
+  const rows: SubmissionRow[] = submissions.map((sub: any) => ({
+    id: sub.id,
+    formId: sub.formId,
+    formData: sub.formData as Record<string, unknown>,
+    submittedAt: sub.submittedAt,
+    status: sub.status,
+    payment: paymentMap[String(sub.id)] as PaymentInfo | undefined,
+  }));
+
+  // Build column definitions
+  const submissionColumns: DataTableColumn<SubmissionRow>[] = [
+    {
+      key: "number",
+      header: "#",
+      accessor: (_row, idx) => (page - 1) * 50 + idx + 1,
+      sortable: false,
+      width: "60px",
+      hideable: false,
+    },
+    {
+      key: "submittedAt",
+      header: "Submitted",
+      accessor: (row) =>
+        row.submittedAt ? new Date(row.submittedAt).toLocaleString() : "—",
+      sortable: true,
+      sortKey: "submitted_at",
+      filterable: true,
+      filterType: "date-range",
+      width: "170px",
+    },
+    ...columns.map(
+      (col): DataTableColumn<SubmissionRow> => ({
+        key: col.key,
+        header: col.label,
+        accessor: (row) => formatValue(row.formData[col.key]),
+        sortable: true,
+        sortKey: col.key,
+        filterable: true,
+        filterType: "text",
+        hideable: true,
+        defaultHidden: false,
+        width: "minmax(120px, 1fr)",
+      }),
+    ),
+    ...(hasPaymentData
+      ? [
+          {
+            key: "payment",
+            header: "Payment",
+            accessor: (row: SubmissionRow) =>
+              row.payment ? (
+                <PaymentBadge status={row.payment.status} />
+              ) : (
+                <span className="text-xs text-[#8e8b82]">—</span>
+              ),
+            sortable: true,
+            sortKey: "payment_status",
+            filterable: true,
+            filterType: "select" as const,
+            filterOptions: [
+              { label: "Paid", value: "completed" },
+              { label: "Pending", value: "pending" },
+              { label: "Failed", value: "failed" },
+              { label: "None", value: "none" },
+            ],
+            width: "100px",
+          } satisfies DataTableColumn<SubmissionRow>,
+        ]
+      : []),
+  ];
+
+  // Sort change handler
+  const handleSortChange = useCallback(
+    (key: string, direction: "asc" | "desc") => {
+      setSortKey(key);
+      setSortDir(direction);
+      setPage(1);
+    },
+    [],
+  );
+
+  // Filter change handler
+  const handleFilterChange = useCallback(
+    (newFilters: Record<string, unknown>) => {
+      setFilters(newFilters);
+      setPage(1);
+    },
+    [],
+  );
+
+  // CSV export
+  const exportMutation = useMutation({
+    mutationFn: async () => {
+      const csv = await exportSubmissionsCsv({
+        data: {
+          formId: Number(formId),
+          filters,
+          sortKey,
+          sortDir,
+          search: search || undefined,
+        },
+      });
+      return csv;
+    },
+    onSuccess: (csv: string) => {
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${form?.title ?? "form"}_submissions.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    },
+  });
+
   return (
-    <div className="mx-auto max-w-5xl px-6 py-12">
+    <div className="mx-auto max-w-6xl px-6 py-12">
+      {/* Header */}
       <div className="mb-8 flex items-center justify-between">
         <div>
           <div className="mb-1 flex items-center gap-2 text-sm text-[#6c6a64]">
@@ -62,9 +206,9 @@ function SubmissionsPage() {
           </div>
           <h1 className="text-2xl font-medium text-[#141413]">
             Responses
-            {submissions.length > 0 && (
+            {totalCount > 0 && (
               <span className="ml-2 text-base text-[#6c6a64]">
-                ({submissions.length})
+                ({totalCount})
               </span>
             )}
           </h1>
@@ -87,111 +231,35 @@ function SubmissionsPage() {
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="h-14 animate-pulse rounded-xl bg-[#efe9de]"
-            />
-          ))}
-        </div>
-      ) : submissions.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[#e6dfd8] py-24 text-center">
-          <p className="text-[#8e8b82]">No responses yet.</p>
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-xl border border-[#e6dfd8]">
-          <table className="w-full text-sm">
-            <thead className="border-b border-[#e6dfd8] bg-[#f5f0e8]">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-[#6c6a64]">
-                  #
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[#6c6a64]">
-                  Submitted
-                </th>
-                {previewColumns.map((c) => (
-                  <th
-                    key={c.key}
-                    className="px-4 py-3 text-left font-medium text-[#6c6a64]"
-                  >
-                    {c.label}
-                  </th>
-                ))}
-                {hasPaymentData && (
-                  <th className="px-4 py-3 text-left font-medium text-[#6c6a64]">
-                    Payment
-                  </th>
-                )}
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#e6dfd8] bg-[#faf9f5]">
-              {submissions.map((sub: any, i: number) => {
-                const number = (page - 1) * 50 + i + 1;
-                const formData = sub.formData as Record<string, unknown>;
-                const payment = paymentMap[String(sub.id)] as
-                  | PaymentInfo
-                  | undefined;
+      {/* DataTable */}
+      <DataTable
+        columns={submissionColumns}
+        data={rows}
+        keyField="id"
+        totalCount={totalCount}
+        page={page}
+        pageSize={50}
+        onPageChange={setPage}
+        onSortChange={handleSortChange}
+        onFilterChange={handleFilterChange}
+        loading={isLoading || exportMutation.isPending}
+        emptyMessage="No responses yet."
+        onRowClick={(row) => {
+          const idx = rows.indexOf(row);
+          setSelected({
+            sub: submissions[idx],
+            number: (page - 1) * 50 + idx + 1,
+          });
+        }}
+        onExportCsv={() => exportMutation.mutate()}
+        searchValue={search}
+        onSearchChange={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
+      />
 
-                return (
-                  <tr
-                    key={sub.id}
-                    className="cursor-pointer transition-colors hover:bg-[#f5f0e8]"
-                    onClick={() => setSelected({ sub, number })}
-                  >
-                    <td className="px-4 py-3 text-[#8e8b82]">{number}</td>
-                    <td className="px-4 py-3 text-[#6c6a64]">
-                      {new Date(sub.submittedAt).toLocaleString()}
-                    </td>
-                    {previewColumns.map((c) => (
-                      <td
-                        key={c.key}
-                        className="max-w-[200px] truncate px-4 py-3 text-[#141413]"
-                      >
-                        {formatValue(formData[c.key])}
-                      </td>
-                    ))}
-                    {hasPaymentData && (
-                      <td className="px-4 py-3">
-                        {payment ? (
-                          <PaymentBadge status={payment.status} />
-                        ) : (
-                          <span className="text-xs text-[#8e8b82]">—</span>
-                        )}
-                      </td>
-                    )}
-                    <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-[#cc785c]">
-                      View →
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-
-          {submissions.length === 50 && (
-            <div className="flex justify-center gap-3 border-t border-[#e6dfd8] py-3">
-              <button
-                disabled={page === 1}
-                onClick={() => setPage((p) => p - 1)}
-                className="text-sm text-[#cc785c] disabled:opacity-40 hover:text-[#a9583e]"
-              >
-                ← Previous
-              </button>
-              <span className="text-sm text-[#6c6a64]">Page {page}</span>
-              <button
-                onClick={() => setPage((p) => p + 1)}
-                className="text-sm text-[#cc785c] hover:text-[#a9583e]"
-              >
-                Next →
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
+      {/* Response Dialog */}
       {selected && (
         <ResponseDialog
           number={selected.number}
@@ -231,11 +299,10 @@ function ResponseDialog({
 }: {
   number: number;
   submission: any;
-  columns: Column[];
+  columns: ResponseColumn[];
   payment?: PaymentInfo;
   onClose: () => void;
 }) {
-  // Close on Escape.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -298,7 +365,6 @@ function ResponseDialog({
             </dl>
           )}
 
-          {/* Payment info section */}
           {payment && (
             <div className="mt-5 rounded-lg border border-[#e6dfd8] bg-white p-4">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8e8b82]">
@@ -333,7 +399,6 @@ function ResponseDialog({
   );
 }
 
-/** Render a stored answer value for display (joins multi-select arrays). */
 function formatValue(value: unknown): string {
   if (value === undefined || value === null || value === "") return "—";
   if (Array.isArray(value)) return value.length ? value.join(", ") : "—";

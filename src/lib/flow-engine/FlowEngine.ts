@@ -36,11 +36,11 @@ export interface FlowStep {
  */
 export interface StepInput {
   /** For FormField: the field value */
-  formValue?: string | string[]
+  formValue?: unknown
   /** For Decision: the selected branch value */
   decisionValue?: string
   /** For Group: collected values keyed by each grouped field's id */
-  groupValues?: Record<string, string | string[]>
+  groupValues?: Record<string, unknown>
   /** For Payment: the payment result */
   paymentResult?: { success: boolean; gatewayPaymentId?: string }
 }

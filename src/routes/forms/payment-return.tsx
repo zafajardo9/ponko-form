@@ -2,7 +2,9 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { finalizePayment } from '../../lib/server-fns/payments'
+import { finalizePagePayment } from '../../lib/server-fns/page-forms'
 import { FlowExecutionContainer } from '../../components/flow-execution/FlowExecutionContainer'
+import { PageFormView } from '../../components/page-form/PageFormView'
 import { Button } from '../../components/ui/Button'
 
 /**
@@ -15,7 +17,8 @@ import { Button } from '../../components/ui/Button'
  */
 export const Route = createFileRoute('/forms/payment-return')({
   validateSearch: (search: Record<string, unknown>) => ({
-    executionId: Number(search.executionId),
+    executionId: search.executionId == null ? null : Number(search.executionId),
+    pageSessionId: search.pageSessionId == null ? null : Number(search.pageSessionId),
     cancelled: search.cancelled === '1' || search.cancelled === 1 || search.cancelled === true,
   }),
   component: PaymentReturnPage,
@@ -25,6 +28,7 @@ type Phase = 'verifying' | 'pending' | 'done'
 
 function PaymentReturnPage() {
   const { executionId, cancelled } = Route.useSearch()
+  const { pageSessionId } = Route.useSearch()
   const [phase, setPhase] = useState<Phase>(cancelled ? 'done' : 'verifying')
   const [result, setResult] = useState<{ success: boolean; gatewayPaymentId?: string }>({
     success: false,
@@ -32,7 +36,10 @@ function PaymentReturnPage() {
   const startedRef = useRef(false)
 
   const finalize = useMutation({
-    mutationFn: () => finalizePayment({ data: { executionId } }),
+    mutationFn: () =>
+      pageSessionId
+        ? finalizePagePayment({ data: { sessionId: pageSessionId } })
+        : finalizePayment({ data: { executionId: executionId! } }),
     onSuccess: (data) => {
       if (data.status === 'pending') {
         setPhase('pending')
@@ -57,7 +64,7 @@ function PaymentReturnPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  if (!Number.isFinite(executionId)) {
+  if (!Number.isFinite(executionId ?? pageSessionId)) {
     return (
       <div className="mx-auto max-w-xl px-6 py-24 text-center">
         <h1 className="text-2xl font-medium text-[#141413]">Invalid payment link</h1>
@@ -94,7 +101,9 @@ function PaymentReturnPage() {
   }
 
   // phase === 'done' — resume the flow with the verified outcome.
-  return (
-    <FlowExecutionContainer resume={{ executionId, paymentResult: result }} />
-  )
+  if (pageSessionId) {
+    return <PageFormView resumeSessionId={pageSessionId} />
+  }
+
+  return <FlowExecutionContainer resume={{ executionId: executionId!, paymentResult: result }} />
 }

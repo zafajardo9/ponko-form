@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FlowStep, StepInput } from '../../lib/flow-engine/FlowEngine'
 import type { GroupedField } from '../../lib/flow-engine/types'
-import { FieldRenderer, type FieldConfig } from '../form-builder/fields/FieldRenderer'
+import { FieldRenderer, type FieldConfig, type FieldOption, type FieldValue } from '../form-builder/fields/FieldRenderer'
 import { Button } from '../ui/Button'
 import { FlowProgressBar } from './FlowProgressBar'
 import { GroupStepView } from './GroupStepView'
@@ -44,7 +44,7 @@ export function FlowStepRenderer({
   onBack,
 }: FlowStepRendererProps) {
   const config = step.config as Record<string, unknown>
-  const [value, setValue] = useState<string | string[]>('')
+  const [value, setValue] = useState<FieldValue>('')
   const [error, setError] = useState<string>('')
 
   useEffect(() => {
@@ -111,11 +111,15 @@ export function FlowStepRenderer({
       label: (config.label as string) ?? step.label,
       placeholder: config.placeholder as string | undefined,
       required: Boolean(config.required),
-      options: config.options as { label: string; value: string }[] | undefined,
+      options: config.options as FieldOption[] | undefined,
     }
 
     function submit() {
-      const empty = Array.isArray(value) ? value.length === 0 : String(value).trim() === ''
+      const empty = Array.isArray(value)
+        ? value.length === 0
+        : value && typeof value === 'object'
+          ? Object.values(value).every((item) => !String(item ?? '').trim())
+          : String(value).trim() === ''
       if (field.required && empty) {
         setError('This field is required.')
         return

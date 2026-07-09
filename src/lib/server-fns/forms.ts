@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { auth } from '@clerk/tanstack-react-start/server'
 import { db } from '../../db/index'
-import { forms, profiles } from '../../db/schema'
+import { formPages, forms, profiles } from '../../db/schema'
 import { eq, desc } from 'drizzle-orm'
 import type { FormTheme } from '../theme'
 
@@ -68,6 +68,21 @@ export const createForm = createServerFn({ method: 'POST' })
       .insert(forms)
       .values({ profileId: profile.id, title: data.title, description: data.description })
       .returning()
+    await db.insert(formPages).values([
+      {
+        formId: form.id,
+        title: 'Page 1',
+        position: 0,
+        isFinal: false,
+      },
+      {
+        formId: form.id,
+        title: 'Thank You',
+        position: 1,
+        isFinal: true,
+        finalTemplate: 'Your response has been recorded.',
+      },
+    ])
     return form
   })
 

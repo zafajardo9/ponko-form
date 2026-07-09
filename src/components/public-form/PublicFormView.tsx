@@ -3,14 +3,16 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { getFields } from '../../lib/server-fns/fields'
 import { getPublicForm } from '../../lib/server-fns/forms'
 import { getFlow } from '../../lib/server-fns/flows'
+import { getPageForm } from '../../lib/server-fns/page-forms'
 import { submitFormResponse } from '../../lib/server-fns/submissions'
 import { FieldRenderer } from '../form-builder/fields/FieldRenderer'
 import { FlowExecutionContainer } from '../flow-execution/FlowExecutionContainer'
+import { PageFormView } from '../page-form/PageFormView'
 import { validateForm } from '../../lib/form-utils'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { themeVars, type FormTheme } from '../../lib/theme'
-import type { FieldConfig } from '../form-builder/fields/FieldRenderer'
+import type { FieldConfig, FieldValue } from '../form-builder/fields/FieldRenderer'
 
 interface PublicFormViewProps {
   formId: number
@@ -31,7 +33,7 @@ interface PublicFormViewProps {
  * layout, which is responsive to whatever container the iframe is placed in.
  */
 export function PublicFormView({ formId, embed = false }: PublicFormViewProps) {
-  const [values, setValues] = useState<Record<number, string | string[]>>({})
+  const [values, setValues] = useState<Record<number, FieldValue>>({})
   const [errors, setErrors] = useState<Record<number, string>>({})
   const [submitted, setSubmitted] = useState(false)
 
@@ -48,6 +50,11 @@ export function PublicFormView({ formId, embed = false }: PublicFormViewProps) {
   const { data: flow, isLoading: flowLoading } = useQuery({
     queryKey: ['flow', String(formId)],
     queryFn: () => getFlow({ data: { formId } }),
+  })
+
+  const { data: pageForm, isLoading: pagesLoading } = useQuery({
+    queryKey: ['page-form', String(formId)],
+    queryFn: () => getPageForm({ data: { formId } }),
   })
 
   const submitMutation = useMutation({
@@ -67,7 +74,7 @@ export function PublicFormView({ formId, embed = false }: PublicFormViewProps) {
   const themed = themeVars(theme)
   const outerClass = embed ? 'w-full' : 'min-h-screen bg-[var(--ponko-bg,#faf9f5)]'
 
-  if (formsLoading || fieldsLoading || flowLoading) {
+  if (formsLoading || fieldsLoading || flowLoading || pagesLoading) {
     return (
       <div className={outerClass} style={themed}>
         <div className={wrapperClass}>
@@ -90,7 +97,20 @@ export function PublicFormView({ formId, embed = false }: PublicFormViewProps) {
     )
   }
 
-  // Flow-powered forms render the step-by-step runtime instead of the linear form.
+  if (pageForm?.pages.length) {
+    return (
+      <PageFormView
+        formId={formId}
+        title={form.title}
+        description={form.description}
+        pages={pageForm.pages}
+        theme={theme}
+        embed={embed}
+      />
+    )
+  }
+
+  // Flow-powered legacy forms render the step-by-step runtime instead of the linear form.
   if (flow) {
     return (
       <FlowExecutionContainer
@@ -120,7 +140,7 @@ export function PublicFormView({ formId, embed = false }: PublicFormViewProps) {
     )
   }
 
-  function handleChange(fieldId: number, value: string | string[]) {
+  function handleChange(fieldId: number, value: FieldValue) {
     setValues((v) => ({ ...v, [fieldId]: value }))
     setErrors((e) => ({ ...e, [fieldId]: '' }))
   }
