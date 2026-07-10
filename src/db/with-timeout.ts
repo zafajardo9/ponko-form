@@ -14,6 +14,8 @@ interface DatabaseOperationContext {
   formId?: number
   sessionId?: number
   pageId?: number
+  correlationId?: string
+  phase?: string
 }
 
 function errorCategory(error: unknown) {
@@ -42,6 +44,7 @@ export async function withTimeout<T>(
       operation: label,
       elapsedMs: Date.now() - startedAt,
       category: errorCategory(error),
+      vercelRegion: process.env.VERCEL_REGION ?? process.env.VERCEL_REGION_ID ?? 'local',
       ...context,
     })
     throw error

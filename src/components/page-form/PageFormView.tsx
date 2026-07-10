@@ -53,6 +53,12 @@ function fieldConfig(field: PageField) {
   }
 }
 
+function createSessionClientToken() {
+  const generated = globalThis.crypto?.randomUUID?.().replaceAll('-', '')
+  if (generated) return generated
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`
+}
+
 export function PageFormView({
   formId,
   title = 'Form',
@@ -71,6 +77,7 @@ export function PageFormView({
   const [paidPages, setPaidPages] = useState<Record<number, boolean>>({})
   const [paymentGateMessage, setPaymentGateMessage] = useState('')
   const [completed, setCompleted] = useState(false)
+  const [sessionClientToken] = useState(createSessionClientToken)
   const startedRef = useRef(false)
   const submissionQueuedRef = useRef<Record<string, unknown> | null>(null)
   const failedSubmissionRef = useRef<Record<string, unknown> | null>(null)
@@ -107,7 +114,11 @@ export function PageFormView({
   }, [preview, resolvedTitle, resumeSessionId])
 
   const startMut = useMutation({
-    mutationFn: (id: number) => startPageSession({ data: { formId: id } }),
+    mutationFn: (id: number) => startPageSession({
+      data: { formId: id, clientToken: sessionClientToken },
+    }),
+    retry: 2,
+    retryDelay: (attempt) => Math.min(750 * 2 ** attempt, 3_000),
     onSuccess: (session) => {
       setSessionId(session.id)
       setPaymentGateMessage('')

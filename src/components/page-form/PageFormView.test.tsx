@@ -125,18 +125,23 @@ describe('PageFormView session resilience', () => {
   })
 
   it('preserves entries after failure and retries initialization', async () => {
-    serverFns.startPageSession
-      .mockRejectedValueOnce(new Error('offline'))
-      .mockResolvedValueOnce({ id: 10 })
+    serverFns.startPageSession.mockRejectedValue(new Error('offline'))
     renderPageForm()
     const input = screen.getByLabelText('Name') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'Ada' } })
 
-    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(await screen.findByRole('alert', {}, { timeout: 5_000 })).toBeTruthy()
     expect(input.value).toBe('Ada')
+    expect(serverFns.startPageSession).toHaveBeenCalledTimes(3)
+    const clientTokens = serverFns.startPageSession.mock.calls.map(
+      ([request]) => request.data.clientToken,
+    )
+    expect(new Set(clientTokens).size).toBe(1)
+
+    serverFns.startPageSession.mockResolvedValue({ id: 10 })
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
-    await waitFor(() => expect(serverFns.startPageSession).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(serverFns.startPageSession).toHaveBeenCalledTimes(4))
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
     expect(input.value).toBe('Ada')
   })

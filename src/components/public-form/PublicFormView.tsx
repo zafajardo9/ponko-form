@@ -36,12 +36,16 @@ export function PublicFormView({ publicId, embed = false }: PublicFormViewProps)
   const [values, setValues] = useState<Record<number, FieldValue>>({})
   const [errors, setErrors] = useState<Record<number, string>>({})
   const [submitted, setSubmitted] = useState(false)
+  const [loadingSlow, setLoadingSlow] = useState(false)
 
-  const { data: form, isLoading: formsLoading } = useQuery({
+  const formQuery = useQuery({
     queryKey: ['public-form', publicId],
     queryFn: () => getPublicForm({ data: { publicId } }),
     enabled: !!publicId,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(750 * 2 ** attempt, 3_000),
   })
+  const { data: form, isLoading: formsLoading } = formQuery
 
   useEffect(() => {
     if (!form?.title) return
@@ -57,23 +61,32 @@ export function PublicFormView({ publicId, embed = false }: PublicFormViewProps)
   const resolvedFormId = form?.id
   const hasResolvedFormId = typeof resolvedFormId === 'number' && Number.isFinite(resolvedFormId)
 
-  const { data: fields = [], isLoading: fieldsLoading } = useQuery({
+  const fieldsQuery = useQuery({
     queryKey: ['fields', String(resolvedFormId ?? publicId)],
     queryFn: () => getFields({ data: { formId: resolvedFormId! } }),
     enabled: hasResolvedFormId,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(750 * 2 ** attempt, 3_000),
   })
+  const { data: fields = [], isLoading: fieldsLoading } = fieldsQuery
 
-  const { data: flow, isLoading: flowLoading } = useQuery({
+  const flowQuery = useQuery({
     queryKey: ['flow', String(resolvedFormId ?? publicId)],
     queryFn: () => getFlow({ data: { formId: resolvedFormId! } }),
     enabled: hasResolvedFormId,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(750 * 2 ** attempt, 3_000),
   })
+  const { data: flow, isLoading: flowLoading } = flowQuery
 
-  const { data: pageForm, isLoading: pagesLoading } = useQuery({
+  const pageFormQuery = useQuery({
     queryKey: ['page-form', String(resolvedFormId ?? publicId)],
     queryFn: () => getPageForm({ data: { formId: resolvedFormId! } }),
     enabled: hasResolvedFormId,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(750 * 2 ** attempt, 3_000),
   })
+  const { data: pageForm, isLoading: pagesLoading } = pageFormQuery
 
   const submitMutation = useMutation({
     mutationFn: (formData: Record<string, unknown>) =>
@@ -93,7 +106,44 @@ export function PublicFormView({ publicId, embed = false }: PublicFormViewProps)
   const outerClass = embed ? 'w-full' : 'min-h-screen bg-[var(--ponko-bg,#faf9f5)]'
 
   const detailsLoading = !!form && (fieldsLoading || flowLoading || pagesLoading)
-  if (formsLoading || detailsLoading) {
+  const loading = formsLoading || detailsLoading
+  const loadError = formQuery.error ?? fieldsQuery.error ?? flowQuery.error ?? pageFormQuery.error
+
+  useEffect(() => {
+    if (!loading) {
+      setLoadingSlow(false)
+      return
+    }
+    const timer = window.setTimeout(() => setLoadingSlow(true), 3_000)
+    return () => window.clearTimeout(timer)
+  }, [loading])
+
+  function retryFailedQueries() {
+    if (formQuery.isError) void formQuery.refetch()
+    if (fieldsQuery.isError) void fieldsQuery.refetch()
+    if (flowQuery.isError) void flowQuery.refetch()
+    if (pageFormQuery.isError) void pageFormQuery.refetch()
+  }
+
+  if (loadError) {
+    return (
+      <div className={outerClass} style={themed}>
+        <div className={wrapperClass}>
+          <div className="rounded-xl border border-[#d7a84c] bg-[#fff8e7] p-6 text-[#6b4f16]" role="alert">
+            {form?.title && <h1 className="text-2xl font-medium text-[#141413]">{form.title}</h1>}
+            <p className={form?.title ? 'mt-3 text-sm' : 'text-sm font-medium'}>
+              The form could not be loaded from the server. Your connection may still be recovering.
+            </p>
+            <Button className="mt-4" type="button" variant="secondary" onClick={retryFailedQueries}>
+              Try again
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (loading) {
     return (
       <div className={outerClass} style={themed}>
         <div className={wrapperClass}>
@@ -111,7 +161,11 @@ export function PublicFormView({ publicId, embed = false }: PublicFormViewProps)
             ) : (
               <p className="text-sm font-medium text-[#141413]">Loading form…</p>
             )}
-            <p className="mt-2 text-sm text-[#6c6a64]">Please wait while we load the form.</p>
+            <p className="mt-2 text-sm text-[#6c6a64]">
+              {loadingSlow
+                ? 'The server is taking longer than expected. We’re still trying to reconnect.'
+                : 'Please wait while we load the form.'}
+            </p>
             <div className="mt-8 animate-pulse space-y-5" aria-hidden="true">
               {!form?.title && <div className="h-7 w-2/5 rounded bg-[#e6dfd8]" />}
               <div className="h-11 rounded-lg bg-[#e6dfd8]" />

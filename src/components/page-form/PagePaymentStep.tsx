@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { getPagePaymentOptions, initiatePagePayment } from '../../lib/server-fns/page-forms'
 import { Button } from '../ui/Button'
@@ -17,9 +17,13 @@ function formatMoney(amount: number, currency: string) {
 }
 
 export function PagePaymentStep({ sessionId, pageId, onPaymentStatusChange }: PagePaymentStepProps) {
+  const [loadingSlow, setLoadingSlow] = useState(false)
+  const [pendingGateway, setPendingGateway] = useState<string | null>(null)
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['page-payment-options', sessionId, pageId],
     queryFn: () => getPagePaymentOptions({ data: { sessionId, pageId } }),
+    retry: 2,
+    retryDelay: (attempt) => Math.min(750 * 2 ** attempt, 3_000),
   })
   const paid = data?.paymentStatus === 'completed'
 
@@ -27,16 +31,37 @@ export function PagePaymentStep({ sessionId, pageId, onPaymentStatusChange }: Pa
     onPaymentStatusChange?.(paid)
   }, [onPaymentStatusChange, paid])
 
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadingSlow(false)
+      return
+    }
+    const timer = window.setTimeout(() => setLoadingSlow(true), 3_000)
+    return () => window.clearTimeout(timer)
+  }, [isLoading])
+
   const initiate = useMutation({
     mutationFn: (gatewaySlug: 'paypal' | 'xendit') =>
       initiatePagePayment({ data: { sessionId, pageId, gatewaySlug } }),
+    retry: false,
+    onMutate: (gatewaySlug) => setPendingGateway(gatewaySlug),
     onSuccess: (result) => {
       window.location.href = result.paymentUrl
     },
+    onError: () => setPendingGateway(null),
   })
 
   if (isLoading) {
-    return <div className="h-24 animate-pulse rounded-lg bg-[#efe9de]" />
+    return loadingSlow ? (
+      <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-6 text-center" role="status">
+        <div className="flex items-center justify-center gap-1.5" aria-hidden="true">
+          <span className="h-2 w-2 animate-bounce rounded-full bg-[#cc785c]" />
+          <span className="h-2 w-2 animate-bounce rounded-full bg-[#cc785c] [animation-delay:150ms]" />
+          <span className="h-2 w-2 animate-bounce rounded-full bg-[#cc785c] [animation-delay:300ms]" />
+        </div>
+        <p className="mt-3 text-sm text-[#6c6a64]">The server is taking longer than expected. We’re still loading payment options.</p>
+      </div>
+    ) : <div className="h-24 animate-pulse rounded-lg bg-[#efe9de]" />
   }
 
   if (isError || !data) {
@@ -104,7 +129,11 @@ export function PagePaymentStep({ sessionId, pageId, onPaymentStatusChange }: Pa
               onClick={() => initiate.mutate(gateway.slug)}
               disabled={initiate.isPending || paid}
             >
-              {paid ? 'Paid' : `Pay with ${gateway.name}`}
+              {paid
+                ? 'Paid'
+                : initiate.isPending && pendingGateway === gateway.slug
+                  ? `Connecting to ${gateway.name}…`
+                  : `Pay with ${gateway.name}`}
             </Button>
           ))}
         </div>

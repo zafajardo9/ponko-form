@@ -6,6 +6,7 @@ import { finalizePagePayment } from '../../lib/server-fns/page-forms'
 import { FlowExecutionContainer } from '../../components/flow-execution/FlowExecutionContainer'
 import { PageFormView } from '../../components/page-form/PageFormView'
 import { Button } from '../../components/ui/Button'
+import { paymentVerificationPhase } from '../../lib/payment-verification'
 
 /**
  * Payment return route.
@@ -24,7 +25,7 @@ export const Route = createFileRoute('/forms/payment-return')({
   component: PaymentReturnPage,
 })
 
-type Phase = 'verifying' | 'pending' | 'done'
+type Phase = 'verifying' | 'pending' | 'verification_error' | 'done'
 
 function PaymentReturnPage() {
   const { executionId, cancelled } = Route.useSearch()
@@ -41,19 +42,15 @@ function PaymentReturnPage() {
         ? finalizePagePayment({ data: { sessionId: pageSessionId } })
         : finalizePayment({ data: { executionId: executionId! } }),
     onSuccess: (data) => {
-      if (data.status === 'pending') {
-        setPhase('pending')
+      const nextPhase = paymentVerificationPhase(data)
+      if (nextPhase !== 'done') {
+        setPhase(nextPhase)
         return
       }
       setResult({ success: data.success, gatewayPaymentId: data.gatewayPaymentId ?? undefined })
       setPhase('done')
     },
-    onError: () => {
-      // Treat a verification error as a failed payment so the flow can route to
-      // its failure path rather than hanging.
-      setResult({ success: false })
-      setPhase('done')
-    },
+    onError: () => setPhase(paymentVerificationPhase(undefined, true)),
   })
 
   // Kick off verification once (unless the visitor cancelled at the gateway).
@@ -93,6 +90,28 @@ function PaymentReturnPage() {
         </p>
         <div className="mt-6">
           <Button onClick={() => finalize.mutate()} disabled={finalize.isPending}>
+            {finalize.isPending ? 'Checking…' : 'Check again'}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (phase === 'verification_error') {
+    return (
+      <div className="mx-auto max-w-xl px-6 py-24 text-center" role="alert">
+        <h1 className="text-2xl font-medium text-[#141413]">We couldn’t verify the payment yet</h1>
+        <p className="mt-2 text-[#6c6a64]">
+          Your payment may still have completed. Check again before trying to pay another time.
+        </p>
+        <div className="mt-6">
+          <Button
+            onClick={() => {
+              setPhase('verifying')
+              finalize.mutate()
+            }}
+            disabled={finalize.isPending}
+          >
             {finalize.isPending ? 'Checking…' : 'Check again'}
           </Button>
         </div>

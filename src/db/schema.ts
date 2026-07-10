@@ -286,6 +286,7 @@ export const formSubmissionSessions = pgTable(
       () => formSubmissions.id,
       { onDelete: 'set null' },
     ),
+    clientToken: varchar('client_token', { length: 64 }),
     currentPageIndex: integer('current_page_index').notNull().default(0),
     collectedData: jsonb('collected_data').$type<Record<string, unknown>>().notNull().default({}),
     status: varchar('status', { length: 20 })
@@ -296,7 +297,10 @@ export const formSubmissionSessions = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
-  (table) => [index('form_submission_sessions_form_id_idx').on(table.formId)],
+  (table) => [
+    index('form_submission_sessions_form_id_idx').on(table.formId),
+    uniqueIndex('form_submission_sessions_form_id_client_token_idx').on(table.formId, table.clientToken),
+  ],
 )
 
 export const paymentGateways = pgTable('payment_gateways', {

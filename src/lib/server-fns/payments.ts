@@ -2,6 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { getRequestUrl } from '@tanstack/react-start/server'
 import { eq, desc } from 'drizzle-orm'
 import { db } from '../../db/index'
+import { withTimeout } from '../../db/with-timeout'
 import {
   flows,
   flowNodes,
@@ -116,6 +117,7 @@ function originForReturnUrls(): string {
 export const getPaymentOptions = createServerFn({ method: 'GET', strict: false })
   .inputValidator((data: { executionId: number }) => data)
   .handler(async ({ data }) => {
+    return withTimeout((async () => {
     const { execution, node, formProfileId } = await resolvePaymentContext(data.executionId)
     const config = node.config as Record<string, unknown>
     const amountVar = config.amountVariable as string | undefined
@@ -133,7 +135,11 @@ export const getPaymentOptions = createServerFn({ method: 'GET', strict: false }
       paymentRegistry.get(g.slug)?.getSupportedCurrencies().includes(currency),
     )
 
-    return { amount, currency, gateways }
+      return { amount, currency, gateways }
+    })(), 8_000, 'getPaymentOptions', {
+      correlationId: `flow-${data.executionId}`,
+      phase: 'payment-options',
+    })
   })
 
 /**
@@ -145,7 +151,14 @@ export const getPaymentOptions = createServerFn({ method: 'GET', strict: false }
 export const initiatePayment = createServerFn({ method: 'POST', strict: false })
   .inputValidator((data: { executionId: number; gatewaySlug: GatewaySlug }) => data)
   .handler(async ({ data }) => {
-    const { execution, node, formProfileId } = await resolvePaymentContext(data.executionId)
+    return withTimeout((async () => {
+    const context = { correlationId: `flow-${data.executionId}`, phase: 'payment-initiation' }
+    const { execution, node, formProfileId } = await withTimeout(
+      resolvePaymentContext(data.executionId),
+      8_000,
+      'initiatePayment.resolveContext',
+      context,
+    )
     const config = node.config as Record<string, unknown>
     const amountVar = config.amountVariable as string | undefined
     const currency = (config.currency as string) ?? 'USD'
@@ -160,7 +173,12 @@ export const initiatePayment = createServerFn({ method: 'POST', strict: false })
     const gateway = paymentRegistry.get(data.gatewaySlug)
     if (!gateway) throw new Error(`Unknown gateway: ${data.gatewaySlug}`)
 
-    const configs = await loadIntegrationConfigs(formProfileId)
+    const configs = await withTimeout(
+      loadIntegrationConfigs(formProfileId),
+      8_000,
+      'initiatePayment.loadCredentials',
+      context,
+    )
     const credentials = credentialsForSlug(data.gatewaySlug, configs)
     if (!credentials) {
       throw new Error(`The form owner has not connected ${gateway.getGatewayName()}`)
@@ -168,7 +186,7 @@ export const initiatePayment = createServerFn({ method: 'POST', strict: false })
 
     const origin = originForReturnUrls()
     const base = `${origin}/forms/payment-return?executionId=${execution.id}`
-    const result = await gateway.createPayment(
+    const result = await withTimeout(gateway.createPayment(
       {
         amount: amountMinor,
         currency,
@@ -177,28 +195,37 @@ export const initiatePayment = createServerFn({ method: 'POST', strict: false })
         cancelUrl: `${base}&cancelled=1`,
       },
       credentials,
-    )
+    ), 15_000, 'initiatePayment.gatewayCreate', context)
 
     if (!result.success || !result.paymentUrl) {
       throw new Error(result.error ?? 'Could not start the payment')
     }
 
-    const gwId = await gatewayRowId(data.gatewaySlug, gateway.getGatewayName())
-    await db.insert(payments).values({
+    const gwId = await withTimeout(
+      gatewayRowId(data.gatewaySlug, gateway.getGatewayName()),
+      8_000,
+      'initiatePayment.resolveGateway',
+      context,
+    )
+    await withTimeout(db.insert(payments).values({
       paymentGatewayId: gwId,
       flowExecutionId: execution.id,
       amount: amountMinor,
       currency,
       status: 'pending',
       gatewayPaymentId: result.gatewayPaymentId,
-    })
+    }), 8_000, 'initiatePayment.insertPayment', context)
 
-    await db
+    await withTimeout(db
       .update(flowExecutions)
       .set({ status: 'payment_pending' })
-      .where(eq(flowExecutions.id, execution.id))
+      .where(eq(flowExecutions.id, execution.id)), 8_000, 'initiatePayment.updateExecution', context)
 
-    return { paymentUrl: result.paymentUrl }
+      return { paymentUrl: result.paymentUrl }
+    })(), 25_000, 'initiatePayment', {
+      correlationId: `flow-${data.executionId}`,
+      phase: 'payment-initiation-total',
+    })
   })
 
 /**
@@ -210,6 +237,7 @@ export const initiatePayment = createServerFn({ method: 'POST', strict: false })
 export const finalizePayment = createServerFn({ method: 'POST', strict: false })
   .inputValidator((data: { executionId: number }) => data)
   .handler(async ({ data }) => {
+    return withTimeout((async () => {
     const [execution] = await db
       .select()
       .from(flowExecutions)
@@ -267,11 +295,15 @@ export const finalizePayment = createServerFn({ method: 'POST', strict: false })
         .where(eq(flowExecutions.id, execution.id))
     }
 
-    return {
+      return {
       status: paymentStatus,
       success: paymentStatus === 'completed',
       gatewayPaymentId: payment.gatewayPaymentId,
-    }
+      }
+    })(), 15_000, 'finalizePayment', {
+      correlationId: `flow-${data.executionId}`,
+      phase: 'payment-verification',
+    })
   })
 
 /**

@@ -686,25 +686,51 @@ export const savePageForm = createServerFn({ method: 'POST', strict: false })
   })
 
 export const startPageSession = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: { formId: number }) => data)
+  .inputValidator((data: { formId: number; clientToken: string }) => data)
   .handler(async ({ data }) => {
-    const context = { formId: data.formId }
-    const [form] = await withTimeout(
-      db.select().from(forms).where(eq(forms.id, data.formId)).limit(1),
-      10_000,
-      'startPageSession.selectForm',
-      context,
-    )
-    if (!form || form.status !== 'published') throw new Error('Form not found or not published')
-    const [session] = await withTimeout(
-      db
-        .insert(formSubmissionSessions)
-        .values({ formId: data.formId, currentPageIndex: 0, collectedData: {}, status: 'in_progress' })
-        .returning(),
-      10_000,
-      'startPageSession.insertSession',
-      context,
-    )
+    if (!/^[a-zA-Z0-9_-]{16,64}$/.test(data.clientToken)) {
+      throw new Error('Invalid session token')
+    }
+
+    const startedAt = Date.now()
+    const correlationId = data.clientToken.slice(0, 12)
+    const result = await withTimeout(
+      db.execute(sql`
+        INSERT INTO form_submission_sessions (
+          form_id,
+          client_token,
+          current_page_index,
+          collected_data,
+          status
+        )
+        SELECT
+          ${data.formId},
+          ${data.clientToken},
+          0,
+          '{}'::jsonb,
+          'in_progress'
+        FROM forms
+        WHERE id = ${data.formId}
+          AND status = 'published'
+        ON CONFLICT (form_id, client_token)
+        DO UPDATE SET client_token = EXCLUDED.client_token
+        RETURNING id
+      `),
+      8_000,
+      'startPageSession.upsertSession',
+      { formId: data.formId, correlationId, phase: 'session-upsert' },
+    ) as unknown as { rows: { id: number }[] }
+    const session = result.rows[0]
+    if (!session) throw new Error('Form not found or not published')
+
+    console.info('[database-operation-complete]', {
+      operation: 'startPageSession.upsertSession',
+      elapsedMs: Date.now() - startedAt,
+      formId: data.formId,
+      sessionId: session.id,
+      correlationId,
+      vercelRegion: process.env.VERCEL_REGION ?? process.env.VERCEL_REGION_ID ?? 'local',
+    })
     return session
   })
 
@@ -815,6 +841,7 @@ export const completePageSubmission = createServerFn({ method: 'POST', strict: f
 export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: false })
   .inputValidator((data: { sessionId: number; pageId: number }) => data)
   .handler(async ({ data }) => {
+    return withTimeout((async () => {
     const [session] = await db
       .select()
       .from(formSubmissionSessions)
@@ -857,7 +884,7 @@ export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: fal
       gateways = gateways.filter((gateway) => gateway.slug === selectedGateway?.slug)
     }
     const computation = (page.paymentComputation as PaymentComputation | null) ?? null
-    return {
+      return {
       amount,
       currency,
       gateways,
@@ -865,7 +892,13 @@ export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: fal
       showBreakdown: Boolean(computation?.showBreakdown),
       missingReferences: calculation.missingReferences,
       paymentStatus: existingPayment?.status ?? null,
-    }
+      }
+    })(), 8_000, 'getPagePaymentOptions', {
+      sessionId: data.sessionId,
+      pageId: data.pageId,
+      correlationId: `page-${data.sessionId}`,
+      phase: 'payment-options',
+    })
   })
 
 export const initiatePagePayment = createServerFn({ method: 'POST', strict: false })
@@ -907,7 +940,7 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
 
     const origin = originForReturnUrls()
     const base = `${origin}/forms/payment-return?pageSessionId=${session.id}&pageId=${page.id}`
-    const result = await gateway.createPayment(
+    const result = await withTimeout(gateway.createPayment(
       {
         amount: Math.round(amountMajor * 100),
         currency: page.paymentCurrency,
@@ -916,7 +949,12 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
         cancelUrl: `${base}&cancelled=1`,
       },
       credentials,
-    )
+    ), 15_000, 'initiatePagePayment.gatewayCreate', {
+      sessionId: data.sessionId,
+      pageId: data.pageId,
+      correlationId: `page-${data.sessionId}`,
+      phase: 'gateway-create',
+    })
     if (!result.success || !result.paymentUrl) {
       throw new Error(result.error ?? 'Could not start the payment')
     }
@@ -942,12 +980,18 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
       })
       .where(eq(formSubmissionSessions.id, session.id))
       return { paymentUrl: result.paymentUrl }
-    })(), 15_000, 'initiatePagePayment', { sessionId: data.sessionId, pageId: data.pageId })
+    })(), 25_000, 'initiatePagePayment', {
+      sessionId: data.sessionId,
+      pageId: data.pageId,
+      correlationId: `page-${data.sessionId}`,
+      phase: 'payment-initiation-total',
+    })
   })
 
 export const finalizePagePayment = createServerFn({ method: 'POST', strict: false })
   .inputValidator((data: { sessionId: number }) => data)
   .handler(async ({ data }) => {
+    return withTimeout((async () => {
     const [session] = await db
       .select()
       .from(formSubmissionSessions)
@@ -991,9 +1035,14 @@ export const finalizePagePayment = createServerFn({ method: 'POST', strict: fals
         updatedAt: new Date(),
       })
       .where(eq(formSubmissionSessions.id, session.id))
-    return {
+      return {
       status: paymentStatus,
       success: paymentStatus === 'completed',
       gatewayPaymentId: payment.gatewayPaymentId,
-    }
+      }
+    })(), 15_000, 'finalizePagePayment', {
+      sessionId: data.sessionId,
+      correlationId: `page-${data.sessionId}`,
+      phase: 'payment-verification',
+    })
   })
