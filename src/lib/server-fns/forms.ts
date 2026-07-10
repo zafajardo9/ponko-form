@@ -110,7 +110,7 @@ export const createForm = createServerFn({ method: 'POST' })
     return form
   })
 
-export const updateForm = createServerFn({ method: 'POST', strict: false })
+export const updateForm = createServerFn({ method: 'POST' })
   .inputValidator(
     (data: {
       id: number

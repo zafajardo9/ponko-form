@@ -65,6 +65,18 @@ export function richTextHtml(value: string | null | undefined): string {
   return sanitizeRichTextHtml(html)
 }
 
+function formatDateValue(value: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return ''
+  const date = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: 'short',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date)
+}
+
 export function FieldRenderer({ field, value, onChange, error, readOnly }: FieldRendererProps) {
   const inputBase =
     'w-full rounded-[var(--ponko-radius,6px)] border border-[#e6dfd8] bg-[#faf9f5] px-3.5 py-2.5 text-sm text-[#141413] placeholder:text-[#8e8b82] outline-none focus:border-[var(--ponko-primary,#cc785c)] focus:ring-2 focus:ring-[var(--ponko-primary-soft,#cc785c29)] transition-colors disabled:opacity-60'
@@ -258,13 +270,22 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
       )}
 
       {field.type === 'checkbox' && (
-        <div className="flex flex-col gap-2">
-          {options.map((opt) => (
-            <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="group" aria-label={field.label}>
+          {options.map((opt) => {
+            const selected = arrValue.includes(opt.value)
+            return (
+            <label
+              key={opt.value}
+              className={`group flex min-h-12 cursor-pointer items-center gap-3 rounded-[var(--ponko-radius,8px)] border px-3.5 py-3 transition-all focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] ${
+                selected
+                  ? 'border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary-soft,#cc785c29)] shadow-sm'
+                  : 'border-[#e6dfd8] bg-[#faf9f5] hover:border-[#cfc4b8] hover:bg-white'
+              } ${readOnly ? 'cursor-not-allowed opacity-60' : ''}`}
+            >
               <input
                 type="checkbox"
                 value={opt.value}
-                checked={arrValue.includes(opt.value)}
+                checked={selected}
                 disabled={readOnly}
                 onChange={(e) => {
                   if (e.target.checked) {
@@ -273,40 +294,97 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
                     onChange(arrValue.filter((v) => v !== opt.value))
                   }
                 }}
-                className="h-4 w-4 rounded border-[#e6dfd8] accent-[var(--ponko-primary,#cc785c)]"
+                className="peer sr-only"
               />
-              <span className="text-sm text-[#3d3d3a]">{opt.label}</span>
+              <span
+                aria-hidden="true"
+                className={`flex h-5 w-5 flex-none items-center justify-center rounded-md border transition-colors ${
+                  selected
+                    ? 'border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary,#cc785c)] text-white'
+                    : 'border-[#cfc4b8] bg-white text-transparent group-hover:border-[var(--ponko-primary,#cc785c)]'
+                }`}
+              >
+                <Check size={14} strokeWidth={3} />
+              </span>
+              <span className="text-sm font-medium leading-5 text-[#3d3d3a]">{opt.label}</span>
             </label>
-          ))}
+          )})}
         </div>
       )}
 
       {field.type === 'radio' && (
-        <div className="flex flex-col gap-2">
-          {options.map((opt) => (
-            <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup" aria-label={field.label}>
+          {options.map((opt) => {
+            const selected = strValue === opt.value
+            return (
+            <label
+              key={opt.value}
+              className={`group flex min-h-12 cursor-pointer items-center gap-3 rounded-[var(--ponko-radius,8px)] border px-3.5 py-3 transition-all focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] ${
+                selected
+                  ? 'border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary-soft,#cc785c29)] shadow-sm'
+                  : 'border-[#e6dfd8] bg-[#faf9f5] hover:border-[#cfc4b8] hover:bg-white'
+              } ${readOnly ? 'cursor-not-allowed opacity-60' : ''}`}
+            >
               <input
                 type="radio"
+                name={`field-${field.id}`}
                 value={opt.value}
-                checked={strValue === opt.value}
+                checked={selected}
                 disabled={readOnly}
                 onChange={() => onChange(opt.value)}
-                className="h-4 w-4 border-[#e6dfd8] accent-[var(--ponko-primary,#cc785c)]"
+                className="peer sr-only"
               />
-              <span className="text-sm text-[#3d3d3a]">{opt.label}</span>
+              <span
+                aria-hidden="true"
+                className={`flex h-5 w-5 flex-none items-center justify-center rounded-full border transition-colors ${
+                  selected
+                    ? 'border-[var(--ponko-primary,#cc785c)] bg-white'
+                    : 'border-[#cfc4b8] bg-white group-hover:border-[var(--ponko-primary,#cc785c)]'
+                }`}
+              >
+                <span className={`h-2.5 w-2.5 rounded-full bg-[var(--ponko-primary,#cc785c)] transition-transform ${selected ? 'scale-100' : 'scale-0'}`} />
+              </span>
+              <span className="text-sm font-medium leading-5 text-[#3d3d3a]">{opt.label}</span>
             </label>
-          ))}
+          )})}
         </div>
       )}
 
       {field.type === 'date' && (
-        <input
-          type="date"
-          value={strValue}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={readOnly}
-          className={`${inputBase} ${errorClass} h-10`}
-        />
+        <div className={readOnly ? 'opacity-60' : ''}>
+          <div className="flex items-stretch gap-2">
+            <label
+              className={`flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-[var(--ponko-radius,8px)] border bg-[#faf9f5] px-3 transition-all hover:border-[#cfc4b8] focus-within:border-[var(--ponko-primary,#cc785c)] focus-within:bg-white focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] ${
+                error ? 'border-[#c64545]' : 'border-[#e6dfd8]'
+              } ${readOnly ? 'cursor-not-allowed' : ''}`}
+            >
+              <span className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-[var(--ponko-primary-soft,#cc785c29)] text-[var(--ponko-primary,#cc785c)]">
+                <CalendarDays size={18} />
+              </span>
+              <input
+                type="date"
+                value={strValue}
+                aria-label={field.label}
+                onChange={(e) => onChange(e.target.value)}
+                disabled={readOnly}
+                className="min-w-0 flex-1 cursor-pointer bg-transparent py-3 text-sm font-medium text-[#141413] outline-none [color-scheme:light] disabled:cursor-not-allowed"
+              />
+            </label>
+            {strValue && !readOnly && (
+              <button
+                type="button"
+                onClick={() => onChange('')}
+                className="flex w-12 flex-none items-center justify-center rounded-[var(--ponko-radius,8px)] border border-[#e6dfd8] bg-[#faf9f5] text-[#8e8b82] transition-colors hover:border-[#cfc4b8] hover:bg-white hover:text-[#141413] focus:outline-none focus:ring-2 focus:ring-[var(--ponko-primary-soft,#cc785c29)]"
+                aria-label={`Clear ${field.label}`}
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+          {strValue && (
+            <p className="mt-1.5 text-xs text-[#6c6a64]">Selected: {formatDateValue(strValue)}</p>
+          )}
+        </div>
       )}
 
       {field.type === 'time' && (
@@ -457,3 +535,4 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
     </div>
   )
 }
+import { CalendarDays, Check, X } from 'lucide-react'

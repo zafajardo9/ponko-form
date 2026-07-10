@@ -25,9 +25,10 @@ interface SettingsDialogProps {
   theme?: FormTheme | null
   onSave: (settings: { title: string; theme: FormTheme }) => void
   onClose: () => void
+  saveError?: string | null
 }
 
-export function SettingsDialog({ formTitle, theme, onSave, onClose }: SettingsDialogProps) {
+export function SettingsDialog({ formTitle, theme, onSave, onClose, saveError }: SettingsDialogProps) {
   const [title, setTitle] = useState(formTitle)
   const [titleError, setTitleError] = useState('')
   const [primaryColor, setPrimary] = useState(theme?.primaryColor || DEFAULT_THEME.primaryColor)
@@ -159,17 +160,22 @@ export function SettingsDialog({ formTitle, theme, onSave, onClose }: SettingsDi
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between rounded-b-xl border-t border-[#e6dfd8] bg-[#faf9f5] px-5 py-3">
-          <Button variant="text-link" size="sm" onClick={reset}>
-            Reset to default
-          </Button>
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={onClose}>
-              Cancel
+        <div className="flex flex-col rounded-b-xl border-t border-[#e6dfd8] bg-[#faf9f5]">
+          {saveError && (
+            <p className="px-5 pt-3 text-xs text-[#c64545]">{saveError}</p>
+          )}
+          <div className="flex items-center justify-between px-5 py-3">
+            <Button variant="text-link" size="sm" onClick={reset}>
+              Reset to default
             </Button>
-            <Button size="sm" onClick={save}>
-              Save
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" size="sm" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={save}>
+                Save
+              </Button>
+            </div>
           </div>
         </div>
       </div>

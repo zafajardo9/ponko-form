@@ -757,11 +757,16 @@ function UnifiedEditorPage() {
         <SettingsDialog
           formTitle={form?.title ?? "Form"}
           theme={(form?.theme as FormTheme | null) ?? null}
-          onSave={(settings) => {
-            settingsMutation.mutate(settings);
-            setSettingsOpen(false);
+          onSave={async (settings) => {
+            try {
+              await settingsMutation.mutateAsync(settings)
+              setSettingsOpen(false)
+            } catch {
+              // Dialog stays open — user can retry
+            }
           }}
           onClose={() => setSettingsOpen(false)}
+          saveError={settingsMutation.isError ? (settingsMutation.error as Error)?.message ?? 'Failed to save settings.' : null}
         />
       )}
 
