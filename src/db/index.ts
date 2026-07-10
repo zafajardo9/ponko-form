@@ -1,5 +1,14 @@
-import { drizzle } from 'drizzle-orm/node-postgres'
+import { neon } from '@neondatabase/serverless'
+import { drizzle } from 'drizzle-orm/neon-http'
 
 import * as schema from './schema.ts'
 
-export const db = drizzle(process.env.DATABASE_URL!, { schema })
+const databaseUrl = process.env.DATABASE_URL
+
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL is required to initialize the database client')
+}
+
+const sql = neon(databaseUrl)
+
+export const db = drizzle({ client: sql, schema })

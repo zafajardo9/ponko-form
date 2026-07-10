@@ -290,8 +290,8 @@ function UnifiedEditorPage() {
   });
 
   const settingsMutation = useMutation({
-    mutationFn: (theme: FormTheme) =>
-      updateForm({ data: { id: Number(formId), theme } }),
+    mutationFn: ({ title, theme }: { title: string; theme: FormTheme }) =>
+      updateForm({ data: { id: Number(formId), title, theme } }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["forms"] }),
   });
 
@@ -757,8 +757,8 @@ function UnifiedEditorPage() {
         <SettingsDialog
           formTitle={form?.title ?? "Form"}
           theme={(form?.theme as FormTheme | null) ?? null}
-          onSave={(theme) => {
-            settingsMutation.mutate(theme);
+          onSave={(settings) => {
+            settingsMutation.mutate(settings);
             setSettingsOpen(false);
           }}
           onClose={() => setSettingsOpen(false)}

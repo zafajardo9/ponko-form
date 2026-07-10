@@ -23,11 +23,13 @@ import {
 interface SettingsDialogProps {
   formTitle: string
   theme?: FormTheme | null
-  onSave: (theme: FormTheme) => void
+  onSave: (settings: { title: string; theme: FormTheme }) => void
   onClose: () => void
 }
 
 export function SettingsDialog({ formTitle, theme, onSave, onClose }: SettingsDialogProps) {
+  const [title, setTitle] = useState(formTitle)
+  const [titleError, setTitleError] = useState('')
   const [primaryColor, setPrimary] = useState(theme?.primaryColor || DEFAULT_THEME.primaryColor)
   const [backgroundColor, setBg] = useState(theme?.backgroundColor || DEFAULT_THEME.backgroundColor)
   const [radius, setRadius] = useState<NonNullable<FormTheme['radius']>>(
@@ -48,6 +50,15 @@ export function SettingsDialog({ formTitle, theme, onSave, onClose }: SettingsDi
     setPrimary(DEFAULT_THEME.primaryColor)
     setBg(DEFAULT_THEME.backgroundColor)
     setRadius(DEFAULT_THEME.radius)
+  }
+
+  function save() {
+    const trimmedTitle = title.trim()
+    if (!trimmedTitle) {
+      setTitleError('Form name is required')
+      return
+    }
+    onSave({ title: trimmedTitle, theme: draft })
   }
 
   return (
@@ -73,6 +84,27 @@ export function SettingsDialog({ formTitle, theme, onSave, onClose }: SettingsDi
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5">
+          <div className="mb-6 flex flex-col gap-1.5">
+            <label htmlFor="form-name" className="text-sm font-medium text-[#141413]">
+              Form name
+            </label>
+            <input
+              id="form-name"
+              value={title}
+              maxLength={255}
+              onChange={(e) => {
+                setTitle(e.target.value)
+                if (titleError) setTitleError('')
+              }}
+              className={`h-10 rounded-md border bg-white px-3.5 text-sm text-[#141413] outline-none focus:ring-2 ${
+                titleError
+                  ? 'border-[#c64545] focus:border-[#c64545] focus:ring-[#c64545]/20'
+                  : 'border-[#e6dfd8] focus:border-[#cc785c] focus:ring-[#cc785c]/20'
+              }`}
+            />
+            {titleError && <p className="text-xs text-[#c64545]">{titleError}</p>}
+          </div>
+
           <p className="mb-3 text-xs font-medium uppercase tracking-wider text-[#8e8b82]">
             Appearance
           </p>
@@ -135,7 +167,7 @@ export function SettingsDialog({ formTitle, theme, onSave, onClose }: SettingsDi
             <Button variant="secondary" size="sm" onClick={onClose}>
               Cancel
             </Button>
-            <Button size="sm" onClick={() => onSave(draft)}>
+            <Button size="sm" onClick={save}>
               Save
             </Button>
           </div>

@@ -3,6 +3,7 @@ import { auth } from '@clerk/tanstack-react-start/server'
 import { getRequestUrl } from '@tanstack/react-start/server'
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '../../db/index'
+import { withTimeout } from '../../db/with-timeout'
 import {
   fieldConditions,
   formPageFields,
@@ -624,82 +625,62 @@ export const savePageForm = createServerFn({ method: 'POST', strict: false })
     ]
     const firstPaymentIndex = normalizedPages.findIndex((page) => !page.isFinal && page.hasPayment)
 
-    await db.transaction(async (tx) => {
-      await tx.delete(formReferences).where(eq(formReferences.formId, data.formId))
-      if (inputReferences.length > 0) {
-        await tx.insert(formReferences).values(
-          inputReferences.map((reference, index) => ({
-            formId: data.formId,
-            key: reference.key,
-            type: reference.type,
-            value: reference.value,
-            label: reference.label || null,
-            description: reference.description || null,
-            position: index,
-          })),
-        )
-      }
-
-      await tx.delete(formPages).where(eq(formPages.formId, data.formId))
-
-      for (let pageIndex = 0; pageIndex < normalizedPages.length; pageIndex++) {
-        const page = normalizedPages[pageIndex]
-        const isPaymentPage = firstPaymentIndex === pageIndex
-        const [createdPage] = await tx
-          .insert(formPages)
-          .values({
-            formId: data.formId,
-            title: page.title.trim() || (page.isFinal ? 'Thank You' : `Page ${pageIndex + 1}`),
-            description: page.isFinal ? null : page.description ?? null,
-            position: pageIndex,
-            isFinal: pageIndex === normalizedPages.length - 1,
-            finalTemplate:
-              pageIndex === normalizedPages.length - 1
-                ? page.finalTemplate ?? 'Your response has been recorded.'
-                : null,
-            finalRedirectUrl: pageIndex === normalizedPages.length - 1 ? page.finalRedirectUrl ?? null : null,
-            hasPayment: isPaymentPage,
-            paymentGatewayId: isPaymentPage ? page.paymentGatewayId ?? null : null,
-            paymentAmountVariable: isPaymentPage ? page.paymentAmountVariable ?? null : null,
-            paymentCurrency: (page.paymentCurrency || 'USD').slice(0, 3).toUpperCase(),
-            paymentComputation: isPaymentPage ? page.paymentComputation ?? null : null,
-          })
-          .returning()
-
-        const fields = [...page.fields].sort((a, b) => a.position - b.position)
-        for (let fieldIndex = 0; fieldIndex < fields.length; fieldIndex++) {
-          const field = fields[fieldIndex]
-          const [createdField] = await tx
-            .insert(formPageFields)
-            .values({
-              pageId: createdPage.id,
-              fieldType: field.fieldType,
-              label: field.label,
-              placeholder: field.placeholder ?? null,
-              required: field.required,
-              options: field.options ?? null,
-              bindVariable: field.bindVariable,
-              position: fieldIndex,
-              width: field.width,
-              validationRules: field.validationRules ?? null,
-            })
-            .returning()
-
-          const conditions = field.conditions.filter((condition) => condition.sourceFieldBinding)
-          if (conditions.length > 0) {
-            await tx.insert(fieldConditions).values(
-              conditions.map((condition) => ({
-                fieldId: createdField.id,
+    const referencesPayload = inputReferences.map((reference, index) => ({
+      key: reference.key,
+      type: reference.type,
+      value: reference.value,
+      label: reference.label || null,
+      description: reference.description || null,
+      position: index,
+    }))
+    const pagesPayload = normalizedPages.map((page, pageIndex) => {
+      const isPaymentPage = firstPaymentIndex === pageIndex
+      return {
+        title: page.title.trim() || (page.isFinal ? 'Thank You' : `Page ${pageIndex + 1}`),
+        description: page.isFinal ? null : page.description ?? null,
+        position: pageIndex,
+        isFinal: pageIndex === normalizedPages.length - 1,
+        finalTemplate:
+          pageIndex === normalizedPages.length - 1
+            ? page.finalTemplate ?? 'Your response has been recorded.'
+            : null,
+        finalRedirectUrl: pageIndex === normalizedPages.length - 1 ? page.finalRedirectUrl ?? null : null,
+        hasPayment: isPaymentPage,
+        paymentGatewayId: isPaymentPage ? page.paymentGatewayId ?? null : null,
+        paymentAmountVariable: isPaymentPage ? page.paymentAmountVariable ?? null : null,
+        paymentCurrency: (page.paymentCurrency || 'USD').slice(0, 3).toUpperCase(),
+        paymentComputation: isPaymentPage ? page.paymentComputation ?? null : null,
+        fields: [...page.fields]
+          .sort((a, b) => a.position - b.position)
+          .map((field, fieldIndex) => ({
+            fieldType: field.fieldType,
+            label: field.label,
+            placeholder: field.placeholder ?? null,
+            required: field.required,
+            options: field.options ?? null,
+            bindVariable: field.bindVariable,
+            position: fieldIndex,
+            width: field.width,
+            validationRules: field.validationRules ?? null,
+            conditions: field.conditions
+              .filter((condition) => condition.sourceFieldBinding)
+              .map((condition) => ({
                 sourceFieldBinding: condition.sourceFieldBinding,
                 operator: condition.operator,
                 value: condition.value ?? null,
                 action: condition.action,
               })),
-            )
-          }
-        }
+          })),
       }
     })
+
+    // Neon HTTP does not support interactive transaction callbacks. The
+    // database function performs the complete replace in one atomic statement.
+    await db.execute(sql`select public.replace_page_form(
+      ${data.formId},
+      ${JSON.stringify(referencesPayload)}::jsonb,
+      ${JSON.stringify(pagesPayload)}::jsonb
+    )`)
 
     return { form, pages: await hydratePages(data.formId), references: await loadFormReferences(data.formId) }
   })
@@ -707,12 +688,23 @@ export const savePageForm = createServerFn({ method: 'POST', strict: false })
 export const startPageSession = createServerFn({ method: 'POST', strict: false })
   .inputValidator((data: { formId: number }) => data)
   .handler(async ({ data }) => {
-    const [form] = await db.select().from(forms).where(eq(forms.id, data.formId)).limit(1)
+    const context = { formId: data.formId }
+    const [form] = await withTimeout(
+      db.select().from(forms).where(eq(forms.id, data.formId)).limit(1),
+      10_000,
+      'startPageSession.selectForm',
+      context,
+    )
     if (!form || form.status !== 'published') throw new Error('Form not found or not published')
-    const [session] = await db
-      .insert(formSubmissionSessions)
-      .values({ formId: data.formId, currentPageIndex: 0, collectedData: {}, status: 'in_progress' })
-      .returning()
+    const [session] = await withTimeout(
+      db
+        .insert(formSubmissionSessions)
+        .values({ formId: data.formId, currentPageIndex: 0, collectedData: {}, status: 'in_progress' })
+        .returning(),
+      10_000,
+      'startPageSession.insertSession',
+      context,
+    )
     return session
   })
 
@@ -726,16 +718,21 @@ export const advancePageSession = createServerFn({ method: 'POST', strict: false
     }) => data,
   )
   .handler(async ({ data }) => {
-    const [session] = await db
-      .update(formSubmissionSessions)
-      .set({
-        currentPageIndex: data.currentPageIndex,
-        collectedData: data.collectedData,
-        status: data.status ?? 'in_progress',
-        updatedAt: new Date(),
-      })
-      .where(eq(formSubmissionSessions.id, data.sessionId))
-      .returning()
+    const [session] = await withTimeout(
+      db
+        .update(formSubmissionSessions)
+        .set({
+          currentPageIndex: data.currentPageIndex,
+          collectedData: data.collectedData,
+          status: data.status ?? 'in_progress',
+          updatedAt: new Date(),
+        })
+        .where(eq(formSubmissionSessions.id, data.sessionId))
+        .returning(),
+      10_000,
+      'advancePageSession.updateSession',
+      { sessionId: data.sessionId },
+    )
     if (!session) throw new Error('Session not found')
     return session
   })
@@ -743,6 +740,7 @@ export const advancePageSession = createServerFn({ method: 'POST', strict: false
 export const completePageSubmission = createServerFn({ method: 'POST', strict: false })
   .inputValidator((data: { sessionId: number; collectedData: Record<string, unknown> }) => data)
   .handler(async ({ data }) => {
+    return withTimeout((async () => {
     const [session] = await db
       .select()
       .from(formSubmissionSessions)
@@ -810,7 +808,8 @@ export const completePageSubmission = createServerFn({ method: 'POST', strict: f
       })
       .where(eq(formSubmissionSessions.id, session.id))
       .returning()
-    return { session: updated, submission }
+      return { session: updated, submission }
+    })(), 15_000, 'completePageSubmission', { sessionId: data.sessionId })
   })
 
 export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: false })
@@ -872,6 +871,7 @@ export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: fal
 export const initiatePagePayment = createServerFn({ method: 'POST', strict: false })
   .inputValidator((data: { sessionId: number; pageId: number; gatewaySlug: GatewaySlug }) => data)
   .handler(async ({ data }) => {
+    return withTimeout((async () => {
     const [session] = await db
       .select()
       .from(formSubmissionSessions)
@@ -941,7 +941,8 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
         updatedAt: new Date(),
       })
       .where(eq(formSubmissionSessions.id, session.id))
-    return { paymentUrl: result.paymentUrl }
+      return { paymentUrl: result.paymentUrl }
+    })(), 15_000, 'initiatePagePayment', { sessionId: data.sessionId, pageId: data.pageId })
   })
 
 export const finalizePagePayment = createServerFn({ method: 'POST', strict: false })

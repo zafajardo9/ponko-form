@@ -73,6 +73,7 @@ export function PageFormView({
   const [completed, setCompleted] = useState(false)
   const startedRef = useRef(false)
   const submissionQueuedRef = useRef<Record<string, unknown> | null>(null)
+  const failedSubmissionRef = useRef<Record<string, unknown> | null>(null)
 
   const resumeQuery = useQuery({
     queryKey: ['page-session', resumeSessionId],
@@ -102,7 +103,15 @@ export function PageFormView({
 
   const startMut = useMutation({
     mutationFn: (id: number) => startPageSession({ data: { formId: id } }),
-    onSuccess: (session) => setSessionId(session.id),
+    onSuccess: (session) => {
+      setSessionId(session.id)
+      setPaymentGateMessage('')
+    },
+    onError: () => {
+      failedSubmissionRef.current = submissionQueuedRef.current
+      submissionQueuedRef.current = null
+      setPaymentGateMessage('')
+    },
   })
   const advanceMut = useMutation({
     mutationFn: (vars: { currentPageIndex: number; collectedData: Record<string, unknown> }) =>
@@ -136,6 +145,14 @@ export function PageFormView({
       completeMut.mutate(queuedData)
     }
   }, [sessionId])
+
+  function retrySessionInitialization() {
+    if (!formId || startMut.isPending) return
+    submissionQueuedRef.current = failedSubmissionRef.current
+    failedSubmissionRef.current = null
+    startMut.reset()
+    startMut.mutate(formId)
+  }
 
   const allFields = useMemo(() => pages.flatMap((page) => page.fields), [pages])
   const currentPage = pages[currentPageIndex]
@@ -224,6 +241,8 @@ export function PageFormView({
         setCompleted(true)
       } else if (sessionId) {
         completeMut.mutate(nextData)
+      } else if (startMut.isError) {
+        submissionQueuedRef.current = null
       } else {
         // Session pending — queue submission to fire when session is ready
         submissionQueuedRef.current = nextData
@@ -272,6 +291,23 @@ export function PageFormView({
 
           <PageProgressBar current={currentPageIndex + 1} total={pages.length} />
 
+          {!preview && !resumeSessionId && startMut.isPending && (
+            <div className="mb-6 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] px-4 py-3 text-sm text-[#6c6a64]" role="status">
+              Preparing secure submission…
+            </div>
+          )}
+
+          {!preview && !resumeSessionId && startMut.isError && (
+            <div className="mb-6 flex flex-col gap-3 rounded-lg border border-[#d7a84c] bg-[#fff8e7] px-4 py-3 text-sm text-[#6b4f16] sm:flex-row sm:items-center sm:justify-between" role="alert">
+              <span>
+                We couldn’t initialize this submission. Your entries are still here, but they cannot be submitted until the connection is restored.
+              </span>
+              <Button type="button" variant="secondary" onClick={retrySessionInitialization} disabled={startMut.isPending}>
+                Retry
+              </Button>
+            </div>
+          )}
+
           <div className="mb-6">
             <h2 className="text-xl font-medium text-[#141413]">{currentPage.title}</h2>
             {currentPage.description && (
@@ -287,15 +323,28 @@ export function PageFormView({
                 <RedirectAfterDelay url={interpolate(currentPage.finalRedirectUrl, { ...referenceMap, ...data })} />
               )}
             </div>
-          ) : currentPage.hasPayment && sessionId && !preview ? (
-            <PagePaymentStep
-              sessionId={sessionId}
-              pageId={currentPage.id}
-              onPaymentStatusChange={(paid) => {
-                setPaidPages((prev) => ({ ...prev, [currentPage.id]: paid }))
-                if (paid) setPaymentGateMessage('')
-              }}
-            />
+          ) : currentPage.hasPayment && !preview ? (
+            sessionId ? (
+              <PagePaymentStep
+                sessionId={sessionId}
+                pageId={currentPage.id}
+                onPaymentStatusChange={(paid) => {
+                  setPaidPages((prev) => ({ ...prev, [currentPage.id]: paid }))
+                  if (paid) setPaymentGateMessage('')
+                }}
+              />
+            ) : (
+              <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-5 text-center" role="status">
+                <p className="font-medium text-[#141413]">
+                  {startMut.isError ? 'Payment is unavailable until the submission reconnects.' : 'Preparing secure payment…'}
+                </p>
+                {startMut.isError && (
+                  <Button className="mt-4" type="button" variant="secondary" onClick={retrySessionInitialization}>
+                    Retry connection
+                  </Button>
+                )}
+              </div>
+            )
           ) : (
             <div className="flex flex-col gap-6">
               {currentPage.fields.filter((field) =>
@@ -325,11 +374,19 @@ export function PageFormView({
             <Button
               type="button"
               onClick={goNext}
-              disabled={completeMut.isPending || (!preview && currentPage.hasPayment && !currentPaymentPaid)}
+              disabled={
+                completeMut.isPending ||
+                (!preview && currentPage.hasPayment && !currentPaymentPaid) ||
+                (!preview && currentPageIndex >= pages.length - 1 && startMut.isError)
+              }
             >
               {currentPageIndex >= pages.length - 1
                 ? completeMut.isPending
                   ? 'Submitting...'
+                  : !preview && startMut.isError
+                    ? 'Session unavailable'
+                    : !preview && !sessionId
+                      ? 'Preparing...'
                   : 'Submit'
                 : currentPage.hasPayment && !currentPaymentPaid && !preview
                   ? 'Complete payment to continue'
