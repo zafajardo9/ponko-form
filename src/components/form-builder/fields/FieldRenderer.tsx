@@ -151,7 +151,7 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
   if (field.type === 'content') {
     const html = richTextHtml(field.placeholder)
     return (
-      <div className="rounded-[var(--ponko-radius,6px)] border border-[#e6dfd8] bg-[#faf9f5] p-4">
+      <div>
         {html && (
           <div
             className="rich-text-content text-sm leading-6 text-[#6c6a64]"
