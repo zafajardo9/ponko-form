@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { getFields } from '../../lib/server-fns/fields'
 import { getPublicForm } from '../../lib/server-fns/forms'
@@ -42,6 +42,17 @@ export function PublicFormView({ publicId, embed = false }: PublicFormViewProps)
     queryFn: () => getPublicForm({ data: { publicId } }),
     enabled: !!publicId,
   })
+
+  useEffect(() => {
+    if (!form?.title) return
+
+    const previousTitle = document.title
+    document.title = form.title
+
+    return () => {
+      document.title = previousTitle
+    }
+  }, [form?.title])
 
   const resolvedFormId = form?.id
   const hasResolvedFormId = typeof resolvedFormId === 'number' && Number.isFinite(resolvedFormId)

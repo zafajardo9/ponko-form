@@ -72,6 +72,7 @@ export function PageFormView({
   const [paymentGateMessage, setPaymentGateMessage] = useState('')
   const [completed, setCompleted] = useState(false)
   const startedRef = useRef(false)
+  const submissionQueuedRef = useRef<Record<string, unknown> | null>(null)
 
   const resumeQuery = useQuery({
     queryKey: ['page-session', resumeSessionId],
@@ -87,6 +88,17 @@ export function PageFormView({
   const resolvedTitle = resumeQuery.data?.form.title ?? title
   const resolvedDescription = resumeQuery.data?.form.description ?? description
   const resolvedTheme = (resumeQuery.data?.form.theme as FormTheme | null | undefined) ?? theme
+
+  useEffect(() => {
+    if (!resumeSessionId || preview || !resolvedTitle) return
+
+    const previousTitle = document.title
+    document.title = resolvedTitle
+
+    return () => {
+      document.title = previousTitle
+    }
+  }, [preview, resolvedTitle, resumeSessionId])
 
   const startMut = useMutation({
     mutationFn: (id: number) => startPageSession({ data: { formId: id } }),
@@ -116,6 +128,15 @@ export function PageFormView({
     startMut.mutate(formId)
   }, [formId, preview, resumeSessionId, startMut])
 
+  // Retry queued submission once the session becomes available
+  useEffect(() => {
+    if (sessionId && submissionQueuedRef.current) {
+      const queuedData = submissionQueuedRef.current
+      submissionQueuedRef.current = null
+      completeMut.mutate(queuedData)
+    }
+  }, [sessionId])
+
   const allFields = useMemo(() => pages.flatMap((page) => page.fields), [pages])
   const currentPage = pages[currentPageIndex]
   const currentPaymentPaid = currentPage?.hasPayment ? Boolean(paidPages[currentPage.id]) : true
@@ -130,7 +151,7 @@ export function PageFormView({
     ? 'w-full px-4 py-6'
     : 'mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8 lg:py-14'
 
-  if (resumeQuery.isLoading || (!preview && !resumeSessionId && !sessionId)) {
+  if (resumeQuery.isLoading) {
     return (
       <div className={outerClass} style={themed}>
         <div className={wrapperClass}>
@@ -201,8 +222,12 @@ export function PageFormView({
     if (currentPageIndex >= pages.length - 1) {
       if (preview) {
         setCompleted(true)
-      } else {
+      } else if (sessionId) {
         completeMut.mutate(nextData)
+      } else {
+        // Session pending — queue submission to fire when session is ready
+        submissionQueuedRef.current = nextData
+        setPaymentGateMessage('Preparing your submission...')
       }
       return
     }
@@ -314,6 +339,12 @@ export function PageFormView({
 
           {paymentGateMessage && (
             <p className="mt-4 text-sm text-[#c64545]">{paymentGateMessage}</p>
+          )}
+
+          {startMut.isError && (
+            <p className="mt-4 text-sm text-[#e8a838]">
+              Unable to save your progress. You can still fill out the form, but your responses may not be saved if you leave the page.
+            </p>
           )}
 
           {completeMut.isError && (
