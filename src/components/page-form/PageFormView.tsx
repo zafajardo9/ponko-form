@@ -88,6 +88,11 @@ export function PageFormView({
   const referenceMap = useMemo(() => buildReferenceMap(references), [references])
   const resolvedTitle = resumeQuery.data?.form.title ?? title
   const resolvedDescription = resumeQuery.data?.form.description ?? description
+  const trimmedDescription = resolvedDescription?.trim()
+  const visibleDescription =
+    !trimmedDescription || trimmedDescription.toLocaleLowerCase() === resolvedTitle.trim().toLocaleLowerCase()
+      ? null
+      : trimmedDescription
   const resolvedTheme = (resumeQuery.data?.form.theme as FormTheme | null | undefined) ?? theme
 
   useEffect(() => {
@@ -286,16 +291,10 @@ export function PageFormView({
         <Card>
           <div className="mb-8">
             <h1 className="text-2xl font-medium text-[#141413]">{resolvedTitle}</h1>
-            {resolvedDescription && <p className="mt-2 text-[#6c6a64]">{resolvedDescription}</p>}
+            {visibleDescription && <p className="mt-2 text-[#6c6a64]">{visibleDescription}</p>}
           </div>
 
           <PageProgressBar current={currentPageIndex + 1} total={pages.length} />
-
-          {!preview && !resumeSessionId && startMut.isPending && (
-            <div className="mb-6 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] px-4 py-3 text-sm text-[#6c6a64]" role="status">
-              Preparing secure submission…
-            </div>
-          )}
 
           {!preview && !resumeSessionId && startMut.isError && (
             <div className="mb-6 flex flex-col gap-3 rounded-lg border border-[#d7a84c] bg-[#fff8e7] px-4 py-3 text-sm text-[#6b4f16] sm:flex-row sm:items-center sm:justify-between" role="alert">

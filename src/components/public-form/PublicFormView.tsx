@@ -97,7 +97,27 @@ export function PublicFormView({ publicId, embed = false }: PublicFormViewProps)
     return (
       <div className={outerClass} style={themed}>
         <div className={wrapperClass}>
-          <div className="h-64 animate-pulse rounded-xl bg-[#efe9de]" />
+          <div
+            className="rounded-xl border border-[#e6dfd8] bg-[#f5f0e8] p-6 sm:p-8"
+            role="status"
+            aria-live="polite"
+            aria-label="Loading form"
+          >
+            <div className="mb-6 h-1.5 overflow-hidden rounded-full bg-[#e6dfd8]">
+              <div className="h-full w-2/5 animate-pulse rounded-full bg-[#cc785c]" />
+            </div>
+            {form?.title ? (
+              <h1 className="text-2xl font-medium text-[#141413]">{form.title}</h1>
+            ) : (
+              <p className="text-sm font-medium text-[#141413]">Loading form…</p>
+            )}
+            <p className="mt-2 text-sm text-[#6c6a64]">Please wait while we load the form.</p>
+            <div className="mt-8 animate-pulse space-y-5" aria-hidden="true">
+              {!form?.title && <div className="h-7 w-2/5 rounded bg-[#e6dfd8]" />}
+              <div className="h-11 rounded-lg bg-[#e6dfd8]" />
+              <div className="h-11 rounded-lg bg-[#e6dfd8]" />
+            </div>
+          </div>
         </div>
       </div>
     )

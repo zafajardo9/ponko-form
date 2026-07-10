@@ -86,11 +86,11 @@ const pages = [
   },
 ] as FormPage[]
 
-function renderPageForm(testPages = pages) {
+function renderPageForm(testPages = pages, description?: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <PageFormView formId={1} title="Contact form" pages={testPages} />
+      <PageFormView formId={1} title="Contact form" description={description} pages={testPages} />
     </QueryClientProvider>,
   )
 }
@@ -106,14 +106,22 @@ describe('PageFormView session resilience', () => {
     vi.clearAllMocks()
   })
 
-  it('renders fields immediately while session initialization is pending', async () => {
+  it('renders fields without a blocking status while session initialization is pending', () => {
     serverFns.startPageSession.mockReturnValue(new Promise(() => undefined))
 
     renderPageForm()
 
     expect(screen.getByRole('heading', { name: 'Contact form' })).toBeTruthy()
     expect(screen.getByLabelText('Name')).toBeTruthy()
-    expect(await screen.findByText('Preparing secure submission…')).toBeTruthy()
+    expect(screen.queryByText('Preparing secure submission…')).toBeNull()
+  })
+
+  it('shows the form name once when the description duplicates it', () => {
+    serverFns.startPageSession.mockResolvedValue({ id: 10 })
+
+    renderPageForm(pages, ' contact FORM ')
+
+    expect(screen.getAllByText('Contact form')).toHaveLength(1)
   })
 
   it('preserves entries after failure and retries initialization', async () => {
