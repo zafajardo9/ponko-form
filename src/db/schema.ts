@@ -28,6 +28,8 @@ export const fieldTypeEnum = pgEnum('field_type', [
   'content',
   'media',
   'address',
+  'computation',
+  'file_upload',
 ])
 export const paymentStatusEnum = pgEnum('payment_status', [
   'pending',
@@ -92,6 +94,7 @@ export const forms = pgTable(
     title: varchar('title', { length: 255 }).notNull(),
     description: text('description'),
     status: formStatusEnum('status').default('draft').notNull(),
+    publicId: varchar('public_id', { length: 32 }).notNull(),
     // Per-form theming for the respondent-facing form (accent/background/corners).
     // See src/lib/theme.ts (FormTheme). Null = house default.
     theme: jsonb('theme').$type<{
@@ -102,7 +105,10 @@ export const forms = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
-  (table) => [index('forms_profile_id_idx').on(table.profileId)],
+  (table) => [
+    index('forms_profile_id_idx').on(table.profileId),
+    uniqueIndex('forms_public_id_idx').on(table.publicId),
+  ],
 )
 
 export const formFields = pgTable(
@@ -125,6 +131,28 @@ export const formFields = pgTable(
 
 // ── Page Builder (FT-007) ──
 
+export const formReferences = pgTable(
+  'form_references',
+  {
+    id: serial().primaryKey(),
+    formId: integer('form_id')
+      .notNull()
+      .references(() => forms.id, { onDelete: 'cascade' }),
+    key: varchar('key', { length: 100 }).notNull(),
+    type: varchar('type', { length: 20 }).notNull().$type<'number' | 'percentage' | 'text' | 'boolean'>(),
+    value: text('value').notNull(),
+    label: varchar('label', { length: 255 }),
+    description: text('description'),
+    position: integer('position').notNull().default(0),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('form_references_form_id_key_idx').on(table.formId, table.key),
+    index('form_references_form_id_position_idx').on(table.formId, table.position),
+  ],
+)
+
 export const formPages = pgTable(
   'form_pages',
   {
@@ -143,9 +171,11 @@ export const formPages = pgTable(
     paymentAmountVariable: varchar('payment_amount_variable', { length: 100 }),
     paymentCurrency: varchar('payment_currency', { length: 3 }).notNull().default('USD'),
     paymentComputation: jsonb('payment_computation').$type<{
-      mode: 'field' | 'sum_priced_options' | 'sum_number_fields' | 'fixed'
+      mode: 'field' | 'sum_priced_options' | 'sum_number_fields' | 'fixed' | 'formula'
       fieldBindings?: string[]
       fixedAmount?: number | null
+      adjustments?: { type: 'add' | 'subtract' | 'multiply'; referenceKey: string }[]
+      showBreakdown?: boolean
     }>(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -164,7 +194,14 @@ export const formPageFields = pgTable(
     label: varchar('label', { length: 255 }).notNull(),
     placeholder: varchar('placeholder', { length: 255 }),
     required: boolean('required').notNull().default(false),
-    options: jsonb('options').$type<{ label: string; value: string; price?: number | null }[]>(),
+    options: jsonb('options').$type<{
+      label: string
+      value: string
+      price?: number | null
+      priceReference?: string | null
+      additionalPrice?: number | null
+      additionalPriceReference?: string | null
+    }[]>(),
     bindVariable: varchar('bind_variable', { length: 100 }).notNull(),
     position: integer('position').notNull().default(0),
     width: varchar('width', { length: 20 })
@@ -188,6 +225,9 @@ export const formPageFields = pgTable(
         zipPostalCode?: boolean
         country?: boolean
       } | null
+      uploadAccept?: 'any' | 'image' | 'document' | 'custom' | null
+      uploadAcceptCustom?: string | null
+      uploadMultiple?: boolean | null
     }>(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { X, ExternalLink, Copy, Check } from "lucide-react";
 
 interface ShareDialogProps {
-  formId: number;
+  publicId: string;
   title: string;
   onClose: () => void;
 }
@@ -17,13 +17,14 @@ type Tab = "link" | "embed";
  *   2. Embed — a responsive <iframe> snippet that fills its host container and
  *              auto-resizes to fit the form's content (/forms/embed/:id)
  */
-export function ShareDialog({ formId, title, onClose }: ShareDialogProps) {
+export function ShareDialog({ publicId, title, onClose }: ShareDialogProps) {
   const [tab, setTab] = useState<Tab>("link");
   const [copied, setCopied] = useState<string | null>(null);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const shareUrl = `${origin}/forms/submit/${formId}`;
-  const embedUrl = `${origin}/forms/embed/${formId}`;
+  const shareId = publicId;
+  const shareUrl = `${origin}/forms/submit/${shareId}`;
+  const embedUrl = `${origin}/forms/embed/${shareId}`;
 
   // Responsive iframe + a tiny listener that resizes it to the form's content
   // height (the embed page posts its height via postMessage).
@@ -37,7 +38,7 @@ export function ShareDialog({ formId, title, onClose }: ShareDialogProps) {
 ></iframe>
 <script>
   window.addEventListener("message", function (e) {
-    if (e.data && e.data.type === "ponkoform:resize" && e.data.formId === ${formId}) {
+    if (e.data && e.data.type === "ponkoform:resize" && String(e.data.formId) === "${shareId}") {
       var f = document.querySelector('iframe[src="${embedUrl}"]');
       if (f) f.style.height = e.data.height + "px";
     }

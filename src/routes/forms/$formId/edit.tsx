@@ -732,6 +732,7 @@ function UnifiedEditorPage() {
                 title={form?.title ?? "Form"}
                 description={form?.description}
                 pages={pageForm.pages}
+                references={pageForm.references ?? []}
                 theme={(form?.theme as FormTheme | null) ?? null}
                 preview
               />
@@ -745,9 +746,9 @@ function UnifiedEditorPage() {
           </div>
         </PreviewDialog>
       )}
-      {shareOpen && (
+      {shareOpen && form?.publicId && (
         <ShareDialog
-          formId={Number(formId)}
+          publicId={form.publicId}
           title={form?.title ?? "Form"}
           onClose={() => setShareOpen(false)}
         />
@@ -826,6 +827,7 @@ function UnifiedEditorPage() {
         <PageBuilderWorkspace
           formId={Number(formId)}
           pages={pageForm.pages}
+          references={pageForm.references ?? []}
           gateways={gateways as { id: number; name: string }[]}
           onChanged={() => {
             queryClient.invalidateQueries({ queryKey: ["page-form", formId] });

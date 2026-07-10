@@ -33,6 +33,8 @@ function FormsPage() {
     }
   }
 
+  const shareForm = (forms as any[]).find((f: any) => f.id === shareFormId);
+
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">
       <div className="mb-10 flex items-center justify-between">
@@ -69,10 +71,10 @@ function FormsPage() {
         </div>
       )}
 
-      {shareFormId != null && (
+      {shareFormId != null && shareForm?.publicId && (
         <ShareDialog
-          formId={shareFormId}
-          title={forms.find((f: any) => f.id === shareFormId)?.title ?? "Form"}
+          publicId={shareForm.publicId}
+          title={shareForm?.title ?? "Form"}
           onClose={() => setShareFormId(null)}
         />
       )}

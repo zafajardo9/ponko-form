@@ -7,6 +7,7 @@ import {
   fieldConditions,
   formPageFields,
   formPages,
+  formReferences,
   formSubmissionSessions,
   formSubmissions,
   forms,
@@ -17,12 +18,18 @@ import { paymentRegistry } from '../../integrations/payments/index'
 import type { GatewayCredentials } from '../../integrations/payments/types'
 import { loadIntegrationConfigs } from '../integrations/credentials'
 import { missingAddressParts, pruneHiddenValues, validateFieldRules, visibleFields } from '../page-builder/conditions'
+import {
+  applyComputedFieldValues,
+  buildReferenceMap,
+  calculatePagePayment,
+} from '../page-builder/references'
 import type {
   ConditionAction,
   ConditionOperator,
   FieldCondition,
   PageFieldOption,
   FieldValidationRules,
+  FormReferenceType,
   FormPage,
   PageField,
   PageFieldType,
@@ -144,6 +151,29 @@ async function hydratePages(formId: number): Promise<FormPage[]> {
   }))
 }
 
+async function loadFormReferences(formId: number) {
+  return db
+    .select()
+    .from(formReferences)
+    .where(eq(formReferences.formId, formId))
+    .orderBy(formReferences.position, formReferences.id)
+}
+
+async function assertFieldBindingAvailable(formId: number, bindVariable: string, excludedFieldId?: number) {
+  if (!/^[a-z][a-z0-9_]*$/.test(bindVariable)) {
+    throw new Error('Field binding must use snake_case, for example customer_name')
+  }
+  const references = await loadFormReferences(formId)
+  if (references.some((reference) => reference.key === bindVariable)) {
+    throw new Error(`"${bindVariable}" is already used as a reference key`)
+  }
+  const pages = await hydratePages(formId)
+  const duplicate = pages
+    .flatMap((page) => page.fields)
+    .find((field) => field.id !== excludedFieldId && field.bindVariable === bindVariable)
+  if (duplicate) throw new Error(`"${bindVariable}" is already used as a field binding`)
+}
+
 async function normalizePagePositions(formId: number) {
   const pages = await db
     .select()
@@ -188,6 +218,24 @@ async function ensurePageBuilderFieldTypes() {
       ) THEN
         ALTER TYPE "public"."field_type" ADD VALUE 'address';
       END IF;
+
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_enum e
+        JOIN pg_type t ON t.oid = e.enumtypid
+        WHERE t.typname = 'field_type' AND e.enumlabel = 'computation'
+      ) THEN
+        ALTER TYPE "public"."field_type" ADD VALUE 'computation';
+      END IF;
+
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_enum e
+        JOIN pg_type t ON t.oid = e.enumtypid
+        WHERE t.typname = 'field_type' AND e.enumlabel = 'file_upload'
+      ) THEN
+        ALTER TYPE "public"."field_type" ADD VALUE 'file_upload';
+      END IF;
     END $$;
   `)
 }
@@ -200,53 +248,6 @@ function pageFieldValueIsEmpty(field: PageField, value: unknown) {
     (Array.isArray(value) ? value.length === 0 : String(value).trim() === '')
 }
 
-function calculatePaymentAmount(
-  page: Pick<FormPage, 'paymentAmountVariable' | 'paymentComputation'>,
-  fields: PageField[],
-  dataScope: Record<string, unknown>,
-): number {
-  const computation = page.paymentComputation
-  if (!computation || computation.mode === 'field') {
-    return page.paymentAmountVariable ? Number(dataScope[page.paymentAmountVariable] ?? 0) : 0
-  }
-
-  if (computation.mode === 'fixed') {
-    return Number(computation.fixedAmount ?? 0)
-  }
-
-  const bindings = computation.fieldBindings ?? []
-  if (computation.mode === 'sum_number_fields') {
-    const numberBindings = bindings.length > 0
-      ? bindings
-      : fields.filter((field) => field.fieldType === 'number').map((field) => field.bindVariable)
-    return numberBindings.reduce((total, binding) => total + Number(dataScope[binding] ?? 0), 0)
-  }
-
-  if (computation.mode === 'sum_priced_options') {
-    const pricedBindings = bindings.length > 0
-      ? bindings
-      : fields
-          .filter((field) =>
-            ['select', 'checkbox', 'radio'].includes(field.fieldType) &&
-            field.validationRules?.optionPricesEnabled &&
-            field.options?.some((option) => Number(option.price ?? 0) > 0),
-          )
-          .map((field) => field.bindVariable)
-    return pricedBindings.reduce((total, binding) => {
-      const field = fields.find((item) => item.bindVariable === binding)
-      if (!field?.options?.length) return total
-      const selected = dataScope[binding]
-      const selectedValues = new Set(Array.isArray(selected) ? selected.map(String) : [String(selected ?? '')])
-      const fieldTotal = field.options.reduce((sum, option) => {
-        return selectedValues.has(option.value) ? sum + Number(option.price ?? 0) : sum
-      }, 0)
-      return total + fieldTotal
-    }, 0)
-  }
-
-  return 0
-}
-
 export const getPageForm = createServerFn({ method: 'GET', strict: false })
   .inputValidator((data: { formId: number }) => data)
   .handler(async ({ data }): Promise<PageForm | null> => {
@@ -254,7 +255,7 @@ export const getPageForm = createServerFn({ method: 'GET', strict: false })
     if (!form) return null
     const pages = await hydratePages(data.formId)
     if (pages.length === 0) return null
-    return { form, pages }
+    return { form, pages, references: await loadFormReferences(data.formId) }
   })
 
 export const getPageSessionData = createServerFn({ method: 'GET', strict: false })
@@ -268,7 +269,7 @@ export const getPageSessionData = createServerFn({ method: 'GET', strict: false 
     if (!session) throw new Error('Session not found')
     const [form] = await db.select().from(forms).where(eq(forms.id, session.formId)).limit(1)
     if (!form) throw new Error('Form not found')
-    return { session, form, pages: await hydratePages(session.formId) }
+    return { session, form, pages: await hydratePages(session.formId), references: await loadFormReferences(session.formId) }
   })
 
 export const ensurePageForm = createServerFn({ method: 'POST', strict: false })
@@ -345,6 +346,7 @@ export const updatePage = createServerFn({ method: 'POST', strict: false })
       paymentGatewayId?: number | null
       paymentAmountVariable?: string | null
       paymentCurrency?: string
+      paymentComputation?: PaymentComputation | null
     }) => data,
   )
   .handler(async ({ data }) => {
@@ -415,7 +417,11 @@ export const createPageField = createServerFn({ method: 'POST', strict: false })
     const pages = await hydratePages(data.formId)
     const page = pages.find((item) => item.id === data.pageId)
     if (!page || page.isFinal) throw new Error('Editable page not found')
-    const used = new Set(pages.flatMap((p) => p.fields.map((field) => field.bindVariable)))
+    const references = await loadFormReferences(data.formId)
+    const used = new Set([
+      ...pages.flatMap((p) => p.fields.map((field) => field.bindVariable)),
+      ...references.map((reference) => reference.key),
+    ])
     const label = data.label ?? ''
     const bindVariable = uniqueVarName(label || data.fieldType, used, `field_${Date.now()}`)
     const [field] = await db
@@ -443,6 +449,7 @@ export const updatePageField = createServerFn({ method: 'POST', strict: false })
       options?: PageFieldOption[] | null
       bindVariable?: string
       width?: 'full' | 'half'
+      validationRules?: FieldValidationRules | null
     }) => data,
   )
   .handler(async ({ data }) => {
@@ -450,6 +457,9 @@ export const updatePageField = createServerFn({ method: 'POST', strict: false })
     if (!userId) throw new Error('Unauthorized')
     await assertFormOwner(data.formId, userId)
     const { formId: _formId, fieldId, ...patch } = data
+    if (patch.bindVariable !== undefined) {
+      await assertFieldBindingAvailable(data.formId, patch.bindVariable, fieldId)
+    }
     const [field] = await db
       .update(formPageFields)
       .set({ ...patch, updatedAt: new Date() })
@@ -550,6 +560,15 @@ export const savePageForm = createServerFn({ method: 'POST', strict: false })
           }[]
         }[]
       }[]
+      references?: {
+        id: number
+        key: string
+        type: FormReferenceType
+        value: string
+        label?: string | null
+        description?: string | null
+        position: number
+      }[]
     }) => data,
   )
   .handler(async ({ data }): Promise<PageForm> => {
@@ -565,6 +584,38 @@ export const savePageForm = createServerFn({ method: 'POST', strict: false })
     if (orderedPages.length < 2) throw new Error('A form needs at least one page and a final page')
     const editablePages = orderedPages.filter((page) => !page.isFinal)
     if (editablePages.length === 0) throw new Error('A form needs at least one editable page')
+    const inputReferences = [...(data.references ?? [])].sort((a, b) => a.position - b.position)
+    const referenceKeys = new Set<string>()
+    for (const reference of inputReferences) {
+      if (!/^[a-z][a-z0-9_]*$/.test(reference.key)) {
+        throw new Error(`Reference "${reference.key}" must use snake_case`)
+      }
+      if (referenceKeys.has(reference.key)) {
+        throw new Error(`"${reference.key}" is used by more than one reference`)
+      }
+      if (reference.type === 'number' && !Number.isFinite(Number(reference.value))) {
+        throw new Error(`Reference "${reference.key}" needs a valid number`)
+      }
+      if (reference.type === 'percentage' && !Number.isFinite(Number(reference.value.replace('%', '').trim()))) {
+        throw new Error(`Reference "${reference.key}" needs a valid percentage`)
+      }
+      if (reference.type === 'boolean' && !['true', 'false'].includes(reference.value)) {
+        throw new Error(`Reference "${reference.key}" needs true or false`)
+      }
+      referenceKeys.add(reference.key)
+    }
+    const seenBindings = new Set<string>()
+    for (const page of orderedPages) {
+      for (const field of page.fields) {
+        if (referenceKeys.has(field.bindVariable)) {
+          throw new Error(`"${field.bindVariable}" is already used as a reference key`)
+        }
+        if (seenBindings.has(field.bindVariable)) {
+          throw new Error(`"${field.bindVariable}" is used by more than one field`)
+        }
+        seenBindings.add(field.bindVariable)
+      }
+    }
 
     const finalInput = orderedPages.find((page) => page.isFinal) ?? orderedPages[orderedPages.length - 1]
     const normalizedPages = [
@@ -574,6 +625,21 @@ export const savePageForm = createServerFn({ method: 'POST', strict: false })
     const firstPaymentIndex = normalizedPages.findIndex((page) => !page.isFinal && page.hasPayment)
 
     await db.transaction(async (tx) => {
+      await tx.delete(formReferences).where(eq(formReferences.formId, data.formId))
+      if (inputReferences.length > 0) {
+        await tx.insert(formReferences).values(
+          inputReferences.map((reference, index) => ({
+            formId: data.formId,
+            key: reference.key,
+            type: reference.type,
+            value: reference.value,
+            label: reference.label || null,
+            description: reference.description || null,
+            position: index,
+          })),
+        )
+      }
+
       await tx.delete(formPages).where(eq(formPages.formId, data.formId))
 
       for (let pageIndex = 0; pageIndex < normalizedPages.length; pageIndex++) {
@@ -635,7 +701,7 @@ export const savePageForm = createServerFn({ method: 'POST', strict: false })
       }
     })
 
-    return { form, pages: await hydratePages(data.formId) }
+    return { form, pages: await hydratePages(data.formId), references: await loadFormReferences(data.formId) }
   })
 
 export const startPageSession = createServerFn({ method: 'POST', strict: false })
@@ -684,10 +750,29 @@ export const completePageSubmission = createServerFn({ method: 'POST', strict: f
       .limit(1)
     if (!session) throw new Error('Session not found')
     const pages = await hydratePages(session.formId)
+    const references = await loadFormReferences(session.formId)
+    const referenceMap = buildReferenceMap(references)
     const allFields = pages.flatMap((page) => page.fields)
-    const pruned = pruneHiddenValues(allFields, data.collectedData)
+    const withComputations = applyComputedFieldValues(allFields, data.collectedData, references)
+    const pruned = pruneHiddenValues(allFields, withComputations, referenceMap)
+    const paymentPage = pages.find((page) => page.hasPayment)
+    if (paymentPage) {
+      const meta = (session.collectedData ?? {}) as Record<string, unknown>
+      const paymentId = Number(meta.__paymentId)
+      if (!Number.isFinite(paymentId)) {
+        throw new Error('Payment is required before submitting this form.')
+      }
+      const [payment] = await db
+        .select({ status: payments.status })
+        .from(payments)
+        .where(eq(payments.id, paymentId))
+        .limit(1)
+      if (payment?.status !== 'completed') {
+        throw new Error('Payment has not been completed yet.')
+      }
+    }
 
-    for (const field of visibleFields(allFields, pruned)) {
+    for (const field of visibleFields(allFields, pruned, referenceMap)) {
       const value = pruned[field.bindVariable]
       const empty = pageFieldValueIsEmpty(field, value)
       if (field.required && empty) {
@@ -704,7 +789,7 @@ export const completePageSubmission = createServerFn({ method: 'POST', strict: f
 
     const [submission] = await db
       .insert(formSubmissions)
-      .values({ formId: session.formId, formData: pruned, status: 'completed' })
+      .values({ formId: session.formId, formData: { ...referenceMap, ...pruned }, status: 'completed' })
       .returning()
 
     const meta = (session.collectedData ?? {}) as Record<string, unknown>
@@ -717,7 +802,7 @@ export const completePageSubmission = createServerFn({ method: 'POST', strict: f
       .update(formSubmissionSessions)
       .set({
         formSubmissionId: submission.id,
-        collectedData: pruned,
+        collectedData: { ...referenceMap, ...pruned },
         status: 'completed',
         currentPageIndex: pages.length - 1,
         completedAt: new Date(),
@@ -743,8 +828,19 @@ export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: fal
     if (!form) throw new Error('Form not found')
     const pages = await hydratePages(session.formId)
     const allFields = pages.flatMap((item) => item.fields)
-    const dataScope = (session.collectedData ?? {}) as Record<string, unknown>
-    const amount = calculatePaymentAmount(page as FormPage, allFields, dataScope)
+    const references = await loadFormReferences(session.formId)
+    const sessionData = applyComputedFieldValues(allFields, (session.collectedData ?? {}) as Record<string, unknown>, references)
+    const dataScope = { ...buildReferenceMap(references), ...sessionData }
+    const calculation = calculatePagePayment(page as FormPage, allFields, dataScope, references)
+    const amount = calculation.amount
+    const paymentId = Number(((session.collectedData ?? {}) as Record<string, unknown>).__paymentId)
+    const [existingPayment] = Number.isFinite(paymentId)
+      ? await db
+          .select({ status: payments.status })
+          .from(payments)
+          .where(eq(payments.id, paymentId))
+          .limit(1)
+      : []
     const currency = page.paymentCurrency ?? 'USD'
     const configs = await loadIntegrationConfigs(form.profileId)
     const connected: { slug: GatewaySlug; name: string }[] = []
@@ -761,7 +857,16 @@ export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: fal
         .limit(1)
       gateways = gateways.filter((gateway) => gateway.slug === selectedGateway?.slug)
     }
-    return { amount, currency, gateways }
+    const computation = (page.paymentComputation as PaymentComputation | null) ?? null
+    return {
+      amount,
+      currency,
+      gateways,
+      breakdown: calculation.breakdown,
+      showBreakdown: Boolean(computation?.showBreakdown),
+      missingReferences: calculation.missingReferences,
+      paymentStatus: existingPayment?.status ?? null,
+    }
   })
 
 export const initiatePagePayment = createServerFn({ method: 'POST', strict: false })
@@ -780,11 +885,16 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
 
     const pages = await hydratePages(session.formId)
     const allFields = pages.flatMap((item) => item.fields)
-    const amountMajor = calculatePaymentAmount(
+    const references = await loadFormReferences(session.formId)
+    const amountMajor = calculatePagePayment(
       page as FormPage,
       allFields,
-      (session.collectedData ?? {}) as Record<string, unknown>,
-    )
+      {
+        ...buildReferenceMap(references),
+        ...applyComputedFieldValues(allFields, (session.collectedData ?? {}) as Record<string, unknown>, references),
+      },
+      references,
+    ).amount
     if (!Number.isFinite(amountMajor) || amountMajor <= 0) {
       throw new Error('Nothing to pay - the amount is zero or invalid')
     }

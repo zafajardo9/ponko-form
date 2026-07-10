@@ -7,17 +7,28 @@ export interface AddressValue {
   zipPostalCode?: string
 }
 
-export type FieldValue = string | string[] | AddressValue
+export interface UploadFileValue {
+  name: string
+  size: number
+  type: string
+  lastModified: number
+  dataUrl?: string
+}
+
+export type FieldValue = string | string[] | number | AddressValue | UploadFileValue[]
 
 export interface FieldOption {
   label: string
   value: string
   price?: number | null
+  priceReference?: string | null
+  additionalPrice?: number | null
+  additionalPriceReference?: string | null
 }
 
 export interface FieldConfig {
   id: number
-  type: 'text' | 'email' | 'number' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'payment' | 'date' | 'time' | 'datetime' | 'content' | 'media' | 'address'
+  type: 'text' | 'email' | 'number' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'payment' | 'date' | 'time' | 'datetime' | 'content' | 'media' | 'address' | 'computation' | 'file_upload'
   label: string
   placeholder?: string | null
   required: boolean
@@ -61,10 +72,10 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
   const errorClass = error ? 'border-[#c64545] focus:border-[#c64545] focus:ring-[#c64545]/20' : ''
 
   const strValue = Array.isArray(value)
-    ? value[0] ?? ''
+    ? typeof value[0] === 'string' ? value[0] : ''
     : value && typeof value === 'object'
       ? ''
-      : value
+      : String(value ?? '')
   const arrValue = Array.isArray(value) ? value : []
   const addressValue =
     value && typeof value === 'object' && !Array.isArray(value)
@@ -75,6 +86,55 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
     (field.options as FieldOption[] | null | undefined) ?? []
   const mediaType = options.find((option) => option.label === 'type')?.value ?? 'image'
   const caption = options.find((option) => option.label === 'caption')?.value ?? ''
+
+  const uploadConfig = Object.fromEntries(options.map((option) => [option.label, option.value]))
+  const uploadAccept =
+    uploadConfig.accept === 'image'
+      ? 'image/*'
+      : uploadConfig.accept === 'document'
+        ? '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv'
+        : uploadConfig.accept === 'custom'
+          ? uploadConfig.acceptCustom ?? ''
+          : ''
+  const uploadMultiple = uploadConfig.multiple === 'true'
+  const uploadFiles = Array.isArray(value) && value.every((item) => typeof item === 'object')
+    ? (value as UploadFileValue[])
+    : []
+
+  function readFile(file: File): Promise<UploadFileValue> {
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        resolve({
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          lastModified: file.lastModified,
+          dataUrl: typeof reader.result === 'string' ? reader.result : undefined,
+        })
+      }
+      reader.onerror = () => {
+        resolve({
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          lastModified: file.lastModified,
+        })
+      }
+      reader.readAsDataURL(file)
+    })
+  }
+
+  async function handleFiles(files: FileList | File[]) {
+    const list = await Promise.all(Array.from(files).map(readFile))
+    onChange(uploadMultiple ? list : list.slice(0, 1))
+  }
+
+  function formatFileSize(size: number) {
+    if (size < 1024) return `${size} B`
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+    return `${(size / 1024 / 1024).toFixed(1)} MB`
+  }
 
   if (field.type === 'content') {
     const html = richTextHtml(field.placeholder)
@@ -113,6 +173,20 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
         )}
         {caption && <figcaption className="px-4 py-3 text-sm text-[#6c6a64]">{caption}</figcaption>}
       </figure>
+    )
+  }
+
+  if (field.type === 'computation') {
+    const amount = Number(value ?? 0)
+    const display = Number.isFinite(amount)
+      ? new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)
+      : '0.00'
+    return (
+      <div className="rounded-[var(--ponko-radius,6px)] border border-[#e6dfd8] bg-[#faf9f5] p-4">
+        <p className="text-sm font-medium text-[#141413]">{field.label || 'Total'}</p>
+        {field.placeholder && <p className="mt-1 text-xs text-[#8e8b82]">{field.placeholder}</p>}
+        <p className="mt-3 text-3xl font-medium text-[#141413]">{display}</p>
+      </div>
     )
   }
 
@@ -317,6 +391,65 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
               className={`${inputBase} ${errorClass} h-10`}
             />
           </label>
+        </div>
+      )}
+
+      {field.type === 'file_upload' && (
+        <div className="flex flex-col gap-3">
+          <label
+            onDragOver={(event) => {
+              event.preventDefault()
+            }}
+            onDrop={(event) => {
+              event.preventDefault()
+              if (!readOnly) handleFiles(event.dataTransfer.files)
+            }}
+            className={`flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-[var(--ponko-radius,8px)] border border-dashed bg-[#faf9f5] px-4 py-6 text-center transition-colors ${
+              error
+                ? 'border-[#c64545] ring-2 ring-[#c64545]/10'
+                : 'border-[#d8cec3] hover:border-[var(--ponko-primary,#cc785c)] hover:bg-white'
+            } ${readOnly ? 'cursor-not-allowed opacity-60' : ''}`}
+          >
+            <input
+              type="file"
+              accept={uploadAccept}
+              multiple={uploadMultiple}
+              disabled={readOnly}
+              onChange={(event) => event.target.files && handleFiles(event.target.files)}
+              className="sr-only"
+            />
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--ponko-primary-soft,#cc785c29)] text-lg text-[var(--ponko-primary,#cc785c)]">
+              ↑
+            </span>
+            <span className="mt-3 text-sm font-medium text-[#141413]">
+              Drop files here or click to browse
+            </span>
+            <span className="mt-1 text-xs text-[#8e8b82]">
+              {uploadMultiple ? 'Multiple files allowed' : 'One file allowed'}
+              {uploadAccept ? ` · ${uploadAccept}` : ''}
+            </span>
+          </label>
+          {uploadFiles.length > 0 && (
+            <div className="rounded-[var(--ponko-radius,8px)] border border-[#e6dfd8] bg-white">
+              {uploadFiles.map((file, index) => (
+                <div key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center justify-between gap-3 border-b border-[#efe9de] px-3 py-2 last:border-b-0">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-[#141413]">{file.name}</p>
+                    <p className="text-xs text-[#8e8b82]">{formatFileSize(file.size)}{file.type ? ` · ${file.type}` : ''}</p>
+                  </div>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      onClick={() => onChange(uploadFiles.filter((_, itemIndex) => itemIndex !== index))}
+                      className="rounded-md px-2 py-1 text-xs text-[#c64545] hover:bg-[#fbeaea]"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

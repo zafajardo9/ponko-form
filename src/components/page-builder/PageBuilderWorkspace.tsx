@@ -28,8 +28,13 @@ import type {
   ConditionAction,
   ConditionOperator,
   FieldCondition,
+  FieldComputation,
+  FormulaOperator,
+  FormulaTermSource,
   PageFieldOption,
   FieldValidationRules,
+  FormReference,
+  FormReferenceType,
   FormPage,
   PageField,
   PageFieldType,
@@ -42,6 +47,7 @@ import {
   Bold,
   Calendar,
   CalendarClock,
+  Calculator,
   Check,
   CheckSquare,
   ChevronDown,
@@ -57,11 +63,13 @@ import {
   List,
   ListOrdered,
   Plus,
+  SlidersHorizontal,
   Save,
   ShieldCheck,
   Trash2,
   Type,
   Underline as UnderlineIcon,
+  Upload,
   X,
 } from 'lucide-react'
 
@@ -85,6 +93,8 @@ const FIELD_ITEMS: FieldPaletteItem[] = [
   { type: 'time', label: 'Time', icon: <Clock size={14} /> },
   { type: 'datetime', label: 'Date & Time', icon: <CalendarClock size={14} /> },
   { type: 'address', label: 'Address', icon: <MapPin size={14} /> },
+  { type: 'file_upload', label: 'Upload', icon: <Upload size={14} /> },
+  { type: 'computation', label: 'Computation', icon: <Calculator size={14} /> },
   { type: 'content', label: 'Details', icon: <FileText size={14} /> },
   { type: 'media', label: 'Media', icon: <Image size={14} /> },
 ]
@@ -102,9 +112,19 @@ function setMediaOption(field: PageField, key: 'type' | 'caption', value: string
   return [...rest, { label: key, value }]
 }
 
+function fieldOption(field: PageField, key: string) {
+  return field.options?.find((option) => option.label === key)?.value ?? ''
+}
+
+function setFieldOption(field: PageField, key: string, value: string) {
+  const rest = (field.options ?? []).filter((option) => option.label !== key)
+  return [...rest, { label: key, value }]
+}
+
 interface PageBuilderWorkspaceProps {
   formId: number
   pages: FormPage[]
+  references: FormReference[]
   gateways: { id: number; name: string }[]
   onChanged: () => void
 }
@@ -126,38 +146,52 @@ function sortPages(pages: FormPage[]): EditablePage[] {
     .sort((a, b) => a.position - b.position)
 }
 
-function snapshotPages(pages: EditablePage[]) {
+function sortReferences(references: FormReference[]) {
+  return [...references].sort((a, b) => a.position - b.position)
+}
+
+function snapshotBuilder(pages: EditablePage[], references: FormReference[]) {
   return JSON.stringify(
-    pages.map((page, pageIndex) => ({
-      title: page.title,
-      description: page.description ?? null,
-      position: pageIndex,
-      isFinal: page.isFinal,
-      finalTemplate: page.finalTemplate ?? null,
-      finalRedirectUrl: page.finalRedirectUrl ?? null,
-      hasPayment: page.hasPayment,
-      paymentGatewayId: page.paymentGatewayId ?? null,
-      paymentAmountVariable: page.paymentAmountVariable ?? null,
-      paymentCurrency: page.paymentCurrency,
-      paymentComputation: page.paymentComputation ?? null,
-      fields: page.fields.map((field, fieldIndex) => ({
-        fieldType: field.fieldType,
-        label: field.label,
-        placeholder: field.placeholder ?? null,
-        required: field.required,
-        options: field.options ?? null,
-        bindVariable: field.bindVariable,
-        position: fieldIndex,
-        width: field.width,
-        validationRules: field.validationRules ?? null,
-        conditions: field.conditions.map((condition) => ({
-          sourceFieldBinding: condition.sourceFieldBinding,
-          operator: condition.operator,
-          value: condition.value ?? null,
-          action: condition.action,
+    {
+      references: references.map((reference, index) => ({
+        key: reference.key,
+        type: reference.type,
+        value: reference.value,
+        label: reference.label ?? null,
+        description: reference.description ?? null,
+        position: index,
+      })),
+      pages: pages.map((page, pageIndex) => ({
+        title: page.title,
+        description: page.description ?? null,
+        position: pageIndex,
+        isFinal: page.isFinal,
+        finalTemplate: page.finalTemplate ?? null,
+        finalRedirectUrl: page.finalRedirectUrl ?? null,
+        hasPayment: page.hasPayment,
+        paymentGatewayId: page.paymentGatewayId ?? null,
+        paymentAmountVariable: page.paymentAmountVariable ?? null,
+        paymentCurrency: page.paymentCurrency,
+        paymentComputation: page.paymentComputation ?? null,
+        fields: page.fields.map((field, fieldIndex) => ({
+          fieldType: field.fieldType,
+          label: field.label,
+          placeholder: field.placeholder ?? null,
+          required: field.required,
+          options: field.options ?? null,
+          bindVariable: field.bindVariable,
+          position: fieldIndex,
+          width: field.width,
+          validationRules: field.validationRules ?? null,
+          conditions: field.conditions.map((condition) => ({
+            sourceFieldBinding: condition.sourceFieldBinding,
+            operator: condition.operator,
+            value: condition.value ?? null,
+            action: condition.action,
+          })),
         })),
       })),
-    })),
+    },
   )
 }
 
@@ -205,12 +239,18 @@ function optionValueForLabel(label: string, options: PageFieldOption[], index: n
 export function PageBuilderWorkspace({
   formId,
   pages,
+  references,
   gateways,
   onChanged,
 }: PageBuilderWorkspaceProps) {
   const incomingPages = useMemo(() => sortPages(pages), [pages])
-  const incomingSnapshot = useMemo(() => snapshotPages(incomingPages), [incomingPages])
+  const incomingReferences = useMemo(() => sortReferences(references), [references])
+  const incomingSnapshot = useMemo(
+    () => snapshotBuilder(incomingPages, incomingReferences),
+    [incomingPages, incomingReferences],
+  )
   const [draftPages, setDraftPages] = useState<EditablePage[]>(incomingPages)
+  const [draftReferences, setDraftReferences] = useState<FormReference[]>(incomingReferences)
   const [savedSnapshot, setSavedSnapshot] = useState(incomingSnapshot)
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -221,20 +261,22 @@ export function PageBuilderWorkspace({
     incomingPages[0] ? { type: 'page', pageId: incomingPages[0].id } : null,
   )
   const [settingsPanelWidth, setSettingsPanelWidth] = useState(360)
+  const [panelMode, setPanelMode] = useState<'settings' | 'references'>('settings')
   const isResizingSettings = useRef(false)
 
-  const currentSnapshot = useMemo(() => snapshotPages(draftPages), [draftPages])
+  const currentSnapshot = useMemo(() => snapshotBuilder(draftPages, draftReferences), [draftPages, draftReferences])
   const isDirty = currentSnapshot !== savedSnapshot
 
   useEffect(() => {
     if (isDirty) return
     setDraftPages(incomingPages)
+    setDraftReferences(incomingReferences)
     setSavedSnapshot(incomingSnapshot)
     if (!incomingPages.some((page) => page.id === selectedPageId)) {
       setSelectedPageId(incomingPages[0]?.id ?? 0)
       setSelection(incomingPages[0] ? { type: 'page', pageId: incomingPages[0].id } : null)
     }
-  }, [incomingPages, incomingSnapshot, isDirty, selectedPageId])
+  }, [incomingPages, incomingReferences, incomingSnapshot, isDirty, selectedPageId])
 
   useEffect(() => {
     if (!isDirty) return
@@ -275,14 +317,42 @@ export function PageBuilderWorkspace({
               })),
             })),
           })),
+          references: draftReferences.map((reference, index) => ({
+            id: reference.id,
+            key: reference.key,
+            type: reference.type,
+            value: reference.value,
+            label: reference.label,
+            description: reference.description,
+            position: index,
+          })),
         },
       }),
     onSuccess: (saved) => {
       const nextPages = sortPages(saved.pages)
+      const nextReferences = sortReferences(saved.references ?? [])
+      const previousPageIndex = draftPages.findIndex((page) => page.id === selectedPageId)
+      const previousFieldBinding = selection?.type === 'field'
+        ? draftPages.flatMap((page) => page.fields).find((field) => field.id === selection.fieldId)?.bindVariable
+        : null
+      const nextField = previousFieldBinding
+        ? nextPages.flatMap((page) => page.fields).find((field) => field.bindVariable === previousFieldBinding)
+        : null
+      const nextFieldPage = nextField
+        ? nextPages.find((page) => page.fields.some((field) => field.id === nextField.id))
+        : null
+      const nextPage = nextFieldPage ?? nextPages[Math.max(0, previousPageIndex)] ?? nextPages[0]
       setDraftPages(nextPages)
-      setSavedSnapshot(snapshotPages(nextPages))
-      setSelectedPageId(nextPages[0]?.id ?? 0)
-      setSelection(nextPages[0] ? { type: 'page', pageId: nextPages[0].id } : null)
+      setDraftReferences(nextReferences)
+      setSavedSnapshot(snapshotBuilder(nextPages, nextReferences))
+      setSelectedPageId(nextPage?.id ?? 0)
+      setSelection(
+        nextField
+          ? { type: 'field', fieldId: nextField.id }
+          : nextPage
+            ? { type: 'page', pageId: nextPage.id }
+            : null,
+      )
       onChanged()
     },
   })
@@ -351,7 +421,10 @@ export function PageBuilderWorkspace({
     if (!currentPage || currentPage.isFinal) return
     const fieldType = item.type
     const isTerms = item.preset === 'terms'
-    const used = new Set(draftPages.flatMap((page) => page.fields.map((field) => field.bindVariable)))
+    const used = new Set([
+      ...draftPages.flatMap((page) => page.fields.map((field) => field.bindVariable)),
+      ...draftReferences.map((reference) => reference.key),
+    ])
     const field: EditablePageField = {
       id: tempId(),
       pageId: currentPage.id,
@@ -364,9 +437,19 @@ export function PageBuilderWorkspace({
             ? 'Media'
             : fieldType === 'address'
               ? 'Address'
+              : fieldType === 'file_upload'
+                ? 'File upload'
+              : fieldType === 'computation'
+                ? 'Total'
               : '',
-      placeholder: fieldType === 'content' ? '<p>Add helpful details for this page.</p>' : null,
-      required: isTerms,
+      placeholder: fieldType === 'content'
+        ? '<p>Add helpful details for this page.</p>'
+        : fieldType === 'computation'
+          ? 'Calculated from selected fields.'
+          : fieldType === 'file_upload'
+            ? 'Upload an image or file.'
+          : null,
+      required: (isTerms || fieldType === 'file_upload') && fieldType !== 'computation',
       options: isTerms
         ? [
             {
@@ -379,6 +462,12 @@ export function PageBuilderWorkspace({
             { label: 'type', value: 'image' },
             { label: 'caption', value: '' },
           ]
+        : fieldType === 'file_upload'
+        ? [
+            { label: 'accept', value: 'any' },
+            { label: 'acceptCustom', value: '' },
+            { label: 'multiple', value: 'false' },
+          ]
         : ['select', 'checkbox', 'radio'].includes(fieldType)
         ? [
             { label: 'Option 1', value: 'option_1' },
@@ -388,7 +477,9 @@ export function PageBuilderWorkspace({
       bindVariable: slugForBinding(isTerms ? 'terms_and_conditions' : fieldType, used),
       position: currentPage.fields.length,
       width: 'full',
-      validationRules: null,
+      validationRules: fieldType === 'computation'
+        ? { computation: { mode: 'expression', terms: [], showBreakdown: true } }
+        : null,
       conditions: [],
     }
     setDraftPages((items) =>
@@ -396,6 +487,7 @@ export function PageBuilderWorkspace({
         page.id === currentPage.id ? { ...page, fields: [...page.fields, field] } : page,
       ),
     )
+    setPanelMode('settings')
     setSelection({ type: 'field', fieldId: field.id })
   }
 
@@ -529,6 +621,7 @@ export function PageBuilderWorkspace({
                     active={page.id === currentPage.id}
                     onSelect={() => {
                       setSelectedPageId(page.id)
+                      setPanelMode('settings')
                       setSelection({ type: 'page', pageId: page.id })
                     }}
                   />
@@ -602,7 +695,10 @@ export function PageBuilderWorkspace({
                         field={field}
                         pages={draftPages}
                         selected={selectedField?.id === field.id}
-                        onSelect={() => setSelection({ type: 'field', fieldId: field.id })}
+                        onSelect={() => {
+                          setPanelMode('settings')
+                          setSelection({ type: 'field', fieldId: field.id })
+                        }}
                         onMoveToPage={(pageId) => moveFieldToPageLocal(field.id, pageId)}
                       />
                     ))}
@@ -648,11 +744,36 @@ export function PageBuilderWorkspace({
           aria-hidden="true"
         />
         <div className="p-4">
-          {selectedField ? (
+          <div className="mb-4 grid grid-cols-2 gap-1 rounded-lg border border-[#e6dfd8] bg-[#f5f0e8] p-1 text-sm">
+            <button
+              type="button"
+              onClick={() => setPanelMode('settings')}
+              className={`rounded-md px-3 py-1.5 ${panelMode === 'settings' ? 'bg-white font-medium text-[#141413] shadow-sm' : 'text-[#6c6a64] hover:text-[#141413]'}`}
+            >
+              Settings
+            </button>
+            <button
+              type="button"
+              onClick={() => setPanelMode('references')}
+              className={`inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 ${panelMode === 'references' ? 'bg-white font-medium text-[#141413] shadow-sm' : 'text-[#6c6a64] hover:text-[#141413]'}`}
+            >
+              <SlidersHorizontal size={13} /> References
+            </button>
+          </div>
+
+          {panelMode === 'references' ? (
+            <ReferencesPanel
+              formId={formId}
+              references={draftReferences}
+              fields={draftPages.flatMap((page) => page.fields)}
+              onChange={setDraftReferences}
+            />
+          ) : selectedField ? (
             <FieldSettings
               field={selectedField}
               pages={draftPages}
               fields={draftPages.flatMap((page) => page.fields)}
+              references={draftReferences}
               onUpdate={(patch) => updateFieldLocal(selectedField.id, patch)}
               onMoveToPage={(pageId) => moveFieldToPageLocal(selectedField.id, pageId)}
               onDelete={() => deleteFieldLocal(selectedField.id)}
@@ -663,6 +784,7 @@ export function PageBuilderWorkspace({
               page={selectedPage}
               gateways={gateways}
               fields={draftPages.flatMap((page) => page.fields)}
+              references={draftReferences}
               onUpdate={(patch) => updatePageLocal(selectedPage.id, patch)}
               onDelete={() => deletePageLocal(selectedPage.id)}
             />
@@ -677,17 +799,238 @@ interface PageSettingsProps {
   page: FormPage
   gateways: { id: number; name: string }[]
   fields: PageField[]
+  references: FormReference[]
   onUpdate: (patch: Partial<FormPage>) => void
   onDelete: () => void
 }
 
-function PageSettings({ page, gateways, fields, onUpdate, onDelete }: PageSettingsProps) {
+function referenceValueForType(type: FormReferenceType, value: string) {
+  if (type === 'boolean') return value === 'true' ? 'true' : 'false'
+  if (type === 'percentage') {
+    const cleaned = value.replace('%', '').trim()
+    return cleaned.endsWith('%') ? cleaned : `${cleaned || '0'}%`
+  }
+  return value
+}
+
+function ReferencesPanel({
+  formId,
+  references,
+  fields,
+  onChange,
+}: {
+  formId: number
+  references: FormReference[]
+  fields: PageField[]
+  onChange: (references: FormReference[]) => void
+}) {
+  const [editingId, setEditingId] = useState<number | 'new' | null>(null)
+  const [draft, setDraft] = useState({
+    key: '',
+    type: 'number' as FormReferenceType,
+    value: '0',
+    label: '',
+    description: '',
+  })
+  const fieldBindings = new Set(fields.map((field) => field.bindVariable))
+
+  function startNew() {
+    const used = new Set([...references.map((reference) => reference.key), ...fieldBindings])
+    const key = slugForBinding('reference', used)
+    setDraft({ key, type: 'number', value: '0', label: '', description: '' })
+    setEditingId('new')
+  }
+
+  function startEdit(reference: FormReference) {
+    setDraft({
+      key: reference.key,
+      type: reference.type,
+      value: reference.type === 'percentage' ? reference.value.replace('%', '').trim() : reference.value,
+      label: reference.label ?? '',
+      description: reference.description ?? '',
+    })
+    setEditingId(reference.id)
+  }
+
+  function save() {
+    const nextReference: FormReference = {
+      id: editingId === 'new' ? tempId() : editingId as number,
+      formId,
+      key: draft.key,
+      type: draft.type,
+      value: referenceValueForType(draft.type, draft.value),
+      label: draft.label || null,
+      description: draft.description || null,
+      position: editingId === 'new' ? references.length : references.findIndex((reference) => reference.id === editingId),
+    }
+    if (editingId === 'new') onChange([...references, nextReference])
+    else onChange(references.map((reference) => (reference.id === editingId ? nextReference : reference)))
+    setEditingId(null)
+  }
+  const duplicateKey = references.some((reference) => reference.id !== editingId && reference.key === draft.key)
+  const bindingCollision = fieldBindings.has(draft.key)
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium uppercase text-[#8e8b82]">References</p>
+          <h3 className="mt-1 text-lg font-medium text-[#141413]">Reference variables</h3>
+        </div>
+        <Button type="button" size="sm" onClick={startNew}>
+          Add
+        </Button>
+      </div>
+
+      {(duplicateKey || bindingCollision) && editingId && (
+        <p className="rounded-lg border border-[#f0c2b8] bg-[#fff3ef] p-3 text-sm text-[#c64545]">
+          {bindingCollision ? 'This key is already used as a field binding.' : 'This key is already used by another reference.'}
+        </p>
+      )}
+
+      {editingId && (
+        <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
+          <div className="grid grid-cols-1 gap-3">
+            <Field label="Key">
+              <input
+                value={draft.key}
+                onChange={(e) => setDraft((item) => ({ ...item, key: slugForOptionValue(e.target.value) }))}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Type">
+              <select
+                value={draft.type}
+                onChange={(e) =>
+                  setDraft((item) => ({
+                    ...item,
+                    type: e.target.value as FormReferenceType,
+                    value: e.target.value === 'boolean'
+                      ? 'false'
+                      : e.target.value === 'number'
+                        ? '0'
+                        : e.target.value === 'percentage'
+                          ? '12'
+                          : '',
+                  }))
+                }
+                className={inputClass}
+              >
+                <option value="number">Number</option>
+                <option value="percentage">Percentage</option>
+                <option value="text">Text</option>
+                <option value="boolean">Boolean</option>
+              </select>
+            </Field>
+            <Field label="Value">
+              {draft.type === 'boolean' ? (
+                <select
+                  value={draft.value}
+                  onChange={(e) => setDraft((item) => ({ ...item, value: e.target.value }))}
+                  className={inputClass}
+                >
+                  <option value="false">False</option>
+                  <option value="true">True</option>
+                </select>
+              ) : (
+                <div className="relative">
+                  <input
+                    type={draft.type === 'number' || draft.type === 'percentage' ? 'number' : 'text'}
+                    step={draft.type === 'number' || draft.type === 'percentage' ? '0.01' : undefined}
+                    value={draft.value}
+                    onChange={(e) => setDraft((item) => ({ ...item, value: e.target.value }))}
+                    className={`${inputClass} ${draft.type === 'percentage' ? 'pr-10' : ''}`}
+                    placeholder={draft.type === 'percentage' ? '12' : undefined}
+                  />
+                  {draft.type === 'percentage' && (
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[#8e8b82]">
+                      %
+                    </span>
+                  )}
+                </div>
+              )}
+            </Field>
+            <Field label="Label">
+              <input
+                value={draft.label}
+                onChange={(e) => setDraft((item) => ({ ...item, label: e.target.value }))}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Description">
+              <textarea
+                value={draft.description}
+                onChange={(e) => setDraft((item) => ({ ...item, description: e.target.value }))}
+                rows={3}
+                className={`${inputClass} h-auto resize-none`}
+              />
+            </Field>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" onClick={save} disabled={duplicateKey || bindingCollision || !draft.key}>
+                Save Reference
+              </Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setEditingId(null)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {references.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-[#e6dfd8] bg-[#faf9f5] p-6 text-sm text-[#8e8b82]">
+          Add prices, fees, VAT rates, and thresholds once, then reference them in options, payments, and logic.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {references.map((reference) => (
+            <div key={reference.id} className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-[#141413]">{reference.label || reference.key}</p>
+                  <p className="mt-0.5 text-xs text-[#8e8b82]">
+                    {`{{${reference.key}}}`} · {reference.type} · {reference.value}
+                  </p>
+                  {reference.description && <p className="mt-2 text-xs text-[#6c6a64]">{reference.description}</p>}
+                </div>
+                <div className="flex flex-none gap-1">
+                  <button
+                    type="button"
+                    onClick={() => startEdit(reference)}
+                    className="rounded-md px-2 py-1 text-xs text-[#6c6a64] hover:bg-white hover:text-[#141413]"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onChange(references.filter((item) => item.id !== reference.id))}
+                    className="rounded-md px-2 py-1 text-xs text-[#c64545] hover:bg-[#fff3ef]"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PageSettings({ page, gateways, fields, references, onUpdate, onDelete }: PageSettingsProps) {
+  const numberReferences = references.filter((reference) => reference.type === 'number' || reference.type === 'percentage')
   const pricedOptionFields = fields.filter((field) =>
     ['select', 'checkbox', 'radio'].includes(field.fieldType) &&
     field.validationRules?.optionPricesEnabled &&
-    field.options?.some((option) => Number(option.price ?? 0) > 0),
+    field.options?.some((option) =>
+      Number(option.price ?? 0) > 0 ||
+      Number(option.additionalPrice ?? 0) > 0 ||
+      Boolean(option.priceReference) ||
+      Boolean(option.additionalPriceReference),
+    ),
   )
-  const numberFields = fields.filter((field) => field.fieldType === 'number')
+  const numberFields = fields.filter((field) => field.fieldType === 'number' || field.fieldType === 'computation')
   const paymentComputation = page.paymentComputation ?? {
     mode: page.paymentAmountVariable ? 'field' : 'sum_priced_options',
     fieldBindings: page.paymentAmountVariable ? [page.paymentAmountVariable] : [],
@@ -791,18 +1134,20 @@ function PageSettings({ page, gateways, fields, onUpdate, onDelete }: PageSettin
                           mode,
                           fieldBindings: mode === 'field'
                             ? [page.paymentAmountVariable ?? numberFields[0]?.bindVariable ?? ''].filter(Boolean)
-                            : mode === 'sum_priced_options'
+                            : mode === 'sum_priced_options' || mode === 'formula'
                               ? pricedOptionFields.map((field) => field.bindVariable)
                               : mode === 'sum_number_fields'
                                 ? numberFields.map((field) => field.bindVariable)
                             : [],
                           fixedAmount: mode === 'fixed' ? paymentComputation.fixedAmount ?? 0 : null,
+                          adjustments: mode === 'formula' ? paymentComputation.adjustments ?? [] : [],
                         })
                       }}
                       className={inputClass}
                     >
                       <option value="sum_priced_options">Sum selected option prices</option>
                       <option value="sum_number_fields">Sum number fields</option>
+                      <option value="formula">Formula builder</option>
                       <option value="field">Use one amount field</option>
                       <option value="fixed">Fixed amount</option>
                     </select>
@@ -855,6 +1200,22 @@ function PageSettings({ page, gateways, fields, onUpdate, onDelete }: PageSettin
                       onToggle={togglePaymentBinding}
                     />
                   )}
+
+                  {paymentComputation.mode === 'formula' && (
+                    <>
+                      <PaymentFieldChecklist
+                        fields={pricedOptionFields}
+                        selected={paymentComputation.fieldBindings ?? []}
+                        emptyText="No priced option fields yet. Enable option prices on a checkbox, radio, or dropdown field first."
+                        onToggle={togglePaymentBinding}
+                      />
+                      <FormulaAdjustmentsEditor
+                        references={numberReferences}
+                        adjustments={paymentComputation.adjustments ?? []}
+                        onChange={(adjustments) => updatePaymentComputation({ adjustments })}
+                      />
+                    </>
+                  )}
                 </div>
               </div>
               <Field label="Currency">
@@ -864,6 +1225,15 @@ function PageSettings({ page, gateways, fields, onUpdate, onDelete }: PageSettin
                   className={inputClass}
                 />
               </Field>
+              <label className="flex items-center gap-2 rounded-lg border border-[#e6dfd8] bg-white p-3 text-sm text-[#141413]">
+                <input
+                  type="checkbox"
+                  checked={Boolean(paymentComputation.showBreakdown)}
+                  onChange={(e) => updatePaymentComputation({ showBreakdown: e.target.checked })}
+                  className="h-4 w-4 accent-[#cc785c]"
+                />
+                Show price breakdown before payment
+              </label>
             </div>
           )}
         </div>
@@ -910,6 +1280,154 @@ function PaymentFieldChecklist({
           </label>
         ))}
       </div>
+    </div>
+  )
+}
+
+function FormulaAdjustmentsEditor({
+  references,
+  adjustments,
+  onChange,
+}: {
+  references: FormReference[]
+  adjustments: NonNullable<FormPage['paymentComputation']>['adjustments']
+  onChange: (adjustments: NonNullable<FormPage['paymentComputation']>['adjustments']) => void
+}) {
+  const items = adjustments ?? []
+
+  function update(index: number, patch: Partial<{ type: 'add' | 'subtract' | 'multiply'; referenceKey: string }>) {
+    onChange(items.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)))
+  }
+
+  function add() {
+    const referenceKey = references[0]?.key ?? ''
+    onChange([...items, { type: 'add', referenceKey }])
+  }
+
+  return (
+    <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-[#141413]">Formula adjustments</p>
+          <p className="mt-0.5 text-xs text-[#8e8b82]">Apply fees, discounts, VAT, or multipliers from number and percentage references.</p>
+        </div>
+        <button
+          type="button"
+          onClick={add}
+          disabled={references.length === 0}
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#e6dfd8] bg-white px-2.5 text-xs font-medium text-[#3d3d3a] hover:border-[#cc785c] hover:text-[#141413] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Plus size={13} /> Add
+        </button>
+      </div>
+      {references.length === 0 ? (
+        <p className="text-sm text-[#8e8b82]">Create a number or percentage reference first.</p>
+      ) : items.length === 0 ? (
+        <p className="text-sm text-[#8e8b82]">No adjustments yet.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {items.map((item, index) => (
+            <div key={`${item.referenceKey}-${index}`} className="grid grid-cols-[120px_minmax(0,1fr)_auto] gap-2">
+              <select
+                value={item.type}
+                onChange={(e) => update(index, { type: e.target.value as 'add' | 'subtract' | 'multiply' })}
+                className={inputClass}
+              >
+                <option value="add">+ Add</option>
+                <option value="subtract">- Subtract</option>
+                <option value="multiply">+ Percent</option>
+              </select>
+              <select
+                value={item.referenceKey}
+                onChange={(e) => update(index, { referenceKey: e.target.value })}
+                className={inputClass}
+              >
+                {references.map((reference) => (
+                  <option key={reference.id} value={reference.key}>
+                    {reference.label || reference.key} = {reference.value}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}
+                className="flex h-10 w-10 items-center justify-center rounded-md text-[#c64545] hover:bg-[#fff3ef]"
+                title="Remove adjustment"
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function formulaToken(label: string, tone: 'source' | 'reference' | 'operator' | 'total' = 'source', key?: string) {
+  const toneClass = {
+    source: 'border-[#e6dfd8] bg-white text-[#141413]',
+    reference: 'border-[#d8c8b7] bg-[#fff8ef] text-[#7a4b35]',
+    operator: 'border-transparent bg-transparent px-0 text-[#8e8b82]',
+    total: 'border-[#cc785c] bg-[#fff3ef] text-[#9d4f38]',
+  }[tone]
+  return (
+    <span key={key ?? `${tone}-${label}`} className={`inline-flex min-h-8 items-center rounded-md border px-2.5 text-sm font-medium ${toneClass}`}>
+      {label}
+    </span>
+  )
+}
+
+function FormulaPreview({
+  sourceFields,
+  selectedBindings,
+  adjustments,
+  references,
+}: {
+  sourceFields: PageField[]
+  selectedBindings: string[]
+  adjustments: FieldComputation['adjustments']
+  references: FormReference[]
+}) {
+  const selected = selectedBindings.length > 0
+    ? sourceFields.filter((field) => selectedBindings.includes(field.bindVariable))
+    : sourceFields
+  const referencesByKey = new Map(references.map((reference) => [reference.key, reference]))
+  const sourceLabel = selected.length === 0
+    ? 'selected items'
+    : selected.length === 1
+      ? selected[0].label || selected[0].bindVariable
+      : `${selected.length} selected fields`
+
+  return (
+    <div className="rounded-xl border border-[#e6dfd8] bg-white p-4">
+      <p className="mb-3 text-xs font-medium uppercase text-[#8e8b82]">Formula</p>
+      <div className="flex flex-wrap items-center gap-2">
+        {formulaToken('Total', 'total', 'total')}
+        {formulaToken('=', 'operator', 'equals')}
+        {formulaToken(sourceLabel, 'source', 'source')}
+        {(adjustments ?? []).map((adjustment, index) => {
+          const reference = referencesByKey.get(adjustment.referenceKey)
+          const label = reference?.label || reference?.key || adjustment.referenceKey || 'reference'
+          if (adjustment.type === 'multiply') {
+            return (
+              <span key={`${adjustment.referenceKey}-${index}`} className="contents">
+                {formulaToken('+', 'operator', `operator-${index}`)}
+                {formulaToken(`(${index === 0 ? 'subtotal' : 'running total'} x ${label})`, 'reference', `reference-${index}`)}
+              </span>
+            )
+          }
+          return (
+            <span key={`${adjustment.referenceKey}-${index}`} className="contents">
+              {formulaToken(adjustment.type === 'subtract' ? '-' : '+', 'operator', `operator-${index}`)}
+              {formulaToken(label, 'reference', `reference-${index}`)}
+            </span>
+          )
+        })}
+      </div>
+      <p className="mt-3 text-xs text-[#8e8b82]">
+        Percent references such as VAT are added as a percentage of the current running total.
+      </p>
     </div>
   )
 }
@@ -1072,6 +1590,19 @@ function SortableFieldCard({ field, pages, selected, onSelect, onMoveToPage }: S
             />
           </button>
         )}
+        {field.fieldType === 'file_upload' && (
+          <button type="button" onClick={onSelect} className="mt-3 block w-full text-left">
+            <div className="flex items-center gap-3 rounded-md border border-dashed border-[#d8cec3] bg-white p-3">
+              <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-[#efe9de] text-[#cc785c]">
+                <Upload size={15} />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-medium text-[#141413]">Drop files or browse</p>
+                <p className="truncate text-xs text-[#8e8b82]">{field.placeholder || 'Respondents can upload a file.'}</p>
+              </div>
+            </div>
+          </button>
+        )}
       </div>
     </div>
   )
@@ -1081,16 +1612,19 @@ interface FieldSettingsProps {
   field: EditablePageField
   pages: FormPage[]
   fields: PageField[]
+  references: FormReference[]
   onUpdate: (patch: Partial<PageField>) => void
   onMoveToPage: (pageId: number) => void
   onDelete: () => void
   onSaveConditions: (conditions: FieldCondition[]) => void
 }
 
-function FieldSettings({ field, pages, fields, onUpdate, onMoveToPage, onDelete, onSaveConditions }: FieldSettingsProps) {
+function FieldSettings({ field, pages, fields, references, onUpdate, onMoveToPage, onDelete, onSaveConditions }: FieldSettingsProps) {
   const [conditions, setConditions] = useState(field.conditions)
   const [rulesOpen, setRulesOpen] = useState(false)
   const [logicOpen, setLogicOpen] = useState(false)
+  const [optionsOpen, setOptionsOpen] = useState(false)
+  const [computationOpen, setComputationOpen] = useState(false)
   const rules = field.validationRules ?? {}
   const editablePages = pages.filter((page) => !page.isFinal)
   const addressRequired = addressRequiredParts(field)
@@ -1207,6 +1741,51 @@ function FieldSettings({ field, pages, fields, onUpdate, onMoveToPage, onDelete,
             />
           </Field>
         </>
+      ) : field.fieldType === 'file_upload' ? (
+        <>
+          <Field label="Help text">
+            <input
+              value={field.placeholder ?? ''}
+              onChange={(e) => onUpdate({ placeholder: e.target.value || null })}
+              className={inputClass}
+              placeholder="Upload an image or file."
+            />
+          </Field>
+          <Field label="Binding">
+            <input value={field.bindVariable} onChange={(e) => onUpdate({ bindVariable: e.target.value })} className={inputClass} />
+          </Field>
+          <Field label="Accepted files">
+            <select
+              value={fieldOption(field, 'accept') || 'any'}
+              onChange={(e) => onUpdate({ options: setFieldOption(field, 'accept', e.target.value) })}
+              className={inputClass}
+            >
+              <option value="any">Any file</option>
+              <option value="image">Images only</option>
+              <option value="document">Documents only</option>
+              <option value="custom">Custom accept value</option>
+            </select>
+          </Field>
+          {(fieldOption(field, 'accept') || 'any') === 'custom' && (
+            <Field label="Custom accept">
+              <input
+                value={fieldOption(field, 'acceptCustom')}
+                onChange={(e) => onUpdate({ options: setFieldOption(field, 'acceptCustom', e.target.value) })}
+                className={inputClass}
+                placeholder=".pdf,image/*"
+              />
+            </Field>
+          )}
+          <label className="flex items-center gap-2 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 text-sm text-[#141413]">
+            <input
+              type="checkbox"
+              checked={fieldOption(field, 'multiple') === 'true'}
+              onChange={(e) => onUpdate({ options: setFieldOption(field, 'multiple', e.target.checked ? 'true' : 'false') })}
+              className="h-4 w-4 accent-[#cc785c]"
+            />
+            Allow multiple files
+          </label>
+        </>
       ) : (
         <>
           <Field label="Placeholder">
@@ -1219,7 +1798,7 @@ function FieldSettings({ field, pages, fields, onUpdate, onMoveToPage, onDelete,
       )}
 
       <div className="grid grid-cols-2 gap-3">
-        {!isContentField(field) && (
+        {!isContentField(field) && field.fieldType !== 'computation' && (
           <label className="flex items-center gap-2 text-sm text-[#141413]">
             <input type="checkbox" checked={field.required} onChange={(e) => onUpdate({ required: e.target.checked })} className="h-4 w-4 accent-[#cc785c]" />
             Required
@@ -1266,6 +1845,28 @@ function FieldSettings({ field, pages, fields, onUpdate, onMoveToPage, onDelete,
         </div>
       )}
 
+      {field.fieldType === 'computation' && (
+        <button
+          type="button"
+          onClick={() => setComputationOpen(true)}
+          className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 text-left transition-colors hover:border-[#cc785c]/70 hover:bg-[#efe9de]"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-medium text-[#141413]">Computation</span>
+            <span className="rounded bg-white px-2 py-0.5 text-xs text-[#6c6a64]">
+              {rules.computation?.mode === 'expression'
+                ? 'Formula'
+                : rules.computation?.mode === 'formula'
+                ? 'Formula'
+                : rules.computation?.mode === 'sum_number_fields'
+                  ? 'Numbers'
+                  : 'Priced options'}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-[#8e8b82]">Choose fields and reference adjustments for this calculated total.</p>
+        </button>
+      )}
+
       {['select', 'checkbox', 'radio'].includes(field.fieldType) && (
         <div className="flex flex-col gap-3">
           <label className="flex items-center gap-2 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 text-sm text-[#141413]">
@@ -1277,15 +1878,23 @@ function FieldSettings({ field, pages, fields, onUpdate, onMoveToPage, onDelete,
             />
             Use option prices for payment
           </label>
-          <OptionsEditor
-            options={field.options ?? []}
-            showPrices={Boolean(rules.optionPricesEnabled)}
-            onChange={(options) => onUpdate({ options })}
-          />
+          <button
+            type="button"
+            onClick={() => setOptionsOpen(true)}
+            className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 text-left transition-colors hover:border-[#cc785c]/70 hover:bg-[#efe9de]"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-medium text-[#141413]">Options</span>
+              <span className="rounded bg-white px-2 py-0.5 text-xs text-[#6c6a64]">
+                {(field.options ?? []).length} {(field.options ?? []).length === 1 ? 'option' : 'options'}
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-[#8e8b82]">Edit labels, values, base prices, and optional additional charges.</p>
+          </button>
         </div>
       )}
 
-      {!isContentField(field) && (
+      {!isContentField(field) && field.fieldType !== 'computation' && (
         <div className="grid grid-cols-1 gap-3">
         <button
           type="button"
@@ -1332,10 +1941,32 @@ function FieldSettings({ field, pages, fields, onUpdate, onMoveToPage, onDelete,
         />
       )}
 
+      {optionsOpen && (
+        <OptionsDialog
+          field={field}
+          references={references.filter((reference) => reference.type === 'number')}
+          showPrices={Boolean(rules.optionPricesEnabled)}
+          onClose={() => setOptionsOpen(false)}
+          onChange={(options) => onUpdate({ options })}
+        />
+      )}
+
+      {computationOpen && (
+        <ComputationDialog
+          field={field}
+          fields={fields}
+          references={references}
+          computation={rules.computation ?? { mode: 'sum_priced_options', fieldBindings: [], adjustments: [], showBreakdown: true }}
+          onClose={() => setComputationOpen(false)}
+          onChange={(computation) => updateRules({ computation })}
+        />
+      )}
+
       {logicOpen && (
         <LogicDialog
           field={field}
           fields={fields}
+          references={references}
           conditions={conditions}
           onClose={() => setLogicOpen(false)}
           onAdd={addCondition}
@@ -1397,13 +2028,786 @@ function FieldDialog({
   )
 }
 
+function computationSourceFields(fields: PageField[], currentFieldId: number, mode: FieldComputation['mode']) {
+  if (mode === 'sum_number_fields') {
+    return fields.filter((field) => field.id !== currentFieldId && (field.fieldType === 'number' || field.fieldType === 'computation'))
+  }
+  return fields.filter((field) =>
+    field.id !== currentFieldId &&
+    ['select', 'checkbox', 'radio'].includes(field.fieldType) &&
+    field.validationRules?.optionPricesEnabled &&
+    field.options?.some((option) =>
+      Number(option.price ?? 0) > 0 ||
+      Number(option.additionalPrice ?? 0) > 0 ||
+      Boolean(option.priceReference) ||
+      Boolean(option.additionalPriceReference),
+    ),
+  )
+}
+
+function computationFormulaFields(fields: PageField[], currentField: PageField) {
+  return fields.filter((field) =>
+    field.id !== currentField.id &&
+    !['content', 'media', 'address'].includes(field.fieldType) &&
+    (field.fieldType === 'number' ||
+      field.fieldType === 'computation' ||
+      ['select', 'checkbox', 'radio'].includes(field.fieldType)),
+  )
+}
+
+function formulaOperatorSymbol(operator: FormulaOperator) {
+  if (operator === 'set') return '='
+  if (operator === 'add') return '+'
+  if (operator === 'subtract') return '-'
+  if (operator === 'multiply') return 'x'
+  if (operator === 'divide') return '/'
+  return '+%'
+}
+
+function formulaTermLabel(
+  term: NonNullable<FieldComputation['terms']>[number],
+  fields: PageField[],
+  references: FormReference[],
+) {
+  if (term.source === 'field') {
+    const field = fields.find((item) => item.bindVariable === term.fieldBinding)
+    return field ? `{{${field.bindVariable}}}` : '{{field}}'
+  }
+  if (term.source === 'reference') return term.referenceKey ? `{{${term.referenceKey}}}` : '{{reference}}'
+  return String(term.fixedValue ?? 0)
+}
+
+function ExpressionPreview({
+  field,
+  expression,
+  terms,
+  fields,
+  references,
+}: {
+  field: PageField
+  expression?: string | null
+  terms: NonNullable<FieldComputation['terms']>
+  fields: PageField[]
+  references: FormReference[]
+}) {
+  const expressionTokens = expression?.trim()
+  return (
+    <div className="rounded-xl border border-[#e6dfd8] bg-white p-4">
+      <p className="mb-3 text-xs font-medium uppercase text-[#8e8b82]">Formula</p>
+      <div className="flex flex-wrap items-center gap-2">
+        {formulaToken(`{{${field.bindVariable}}}`, 'total', 'target')}
+        {formulaToken('=', 'operator', 'equals')}
+        {expressionTokens ? (
+          <span className="rounded-md border border-[#e6dfd8] bg-white px-2.5 py-1.5 font-mono text-sm text-[#141413]">
+            {expressionTokens}
+          </span>
+        ) : terms.length === 0 ? (
+          formulaToken('Add fields or references', 'source', 'empty')
+        ) : (
+          terms.map((term, index) => (
+            <span key={term.id ?? index} className="contents">
+              {index > 0 && formulaToken(formulaOperatorSymbol(term.operator), 'operator', `operator-${index}`)}
+              {formulaToken(formulaTermLabel(term, fields, references), term.source === 'reference' ? 'reference' : 'source', `term-${index}`)}
+            </span>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
+function FormulaComposer({
+  field,
+  fields,
+  references,
+  expression,
+  onChange,
+}: {
+  field: PageField
+  fields: PageField[]
+  references: FormReference[]
+  expression: string
+  onChange: (expression: string) => void
+}) {
+  const availableFields = computationFormulaFields(fields, field)
+  const computationFields = availableFields.filter((item) => item.fieldType === 'computation')
+  const inputFields = availableFields.filter((item) => item.fieldType !== 'computation')
+  const numericReferences = references.filter((reference) => reference.type === 'number' || reference.type === 'percentage')
+
+  function append(value: string) {
+    onChange(`${expression}${expression.trim() ? ' ' : ''}${value}`.trimStart())
+  }
+
+  return (
+    <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
+      <div className="mb-3">
+        <p className="text-sm font-medium text-[#141413]">Type or click to build</p>
+        <p className="mt-0.5 text-xs text-[#8e8b82]">Use bindings like {`{{subtotal}}`} and references like {`{{vat_rate}}`}.</p>
+      </div>
+      <textarea
+        value={expression}
+        onChange={(event) => onChange(event.target.value)}
+        rows={3}
+        className={`${inputClass} h-auto resize-none font-mono`}
+        placeholder="{{subtotal}} +% {{vat_rate}} + {{processing_fee}}"
+      />
+      <div className="mt-3 flex flex-wrap gap-2">
+        {[
+          ['+', 'Plus'],
+          ['-', 'Minus'],
+          ['*', 'Multiply'],
+          ['/', 'Divide'],
+          ['+%', 'Add %'],
+        ].map(([symbol, label]) => (
+          <button
+            key={symbol}
+            type="button"
+            onClick={() => append(symbol)}
+            className="rounded-md border border-[#e6dfd8] bg-white px-3 py-1.5 text-sm font-medium text-[#3d3d3a] hover:border-[#cc785c] hover:text-[#141413]"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <TokenPickerGroup
+          title="Computations"
+          emptyText="No other computation blocks yet."
+          items={computationFields.map((item) => ({
+            key: item.bindVariable,
+            label: item.label || item.bindVariable,
+            meta: `{{${item.bindVariable}}}`,
+            token: `{{${item.bindVariable}}}`,
+          }))}
+          onPick={append}
+        />
+        <TokenPickerGroup
+          title="Fields"
+          emptyText="No compatible fields yet."
+          items={inputFields.map((item) => ({
+            key: item.bindVariable,
+            label: item.label || item.bindVariable,
+            meta: `{{${item.bindVariable}}}`,
+            token: `{{${item.bindVariable}}}`,
+          }))}
+          onPick={append}
+        />
+        <TokenPickerGroup
+          title="References"
+          emptyText="No number or percentage references yet."
+          items={numericReferences.map((reference) => ({
+            key: reference.key,
+            label: reference.label || reference.key,
+            meta: `${reference.value} · {{${reference.key}}}`,
+            token: `{{${reference.key}}}`,
+          }))}
+          onPick={append}
+        />
+      </div>
+    </div>
+  )
+}
+
+function checkFormulaExpression(
+  expression: string,
+  currentField: PageField,
+  fields: PageField[],
+  references: FormReference[],
+) {
+  const errors: string[] = []
+  const warnings: string[] = []
+  const trimmed = expression.trim()
+  const fieldBindings = new Set(fields.map((item) => item.bindVariable))
+  const referencesByKey = new Map(references.map((reference) => [reference.key, reference]))
+  const tokenPattern = /\+%|\{\{\s*[a-z][a-z0-9_]*\s*\}\}|[+\-*/]|-?\d+(?:\.\d+)?/gi
+  const tokens = trimmed.match(tokenPattern) ?? []
+
+  if (!trimmed) {
+    warnings.push('Add at least one field, reference, or fixed number.')
+    return { errors, warnings }
+  }
+
+  const leftovers = trimmed.replace(tokenPattern, '').replace(/\s+/g, '')
+  if (leftovers) {
+    errors.push(`Unsupported text in formula: "${leftovers}".`)
+  }
+
+  let expectingValue = true
+  let valueCount = 0
+  let lastOperator = ''
+  for (const token of tokens) {
+    const isOperator = ['+', '-', '*', '/', '+%'].includes(token)
+    if (isOperator) {
+      if (expectingValue) {
+        errors.push(`Operator "${token}" needs a value before it.`)
+      }
+      expectingValue = true
+      lastOperator = token
+      continue
+    }
+
+    if (!expectingValue) {
+      errors.push(`Missing an operator before "${token}".`)
+    }
+    expectingValue = false
+    valueCount += 1
+
+    const bindingMatch = token.match(/^\{\{\s*([a-z][a-z0-9_]*)\s*\}\}$/i)
+    if (bindingMatch) {
+      const key = bindingMatch[1]
+      if (key === currentField.bindVariable) {
+        errors.push(`This formula cannot reference itself: {{${key}}}.`)
+      } else if (!fieldBindings.has(key) && !referencesByKey.has(key)) {
+        errors.push(`Unknown field or reference: {{${key}}}.`)
+      } else {
+        const reference = referencesByKey.get(key)
+        if (reference && !['number', 'percentage'].includes(reference.type)) {
+          errors.push(`Reference {{${key}}} is ${reference.type}; formulas need number or percentage references.`)
+        }
+      }
+      continue
+    }
+
+    const numberValue = Number(token)
+    if (!Number.isFinite(numberValue)) {
+      errors.push(`Invalid number: ${token}.`)
+    }
+    if (lastOperator === '/' && numberValue === 0) {
+      errors.push('Formula divides by zero.')
+    }
+  }
+
+  if (valueCount === 0) {
+    errors.push('Formula needs at least one value.')
+  }
+  if (expectingValue && tokens.length > 0) {
+    errors.push('Formula ends with an operator.')
+  }
+
+  return { errors: [...new Set(errors)], warnings: [...new Set(warnings)] }
+}
+
+function fieldCanProvideFormulaValue(field: PageField) {
+  return field.fieldType === 'number' ||
+    field.fieldType === 'computation' ||
+    (['select', 'checkbox', 'radio'].includes(field.fieldType) && Boolean(field.validationRules?.optionPricesEnabled))
+}
+
+function expressionFieldBindings(expression: string) {
+  return [...expression.matchAll(/\{\{\s*([a-z][a-z0-9_]*)\s*\}\}/gi)].map((match) => match[1])
+}
+
+function computationFieldDependencies(field: PageField) {
+  const computation = field.validationRules?.computation
+  if (!computation) return []
+  if (computation.mode === 'expression' && computation.expression?.trim()) {
+    return expressionFieldBindings(computation.expression)
+  }
+  if (computation.mode === 'expression') {
+    return (computation.terms ?? [])
+      .filter((term) => term.source === 'field' && term.fieldBinding)
+      .map((term) => term.fieldBinding!)
+  }
+  return computation.fieldBindings ?? []
+}
+
+function hasComputationCycle(currentField: PageField, fields: PageField[]) {
+  const byBinding = new Map(fields.map((field) => [field.bindVariable, field]))
+
+  function visit(binding: string, seen: Set<string>): boolean {
+    if (binding === currentField.bindVariable) return true
+    if (seen.has(binding)) return false
+    const field = byBinding.get(binding)
+    if (!field || field.fieldType !== 'computation') return false
+    const nextSeen = new Set(seen)
+    nextSeen.add(binding)
+    return computationFieldDependencies(field).some((nextBinding) => visit(nextBinding, nextSeen))
+  }
+
+  return computationFieldDependencies(currentField).some((binding) => visit(binding, new Set([currentField.bindVariable])))
+}
+
+function checkComputationBlock(
+  computation: FieldComputation,
+  currentField: PageField,
+  fields: PageField[],
+  references: FormReference[],
+) {
+  const errors: string[] = []
+  const warnings: string[] = []
+  const mode = computation.mode ?? 'expression'
+  const compatibleFormulaFields = computationFormulaFields(fields, currentField)
+  const compatiblePricedFields = computationSourceFields(fields, currentField.id, 'sum_priced_options')
+  const compatibleNumberFields = computationSourceFields(fields, currentField.id, 'sum_number_fields')
+  const fieldByBinding = new Map(fields.map((field) => [field.bindVariable, field]))
+  const referenceByKey = new Map(references.map((reference) => [reference.key, reference]))
+
+  if (!currentField.bindVariable) {
+    errors.push('This computation block needs a binding so other fields and payment can reference it.')
+  }
+
+  if (mode === 'expression') {
+    if (computation.expression?.trim()) {
+      const expressionCheck = checkFormulaExpression(computation.expression, currentField, compatibleFormulaFields, references)
+      errors.push(...expressionCheck.errors)
+      warnings.push(...expressionCheck.warnings)
+    } else {
+      const terms = computation.terms ?? []
+      if (terms.length === 0) {
+        errors.push('Add a formula, formula row, field, reference, or fixed number.')
+      }
+      for (const [index, term] of terms.entries()) {
+        if (index > 0 && !term.operator) errors.push(`Formula row ${index + 1} needs an operation.`)
+        if (term.source === 'field') {
+          if (!term.fieldBinding) {
+            errors.push(`Formula row ${index + 1} needs a field binding.`)
+          } else if (term.fieldBinding === currentField.bindVariable) {
+            errors.push(`Formula row ${index + 1} cannot reference this computation block itself.`)
+          } else {
+            const field = fieldByBinding.get(term.fieldBinding)
+            if (!field) errors.push(`Formula row ${index + 1} references missing field {{${term.fieldBinding}}}.`)
+            else if (!fieldCanProvideFormulaValue(field)) {
+              errors.push(`Formula row ${index + 1} uses {{${term.fieldBinding}}}, but that field cannot provide a numeric value.`)
+            }
+          }
+        }
+        if (term.source === 'reference') {
+          if (!term.referenceKey) {
+            errors.push(`Formula row ${index + 1} needs a reference.`)
+          } else {
+            const reference = referenceByKey.get(term.referenceKey)
+            if (!reference) errors.push(`Formula row ${index + 1} references missing reference {{${term.referenceKey}}}.`)
+            else if (!['number', 'percentage'].includes(reference.type)) {
+              errors.push(`Formula row ${index + 1} uses {{${term.referenceKey}}}, but formulas need number or percentage references.`)
+            }
+          }
+        }
+        if (term.source === 'fixed' && !Number.isFinite(Number(term.fixedValue ?? 0))) {
+          errors.push(`Formula row ${index + 1} has an invalid fixed number.`)
+        }
+        if (term.operator === 'divide' && term.source === 'fixed' && Number(term.fixedValue ?? 0) === 0) {
+          errors.push(`Formula row ${index + 1} divides by zero.`)
+        }
+      }
+    }
+  }
+
+  if (mode === 'sum_priced_options' || mode === 'formula') {
+    const selected = computation.fieldBindings ?? []
+    if (compatiblePricedFields.length === 0) {
+      errors.push('No priced option fields are available. Enable option prices on a checkbox, radio, or dropdown field first.')
+    }
+    for (const binding of selected) {
+      const field = fieldByBinding.get(binding)
+      if (!field) errors.push(`Selected priced field {{${binding}}} no longer exists.`)
+      else if (!compatiblePricedFields.some((item) => item.bindVariable === binding)) {
+        errors.push(`Selected field {{${binding}}} is not a priced option field.`)
+      }
+    }
+    if (selected.length === 0 && compatiblePricedFields.length > 0) {
+      warnings.push('No specific priced fields selected; this block will use all available priced option fields.')
+    }
+  }
+
+  if (mode === 'sum_number_fields') {
+    const selected = computation.fieldBindings ?? []
+    if (compatibleNumberFields.length === 0) {
+      errors.push('No number or computation fields are available to sum.')
+    }
+    for (const binding of selected) {
+      const field = fieldByBinding.get(binding)
+      if (!field) errors.push(`Selected number field {{${binding}}} no longer exists.`)
+      else if (!compatibleNumberFields.some((item) => item.bindVariable === binding)) {
+        errors.push(`Selected field {{${binding}}} is not a number or computation field.`)
+      }
+    }
+    if (selected.length === 0 && compatibleNumberFields.length > 0) {
+      warnings.push('No specific number fields selected; this block will use all available number and computation fields.')
+    }
+  }
+
+  if (mode === 'formula') {
+    for (const adjustment of computation.adjustments ?? []) {
+      const reference = referenceByKey.get(adjustment.referenceKey)
+      if (!adjustment.referenceKey) errors.push('Formula adjustment needs a reference.')
+      else if (!reference) errors.push(`Formula adjustment references missing reference {{${adjustment.referenceKey}}}.`)
+      else if (!['number', 'percentage'].includes(reference.type)) {
+        errors.push(`Formula adjustment {{${adjustment.referenceKey}}} must be a number or percentage reference.`)
+      }
+    }
+  }
+
+  if (hasComputationCycle(currentField, fields)) {
+    errors.push('This computation has a circular dependency with another computation block.')
+  }
+
+  return { errors: [...new Set(errors)], warnings: [...new Set(warnings)] }
+}
+
+function FormulaCheckResult({
+  check,
+}: {
+  check: { errors: string[]; warnings: string[] }
+}) {
+  if (check.errors.length === 0 && check.warnings.length === 0) {
+    return (
+      <div className="mt-2 rounded-md border border-[#d8ead4] bg-[#f3fbf1] px-3 py-2 text-sm text-[#3f7a42]">
+        Computation looks good.
+      </div>
+    )
+  }
+
+  return (
+    <div className={`mt-2 rounded-md border px-3 py-2 text-sm ${
+      check.errors.length > 0
+        ? 'border-[#f0c2b8] bg-[#fff3ef] text-[#c64545]'
+        : 'border-[#eadbbd] bg-[#fff9eb] text-[#7a5a2c]'
+    }`}>
+      <p className="font-medium">{check.errors.length > 0 ? 'Computation needs attention' : 'Computation note'}</p>
+      <ul className="mt-1 list-inside list-disc">
+        {[...check.errors, ...check.warnings].map((message) => (
+          <li key={message}>{message}</li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function TokenPickerGroup({
+  title,
+  emptyText,
+  items,
+  onPick,
+}: {
+  title: string
+  emptyText: string
+  items: { key: string; label: string; meta: string; token: string }[]
+  onPick: (token: string) => void
+}) {
+  return (
+    <div className="rounded-lg border border-[#e6dfd8] bg-white p-3">
+      <p className="text-xs font-medium uppercase text-[#8e8b82]">{title}</p>
+      {items.length === 0 ? (
+        <p className="mt-2 text-sm text-[#8e8b82]">{emptyText}</p>
+      ) : (
+        <div className="mt-2 flex max-h-44 flex-col gap-2 overflow-y-auto">
+          {items.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => onPick(item.token)}
+              className="rounded-md border border-[#e6dfd8] bg-[#faf9f5] px-3 py-2 text-left transition-colors hover:border-[#cc785c] hover:bg-[#fff8ef]"
+            >
+              <span className="block truncate text-sm font-medium text-[#141413]">{item.label}</span>
+              <span className="mt-0.5 block truncate font-mono text-xs text-[#8e8b82]">{item.meta}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ExpressionBuilder({
+  field,
+  fields,
+  references,
+  terms,
+  onChange,
+}: {
+  field: PageField
+  fields: PageField[]
+  references: FormReference[]
+  terms: NonNullable<FieldComputation['terms']>
+  onChange: (terms: NonNullable<FieldComputation['terms']>) => void
+}) {
+  const availableFields = computationFormulaFields(fields, field)
+  const numericReferences = references.filter((reference) => reference.type === 'number' || reference.type === 'percentage')
+
+  function updateTerm(index: number, patch: Partial<NonNullable<FieldComputation['terms']>[number]>) {
+    onChange(terms.map((term, termIndex) => (termIndex === index ? { ...term, ...patch } : term)))
+  }
+
+  function addTerm() {
+    onChange([
+      ...terms,
+      {
+        id: tempId().toString(),
+        operator: terms.length === 0 ? 'set' : 'add',
+        source: availableFields.length > 0 ? 'field' : numericReferences.length > 0 ? 'reference' : 'fixed',
+        fieldBinding: availableFields[0]?.bindVariable ?? null,
+        referenceKey: availableFields.length === 0 ? numericReferences[0]?.key ?? null : null,
+        fixedValue: 0,
+      },
+    ])
+  }
+
+  return (
+    <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-[#141413]">Formula rows</p>
+          <p className="mt-0.5 text-xs text-[#8e8b82]">Use field bindings, references, or fixed values to build this computed field.</p>
+        </div>
+        <button
+          type="button"
+          onClick={addTerm}
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#e6dfd8] bg-white px-2.5 text-xs font-medium text-[#3d3d3a] hover:border-[#cc785c] hover:text-[#141413]"
+        >
+          <Plus size={13} /> Add row
+        </button>
+      </div>
+
+      {terms.length === 0 ? (
+        <p className="text-sm text-[#8e8b82]">No formula rows yet.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {terms.map((term, index) => (
+            <div key={term.id ?? index} className="grid grid-cols-[96px_130px_minmax(0,1fr)_auto] gap-2">
+              <select
+                value={index === 0 ? 'set' : term.operator}
+                onChange={(e) => updateTerm(index, { operator: e.target.value as FormulaOperator })}
+                disabled={index === 0}
+                className={inputClass}
+              >
+                <option value="set">Start</option>
+                <option value="add">Plus</option>
+                <option value="subtract">Minus</option>
+                <option value="multiply">Times</option>
+                <option value="divide">Divide</option>
+                <option value="percent">Add %</option>
+              </select>
+              <select
+                value={term.source}
+                onChange={(e) => {
+                  const source = e.target.value as FormulaTermSource
+                  updateTerm(index, {
+                    source,
+                    fieldBinding: source === 'field' ? availableFields[0]?.bindVariable ?? null : null,
+                    referenceKey: source === 'reference' ? numericReferences[0]?.key ?? null : null,
+                    fixedValue: source === 'fixed' ? term.fixedValue ?? 0 : null,
+                  })
+                }}
+                className={inputClass}
+              >
+                <option value="field">Field binding</option>
+                <option value="reference">Reference</option>
+                <option value="fixed">Fixed value</option>
+              </select>
+              {term.source === 'field' ? (
+                <select
+                  value={term.fieldBinding ?? ''}
+                  onChange={(e) => updateTerm(index, { fieldBinding: e.target.value })}
+                  className={inputClass}
+                >
+                  <option value="">Select field...</option>
+                  {availableFields.map((item) => (
+                    <option key={item.id} value={item.bindVariable}>
+                      {item.label || item.bindVariable} {`{{${item.bindVariable}}}`}
+                    </option>
+                  ))}
+                </select>
+              ) : term.source === 'reference' ? (
+                <select
+                  value={term.referenceKey ?? ''}
+                  onChange={(e) => updateTerm(index, { referenceKey: e.target.value })}
+                  className={inputClass}
+                >
+                  <option value="">Select reference...</option>
+                  {numericReferences.map((reference) => (
+                    <option key={reference.id} value={reference.key}>
+                      {reference.label || reference.key} {`{{${reference.key}}}`} = {reference.value}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="number"
+                  step="0.01"
+                  value={term.fixedValue ?? 0}
+                  onChange={(e) => updateTerm(index, { fixedValue: Number(e.target.value) })}
+                  className={inputClass}
+                />
+              )}
+              <button
+                type="button"
+                onClick={() => onChange(terms.filter((_, termIndex) => termIndex !== index))}
+                className="flex h-10 w-10 items-center justify-center rounded-md text-[#c64545] hover:bg-[#fff3ef]"
+                title="Remove row"
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ComputationDialog({
+  field,
+  fields,
+  references,
+  computation,
+  onClose,
+  onChange,
+}: {
+  field: PageField
+  fields: PageField[]
+  references: FormReference[]
+  computation: FieldComputation
+  onClose: () => void
+  onChange: (computation: FieldComputation) => void
+}) {
+  const numberReferences = references.filter((reference) => reference.type === 'number' || reference.type === 'percentage')
+  const mode = computation.mode ?? 'sum_priced_options'
+  const availableFields = computationSourceFields(fields, field.id, mode)
+  const selectedBindings = computation.fieldBindings ?? []
+  const computationCheck = checkComputationBlock(computation, field, fields, references)
+
+  function update(patch: Partial<FieldComputation>) {
+    onChange({ ...computation, ...patch })
+  }
+
+  function toggleBinding(binding: string, checked: boolean) {
+    const current = new Set(computation.fieldBindings ?? [])
+    if (checked) current.add(binding)
+    else current.delete(binding)
+    update({ fieldBindings: [...current] })
+  }
+
+  return (
+    <FieldDialog
+      title="Computation"
+      subtitle={field.label || 'Computed total'}
+      onClose={onClose}
+    >
+      <div className="flex flex-col gap-5">
+        <Field label="Calculation type">
+          <select
+            value={mode}
+            onChange={(e) =>
+              update({
+                mode: e.target.value as FieldComputation['mode'],
+                fieldBindings: [],
+                adjustments: e.target.value === 'formula' ? computation.adjustments ?? [] : [],
+                terms: e.target.value === 'expression' ? computation.terms ?? [] : [],
+              })
+            }
+            className={inputClass}
+          >
+            <option value="expression">Formula builder</option>
+            <option value="sum_priced_options">Sum selected option prices</option>
+            <option value="sum_number_fields">Sum number fields</option>
+            <option value="formula">Service subtotal + adjustments</option>
+          </select>
+        </Field>
+        <FormulaCheckResult check={computationCheck} />
+
+        {mode === 'expression' ? (
+          <>
+            <ExpressionPreview
+              field={field}
+              expression={computation.expression}
+              terms={computation.terms ?? []}
+              fields={fields}
+              references={numberReferences}
+            />
+            <FormulaComposer
+              field={field}
+              fields={fields}
+              references={numberReferences}
+              expression={computation.expression ?? ''}
+              onChange={(expression) => update({ expression })}
+            />
+            <ExpressionBuilder
+              field={field}
+              fields={fields}
+              references={numberReferences}
+              terms={computation.terms ?? []}
+              onChange={(terms) => update({ terms })}
+            />
+          </>
+        ) : (
+          <>
+            <FormulaPreview
+              sourceFields={availableFields}
+              selectedBindings={selectedBindings}
+              adjustments={mode === 'formula' ? computation.adjustments ?? [] : []}
+              references={numberReferences}
+            />
+
+            <PaymentFieldChecklist
+              fields={availableFields}
+              selected={selectedBindings}
+              emptyText={
+                mode === 'sum_number_fields'
+                  ? 'No number fields are available yet.'
+                  : 'No priced option fields yet. Enable option prices on a checkbox, radio, or dropdown field first.'
+              }
+              onToggle={toggleBinding}
+            />
+
+            {mode === 'formula' && (
+              <FormulaAdjustmentsEditor
+                references={numberReferences}
+                adjustments={computation.adjustments ?? []}
+                onChange={(adjustments) => update({ adjustments })}
+              />
+            )}
+          </>
+        )}
+
+        <label className="flex items-center gap-2 rounded-lg border border-[#e6dfd8] bg-white p-3 text-sm text-[#141413]">
+          <input
+            type="checkbox"
+            checked={Boolean(computation.showBreakdown)}
+            onChange={(e) => update({ showBreakdown: e.target.checked })}
+            className="h-4 w-4 accent-[#cc785c]"
+          />
+          Show this total to respondents
+        </label>
+      </div>
+    </FieldDialog>
+  )
+}
+
+function OptionsDialog({
+  field,
+  references,
+  showPrices,
+  onClose,
+  onChange,
+}: {
+  field: EditablePageField
+  references: FormReference[]
+  showPrices: boolean
+  onClose: () => void
+  onChange: (options: PageFieldOption[]) => void
+}) {
+  return (
+    <FieldDialog title={field.label || 'Untitled field'} subtitle="Options" onClose={onClose}>
+      <OptionsEditor
+        options={field.options ?? []}
+        showPrices={showPrices}
+        references={references}
+        onChange={onChange}
+      />
+    </FieldDialog>
+  )
+}
+
 function OptionsEditor({
   options,
   showPrices,
+  references,
   onChange,
 }: {
   options: PageFieldOption[]
   showPrices: boolean
+  references: FormReference[]
   onChange: (options: PageFieldOption[]) => void
 }) {
   function updateOption(index: number, patch: Partial<PageFieldOption>) {
@@ -1420,7 +2824,17 @@ function OptionsEditor({
 
   function addOption() {
     const label = `Option ${options.length + 1}`
-    onChange([...options, { label, value: optionValueForLabel(label, options, options.length), price: showPrices ? 0 : null }])
+    onChange([
+      ...options,
+      {
+        label,
+        value: optionValueForLabel(label, options, options.length),
+        price: showPrices ? 0 : null,
+        priceReference: null,
+        additionalPrice: null,
+        additionalPriceReference: null,
+      },
+    ])
   }
 
   function removeOption(index: number) {
@@ -1446,15 +2860,19 @@ function OptionsEditor({
         </button>
       </div>
 
-      <div className={`grid ${showPrices ? 'grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px_auto]' : 'grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]'} gap-2 px-1 pb-1 text-xs font-medium uppercase text-[#8e8b82]`}>
+      <div className="overflow-x-auto">
+      <div className={`grid min-w-[980px] ${showPrices ? 'grid-cols-[220px_190px_150px_150px_150px_150px_auto]' : 'grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]'} gap-2 px-1 pb-1 text-xs font-medium uppercase text-[#8e8b82]`}>
         <span>Label</span>
         <span>Value</span>
-        {showPrices && <span>Price</span>}
+        {showPrices && <span>Base mode</span>}
+        {showPrices && <span>Base amount</span>}
+        {showPrices && <span>Additional mode</span>}
+        {showPrices && <span>Additional amount</span>}
         <span className="sr-only">Remove</span>
       </div>
       <div className="flex flex-col gap-2">
         {options.map((option, index) => (
-          <div key={index} className={`grid ${showPrices ? 'grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px_auto]' : 'grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]'} gap-2`}>
+          <div key={index} className={`grid min-w-[980px] ${showPrices ? 'grid-cols-[220px_190px_150px_150px_150px_150px_auto]' : 'grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]'} gap-2`}>
             <input
               value={option.label}
               onChange={(e) => updateOption(index, { label: e.target.value })}
@@ -1466,14 +2884,90 @@ function OptionsEditor({
               className={inputClass}
             />
             {showPrices && (
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                value={option.price ?? ''}
-                onChange={(e) => updateOption(index, { price: e.target.value === '' ? null : Number(e.target.value) })}
-                className={inputClass}
-              />
+              <>
+                <select
+                  value={option.priceReference ? 'reference' : 'direct'}
+                  onChange={(e) =>
+                    updateOption(
+                      index,
+                      e.target.value === 'reference'
+                        ? { priceReference: references[0]?.key ?? '', price: null }
+                        : { priceReference: null, price: option.price ?? 0 },
+                    )
+                  }
+                  className={inputClass}
+                >
+                  <option value="direct">Direct price</option>
+                  <option value="reference">Reference</option>
+                </select>
+                {option.priceReference ? (
+                  <select
+                    value={option.priceReference}
+                    onChange={(e) => updateOption(index, { priceReference: e.target.value || null })}
+                    className={inputClass}
+                  >
+                    <option value="">Select reference...</option>
+                    {references.map((reference) => (
+                      <option key={reference.id} value={reference.key}>
+                        {reference.label || reference.key} = {reference.value}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={option.price ?? ''}
+                    onChange={(e) => updateOption(index, { price: e.target.value === '' ? null : Number(e.target.value), priceReference: null })}
+                    className={inputClass}
+                  />
+                )}
+                <select
+                  value={option.additionalPriceReference ? 'reference' : 'direct'}
+                  onChange={(e) =>
+                    updateOption(
+                      index,
+                      e.target.value === 'reference'
+                        ? { additionalPriceReference: references[0]?.key ?? '', additionalPrice: null }
+                        : { additionalPriceReference: null, additionalPrice: option.additionalPrice ?? 0 },
+                    )
+                  }
+                  className={inputClass}
+                >
+                  <option value="direct">Direct extra</option>
+                  <option value="reference">Reference</option>
+                </select>
+                {option.additionalPriceReference ? (
+                  <select
+                    value={option.additionalPriceReference}
+                    onChange={(e) => updateOption(index, { additionalPriceReference: e.target.value || null })}
+                    className={inputClass}
+                  >
+                    <option value="">Select reference...</option>
+                    {references.map((reference) => (
+                      <option key={reference.id} value={reference.key}>
+                        {reference.label || reference.key} = {reference.value}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={option.additionalPrice ?? ''}
+                    placeholder="Optional"
+                    onChange={(e) =>
+                      updateOption(index, {
+                        additionalPrice: e.target.value === '' ? null : Number(e.target.value),
+                        additionalPriceReference: null,
+                      })
+                    }
+                    className={inputClass}
+                  />
+                )}
+              </>
             )}
             <button
               type="button"
@@ -1487,6 +2981,7 @@ function OptionsEditor({
             </button>
           </div>
         ))}
+      </div>
       </div>
     </div>
   )
@@ -1603,6 +3098,7 @@ function RulesDialog({
 function LogicDialog({
   field,
   fields,
+  references,
   conditions,
   onClose,
   onAdd,
@@ -1611,6 +3107,7 @@ function LogicDialog({
 }: {
   field: EditablePageField
   fields: PageField[]
+  references: FormReference[]
   conditions: FieldCondition[]
   onClose: () => void
   onAdd: () => void
@@ -1685,12 +3182,28 @@ function LogicDialog({
                         ))}
                       </select>
                     ) : (
-                      <input
-                        value={condition.value ?? ''}
-                        onChange={(e) => onUpdate(index, { value: e.target.value })}
-                        disabled={valueDisabled}
-                        className={inputClass}
-                      />
+                      <div className="flex flex-col gap-2">
+                        <input
+                          value={condition.value ?? ''}
+                          onChange={(e) => onUpdate(index, { value: e.target.value })}
+                          disabled={valueDisabled}
+                          className={inputClass}
+                        />
+                        {!valueDisabled && references.length > 0 && (
+                          <select
+                            value={(condition.value ?? '').match(/^\{\{\s*([a-z][a-z0-9_]*)\s*\}\}$/)?.[1] ?? ''}
+                            onChange={(e) => onUpdate(index, { value: e.target.value ? `{{${e.target.value}}}` : '' })}
+                            className={inputClass}
+                          >
+                            <option value="">Use reference...</option>
+                            {references.map((reference) => (
+                              <option key={reference.id} value={reference.key}>
+                                {reference.label || reference.key} = {reference.value}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
                     )}
                   </Field>
                   <Field label="Then">

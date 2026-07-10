@@ -66,7 +66,7 @@ function CompletePage() {
         message={rendered || undefined}
         gatewayName={payment.gatewayName}
         reference={payment.gatewayPaymentId}
-        formId={data.formId}
+        formPublicId={data.formPublicId}
         theme={data.theme}
       />
     )
@@ -165,8 +165,8 @@ function CompletePage() {
             <InvoicePDF invoice={invoice} fileName={`${invoice.invoiceNo}.pdf`} />
           </Suspense>
         )}
-        {data.formId != null && (
-          <Link to="/forms/submit/$formId" params={{ formId: String(data.formId) }}>
+        {data.formPublicId && (
+          <Link to="/forms/submit/$formId" params={{ formId: data.formPublicId }}>
             <Button variant="secondary">Submit another response</Button>
           </Link>
         )}
@@ -180,14 +180,14 @@ function FailedView({
   message,
   gatewayName,
   reference,
-  formId,
+  formPublicId,
   theme,
 }: {
   title?: string
   message?: string
   gatewayName?: string | null
   reference?: string | null
-  formId?: number | null
+  formPublicId?: string | null
   theme?: FormTheme | null
 }) {
   return (
@@ -214,9 +214,9 @@ function FailedView({
           </div>
         )}
 
-        {formId != null && (
+        {formPublicId && (
           <div className="mt-6 flex items-center justify-center gap-3">
-            <Link to="/forms/submit/$formId" params={{ formId: String(formId) }}>
+            <Link to="/forms/submit/$formId" params={{ formId: formPublicId }}>
               <Button>Try again</Button>
             </Link>
           </div>

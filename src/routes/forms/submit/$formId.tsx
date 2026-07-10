@@ -7,5 +7,5 @@ export const Route = createFileRoute('/forms/submit/$formId')({
 
 function PublicFormPage() {
   const { formId } = Route.useParams()
-  return <PublicFormView formId={Number(formId)} />
+  return <PublicFormView publicId={formId} />
 }

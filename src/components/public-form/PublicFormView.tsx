@@ -15,7 +15,7 @@ import { themeVars, type FormTheme } from '../../lib/theme'
 import type { FieldConfig, FieldValue } from '../form-builder/fields/FieldRenderer'
 
 interface PublicFormViewProps {
-  formId: number
+  publicId: string
   /**
    * When true, the form is rendered for embedding inside an <iframe>: it fills
    * the host container (no centered max-width, no large vertical padding) and
@@ -32,41 +32,48 @@ interface PublicFormViewProps {
  * Both render without the app navigation; the only difference is the `embed`
  * layout, which is responsive to whatever container the iframe is placed in.
  */
-export function PublicFormView({ formId, embed = false }: PublicFormViewProps) {
+export function PublicFormView({ publicId, embed = false }: PublicFormViewProps) {
   const [values, setValues] = useState<Record<number, FieldValue>>({})
   const [errors, setErrors] = useState<Record<number, string>>({})
   const [submitted, setSubmitted] = useState(false)
 
   const { data: form, isLoading: formsLoading } = useQuery({
-    queryKey: ['public-form', String(formId)],
-    queryFn: () => getPublicForm({ data: { formId } }),
+    queryKey: ['public-form', publicId],
+    queryFn: () => getPublicForm({ data: { publicId } }),
+    enabled: !!publicId,
   })
 
+  const resolvedFormId = form?.id
+  const hasResolvedFormId = typeof resolvedFormId === 'number' && Number.isFinite(resolvedFormId)
+
   const { data: fields = [], isLoading: fieldsLoading } = useQuery({
-    queryKey: ['fields', String(formId)],
-    queryFn: () => getFields({ data: { formId } }),
+    queryKey: ['fields', String(resolvedFormId ?? publicId)],
+    queryFn: () => getFields({ data: { formId: resolvedFormId! } }),
+    enabled: hasResolvedFormId,
   })
 
   const { data: flow, isLoading: flowLoading } = useQuery({
-    queryKey: ['flow', String(formId)],
-    queryFn: () => getFlow({ data: { formId } }),
+    queryKey: ['flow', String(resolvedFormId ?? publicId)],
+    queryFn: () => getFlow({ data: { formId: resolvedFormId! } }),
+    enabled: hasResolvedFormId,
   })
 
   const { data: pageForm, isLoading: pagesLoading } = useQuery({
-    queryKey: ['page-form', String(formId)],
-    queryFn: () => getPageForm({ data: { formId } }),
+    queryKey: ['page-form', String(resolvedFormId ?? publicId)],
+    queryFn: () => getPageForm({ data: { formId: resolvedFormId! } }),
+    enabled: hasResolvedFormId,
   })
 
   const submitMutation = useMutation({
     mutationFn: (formData: Record<string, unknown>) =>
-      submitFormResponse({ data: { formId, formData } }),
+      submitFormResponse({ data: { formId: resolvedFormId!, formData } }),
     onSuccess: () => setSubmitted(true),
   })
 
   // Outer wrapper: centered card on the standalone page, fluid full-width when embedded.
   const wrapperClass = embed
     ? 'w-full px-4 py-6'
-    : 'mx-auto max-w-xl px-4 py-8 sm:px-6 sm:py-16'
+    : 'mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8 lg:py-14'
 
   // Per-form theming: set CSS vars on a full-bleed wrapper (standalone gets the
   // themed page background; embed stays transparent to blend into the host site).
@@ -74,7 +81,8 @@ export function PublicFormView({ formId, embed = false }: PublicFormViewProps) {
   const themed = themeVars(theme)
   const outerClass = embed ? 'w-full' : 'min-h-screen bg-[var(--ponko-bg,#faf9f5)]'
 
-  if (formsLoading || fieldsLoading || flowLoading || pagesLoading) {
+  const detailsLoading = !!form && (fieldsLoading || flowLoading || pagesLoading)
+  if (formsLoading || detailsLoading) {
     return (
       <div className={outerClass} style={themed}>
         <div className={wrapperClass}>
@@ -87,7 +95,7 @@ export function PublicFormView({ formId, embed = false }: PublicFormViewProps) {
   if (!form) {
     return (
       <div className={outerClass} style={themed}>
-        <div className={embed ? 'w-full px-4 py-12 text-center' : 'mx-auto max-w-xl px-6 py-24 text-center'}>
+        <div className={embed ? 'w-full px-4 py-12 text-center' : 'mx-auto w-full max-w-5xl px-6 py-24 text-center'}>
           <h1 className="text-2xl font-medium text-[#141413]">Form not found</h1>
           <p className="mt-2 text-[#6c6a64]">
             This form is not available or hasn't been published yet.
@@ -100,10 +108,11 @@ export function PublicFormView({ formId, embed = false }: PublicFormViewProps) {
   if (pageForm?.pages.length) {
     return (
       <PageFormView
-        formId={formId}
+        formId={resolvedFormId!}
         title={form.title}
         description={form.description}
         pages={pageForm.pages}
+        references={pageForm.references ?? []}
         theme={theme}
         embed={embed}
       />

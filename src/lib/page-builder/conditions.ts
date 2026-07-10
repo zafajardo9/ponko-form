@@ -1,4 +1,6 @@
 import type { FieldCondition, FieldValidationRules, PageField } from './types'
+import type { ReferenceMap } from './types'
+import { resolveConditionExpected } from './references'
 
 const DEFAULT_ADDRESS_REQUIRED = {
   currentAddress: true,
@@ -57,9 +59,10 @@ function comparable(value: unknown): number {
 export function evaluateCondition(
   condition: Pick<FieldCondition, 'sourceFieldBinding' | 'operator' | 'value'>,
   data: Record<string, unknown>,
+  references: ReferenceMap = {},
 ): boolean {
   const source = data[condition.sourceFieldBinding]
-  const expected = condition.value ?? ''
+  const expected = resolveConditionExpected(condition.value, references)
 
   switch (condition.operator) {
     case 'is_empty':
@@ -90,22 +93,28 @@ export function evaluateCondition(
 export function isFieldVisible(
   field: Pick<PageField, 'conditions'>,
   data: Record<string, unknown>,
+  references: ReferenceMap = {},
 ): boolean {
   if (field.conditions.length === 0) return true
   const action = field.conditions[0]?.action ?? 'show'
-  const passes = field.conditions.every((condition) => evaluateCondition(condition, data))
+  const passes = field.conditions.every((condition) => evaluateCondition(condition, data, references))
   return action === 'show' ? passes : !passes
 }
 
-export function visibleFields(fields: PageField[], data: Record<string, unknown>): PageField[] {
-  return fields.filter((field) => isFieldVisible(field, data))
+export function visibleFields(
+  fields: PageField[],
+  data: Record<string, unknown>,
+  references: ReferenceMap = {},
+): PageField[] {
+  return fields.filter((field) => isFieldVisible(field, data, references))
 }
 
 export function pruneHiddenValues(
   fields: PageField[],
   data: Record<string, unknown>,
+  references: ReferenceMap = {},
 ): Record<string, unknown> {
-  const visible = new Set(visibleFields(fields, data).map((field) => field.bindVariable))
+  const visible = new Set(visibleFields(fields, data, references).map((field) => field.bindVariable))
   return Object.fromEntries(Object.entries(data).filter(([key]) => visible.has(key)))
 }
 
@@ -138,6 +147,22 @@ function allowedRegex(rules: FieldValidationRules): RegExp | null {
 }
 
 export function sanitizeFieldValue(field: PageField, value: unknown): unknown {
+  if (field.fieldType === 'file_upload') {
+    if (!Array.isArray(value)) return []
+    return value
+      .filter((item) => item && typeof item === 'object')
+      .map((item) => {
+        const file = item as Record<string, unknown>
+        return {
+          name: String(file.name ?? ''),
+          size: Number(file.size ?? 0),
+          type: String(file.type ?? ''),
+          lastModified: Number(file.lastModified ?? 0),
+          dataUrl: typeof file.dataUrl === 'string' ? file.dataUrl : undefined,
+        }
+      })
+      .filter((file) => file.name)
+  }
   if (field.fieldType === 'address' && value && typeof value === 'object' && !Array.isArray(value)) {
     const address = value as Record<string, unknown>
     return {

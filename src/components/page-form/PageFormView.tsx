@@ -15,7 +15,8 @@ import {
   validateFieldRules,
   visibleFields,
 } from '../../lib/page-builder/conditions'
-import type { FormPage, PageField } from '../../lib/page-builder/types'
+import { applyComputedFieldValues, buildReferenceMap } from '../../lib/page-builder/references'
+import type { FormPage, FormReference, PageField } from '../../lib/page-builder/types'
 import { Card } from '../ui/Card'
 import { Button } from '../ui/Button'
 import { FieldRenderer } from '../form-builder/fields/FieldRenderer'
@@ -28,6 +29,7 @@ interface PageFormViewProps {
   title?: string
   description?: string | null
   pages?: FormPage[]
+  references?: FormReference[]
   theme?: FormTheme | null
   embed?: boolean
   preview?: boolean
@@ -56,6 +58,7 @@ export function PageFormView({
   title = 'Form',
   description,
   pages: initialPages,
+  references: initialReferences = [],
   theme,
   embed = false,
   preview = false,
@@ -65,6 +68,8 @@ export function PageFormView({
   const [data, setData] = useState<Record<string, unknown>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [sessionId, setSessionId] = useState<number | null>(resumeSessionId ?? null)
+  const [paidPages, setPaidPages] = useState<Record<number, boolean>>({})
+  const [paymentGateMessage, setPaymentGateMessage] = useState('')
   const [completed, setCompleted] = useState(false)
   const startedRef = useRef(false)
 
@@ -77,6 +82,8 @@ export function PageFormView({
   const pages = (resumeQuery.data?.pages ?? initialPages ?? []).sort(
     (a, b) => a.position - b.position,
   )
+  const references = resumeQuery.data?.references ?? initialReferences
+  const referenceMap = useMemo(() => buildReferenceMap(references), [references])
   const resolvedTitle = resumeQuery.data?.form.title ?? title
   const resolvedDescription = resumeQuery.data?.form.description ?? description
   const resolvedTheme = (resumeQuery.data?.form.theme as FormTheme | null | undefined) ?? theme
@@ -111,12 +118,17 @@ export function PageFormView({
 
   const allFields = useMemo(() => pages.flatMap((page) => page.fields), [pages])
   const currentPage = pages[currentPageIndex]
-  const currentValues = data as Record<string, FieldValue>
+  const currentPaymentPaid = currentPage?.hasPayment ? Boolean(paidPages[currentPage.id]) : true
+  const computedData = useMemo(
+    () => applyComputedFieldValues(allFields, data, references),
+    [allFields, data, references],
+  )
+  const currentValues = computedData as Record<string, FieldValue>
   const themed = themeVars(resolvedTheme ?? null)
   const outerClass = embed ? 'w-full' : 'min-h-screen bg-[var(--ponko-bg,#faf9f5)]'
   const wrapperClass = embed
     ? 'w-full px-4 py-6'
-    : 'mx-auto max-w-xl px-4 py-8 sm:px-6 sm:py-16'
+    : 'mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8 lg:py-14'
 
   if (resumeQuery.isLoading || (!preview && !resumeSessionId && !sessionId)) {
     return (
@@ -149,15 +161,15 @@ export function PageFormView({
   function updateValue(field: PageField, value: FieldValue) {
     const sanitized = sanitizeFieldValue(field, value)
     setData((prev) => {
-      const next = { ...prev, [field.bindVariable]: sanitized }
-      return pruneHiddenValues(allFields, next)
+      const next = applyComputedFieldValues(allFields, { ...prev, [field.bindVariable]: sanitized }, references)
+      return pruneHiddenValues(allFields, next, referenceMap)
     })
     setErrors((prev) => ({ ...prev, [field.bindVariable]: '' }))
   }
 
   function validatePage(page: FormPage, scopedData: Record<string, unknown>) {
     const nextErrors: Record<string, string> = {}
-    for (const field of visibleFields(page.fields, scopedData)) {
+    for (const field of visibleFields(page.fields, scopedData, referenceMap)) {
       const value = scopedData[field.bindVariable]
       const empty = fieldValueIsEmpty(field, value)
       if (field.required && empty) {
@@ -176,10 +188,15 @@ export function PageFormView({
   }
 
   async function goNext() {
-    const nextData = pruneHiddenValues(allFields, data)
+    const nextData = pruneHiddenValues(allFields, applyComputedFieldValues(allFields, data, references), referenceMap)
     if (!currentPage.isFinal && !currentPage.hasPayment && !validatePage(currentPage, nextData)) {
       return
     }
+    if (!preview && currentPage.hasPayment && !currentPaymentPaid) {
+      setPaymentGateMessage('Please complete the payment before continuing.')
+      return
+    }
+    setPaymentGateMessage('')
     setData(nextData)
     if (currentPageIndex >= pages.length - 1) {
       if (preview) {
@@ -216,7 +233,7 @@ export function PageFormView({
 
   const finalContent =
     currentPage.isFinal && currentPage.finalTemplate
-      ? interpolate(currentPage.finalTemplate, data)
+      ? interpolate(currentPage.finalTemplate, { ...referenceMap, ...data })
       : 'Your response has been recorded.'
 
   return (
@@ -242,14 +259,24 @@ export function PageFormView({
               <div className="mb-3 text-4xl">✓</div>
               <p className="whitespace-pre-wrap text-[#3d3d3a]">{finalContent}</p>
               {currentPage.finalRedirectUrl && !preview && (
-                <RedirectAfterDelay url={interpolate(currentPage.finalRedirectUrl, data)} />
+                <RedirectAfterDelay url={interpolate(currentPage.finalRedirectUrl, { ...referenceMap, ...data })} />
               )}
             </div>
           ) : currentPage.hasPayment && sessionId && !preview ? (
-            <PagePaymentStep sessionId={sessionId} pageId={currentPage.id} />
+            <PagePaymentStep
+              sessionId={sessionId}
+              pageId={currentPage.id}
+              onPaymentStatusChange={(paid) => {
+                setPaidPages((prev) => ({ ...prev, [currentPage.id]: paid }))
+                if (paid) setPaymentGateMessage('')
+              }}
+            />
           ) : (
             <div className="flex flex-col gap-6">
-              {currentPage.fields.filter((field) => isFieldVisible(field, data)).map((field) => (
+              {currentPage.fields.filter((field) =>
+                isFieldVisible(field, computedData, referenceMap) &&
+                (field.fieldType !== 'computation' || field.validationRules?.computation?.showBreakdown !== false),
+              ).map((field) => (
                 <FieldRenderer
                   key={field.id}
                   field={fieldConfig(field)}
@@ -270,14 +297,24 @@ export function PageFormView({
             >
               Back
             </Button>
-            <Button type="button" onClick={goNext} disabled={completeMut.isPending}>
+            <Button
+              type="button"
+              onClick={goNext}
+              disabled={completeMut.isPending || (!preview && currentPage.hasPayment && !currentPaymentPaid)}
+            >
               {currentPageIndex >= pages.length - 1
                 ? completeMut.isPending
                   ? 'Submitting...'
                   : 'Submit'
-                : 'Next'}
+                : currentPage.hasPayment && !currentPaymentPaid && !preview
+                  ? 'Complete payment to continue'
+                  : 'Next'}
             </Button>
           </div>
+
+          {paymentGateMessage && (
+            <p className="mt-4 text-sm text-[#c64545]">{paymentGateMessage}</p>
+          )}
 
           {completeMut.isError && (
             <p className="mt-4 text-sm text-[#c64545]">

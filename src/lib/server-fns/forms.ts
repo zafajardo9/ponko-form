@@ -1,5 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { auth } from '@clerk/tanstack-react-start/server'
+import { randomBytes } from 'node:crypto'
 import { db } from '../../db/index'
 import { formPages, forms, profiles } from '../../db/schema'
 import { eq, desc } from 'drizzle-orm'
@@ -17,6 +18,23 @@ async function ensureProfile(clerkId: string) {
   return created
 }
 
+function createPublicId() {
+  return randomBytes(16).toString('base64url').slice(0, 24)
+}
+
+async function createUniquePublicId() {
+  for (let i = 0; i < 5; i += 1) {
+    const publicId = createPublicId()
+    const existing = await db
+      .select({ id: forms.id })
+      .from(forms)
+      .where(eq(forms.publicId, publicId))
+      .limit(1)
+    if (existing.length === 0) return publicId
+  }
+  throw new Error('Unable to create form link. Please try again.')
+}
+
 export const getForms = createServerFn({ method: 'GET' }).handler(async () => {
   const { userId } = await auth()
   if (!userId) throw new Error('Unauthorized')
@@ -30,8 +48,8 @@ export const getForms = createServerFn({ method: 'GET' }).handler(async () => {
 })
 
 /**
- * getPublicForm({ formId })
- * PUBLIC (no auth) — fetches a single form by id for the shareable/embeddable
+ * getPublicForm({ publicId })
+ * PUBLIC (no auth) — fetches a single form by opaque public id for the shareable/embeddable
  * pages. Only returns the form if it is PUBLISHED, so unpublished drafts are
  * never exposed. Returns null when not found or not published.
  *
@@ -39,18 +57,23 @@ export const getForms = createServerFn({ method: 'GET' }).handler(async () => {
  * anonymous visitors have no Clerk session, so it would throw "Unauthorized".
  */
 export const getPublicForm = createServerFn({ method: 'GET' })
-  .inputValidator((data: { formId: number }) => data)
+  .inputValidator((data: { publicId: string }) => data)
   .handler(async ({ data }) => {
+    if (!data.publicId) {
+      throw new Error('Missing form identifier')
+    }
+
     const [form] = await db
       .select({
         id: forms.id,
+        publicId: forms.publicId,
         title: forms.title,
         description: forms.description,
         status: forms.status,
         theme: forms.theme,
       })
       .from(forms)
-      .where(eq(forms.id, data.formId))
+      .where(eq(forms.publicId, data.publicId))
       .limit(1)
 
     if (!form || form.status !== 'published') return null
@@ -64,9 +87,10 @@ export const createForm = createServerFn({ method: 'POST' })
     if (!userId) throw new Error('Unauthorized')
 
     const profile = await ensureProfile(userId)
+    const publicId = await createUniquePublicId()
     const [form] = await db
       .insert(forms)
-      .values({ profileId: profile.id, title: data.title, description: data.description })
+      .values({ profileId: profile.id, publicId, title: data.title, description: data.description })
       .returning()
     await db.insert(formPages).values([
       {

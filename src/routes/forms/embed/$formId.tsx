@@ -25,7 +25,7 @@ function EmbedFormPage() {
     function postHeight() {
       const height = containerRef.current?.scrollHeight ?? document.body.scrollHeight
       window.parent.postMessage(
-        { type: 'ponkoform:resize', formId: Number(formId), height },
+        { type: 'ponkoform:resize', formId, height },
         '*',
       )
     }
@@ -45,7 +45,7 @@ function EmbedFormPage() {
 
   return (
     <div ref={containerRef} className="min-h-0 w-full bg-transparent">
-      <PublicFormView formId={Number(formId)} embed />
+      <PublicFormView publicId={formId} embed />
     </div>
   )
 }

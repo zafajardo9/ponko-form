@@ -6,6 +6,7 @@ import { Edit, Eye, Share2, Trash2 } from "lucide-react";
 interface FormCardProps {
   form: {
     id: number;
+    publicId: string;
     title: string;
     status: "draft" | "published";
     description: string | null;
@@ -91,7 +92,7 @@ export function FormCard({ form, onDelete, onShare }: FormCardProps) {
               {/* Preview */}
               <Link
                 to="/forms/submit/$formId"
-                params={{ formId: String(form.id) }}
+                params={{ formId: form.publicId }}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#141413] hover:bg-[#f5f0e8] transition-colors"

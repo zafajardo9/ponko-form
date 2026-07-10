@@ -13,6 +13,8 @@ export type PageFieldType =
   | 'content'
   | 'media'
   | 'address'
+  | 'computation'
+  | 'file_upload'
 
 export type ConditionOperator =
   | 'equals'
@@ -26,8 +28,46 @@ export type ConditionOperator =
 export type ConditionAction = 'show' | 'hide'
 
 export type AllowedCharactersMode = 'any' | 'letters' | 'numbers' | 'alphanumeric' | 'custom'
+export type FormReferenceType = 'number' | 'percentage' | 'text' | 'boolean'
+export type ReferenceValue = string | number | boolean
+export type ReferenceMap = Record<string, ReferenceValue>
+export type OptionPriceSource = 'direct' | 'reference'
+export type PaymentAdjustmentType = 'add' | 'subtract' | 'multiply'
+export type FormulaOperator = 'set' | 'add' | 'subtract' | 'multiply' | 'divide' | 'percent'
+export type FormulaTermSource = 'field' | 'reference' | 'fixed'
+export type FieldComputationMode = 'sum_priced_options' | 'sum_number_fields' | 'formula' | 'expression'
+
+export interface FormReference {
+  id: number
+  formId: number
+  key: string
+  type: FormReferenceType
+  value: string
+  label: string | null
+  description: string | null
+  position: number
+  createdAt?: Date
+  updatedAt?: Date
+}
+
+export interface FieldComputation {
+  mode: FieldComputationMode
+  fieldBindings?: string[]
+  adjustments?: { type: PaymentAdjustmentType; referenceKey: string }[]
+  expression?: string | null
+  terms?: {
+    id?: string
+    operator: FormulaOperator
+    source: FormulaTermSource
+    fieldBinding?: string | null
+    referenceKey?: string | null
+    fixedValue?: number | null
+  }[]
+  showBreakdown?: boolean
+}
 
 export interface FieldValidationRules {
+  computation?: FieldComputation | null
   optionPricesEnabled?: boolean | null
   addressRequired?: {
     currentAddress?: boolean
@@ -37,6 +77,9 @@ export interface FieldValidationRules {
     zipPostalCode?: boolean
     country?: boolean
   } | null
+  uploadAccept?: 'any' | 'image' | 'document' | 'custom' | null
+  uploadAcceptCustom?: string | null
+  uploadMultiple?: boolean | null
   allowedCharacters?: AllowedCharactersMode
   customPattern?: string | null
   minLength?: number | null
@@ -50,6 +93,9 @@ export interface PageFieldOption {
   label: string
   value: string
   price?: number | null
+  priceReference?: string | null
+  additionalPrice?: number | null
+  additionalPriceReference?: string | null
 }
 
 export interface FieldCondition {
@@ -93,12 +139,14 @@ export interface FormPage {
   fields: PageField[]
 }
 
-export type PaymentComputationMode = 'field' | 'sum_priced_options' | 'sum_number_fields' | 'fixed'
+export type PaymentComputationMode = 'field' | 'sum_priced_options' | 'sum_number_fields' | 'fixed' | 'formula'
 
 export interface PaymentComputation {
   mode: PaymentComputationMode
   fieldBindings?: string[]
   fixedAmount?: number | null
+  adjustments?: { type: PaymentAdjustmentType; referenceKey: string }[]
+  showBreakdown?: boolean
 }
 
 export interface PageForm {
@@ -110,6 +158,7 @@ export interface PageForm {
     theme?: unknown
   }
   pages: FormPage[]
+  references?: FormReference[]
 }
 
 export interface PageSubmissionSession {

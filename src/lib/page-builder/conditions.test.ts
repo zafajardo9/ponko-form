@@ -28,6 +28,16 @@ describe('page-builder conditions', () => {
     expect(evaluateCondition({ ...base, operator: 'less_than', value: '2026-01-01' }, { meal: '2025-12-31' })).toBe(true)
   })
 
+  it('resolves reference tokens in comparison values', () => {
+    expect(
+      evaluateCondition(
+        { ...base, sourceFieldBinding: 'total', operator: 'greater_than', value: '{{free_shipping_threshold}}' },
+        { total: 1500 },
+        { free_shipping_threshold: 1000 },
+      ),
+    ).toBe(true)
+  })
+
   it('uses show and hide actions with AND semantics', () => {
     expect(
       isFieldVisible(
