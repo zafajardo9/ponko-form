@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "vite dev --port 3000",
     "build": "vite build",
+    "start": "node server.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
@@ -53,6 +54,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "recharts": "^3.9.1",
+    "srvx": "^0.8.16",
     "tailwindcss": "^4.1.18",
     "zod": "^4.3.6"
   },
