@@ -78,6 +78,7 @@ export function PageFormView({
   const [paymentGateMessage, setPaymentGateMessage] = useState('')
   const [completed, setCompleted] = useState(false)
   const [sessionClientToken] = useState(createSessionClientToken)
+  const sessionCorrelationId = sessionClientToken.slice(0, 12)
   const startedRef = useRef(false)
   const submissionQueuedRef = useRef<Record<string, unknown> | null>(null)
   const failedSubmissionRef = useRef<Record<string, unknown> | null>(null)
@@ -311,6 +312,7 @@ export function PageFormView({
             <div className="mb-6 flex flex-col gap-3 rounded-lg border border-[#d7a84c] bg-[#fff8e7] px-4 py-3 text-sm text-[#6b4f16] sm:flex-row sm:items-center sm:justify-between" role="alert">
               <span>
                 We couldn’t initialize this submission. Your entries are still here, but they cannot be submitted until the connection is restored.
+                <span className="mt-1 block text-xs opacity-80">Reference: {sessionCorrelationId}</span>
               </span>
               <Button type="button" variant="secondary" onClick={retrySessionInitialization} disabled={startMut.isPending}>
                 Retry

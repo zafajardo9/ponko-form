@@ -1,8 +1,12 @@
 /**
  * Database migration runner using @neondatabase/serverless (HTTP-based).
  *
- * drizzle-kit migrate CLI needs WebSocket polyfill for @neondatabase/serverless v1.x.
- * This script uses the neon() HTTP client directly with drizzle-orm/neon-serverless.
+ * Uses the same Neon HTTP driver as the application so it works in serverless
+ * build/release environments without a WebSocket polyfill.
+ *
+ * This full-history runner is intended for databases whose Drizzle migration
+ * journal was initialized from the beginning. Existing production databases
+ * should use `npm run db:prepare` for compatibility migrations.
  *
  * Usage: npx tsx scripts/migrate.ts
  */
@@ -12,8 +16,8 @@ import { resolve } from 'path'
 config({ path: [resolve(import.meta.dirname, '../.env.local'), resolve(import.meta.dirname, '../.env')] })
 
 import { neon } from '@neondatabase/serverless'
-import { drizzle } from 'drizzle-orm/neon-serverless'
-import { migrate } from 'drizzle-orm/neon-serverless/migrator'
+import { drizzle } from 'drizzle-orm/neon-http'
+import { migrate } from 'drizzle-orm/neon-http/migrator'
 
 async function main() {
   const url = process.env.DATABASE_URL

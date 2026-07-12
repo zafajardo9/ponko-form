@@ -1,0 +1,44 @@
+import { config } from 'dotenv'
+import { resolve } from 'node:path'
+import { neon } from '@neondatabase/serverless'
+
+config({ path: [resolve(import.meta.dirname, '../.env.local'), resolve(import.meta.dirname, '../.env')] })
+
+const REQUIRED_INDEX = 'form_submission_sessions_form_id_client_token_idx'
+
+async function main() {
+  const databaseUrl = process.env.DATABASE_URL
+  if (!databaseUrl) throw new Error('DATABASE_URL not set')
+
+  const sql = neon(databaseUrl)
+  const [compatibility] = await sql`
+    SELECT
+      EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'form_submission_sessions'
+          AND column_name = 'client_token'
+      ) AS has_client_token,
+      EXISTS (
+        SELECT 1
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename = 'form_submission_sessions'
+          AND indexname = ${REQUIRED_INDEX}
+      ) AS has_client_token_index
+  `
+
+  if (!compatibility?.has_client_token || !compatibility?.has_client_token_index) {
+    throw new Error(
+      'Database schema is incompatible: apply drizzle/0018_session_client_token.sql before starting the app.',
+    )
+  }
+
+  console.log('Database schema compatibility check passed.')
+}
+
+main().catch((error) => {
+  console.error('Database schema compatibility check failed:', error instanceof Error ? error.message : error)
+  process.exit(1)
+})

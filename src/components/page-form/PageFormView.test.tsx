@@ -131,6 +131,7 @@ describe('PageFormView session resilience', () => {
     fireEvent.change(input, { target: { value: 'Ada' } })
 
     expect(await screen.findByRole('alert', {}, { timeout: 5_000 })).toBeTruthy()
+    expect(screen.getByText(/^Reference: [a-zA-Z0-9_-]{12}$/)).toBeTruthy()
     expect(input.value).toBe('Ada')
     expect(serverFns.startPageSession).toHaveBeenCalledTimes(3)
     const clientTokens = serverFns.startPageSession.mock.calls.map(
