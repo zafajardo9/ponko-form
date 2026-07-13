@@ -13,59 +13,68 @@ export function ProviderCard({ provider, configured, meta, onConfigure, onRemove
   const cfg: ProviderFormConfig | undefined = PROVIDER_FORMS[provider]
   if (!cfg) return null
 
+  const visibleMeta = Object.entries(meta ?? {}).filter(([key, value]) =>
+    Boolean(value) && key !== 'webhookPath',
+  )
+  const metaLabel = (key: string) => ({
+    mode: 'Environment',
+    host: 'Host',
+    fromEmail: 'Sender',
+    fromName: 'Name',
+  })[key] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase())
+
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-[#e6dfd8] bg-white p-4 transition-colors hover:border-[#cc785c]/40">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-[#f5f0e8] text-lg">
-            {cfg.icon}
-          </span>
-          <div className="min-w-0">
-            <div className="text-sm font-medium text-[#141413]">{cfg.name}</div>
-            <div className="text-xs text-[#6c6a64]">{cfg.description}</div>
+    <article className="group flex min-h-48 flex-col rounded-xl border border-[#dedbd5] bg-white p-5 shadow-[0_1px_2px_rgba(20,20,19,0.03)] transition hover:border-[#c9c4bc] hover:shadow-[0_10px_30px_-20px_rgba(20,20,19,0.35)]">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2.5">
+            <h3 className="text-[15px] font-semibold text-[#141413]">{cfg.name}</h3>
+            <span className={`h-1.5 w-1.5 rounded-full ${configured ? 'bg-[#3f8a50]' : 'bg-[#c8c4bd]'}`} aria-hidden="true" />
           </div>
+          <p className="mt-2 text-sm leading-5 text-[#6c6a64]">{cfg.description}</p>
         </div>
         <span
-          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${
+          className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${
             configured
-              ? 'bg-[#dcefdc] text-[#2f6f3f]'
-              : 'bg-[#efe9de] text-[#8e8b82]'
+              ? 'border-[#c9e2ce] bg-[#f0f8f2] text-[#357143]'
+              : 'border-[#e4e0da] bg-[#f8f6f2] text-[#817d75]'
           }`}
         >
-          {configured ? 'Connected' : 'Off'}
+          {configured ? 'Connected' : 'Not connected'}
         </span>
       </div>
 
-      {configured && meta && Object.keys(meta).length > 0 && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#8e8b82]">
-          {Object.entries(meta).map(([key, val]) => (
-            <span key={key}>
-              {key}: <span className="text-[#6c6a64]">{val}</span>
-            </span>
+      {configured && visibleMeta.length > 0 && (
+        <dl className="mt-4 grid gap-1.5 border-t border-[#eeeae4] pt-3 text-xs">
+          {visibleMeta.map(([key, val]) => (
+            <div key={key} className="flex min-w-0 justify-between gap-4">
+              <dt className="text-[#8e8b82]">{metaLabel(key)}</dt>
+              <dd className="truncate text-right font-medium text-[#57544d]">{val}</dd>
+            </div>
           ))}
-        </div>
+        </dl>
       )}
 
-      <div className="flex items-center gap-2">
+      <div className="mt-auto flex items-center gap-2 pt-5">
         <button
           onClick={onConfigure}
-          className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+          className={`rounded-md px-3.5 py-2 text-xs font-semibold transition-colors ${
             configured
-              ? 'border border-[#e6dfd8] bg-[#faf9f5] text-[#141413] hover:bg-[#f5f0e8]'
-              : 'bg-[#cc785c] text-white hover:bg-[#a9583e]'
+              ? 'border border-[#dcd8d1] bg-white text-[#141413] hover:bg-[#f7f5f1]'
+              : 'bg-[#141413] text-white hover:bg-[#34332f]'
           }`}
         >
-          {configured ? 'Edit' : 'Configure'}
+          {configured ? 'Manage' : 'Connect'}
         </button>
         {configured && (
           <button
             onClick={onRemove}
-            className="rounded-md px-2 py-1.5 text-xs text-[#8e8b82] hover:text-[#c64545]"
+            className="rounded-md px-3 py-2 text-xs font-medium text-[#817d75] hover:bg-[#fff3f1] hover:text-[#b64336]"
           >
-            Remove
+            Disconnect
           </button>
         )}
       </div>
-    </div>
+    </article>
   )
 }

@@ -67,8 +67,10 @@ export function IntegrationModal({ provider, open, onClose, onSave, onOAuth, sav
         {/* Header */}
         <div className="flex items-center justify-between rounded-t-xl border-b border-[#e6dfd8] bg-[#faf9f5] px-5 py-3">
           <div className="flex items-center gap-2">
-            <span className="text-lg">{cfg.icon}</span>
-            <span className="text-sm font-medium text-[#141413]">{cfg.name}</span>
+            <div>
+              <span className="block text-sm font-semibold text-[#141413]">{cfg.name}</span>
+              <span className="block text-xs text-[#8e8b82]">Integration settings</span>
+            </div>
           </div>
           <button
             onClick={handleClose}

@@ -19,13 +19,27 @@ export function CategorySection({ categoryKey, statuses, onConfigure, onRemove }
 
   if (providers.length === 0) return null
 
+  const description = {
+    payments: 'Accept and track payments directly through your forms.',
+    email: 'Deliver payment reminders, confirmations, and notifications.',
+    'data-export': 'Send form responses to the tools where your team works.',
+    ai: 'Add intelligent generation and assistance to your workflows.',
+    scheduling: 'Connect form responses with appointments and calendars.',
+    'file-storage': 'Store and transform uploaded files and media.',
+  }[categoryKey]
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <span className="text-lg">{cat.icon}</span>
-        <h2 className="text-base font-semibold text-[#141413]">{cat.label}</h2>
+    <section id={`integration-${categoryKey}`} className="scroll-mt-24">
+      <div className="mb-4 flex items-end justify-between gap-4 border-b border-[#dedbd5] pb-4">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight text-[#141413]">{cat.label}</h2>
+          <p className="mt-1 text-sm text-[#77736c]">{description}</p>
+        </div>
+        <span className="shrink-0 text-xs font-medium text-[#8e8b82]">
+          {providers.length} {providers.length === 1 ? 'integration' : 'integrations'}
+        </span>
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {providers.map(([slug, _]) => {
           const status = statuses.find((s) => s.provider === slug)
           return (
@@ -40,6 +54,6 @@ export function CategorySection({ categoryKey, statuses, onConfigure, onRemove }
           )
         })}
       </div>
-    </div>
+    </section>
   )
 }
