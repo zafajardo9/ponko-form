@@ -46,7 +46,15 @@ export function IntegrationModal({ provider, open, onClose, onSave, onOAuth, sav
 
   const isPaymentEnvironmentProvider = provider === 'xendit' || provider === 'paypal'
   const activeEnvironment = (config.mode ?? meta?.mode?.toLowerCase() ?? 'sandbox') as 'sandbox' | 'live'
+  const persistedEnvironment = configured
+    ? (meta?.mode?.toLowerCase() === 'live' ? 'live' : 'sandbox')
+    : null
+  const environmentChanged = Boolean(persistedEnvironment && activeEnvironment !== persistedEnvironment)
   const activeEnvironmentSaved = meta?.[`${activeEnvironment}Configured`] === 'true'
+  const environmentOptions = cfg.fields.find((field) => field.name === 'mode')?.options ?? []
+  const visibleFields = cfg.fields.filter(
+    (field) => !(isPaymentEnvironmentProvider && field.name === 'mode'),
+  )
 
   function update(key: string, value: string) {
     setConfig((c) => ({ ...c, [key]: value }))
@@ -73,9 +81,9 @@ export function IntegrationModal({ provider, open, onClose, onSave, onOAuth, sav
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={(e) => e.target === e.currentTarget && handleClose()}
     >
-      <div className="flex w-full max-w-lg flex-col rounded-xl bg-[#f5f0e8] shadow-xl">
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-[#f5f0e8] shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between rounded-t-xl border-b border-[#e6dfd8] bg-[#faf9f5] px-5 py-3">
+        <div className="flex shrink-0 items-center justify-between rounded-t-xl border-b border-[#e6dfd8] bg-[#faf9f5] px-5 py-3">
           <div className="flex items-center gap-2">
             <div>
               <span className="block text-sm font-semibold text-[#141413]">{cfg.name}</span>
@@ -92,56 +100,81 @@ export function IntegrationModal({ provider, open, onClose, onSave, onOAuth, sav
         </div>
 
         {/* Body */}
-        <div className="flex flex-col gap-4 p-5">
-          {configured && (
-            <div className="rounded-lg bg-[#dcefdc] px-3 py-2 text-sm font-medium text-[#2f6f3f] flex items-center gap-2">
+        <div className="flex flex-col gap-4 overflow-y-auto p-5">
+          {configured && !isPaymentEnvironmentProvider && (
+            <div className="flex items-center gap-2 rounded-lg bg-[#dcefdc] px-3 py-2 text-sm font-medium text-[#2f6f3f]">
               ✓ Connected
             </div>
           )}
           <p className="text-sm text-[#6c6a64]">{cfg.description}</p>
           {isPaymentEnvironmentProvider && (
-            <div className="grid grid-cols-2 gap-2" aria-label="Saved payment environments">
-              {(['sandbox', 'live'] as const).map((environment) => {
-                const saved = meta?.[`${environment}Configured`] === 'true'
-                return (
-                  <div key={environment} className={`rounded-lg border px-3 py-2 ${saved ? 'border-[#c9e2ce] bg-[#f4faf5]' : 'border-[#e5e1da] bg-[#faf9f6]'}`}>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#77736c]">
-                      {environment === 'live' ? 'Live' : 'Test'} credentials
-                    </p>
-                    <p className={`mt-1 text-xs font-medium ${saved ? 'text-[#357143]' : 'text-[#9a958d]'}`}>
-                      {saved ? 'Saved securely' : 'Not configured'}
-                    </p>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-          {isPaymentEnvironmentProvider && (
-            <div className={`rounded-lg border px-4 py-3 text-sm ${
-              activeEnvironment === 'live'
-                ? 'border-[#e7c8a0] bg-[#fff8ec] text-[#72501f]'
-                : 'border-[#cbddea] bg-[#f2f8fc] text-[#355d77]'
-            }`}>
-              <p className="font-semibold">
-                {activeEnvironment === 'live'
-                  ? 'Live payments are enabled'
-                  : 'Safe testing environment'}
-              </p>
-              <p className="mt-1 text-xs leading-relaxed opacity-90">
-                {activeEnvironment === 'live'
-                  ? 'Transactions can charge real payment methods. Use credentials from the provider’s live environment.'
-                  : 'Transactions are simulated and do not move real money. Use sandbox or development credentials.'}
-              </p>
-            </div>
+            <section className="rounded-xl border border-[#ddd8d0] bg-white p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-[#141413]">Payment environment</h3>
+                  <p className="mt-0.5 text-xs text-[#8e8b82]">
+                    {configured
+                      ? `Currently active: ${persistedEnvironment === 'live' ? 'Live' : 'Test / Sandbox'}`
+                      : 'Choose where payments should run.'}
+                  </p>
+                </div>
+                {configured && (
+                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                    persistedEnvironment === 'live'
+                      ? 'bg-[#dcefdc] text-[#2f6f3f]'
+                      : 'bg-[#dcebf4] text-[#315f7d]'
+                  }`}>
+                    {persistedEnvironment === 'live' ? 'Live active' : 'Test active'}
+                  </span>
+                )}
+              </div>
+
+              <div role="radiogroup" aria-label="Environment" className="mt-3 grid grid-cols-2 rounded-lg bg-[#efebe5] p-1">
+                {environmentOptions.map((option) => {
+                  const selected = activeEnvironment === option.value
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setConfig({ mode: option.value })}
+                      className={`rounded-md px-3 py-2 text-xs font-semibold transition ${
+                        selected
+                          ? 'bg-white text-[#141413] shadow-sm'
+                          : 'text-[#77736c] hover:text-[#141413]'
+                      }`}
+                    >
+                      {option.value === 'live' ? 'Live' : 'Test / Sandbox'}
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className="mt-3 flex items-center justify-between gap-3 text-xs">
+                <span className={activeEnvironmentSaved ? 'text-[#357143]' : 'text-[#a25b45]'}>
+                  {activeEnvironmentSaved ? 'Credentials saved' : 'Credentials required'}
+                </span>
+                <span className="text-[#8e8b82]">
+                  {activeEnvironment === 'live' ? 'Real transactions' : 'No real charges'}
+                </span>
+              </div>
+
+              {environmentChanged && (
+                <p className="mt-3 border-t border-[#eeeae4] pt-3 text-xs leading-relaxed text-[#8a641f]" role="alert">
+                  {persistedEnvironment === 'live' ? 'Live' : 'Test'} stays active until you save and activate {activeEnvironment === 'live' ? 'Live' : 'Test'}.
+                </p>
+              )}
+            </section>
           )}
           {provider === 'xendit' && meta?.webhookPath && (
-            <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] px-3 py-3 text-xs text-[#6c6a64]">
-              <p className="font-medium text-[#141413]">Invoice and refund webhook URL</p>
-              <code className="mt-1 block break-all select-all">
+            <details className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] px-3 py-2.5 text-xs text-[#6c6a64]">
+              <summary className="cursor-pointer font-medium text-[#141413]">Webhook setup</summary>
+              <code className="mt-2 block break-all select-all rounded bg-white p-2">
                 {typeof window === 'undefined' ? meta.webhookPath : `${window.location.origin}${meta.webhookPath}`}
               </code>
-              <p className="mt-2">Copy this URL into Xendit Webhook Settings and save the matching verification token below.</p>
-            </div>
+              <p className="mt-2">Use this URL for Xendit invoice and refund webhooks.</p>
+            </details>
           )}
 
           {isOAuth ? (
@@ -198,54 +231,28 @@ export function IntegrationModal({ provider, open, onClose, onSave, onOAuth, sav
             </div>
           ) : (
             <div className="flex flex-col gap-3.5">
-            {cfg.fields.map((field) => (
+            {isPaymentEnvironmentProvider && (
+              <div className="flex items-center justify-between border-b border-[#e6dfd8] pb-2">
+                <p className="text-sm font-semibold text-[#141413]">
+                  {activeEnvironment === 'live' ? 'Live' : 'Test'} credentials
+                </p>
+                <span className="text-xs text-[#8e8b82]">
+                  {activeEnvironmentSaved ? 'Saved' : 'Not saved'}
+                </span>
+              </div>
+            )}
+            {visibleFields.map((field) => (
               <div key={field.name} className="flex flex-col gap-1">
                 <label htmlFor={`integration-${provider}-${field.name}`} className="text-sm font-medium text-[#141413]">
                   {field.label}
                   {field.required && <span className="ml-0.5 text-[#c64545]">*</span>}
                 </label>
 
-                {field.type === 'select' && isPaymentEnvironmentProvider && field.name === 'mode' ? (
-                  <div
-                    id={`integration-${provider}-${field.name}`}
-                    role="radiogroup"
-                    aria-label="Environment"
-                    className="grid grid-cols-2 rounded-lg border border-[#dcd7cf] bg-[#eeeae3] p-1"
-                  >
-                    {(field.options ?? []).map((option) => {
-                      const selected = activeEnvironment === option.value
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          role="radio"
-                          aria-checked={selected}
-                          onClick={() => setConfig({ mode: option.value })}
-                          className={`rounded-md px-3 py-2 text-xs font-semibold transition ${
-                            selected
-                              ? 'bg-white text-[#141413] shadow-sm'
-                              : 'text-[#77736c] hover:text-[#141413]'
-                          }`}
-                        >
-                          {option.value === 'live' ? 'Live' : 'Test / Sandbox'}
-                        </button>
-                      )
-                    })}
-                  </div>
-                ) : field.type === 'select' ? (
+                {field.type === 'select' ? (
                   <select
                     id={`integration-${provider}-${field.name}`}
                     value={config[field.name] ?? meta?.[field.name]?.toLowerCase() ?? field.placeholder ?? ''}
-                    onChange={(e) => {
-                      if (isPaymentEnvironmentProvider && field.name === 'mode') {
-                        // Never carry a key typed for one environment into the
-                        // other environment's fields. Saved server credentials
-                        // remain intact and are selected by the new mode.
-                        setConfig({ mode: e.target.value })
-                      } else {
-                        update(field.name, e.target.value)
-                      }
-                    }}
+                    onChange={(e) => update(field.name, e.target.value)}
                     className={selectClass}
                   >
                     {(field.options ?? []).map((option) => (
@@ -297,12 +304,18 @@ export function IntegrationModal({ provider, open, onClose, onSave, onOAuth, sav
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 rounded-b-xl border-t border-[#e6dfd8] bg-[#faf9f5] px-5 py-3">
+        <div className="flex shrink-0 items-center justify-end gap-2 rounded-b-xl border-t border-[#e6dfd8] bg-[#faf9f5] px-5 py-3">
           <Button variant="secondary" size="sm" onClick={handleClose}>
             Cancel
           </Button>
           <Button size="sm" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : 'Save Integration'}
+            {saving
+              ? 'Saving…'
+              : isPaymentEnvironmentProvider
+                ? environmentChanged
+                  ? `Save & activate ${activeEnvironment === 'live' ? 'Live' : 'Test'}`
+                  : `Save ${activeEnvironment === 'live' ? 'Live' : 'Test'} credentials`
+                : 'Save Integration'}
           </Button>
         </div>
       </div>
