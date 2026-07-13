@@ -1,14 +1,13 @@
 import { createServerFn } from '@tanstack/react-start'
 import { auth } from '@clerk/tanstack-react-start/server'
 import { getRequestUrl } from '@tanstack/react-start/server'
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import { db } from '../../db/index'
 import { withTimeout } from '../../db/with-timeout'
 import {
   fieldConditions,
   formPageFields,
   formPages,
-  formReferences,
   formSubmissionSessions,
   formSubmissions,
   forms,
@@ -19,21 +18,20 @@ import { paymentRegistry } from '../../integrations/payments/index'
 import { reconcilePayment } from '../payments/reconciliation'
 import type { GatewayCredentials } from '../../integrations/payments/types'
 import { loadIntegrationConfigs } from '../integrations/credentials'
-import { missingAddressParts, pruneHiddenValues, validateFieldRules, visibleFields } from '../page-builder/conditions'
 import {
   applyComputedFieldValues,
   buildReferenceMap,
   calculatePagePayment,
 } from '../page-builder/references'
+import { completePageSubmissionRecord, completePaidPageSubmission } from '../page-builder/complete-submission'
+import { hydratePages, loadFormReferences } from '../page-builder/server-data'
 import type {
   ConditionAction,
   ConditionOperator,
-  FieldCondition,
   PageFieldOption,
   FieldValidationRules,
   FormReferenceType,
   FormPage,
-  PageField,
   PageFieldType,
   PageForm,
   PaymentComputation,
@@ -100,85 +98,6 @@ function originForReturnUrls(): string {
   } catch {
     return process.env.APP_URL ?? 'http://localhost:3000'
   }
-}
-
-async function hydratePages(formId: number): Promise<FormPage[]> {
-  const pages = await db
-    .select()
-    .from(formPages)
-    .where(eq(formPages.formId, formId))
-    .orderBy(formPages.position, formPages.id)
-  if (pages.length === 0) return []
-
-  const pageIds = pages.map((page) => page.id)
-  const fields = await db
-    .select()
-    .from(formPageFields)
-    .where(inArray(formPageFields.pageId, pageIds))
-    .orderBy(formPageFields.position, formPageFields.id)
-  const fieldIds = fields.map((field) => field.id)
-  const conditions =
-    fieldIds.length > 0
-      ? await db
-          .select()
-          .from(fieldConditions)
-          .where(inArray(fieldConditions.fieldId, fieldIds))
-          .orderBy(fieldConditions.id)
-      : []
-
-  const conditionsByField = new Map<number, FieldCondition[]>()
-  for (const condition of conditions) {
-    conditionsByField.set(condition.fieldId, [
-      ...(conditionsByField.get(condition.fieldId) ?? []),
-      condition as FieldCondition,
-    ])
-  }
-
-  const fieldsByPage = new Map<number, PageField[]>()
-  for (const field of fields) {
-    fieldsByPage.set(field.pageId, [
-      ...(fieldsByPage.get(field.pageId) ?? []),
-      {
-        id: field.id,
-        pageId: field.pageId,
-        fieldType: field.fieldType as PageFieldType,
-        label: field.label,
-        placeholder: field.placeholder,
-        required: field.required,
-        options: field.options ?? null,
-        bindVariable: field.bindVariable,
-        position: field.position,
-        width: field.width,
-        validationRules: (field.validationRules as FieldValidationRules | null) ?? null,
-        conditions: conditionsByField.get(field.id) ?? [],
-      },
-    ])
-  }
-
-  return pages.map((page) => ({
-    id: page.id,
-    formId: page.formId,
-    title: page.title,
-    description: page.description,
-    position: page.position,
-    isFinal: page.isFinal,
-    finalTemplate: page.finalTemplate,
-    finalRedirectUrl: page.finalRedirectUrl,
-    hasPayment: page.hasPayment,
-    paymentGatewayId: page.paymentGatewayId,
-    paymentAmountVariable: page.paymentAmountVariable,
-    paymentCurrency: page.paymentCurrency,
-    paymentComputation: (page.paymentComputation as PaymentComputation | null) ?? null,
-    fields: fieldsByPage.get(page.id) ?? [],
-  }))
-}
-
-async function loadFormReferences(formId: number) {
-  return db
-    .select()
-    .from(formReferences)
-    .where(eq(formReferences.formId, formId))
-    .orderBy(formReferences.position, formReferences.id)
 }
 
 async function assertFieldBindingAvailable(formId: number, bindVariable: string, excludedFieldId?: number) {
@@ -260,14 +179,6 @@ async function ensurePageBuilderFieldTypes() {
       END IF;
     END $$;
   `)
-}
-
-function pageFieldValueIsEmpty(field: PageField, value: unknown) {
-  if (field.fieldType === 'address') {
-    return missingAddressParts(field, value).length > 0
-  }
-  return value == null ||
-    (Array.isArray(value) ? value.length === 0 : String(value).trim() === '')
 }
 
 export const getPageForm = createServerFn({ method: 'GET', strict: false })
@@ -792,81 +703,12 @@ export const advancePageSession = createServerFn({ method: 'POST', strict: false
 export const completePageSubmission = createServerFn({ method: 'POST', strict: false })
   .inputValidator((data: { sessionId: number; collectedData: Record<string, unknown> }) => data)
   .handler(async ({ data }) => {
-    return withTimeout((async () => {
-    const [session] = await db
-      .select()
-      .from(formSubmissionSessions)
-      .where(eq(formSubmissionSessions.id, data.sessionId))
-      .limit(1)
-    if (!session) throw new Error('Session not found')
-    const pages = await hydratePages(session.formId)
-    const references = await loadFormReferences(session.formId)
-    const referenceMap = buildReferenceMap(references)
-    const allFields = pages.flatMap((page) => page.fields)
-    const withComputations = applyComputedFieldValues(allFields, data.collectedData, references)
-    const pruned = pruneHiddenValues(allFields, withComputations, referenceMap)
-    const paymentPage = pages.find((page) => page.hasPayment)
-    if (paymentPage) {
-      const meta = (session.collectedData ?? {}) as Record<string, unknown>
-      const paymentId = Number(meta.__paymentId)
-      if (!Number.isFinite(paymentId)) {
-        throw new Error('Payment is required before submitting this form.')
-      }
-      const [payment] = await db
-        .select({ status: payments.status })
-        .from(payments)
-        .where(eq(payments.id, paymentId))
-        .limit(1)
-      if (payment?.status !== 'completed') {
-        throw new Error('Payment has not been completed yet.')
-      }
-    }
-
-    for (const field of visibleFields(allFields, pruned, referenceMap)) {
-      const value = pruned[field.bindVariable]
-      const empty = pageFieldValueIsEmpty(field, value)
-      if (field.required && empty) {
-        const missing = field.fieldType === 'address' ? missingAddressParts(field, value) : []
-        throw new Error(
-          missing.length > 0
-            ? `Field "${field.label}" is missing: ${missing.join(', ')}`
-            : `Field "${field.label}" is required`,
-        )
-      }
-      const ruleError = validateFieldRules(field, value)
-      if (!empty && ruleError) throw new Error(ruleError)
-    }
-
-    const finalFormData = { ...referenceMap, ...pruned }
-    const [submission] = session.formSubmissionId
-      ? await db.update(formSubmissions)
-          .set({ formData: finalFormData, status: 'completed', submittedAt: new Date() })
-          .where(eq(formSubmissions.id, session.formSubmissionId))
-          .returning()
-      : await db.insert(formSubmissions)
-          .values({ formId: session.formId, formData: finalFormData, status: 'completed' })
-          .returning()
-
-    const meta = (session.collectedData ?? {}) as Record<string, unknown>
-    const paymentId = Number(meta.__paymentId)
-    if (Number.isFinite(paymentId)) {
-      await db.update(payments).set({ formSubmissionId: submission.id }).where(eq(payments.id, paymentId))
-    }
-
-    const [updated] = await db
-      .update(formSubmissionSessions)
-      .set({
-        formSubmissionId: submission.id,
-        collectedData: { ...referenceMap, ...pruned },
-        status: 'completed',
-        currentPageIndex: pages.length - 1,
-        completedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(formSubmissionSessions.id, session.id))
-      .returning()
-      return { session: updated, submission }
-    })(), 15_000, 'completePageSubmission', { sessionId: data.sessionId })
+    return withTimeout(
+      completePageSubmissionRecord(data.sessionId, data.collectedData),
+      15_000,
+      'completePageSubmission',
+      { sessionId: data.sessionId },
+    )
   })
 
 export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: false })
@@ -1004,7 +846,10 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
     const base = `${origin}/forms/payment-return?pageSessionId=${session.id}&pageId=${page.id}`
     const gwId = await gatewayRowId(data.gatewaySlug, gateway.getGatewayName())
     const submissionId = await ensurePaymentDraft(session)
-    await db.update(formSubmissions).set({ formData: session.collectedData as Record<string, unknown> })
+    await db.update(formSubmissions).set({
+      formData: session.collectedData as Record<string, unknown>,
+      status: 'pending_payment',
+    })
       .where(eq(formSubmissions.id, submissionId))
     const [payment] = await db.insert(payments).values({
       paymentGatewayId: gwId,
@@ -1041,6 +886,12 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
         failedAt: new Date(),
         updatedAt: new Date(),
       }).where(eq(payments.id, payment.id))
+      await db.update(formSubmissions)
+        .set({ status: 'payment_failed' })
+        .where(and(eq(formSubmissions.id, submissionId), eq(formSubmissions.status, 'pending_payment')))
+      await db.update(formSubmissionSessions)
+        .set({ status: 'payment_failed', updatedAt: new Date() })
+        .where(eq(formSubmissionSessions.id, session.id))
       console.error('[payment] checkout creation failed', {
         paymentId: payment.id,
         gateway: data.gatewaySlug,
@@ -1115,6 +966,14 @@ export const finalizePagePayment = createServerFn({ method: 'POST', strict: fals
 
     const reconciliation = await reconcilePayment({ paymentId: payment.id, source: 'return' })
     const paymentStatus = reconciliation.status
+    if (paymentStatus === 'completed') {
+      await completePaidPageSubmission(session.id)
+      return {
+        status: paymentStatus,
+        success: true,
+        gatewayPaymentId: payment.gatewayPaymentId,
+      }
+    }
     await db
       .update(formSubmissionSessions)
       .set({
@@ -1124,7 +983,7 @@ export const finalizePagePayment = createServerFn({ method: 'POST', strict: fals
       .where(eq(formSubmissionSessions.id, session.id))
       return {
       status: paymentStatus,
-      success: paymentStatus === 'completed',
+      success: false,
       gatewayPaymentId: payment.gatewayPaymentId,
       }
     })(), 15_000, 'finalizePagePayment', {

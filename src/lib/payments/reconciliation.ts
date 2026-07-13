@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { and, desc, eq, isNull, lt, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, or } from 'drizzle-orm'
 import { db } from '../../db/index'
 import {
   flowExecutions,
@@ -19,7 +19,7 @@ import {
   xenditCredentialsForEnvironment,
 } from '../integrations/credentials'
 import type { PaymentEnvironment } from '../integrations/types'
-import { nextPaymentStatus, sanitizePaymentPayload } from './reconciliation-utils'
+import { nextPaymentStatus, paymentOwnerStatus, sanitizePaymentPayload } from './reconciliation-utils'
 
 export type VerificationSource = 'webhook' | 'return' | 'reconciliation' | 'manual'
 
@@ -85,10 +85,28 @@ async function markRecoverableResponse(payment: typeof payments.$inferSelect, st
   if (!payment.formSubmissionId) return
   if (status === 'completed') {
     await db.update(formSubmissions).set({ status: 'incomplete' })
-      .where(and(eq(formSubmissions.id, payment.formSubmissionId), eq(formSubmissions.status, 'pending_payment')))
+      .where(and(
+        eq(formSubmissions.id, payment.formSubmissionId),
+        inArray(formSubmissions.status, ['pending_payment', 'payment_failed']),
+      ))
   } else if (status === 'failed') {
     await db.update(formSubmissions).set({ status: 'payment_failed' })
       .where(and(eq(formSubmissions.id, payment.formSubmissionId), eq(formSubmissions.status, 'pending_payment')))
+  }
+}
+
+async function syncPaymentOwnerStatus(payment: typeof payments.$inferSelect, status: PaymentStatus) {
+  const ownerStatus = paymentOwnerStatus(status)
+  if (!ownerStatus) return
+  if (payment.pageSessionId) {
+    await db.update(formSubmissionSessions)
+      .set({ status: ownerStatus, updatedAt: new Date() })
+      .where(eq(formSubmissionSessions.id, payment.pageSessionId))
+  }
+  if (payment.flowExecutionId && status === 'failed') {
+    await db.update(flowExecutions)
+      .set({ status: 'payment_failed' })
+      .where(eq(flowExecutions.id, payment.flowExecutionId))
   }
 }
 
@@ -152,7 +170,10 @@ export async function reconcilePayment(input: {
     processedAt: new Date(),
   }).onConflictDoNothing({ target: paymentEvents.eventKey }).returning({ id: paymentEvents.id })
 
-  if (!createdEvent) return { status: row.payment.status, duplicate: true, paymentId: row.payment.id }
+  if (!createdEvent) {
+    await syncPaymentOwnerStatus(row.payment, row.payment.status)
+    return { status: row.payment.status, duplicate: true, paymentId: row.payment.id }
+  }
 
   const now = new Date()
   await db.update(payments).set({
@@ -174,6 +195,7 @@ export async function reconcilePayment(input: {
     updatedAt: now,
   }).where(eq(payments.id, row.payment.id))
   await markRecoverableResponse(row.payment, normalized)
+  await syncPaymentOwnerStatus(row.payment, normalized)
 
   console.info('[payment-status-reconciled]', {
     paymentId: row.payment.id,
@@ -195,7 +217,7 @@ export async function paymentByGatewayReference(reference: string) {
 
 export async function reconcileStalePayments(limit = 50) {
   const cutoff = new Date(Date.now() - 10 * 60_000)
-  const stale = await db.select({ id: payments.id }).from(payments)
+  const stale = await db.select({ id: payments.id, pageSessionId: payments.pageSessionId }).from(payments)
     .where(and(
       eq(payments.status, 'pending'),
       or(isNull(payments.lastVerifiedAt), lt(payments.lastVerifiedAt, cutoff)),
@@ -205,7 +227,12 @@ export async function reconcileStalePayments(limit = 50) {
   const results = []
   for (const payment of stale) {
     try {
-      results.push(await reconcilePayment({ paymentId: payment.id, source: 'reconciliation' }))
+      const result = await reconcilePayment({ paymentId: payment.id, source: 'reconciliation' })
+      results.push(result)
+      if (payment.pageSessionId && result.status === 'completed') {
+        const { completePaidPageSubmission } = await import('../page-builder/complete-submission')
+        await completePaidPageSubmission(payment.pageSessionId)
+      }
     } catch (error) {
       console.error('[payment-reconciliation-failed]', {
         paymentId: payment.id,

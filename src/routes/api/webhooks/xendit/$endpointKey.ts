@@ -3,6 +3,7 @@ import { getIntegrationByWebhookEndpoint, normalizeXenditConfig } from '../../..
 import type { XenditConfig } from '../../../../lib/integrations/types'
 import { paymentByGatewayReference, reconcilePayment } from '../../../../lib/payments/reconciliation'
 import { validXenditWebhookToken, xenditWebhookIdentity } from '../../../../lib/payments/xendit-webhook'
+import { completePaidPageSubmission } from '../../../../lib/page-builder/complete-submission'
 
 const MAX_BODY_BYTES = 256_000
 
@@ -49,6 +50,9 @@ export const Route = createFileRoute('/api/webhooks/xendit/$endpointKey')({
             forcedStatus: isRefund && /succeed|paid|completed/i.test(eventType) ? 'refunded' : undefined,
             expectedProfileId: integration.profileId,
           })
+          if (payment.pageSessionId && result.status === 'completed') {
+            await completePaidPageSubmission(payment.pageSessionId)
+          }
           return Response.json({ received: true, duplicate: result.duplicate })
         } catch (error) {
           console.error('[xendit-webhook-failed]', {

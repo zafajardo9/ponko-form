@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nextPaymentStatus, sanitizePaymentPayload } from './reconciliation-utils'
+import { nextPaymentStatus, paymentOwnerStatus, sanitizePaymentPayload } from './reconciliation-utils'
 
 describe('payment reconciliation security', () => {
   it('removes secrets and unrelated personal fields from audit payloads', () => {
@@ -28,5 +28,12 @@ describe('payment reconciliation security', () => {
   it('allows a verified completion to repair pending or failed state', () => {
     expect(nextPaymentStatus('pending', 'completed')).toBe('completed')
     expect(nextPaymentStatus('failed', 'completed')).toBe('completed')
+  })
+
+  it('keeps the owning form process aligned with the verified payment state', () => {
+    expect(paymentOwnerStatus('pending')).toBe('payment_pending')
+    expect(paymentOwnerStatus('failed')).toBe('payment_failed')
+    expect(paymentOwnerStatus('completed')).toBe('in_progress')
+    expect(paymentOwnerStatus('refunded')).toBeNull()
   })
 })

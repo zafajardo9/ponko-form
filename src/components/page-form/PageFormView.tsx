@@ -145,6 +145,7 @@ export function PageFormView({
       setCurrentPageIndex(resumeQuery.data.session.currentPageIndex)
       setData((resumeQuery.data.session.collectedData as Record<string, unknown>) ?? {})
       setSessionId(resumeQuery.data.session.id)
+      setCompleted(resumeQuery.data.session.status === 'completed')
     }
   }, [resumeQuery.data])
 

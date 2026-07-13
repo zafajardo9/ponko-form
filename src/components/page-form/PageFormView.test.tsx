@@ -95,6 +95,26 @@ function renderPageForm(testPages = pages, description?: string) {
   )
 }
 
+function renderResumedPageForm(sessionStatus: 'in_progress' | 'completed') {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  serverFns.getPageSessionData.mockResolvedValue({
+    session: {
+      id: 10,
+      currentPageIndex: pages.length - 1,
+      collectedData: { name: 'Ada' },
+      status: sessionStatus,
+    },
+    form: { title: 'Contact form', description: null, theme: null },
+    pages,
+    references: [],
+  })
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <PageFormView resumeSessionId={10} />
+    </QueryClientProvider>,
+  )
+}
+
 describe('PageFormView session resilience', () => {
   beforeEach(() => {
     serverFns.advancePageSession.mockResolvedValue({ id: 10 })
@@ -163,10 +183,33 @@ describe('PageFormView session resilience', () => {
     })
   })
 
+  it('records an ordinary page form and replaces the submit screen with confirmation', async () => {
+    serverFns.startPageSession.mockResolvedValue({ id: 10 })
+    renderPageForm()
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Ada' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Submit' }))
+
+    expect(await screen.findByRole('heading', { name: 'Thank you!' })).toBeTruthy()
+    expect(serverFns.completePageSubmission).toHaveBeenCalledWith({
+      data: { sessionId: 10, collectedData: { name: 'Ada' } },
+    })
+    expect(screen.queryByRole('button', { name: 'Submit' })).toBeNull()
+  })
+
   it('shows a payment preparation state until a session exists', () => {
     serverFns.startPageSession.mockReturnValue(new Promise(() => undefined))
     renderPageForm([{ ...pages[0], hasPayment: true, fields: [] }, pages[1]])
 
     expect(screen.getByText('Preparing secure payment…')).toBeTruthy()
+  })
+
+  it('shows only the recorded confirmation when a completed payment session resumes', async () => {
+    renderResumedPageForm('completed')
+
+    expect(await screen.findByRole('heading', { name: 'Thank you!' })).toBeTruthy()
+    expect(screen.getByText('Your response has been recorded.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Submit' })).toBeNull()
   })
 })

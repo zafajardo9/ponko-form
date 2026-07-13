@@ -26,3 +26,10 @@ export function nextPaymentStatus(current: PaymentStatus, incoming: PaymentStatu
   if (current === 'failed' && incoming === 'pending') return 'failed'
   return incoming
 }
+
+export function paymentOwnerStatus(status: PaymentStatus) {
+  if (status === 'pending') return 'payment_pending' as const
+  if (status === 'failed') return 'payment_failed' as const
+  if (status === 'completed') return 'in_progress' as const
+  return null
+}

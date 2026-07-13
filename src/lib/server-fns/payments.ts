@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { getRequestUrl } from '@tanstack/react-start/server'
-import { eq, desc } from 'drizzle-orm'
+import { and, eq, desc } from 'drizzle-orm'
 import { db } from '../../db/index'
 import { withTimeout } from '../../db/with-timeout'
 import {
@@ -208,6 +208,9 @@ export const initiatePayment = createServerFn({ method: 'POST', strict: false })
       await db.update(flowExecutions).set({ formSubmissionId: submissionId })
         .where(eq(flowExecutions.id, execution.id))
     }
+    await db.update(formSubmissions)
+      .set({ status: 'pending_payment', formData: execution.variables as Record<string, unknown> })
+      .where(eq(formSubmissions.id, submissionId))
     const [payment] = await db.insert(payments).values({
       paymentGatewayId: gwId,
       flowExecutionId: execution.id,
@@ -235,6 +238,12 @@ export const initiatePayment = createServerFn({ method: 'POST', strict: false })
       await db.update(payments).set({
         status: 'failed', failureReason: result.error ?? 'Gateway creation failed', failedAt: new Date(), updatedAt: new Date(),
       }).where(eq(payments.id, payment.id))
+      await db.update(formSubmissions)
+        .set({ status: 'payment_failed' })
+        .where(and(eq(formSubmissions.id, submissionId), eq(formSubmissions.status, 'pending_payment')))
+      await db.update(flowExecutions)
+        .set({ status: 'payment_failed' })
+        .where(eq(flowExecutions.id, execution.id))
       throw new Error(result.error ?? 'Could not start the payment')
     }
 
