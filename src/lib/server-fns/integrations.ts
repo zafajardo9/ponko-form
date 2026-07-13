@@ -10,6 +10,51 @@ import type {
   SmtpConfig,
   XenditConfig,
 } from '../integrations/types'
+
+function paymentMode(value: unknown): 'sandbox' | 'live' {
+  return value === 'live' ? 'live' : 'sandbox'
+}
+
+function validateXenditKeyMode(secretKey: string, mode: 'sandbox' | 'live') {
+  const normalized = secretKey.toLowerCase()
+  const detected = normalized.includes('production')
+    ? 'live'
+    : normalized.includes('development') || normalized.includes('test')
+      ? 'sandbox'
+      : null
+  if (detected && detected !== mode) {
+    throw new Error(
+      mode === 'live'
+        ? 'The selected Live environment requires a Xendit production key'
+        : 'The selected Test environment requires a Xendit development key',
+    )
+  }
+}
+
+async function verifyXenditCredentials(secretKey: string) {
+  const response = await fetch('https://api.xendit.co/balance', {
+    headers: { Authorization: `Basic ${Buffer.from(`${secretKey}:`).toString('base64')}` },
+    signal: AbortSignal.timeout(8_000),
+  })
+  if (response.status === 401) throw new Error('Xendit rejected this API key. Check the selected environment and key.')
+  if (!response.ok && response.status !== 403) throw new Error('Xendit could not verify these credentials. Please try again.')
+}
+
+async function verifyPaypalCredentials(clientId: string, clientSecret: string, mode: 'sandbox' | 'live') {
+  const baseUrl = mode === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com'
+  const response = await fetch(`${baseUrl}/v1/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: 'grant_type=client_credentials',
+    signal: AbortSignal.timeout(8_000),
+  })
+  if (!response.ok) {
+    throw new Error(`PayPal rejected these ${mode} credentials. Check the Client ID, secret, and environment.`)
+  }
+}
 import {
   getAllIntegrationStatuses,
   getIntegrationConfig,
@@ -46,20 +91,28 @@ export const getIntegrationSettings = createServerFn({ method: 'GET' }).handler(
  */
 export const saveXenditSettings = createServerFn({ method: 'POST' })
   .inputValidator(
-    (data: { secretKey?: string; publicKey?: string; webhookToken?: string }) =>
+    (data: { secretKey?: string; publicKey?: string; webhookToken?: string; mode?: 'sandbox' | 'live' }) =>
       data,
   )
   .handler(async ({ data }) => {
     const profile = await requireProfile()
     const existing = (await loadIntegrationConfigs(profile.id)).xendit
-
-    const secretKey = data.secretKey?.trim() || existing?.secretKey
-    if (!secretKey) throw new Error('Xendit secret key is required')
-
-    const config: XenditConfig = {
+    const mode = paymentMode(data.mode ?? existing?.mode)
+    const savedForMode = existing?.[mode]
+    const secretKey = data.secretKey?.trim() || savedForMode?.secretKey
+    if (!secretKey) throw new Error(`Xendit ${mode} secret key is required`)
+    validateXenditKeyMode(secretKey, mode)
+    await verifyXenditCredentials(secretKey)
+    const active = {
       secretKey,
-      publicKey: data.publicKey?.trim() || existing?.publicKey || undefined,
-      webhookToken: data.webhookToken?.trim() || existing?.webhookToken || undefined,
+      publicKey: data.publicKey?.trim() || savedForMode?.publicKey || undefined,
+      webhookToken: data.webhookToken?.trim() || savedForMode?.webhookToken || undefined,
+    }
+    const config: XenditConfig = {
+      ...active,
+      mode,
+      sandbox: mode === 'sandbox' ? active : existing?.sandbox,
+      live: mode === 'live' ? active : existing?.live,
     }
     await upsertIntegrationConfig(profile.id, { xenditConfig: encryptJson(config) })
     return { success: true }
@@ -80,15 +133,19 @@ export const savePaypalSettings = createServerFn({ method: 'POST' })
     const profile = await requireProfile()
     const existing = (await loadIntegrationConfigs(profile.id)).paypal
 
-    const clientId = data.clientId.trim()
-    const clientSecret = data.clientSecret?.trim() || existing?.clientSecret
-    if (!clientId) throw new Error('PayPal client ID is required')
-    if (!clientSecret) throw new Error('PayPal client secret is required')
-
+    const mode = paymentMode(data.mode)
+    const savedForMode = existing?.[mode]
+    const clientId = data.clientId.trim() || savedForMode?.clientId
+    const clientSecret = data.clientSecret?.trim() || savedForMode?.clientSecret
+    if (!clientId) throw new Error(`PayPal ${mode} client ID is required`)
+    if (!clientSecret) throw new Error(`PayPal ${mode} client secret is required`)
+    await verifyPaypalCredentials(clientId, clientSecret, mode)
+    const active = { clientId, clientSecret }
     const config: PayPalConfig = {
-      clientId,
-      clientSecret,
-      mode: data.mode === 'live' ? 'live' : 'sandbox',
+      ...active,
+      mode,
+      sandbox: mode === 'sandbox' ? active : existing?.sandbox,
+      live: mode === 'live' ? active : existing?.live,
     }
     await upsertIntegrationConfig(profile.id, { paypalConfig: encryptJson(config) })
     return { success: true }
@@ -176,19 +233,46 @@ export const saveIntegration = createServerFn({ method: 'POST' })
     if (data.provider === 'xendit') {
       const existing = await getIntegrationConfig<XenditConfig>(profile.id, 'xendit')
       const input = data.config as Partial<XenditConfig>
-      const secretKey = String(input.secretKey ?? '').trim() || existing?.secretKey
-      if (!secretKey) throw new Error('Xendit secret API key is required')
-      const webhookToken = String(input.webhookToken ?? '').trim() || existing?.webhookToken
-      if (!webhookToken) throw new Error('Xendit webhook verification token is required')
-      const config: XenditConfig = {
+      const mode = paymentMode(input.mode ?? existing?.mode)
+      const savedForMode = existing?.[mode]
+      const secretKey = String(input.secretKey ?? '').trim() || savedForMode?.secretKey
+      if (!secretKey) throw new Error(`Xendit ${mode} secret API key is required`)
+      validateXenditKeyMode(secretKey, mode)
+      await verifyXenditCredentials(secretKey)
+      const webhookToken = String(input.webhookToken ?? '').trim() || savedForMode?.webhookToken
+      if (!webhookToken) throw new Error(`Xendit ${mode} webhook verification token is required`)
+      const active = {
         secretKey,
-        publicKey: String(input.publicKey ?? '').trim() || existing?.publicKey,
+        publicKey: String(input.publicKey ?? '').trim() || savedForMode?.publicKey,
         webhookToken,
+      }
+      const config: XenditConfig = {
+        ...active,
+        mode,
+        sandbox: mode === 'sandbox' ? active : existing?.sandbox,
+        live: mode === 'live' ? active : existing?.live,
       }
       const statuses = await getAllIntegrationStatuses(profile.id)
       const existingPath = statuses.find((item) => item.provider === 'xendit')?.meta?.webhookPath
       const endpointKey = existingPath?.split('/').pop() ?? crypto.randomUUID().replaceAll('-', '')
       await saveIntegrationConfig(profile.id, 'xendit', config, endpointKey)
+    } else if (data.provider === 'paypal') {
+      const existing = await getIntegrationConfig<PayPalConfig>(profile.id, 'paypal')
+      const input = data.config as Partial<PayPalConfig>
+      const mode = paymentMode(input.mode ?? existing?.mode)
+      const savedForMode = existing?.[mode]
+      const clientId = String(input.clientId ?? '').trim() || savedForMode?.clientId
+      const clientSecret = String(input.clientSecret ?? '').trim() || savedForMode?.clientSecret
+      if (!clientId) throw new Error(`PayPal ${mode} client ID is required`)
+      if (!clientSecret) throw new Error(`PayPal ${mode} client secret is required`)
+      await verifyPaypalCredentials(clientId, clientSecret, mode)
+      const active = { clientId, clientSecret }
+      await saveIntegrationConfig(profile.id, 'paypal', {
+        ...active,
+        mode,
+        sandbox: mode === 'sandbox' ? active : existing?.sandbox,
+        live: mode === 'live' ? active : existing?.live,
+      })
     } else if (data.provider === 'resend') {
       const existing = await getIntegrationConfig<ResendConfig>(profile.id, 'resend')
       const input = data.config as Partial<ResendConfig>

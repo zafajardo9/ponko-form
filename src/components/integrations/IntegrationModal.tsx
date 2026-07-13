@@ -44,12 +44,22 @@ export function IntegrationModal({ provider, open, onClose, onSave, onOAuth, sav
 
   if (!open || !cfg) return null
 
+  const isPaymentEnvironmentProvider = provider === 'xendit' || provider === 'paypal'
+  const activeEnvironment = (config.mode ?? meta?.mode?.toLowerCase() ?? 'sandbox') as 'sandbox' | 'live'
+  const activeEnvironmentSaved = meta?.[`${activeEnvironment}Configured`] === 'true'
+
   function update(key: string, value: string) {
     setConfig((c) => ({ ...c, [key]: value }))
   }
 
   function handleSave() {
-    onSave(provider, config)
+    const withDefaults = { ...config }
+    for (const field of cfg.fields) {
+      if (field.type === 'select' && !withDefaults[field.name]) {
+        withDefaults[field.name] = meta?.[field.name]?.toLowerCase() ?? field.placeholder ?? ''
+      }
+    }
+    onSave(provider, withDefaults)
     setConfig({})
   }
 
@@ -89,6 +99,41 @@ export function IntegrationModal({ provider, open, onClose, onSave, onOAuth, sav
             </div>
           )}
           <p className="text-sm text-[#6c6a64]">{cfg.description}</p>
+          {isPaymentEnvironmentProvider && (
+            <div className="grid grid-cols-2 gap-2" aria-label="Saved payment environments">
+              {(['sandbox', 'live'] as const).map((environment) => {
+                const saved = meta?.[`${environment}Configured`] === 'true'
+                return (
+                  <div key={environment} className={`rounded-lg border px-3 py-2 ${saved ? 'border-[#c9e2ce] bg-[#f4faf5]' : 'border-[#e5e1da] bg-[#faf9f6]'}`}>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#77736c]">
+                      {environment === 'live' ? 'Live' : 'Test'} credentials
+                    </p>
+                    <p className={`mt-1 text-xs font-medium ${saved ? 'text-[#357143]' : 'text-[#9a958d]'}`}>
+                      {saved ? 'Saved securely' : 'Not configured'}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          {isPaymentEnvironmentProvider && (
+            <div className={`rounded-lg border px-4 py-3 text-sm ${
+              activeEnvironment === 'live'
+                ? 'border-[#e7c8a0] bg-[#fff8ec] text-[#72501f]'
+                : 'border-[#cbddea] bg-[#f2f8fc] text-[#355d77]'
+            }`}>
+              <p className="font-semibold">
+                {activeEnvironment === 'live'
+                  ? 'Live payments are enabled'
+                  : 'Safe testing environment'}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed opacity-90">
+                {activeEnvironment === 'live'
+                  ? 'Transactions can charge real payment methods. Use credentials from the provider’s live environment.'
+                  : 'Transactions are simulated and do not move real money. Use sandbox or development credentials.'}
+              </p>
+            </div>
+          )}
           {provider === 'xendit' && meta?.webhookPath && (
             <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] px-3 py-3 text-xs text-[#6c6a64]">
               <p className="font-medium text-[#141413]">Invoice and refund webhook URL</p>
@@ -109,11 +154,12 @@ export function IntegrationModal({ provider, open, onClose, onSave, onOAuth, sav
               <div className="flex flex-col gap-3.5">
                 {cfg.fields.map((field) => (
                   <div key={field.name} className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-[#141413]">
+                    <label htmlFor={`integration-${provider}-${field.name}`} className="text-sm font-medium text-[#141413]">
                       {field.label}
                       {field.required && <span className="ml-0.5 text-[#c64545]">*</span>}
                     </label>
                     <input
+                      id={`integration-${provider}-${field.name}`}
                       type={field.type}
                       value={config[field.name] ?? ''}
                       onChange={(e) => update(field.name, e.target.value)}
@@ -154,26 +200,69 @@ export function IntegrationModal({ provider, open, onClose, onSave, onOAuth, sav
             <div className="flex flex-col gap-3.5">
             {cfg.fields.map((field) => (
               <div key={field.name} className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-[#141413]">
+                <label htmlFor={`integration-${provider}-${field.name}`} className="text-sm font-medium text-[#141413]">
                   {field.label}
                   {field.required && <span className="ml-0.5 text-[#c64545]">*</span>}
                 </label>
 
-                {field.type === 'select' ? (
+                {field.type === 'select' && isPaymentEnvironmentProvider && field.name === 'mode' ? (
+                  <div
+                    id={`integration-${provider}-${field.name}`}
+                    role="radiogroup"
+                    aria-label="Environment"
+                    className="grid grid-cols-2 rounded-lg border border-[#dcd7cf] bg-[#eeeae3] p-1"
+                  >
+                    {(field.options ?? []).map((option) => {
+                      const selected = activeEnvironment === option.value
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          onClick={() => setConfig({ mode: option.value })}
+                          className={`rounded-md px-3 py-2 text-xs font-semibold transition ${
+                            selected
+                              ? 'bg-white text-[#141413] shadow-sm'
+                              : 'text-[#77736c] hover:text-[#141413]'
+                          }`}
+                        >
+                          {option.value === 'live' ? 'Live' : 'Test / Sandbox'}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : field.type === 'select' ? (
                   <select
-                    value={config[field.name] ?? field.placeholder ?? ''}
-                    onChange={(e) => update(field.name, e.target.value)}
+                    id={`integration-${provider}-${field.name}`}
+                    value={config[field.name] ?? meta?.[field.name]?.toLowerCase() ?? field.placeholder ?? ''}
+                    onChange={(e) => {
+                      if (isPaymentEnvironmentProvider && field.name === 'mode') {
+                        // Never carry a key typed for one environment into the
+                        // other environment's fields. Saved server credentials
+                        // remain intact and are selected by the new mode.
+                        setConfig({ mode: e.target.value })
+                      } else {
+                        update(field.name, e.target.value)
+                      }
+                    }}
                     className={selectClass}
                   >
-                    <option value="true">Yes</option>
-                    <option value="false">No</option>
+                    {(field.options ?? []).map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
                   </select>
                 ) : (
                   <input
+                    id={`integration-${provider}-${field.name}`}
                     type={field.type}
                     value={config[field.name] ?? ''}
                     onChange={(e) => update(field.name, e.target.value)}
-                    placeholder={configured && field.type === 'password' ? 'Saved — leave blank to keep' : (field.placeholder ?? '')}
+                    placeholder={
+                      field.type === 'password' && configured && (!isPaymentEnvironmentProvider || activeEnvironmentSaved)
+                        ? `Saved for ${activeEnvironment === 'live' ? 'Live' : 'Test'} — leave blank to keep`
+                        : (field.placeholder ?? '')
+                    }
                     autoComplete="off"
                     className={inputClass}
                   />

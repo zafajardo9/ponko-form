@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { getIntegrationByWebhookEndpoint } from '../../../../lib/integrations/credentials'
+import { getIntegrationByWebhookEndpoint, normalizeXenditConfig } from '../../../../lib/integrations/credentials'
 import type { XenditConfig } from '../../../../lib/integrations/types'
 import { paymentByGatewayReference, reconcilePayment } from '../../../../lib/payments/reconciliation'
 import { validXenditWebhookToken, xenditWebhookIdentity } from '../../../../lib/payments/xendit-webhook'
@@ -14,7 +14,10 @@ export const Route = createFileRoute('/api/webhooks/xendit/$endpointKey')({
         if (!integration) return Response.json({ error: 'Unknown webhook endpoint' }, { status: 404 })
 
         const suppliedToken = request.headers.get('x-callback-token') ?? ''
-        if (!validXenditWebhookToken(integration.config.webhookToken, suppliedToken)) {
+        const config = normalizeXenditConfig(integration.config)
+        const validToken = [config.sandbox?.webhookToken, config.live?.webhookToken]
+          .some((token) => validXenditWebhookToken(token, suppliedToken))
+        if (!validToken) {
           return Response.json({ error: 'Invalid webhook token' }, { status: 401 })
         }
         const contentLength = Number(request.headers.get('content-length') ?? 0)

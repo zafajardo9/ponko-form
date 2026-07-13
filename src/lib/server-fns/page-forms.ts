@@ -68,7 +68,7 @@ function credentialsForSlug(
 ): GatewayCredentials | null {
   if (slug === 'xendit') {
     return configs.xendit
-      ? { secretKey: configs.xendit.secretKey, publicKey: configs.xendit.publicKey }
+      ? { secretKey: configs.xendit.secretKey, publicKey: configs.xendit.publicKey, mode: configs.xendit.mode }
       : null
   }
   return configs.paypal
@@ -901,8 +901,8 @@ export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: fal
     const currency = page.paymentCurrency ?? 'USD'
     const configs = await loadIntegrationConfigs(form.profileId)
     const connected: { slug: GatewaySlug; name: string }[] = []
-    if (configs.paypal) connected.push({ slug: 'paypal', name: 'PayPal' })
-    if (configs.xendit) connected.push({ slug: 'xendit', name: 'Xendit' })
+    if (configs.paypal) connected.push({ slug: 'paypal', name: configs.paypal.mode === 'live' ? 'PayPal' : 'PayPal Test' })
+    if (configs.xendit) connected.push({ slug: 'xendit', name: configs.xendit.mode === 'live' ? 'Xendit' : 'Xendit Test' })
     let gateways = connected.filter((gateway) =>
       paymentRegistry.get(gateway.slug)?.getSupportedCurrencies().includes(currency),
     )
@@ -1013,6 +1013,7 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
       amount: Math.round(amountMajor * 100),
       currency: page.paymentCurrency,
       status: 'pending',
+      gatewayResponse: { environment: credentials.mode ?? 'sandbox' },
     }).returning({ id: payments.id })
     const externalId = `ponkoform-payment-${payment.id}`
     await db.update(payments).set({ externalId }).where(eq(payments.id, payment.id))
@@ -1059,7 +1060,11 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
       gatewayPaymentId: result.gatewayPaymentId,
       paymentUrl: result.paymentUrl,
       expiresAt: result.expiresAt ? new Date(result.expiresAt) : null,
-      gatewayResponse: { pageSessionId: session.id, pageId: page.id },
+      gatewayResponse: {
+        pageSessionId: session.id,
+        pageId: page.id,
+        environment: credentials.mode ?? 'sandbox',
+      },
       updatedAt: new Date(),
     }).where(eq(payments.id, payment.id))
     await db

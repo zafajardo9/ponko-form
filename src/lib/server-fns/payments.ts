@@ -76,6 +76,7 @@ function credentialsForSlug(
       ? {
           secretKey: configs.xendit.secretKey,
           publicKey: configs.xendit.publicKey,
+          mode: configs.xendit.mode,
         }
       : null
   }
@@ -128,8 +129,8 @@ export const getPaymentOptions = createServerFn({ method: 'GET', strict: false }
 
     const configs = await loadIntegrationConfigs(formProfileId)
     const connected: { slug: GatewaySlug; name: string }[] = []
-    if (configs.paypal) connected.push({ slug: 'paypal', name: 'PayPal' })
-    if (configs.xendit) connected.push({ slug: 'xendit', name: 'Xendit' })
+    if (configs.paypal) connected.push({ slug: 'paypal', name: configs.paypal.mode === 'live' ? 'PayPal' : 'PayPal Test' })
+    if (configs.xendit) connected.push({ slug: 'xendit', name: configs.xendit.mode === 'live' ? 'Xendit' : 'Xendit Test' })
 
     // Only offer gateways that can actually process this form's currency. (A USD
     // form with only Xendit connected ends up with no options — handled by the UI.)
@@ -214,6 +215,7 @@ export const initiatePayment = createServerFn({ method: 'POST', strict: false })
       amount: amountMinor,
       currency,
       status: 'pending',
+      gatewayResponse: { environment: credentials.mode ?? 'sandbox' },
     }).returning({ id: payments.id })
     const externalId = `ponkoform-payment-${payment.id}`
     await db.update(payments).set({ externalId }).where(eq(payments.id, payment.id))
@@ -240,6 +242,7 @@ export const initiatePayment = createServerFn({ method: 'POST', strict: false })
       gatewayPaymentId: result.gatewayPaymentId,
       paymentUrl: result.paymentUrl,
       expiresAt: result.expiresAt ? new Date(result.expiresAt) : null,
+      gatewayResponse: { environment: credentials.mode ?? 'sandbox' },
       updatedAt: new Date(),
     }).where(eq(payments.id, payment.id)), 8_000, 'initiatePayment.updatePayment', context)
 

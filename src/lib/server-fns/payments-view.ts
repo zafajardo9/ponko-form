@@ -15,7 +15,12 @@ import {
 import { eq, desc, inArray, or, sql } from "drizzle-orm";
 import { reconcilePayment } from "../payments/reconciliation";
 import { paymentRegistry } from "../../integrations/payments";
-import { getIntegrationConfig, loadIntegrationConfigs } from "../integrations/credentials";
+import {
+  getIntegrationConfig,
+  loadIntegrationConfigs,
+  paypalCredentialsForEnvironment,
+  xenditCredentialsForEnvironment,
+} from "../integrations/credentials";
 import type { GatewayCredentials } from "../../integrations/payments/types";
 import type { ResendConfig } from "../integrations/types";
 import { sendPaymentReminderEmail } from "../email/resend";
@@ -276,10 +281,14 @@ export const replaceExpiredPaymentLink = createServerFn({ method: "POST", strict
     const gateway = paymentRegistry.get(gatewaySlug);
     if (!gateway) throw new Error("Payment gateway is unavailable")
     const configs = await loadIntegrationConfigs(profileId);
-    const credentials: GatewayCredentials | undefined = gatewaySlug === "xendit" && configs.xendit
-      ? { secretKey: configs.xendit.secretKey, publicKey: configs.xendit.publicKey }
-      : gatewaySlug === "paypal" && configs.paypal
-        ? { clientId: configs.paypal.clientId, clientSecret: configs.paypal.clientSecret, mode: configs.paypal.mode }
+    const response = payment.gatewayResponse ?? {};
+    const environment = response.environment === "live" || response.environment === "sandbox"
+      ? response.environment
+      : gatewaySlug === "xendit" ? configs.xendit?.mode : configs.paypal?.mode;
+    const credentials: GatewayCredentials | undefined = gatewaySlug === "xendit" && configs.xendit && environment
+      ? { ...xenditCredentialsForEnvironment(configs.xendit, environment), mode: environment }
+      : gatewaySlug === "paypal" && configs.paypal && environment
+        ? { ...paypalCredentialsForEnvironment(configs.paypal, environment), mode: environment }
         : undefined;
     if (!credentials) throw new Error("Payment gateway credentials are unavailable")
     const baseUrl = process.env.APP_URL?.replace(/\/$/, "")
@@ -292,9 +301,9 @@ export const replaceExpiredPaymentLink = createServerFn({ method: "POST", strict
       amount: payment.amount,
       currency: payment.currency,
       status: "pending",
+      gatewayResponse: { ...response, environment },
     }).returning({ id: payments.id });
     const externalId = `ponkoform-payment-${replacement.id}`;
-    const response = payment.gatewayResponse ?? {};
     const returnPath = payment.pageSessionId
       ? `/forms/payment-return?pageSessionId=${payment.pageSessionId}&pageId=${String(response.pageId ?? "")}`
       : `/forms/payment-return?executionId=${payment.flowExecutionId}`;

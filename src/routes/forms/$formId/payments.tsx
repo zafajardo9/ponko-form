@@ -407,6 +407,16 @@ function PaymentDetailDialog({
             <DetailRow label="Invoice" value={payment.invoiceNo} mono />
             <DetailRow label="Gateway" value={payment.gatewayName} />
             <DetailRow
+              label="Environment"
+              value={
+                payment.gatewayResponse?.environment === "live"
+                  ? "Live"
+                  : payment.gatewayResponse?.environment === "sandbox"
+                    ? "Sandbox / Test"
+                    : "Not recorded (legacy payment)"
+              }
+            />
+            <DetailRow
               label="Gateway Reference"
               value={payment.gatewayPaymentId ?? "—"}
               mono

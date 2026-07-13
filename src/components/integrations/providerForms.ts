@@ -9,6 +9,7 @@ export interface ProviderFormField {
   placeholder?: string
   required?: boolean
   docLink?: string
+  options?: { value: string; label: string }[]
 }
 
 export interface ProviderFormConfig {
@@ -31,8 +32,12 @@ export const PROVIDER_FORMS: Record<ProviderSlug, ProviderFormConfig> = {
     description: 'Accept payments through your own Xendit account (PH-focused).',
     category: 'payments',
     fields: [
-      { name: 'secretKey', label: 'Secret API key', type: 'password', required: true, placeholder: 'xnd_production_...', docLink: 'https://dashboard.xendit.co/settings/api-keys' },
-      { name: 'publicKey', label: 'Public API key', type: 'text', placeholder: 'xnd_public_production_...' },
+      { name: 'mode', label: 'Environment', type: 'select', required: true, placeholder: 'sandbox', options: [
+        { value: 'sandbox', label: 'Test mode (no real charges)' },
+        { value: 'live', label: 'Live mode (real payments)' },
+      ] },
+      { name: 'secretKey', label: 'Secret API key', type: 'password', required: true, placeholder: 'xnd_development_... or xnd_production_...', docLink: 'https://dashboard.xendit.co/settings/api-keys' },
+      { name: 'publicKey', label: 'Public API key', type: 'text', placeholder: 'Xendit public key (optional)' },
       { name: 'webhookToken', label: 'Webhook verification token', type: 'password', required: true, placeholder: 'From Xendit Webhook Settings' },
     ],
     docsUrl: 'https://docs.xendit.co/',
@@ -46,7 +51,10 @@ export const PROVIDER_FORMS: Record<ProviderSlug, ProviderFormConfig> = {
     fields: [
       { name: 'clientId', label: 'Client ID', type: 'text', required: true, placeholder: 'AYSq3RDGsmBLJE...', docLink: 'https://developer.paypal.com/dashboard/applications' },
       { name: 'clientSecret', label: 'Client secret', type: 'password', required: true, placeholder: 'EGnHDxD_qRPdaLd...' },
-      { name: 'mode', label: 'Environment', type: 'select', required: true, placeholder: 'sandbox' },
+      { name: 'mode', label: 'Environment', type: 'select', required: true, placeholder: 'sandbox', options: [
+        { value: 'sandbox', label: 'Sandbox (test transactions)' },
+        { value: 'live', label: 'Live (real payments)' },
+      ] },
     ],
     docsUrl: 'https://developer.paypal.com/docs/api/',
   },
@@ -102,7 +110,10 @@ export const PROVIDER_FORMS: Record<ProviderSlug, ProviderFormConfig> = {
       { name: 'password', label: 'Password', type: 'password', required: true, placeholder: 'App password or SMTP password' },
       { name: 'fromEmail', label: 'From email', type: 'email', required: true, placeholder: 'noreply@example.com' },
       { name: 'fromName', label: 'From name', type: 'text', placeholder: 'Your Company' },
-      { name: 'secure', label: 'Use TLS/SSL', type: 'select', placeholder: 'false' },
+      { name: 'secure', label: 'Use TLS/SSL', type: 'select', placeholder: 'false', options: [
+        { value: 'true', label: 'Yes' },
+        { value: 'false', label: 'No' },
+      ] },
     ],
     docsUrl: 'https://www.google.com/search?q=smtp+settings',
   },

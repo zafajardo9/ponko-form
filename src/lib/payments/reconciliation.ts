@@ -13,7 +13,12 @@ import {
 } from '../../db/schema'
 import { paymentRegistry } from '../../integrations/payments/index'
 import type { GatewayCredentials, PaymentDetails, PaymentStatus } from '../../integrations/payments/types'
-import { loadIntegrationConfigs } from '../integrations/credentials'
+import {
+  loadIntegrationConfigs,
+  paypalCredentialsForEnvironment,
+  xenditCredentialsForEnvironment,
+} from '../integrations/credentials'
+import type { PaymentEnvironment } from '../integrations/types'
 import { nextPaymentStatus, sanitizePaymentPayload } from './reconciliation-utils'
 
 export type VerificationSource = 'webhook' | 'return' | 'reconciliation' | 'manual'
@@ -37,14 +42,24 @@ function eventKey(input: {
 function credentialsForSlug(
   slug: string,
   configs: Awaited<ReturnType<typeof loadIntegrationConfigs>>,
+  environment: PaymentEnvironment,
 ): GatewayCredentials | null {
-  if (slug === 'xendit') return configs.xendit
-    ? { secretKey: configs.xendit.secretKey, publicKey: configs.xendit.publicKey }
-    : null
-  if (slug === 'paypal') return configs.paypal
-    ? { clientId: configs.paypal.clientId, clientSecret: configs.paypal.clientSecret, mode: configs.paypal.mode }
-    : null
+  if (slug === 'xendit' && configs.xendit) {
+    const credentials = xenditCredentialsForEnvironment(configs.xendit, environment)
+    return credentials ? { ...credentials, mode: environment } : null
+  }
+  if (slug === 'paypal' && configs.paypal) {
+    const credentials = paypalCredentialsForEnvironment(configs.paypal, environment)
+    return credentials ? { ...credentials, mode: environment } : null
+  }
   return null
+}
+
+function paymentEnvironment(payment: typeof payments.$inferSelect): PaymentEnvironment | null {
+  const response = payment.gatewayResponse as Record<string, unknown> | null
+  return response?.environment === 'live' || response?.environment === 'sandbox'
+    ? response.environment
+    : null
 }
 
 async function paymentOwnerProfileId(payment: typeof payments.$inferSelect): Promise<number> {
@@ -99,7 +114,11 @@ export async function reconcilePayment(input: {
   }
   const gateway = paymentRegistry.get(row.slug)
   if (!gateway) throw new Error(`Unknown payment gateway: ${row.slug}`)
-  const credentials = credentialsForSlug(row.slug, await loadIntegrationConfigs(profileId))
+  const configs = await loadIntegrationConfigs(profileId)
+  const environment = paymentEnvironment(row.payment) ?? (
+    row.slug === 'xendit' ? configs.xendit?.mode : configs.paypal?.mode
+  ) ?? 'sandbox'
+  const credentials = credentialsForSlug(row.slug, configs, environment)
   if (!credentials) throw new Error('Gateway credentials are unavailable')
 
   let details: PaymentDetails
@@ -142,7 +161,11 @@ export async function reconcilePayment(input: {
     paymentMethod: details.paymentMethod ?? row.payment.paymentMethod,
     paymentChannel: details.paymentChannel ?? row.payment.paymentChannel,
     failureReason: details.failureReason ?? row.payment.failureReason,
-    gatewayResponse: sanitizedPayload,
+    gatewayResponse: {
+      ...((row.payment.gatewayResponse as Record<string, unknown> | null) ?? {}),
+      ...sanitizedPayload,
+      environment,
+    },
     verificationSource: input.source,
     lastVerifiedAt: now,
     paidAt: normalized === 'completed' && !row.payment.paidAt ? (details.paidAt ? new Date(details.paidAt) : now) : row.payment.paidAt,

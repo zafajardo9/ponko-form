@@ -10,10 +10,12 @@ import type {
   IntegrationStatus,
   MayaConfig,
   PayPalConfig,
+  PayPalEnvironmentCredentials,
   ProviderSlug,
   ResendConfig,
   SmtpConfig,
   XenditConfig,
+  XenditEnvironmentCredentials,
 } from './types'
 
 /**
@@ -83,8 +85,10 @@ export async function loadIntegrationConfigs(
     return row?.config ?? null
   }
 
-  const xendit = decryptOrNull<XenditConfig>(newConfig('xendit'))
-  const paypal = decryptOrNull<PayPalConfig>(newConfig('paypal'))
+  const xenditRaw = decryptOrNull<XenditConfig>(newConfig('xendit'))
+  const paypalRaw = decryptOrNull<PayPalConfig>(newConfig('paypal'))
+  const xendit = xenditRaw ? normalizeXenditConfig(xenditRaw) : null
+  const paypal = paypalRaw ? normalizePaypalConfig(paypalRaw) : null
   const smtp = decryptOrNull<SmtpConfig>(newConfig('smtp'))
 
   // If all found in new table, return
@@ -94,9 +98,15 @@ export async function loadIntegrationConfigs(
 
   // Fall back to legacy integration_settings table
   const row = await loadRow(profileId)
+  const legacyXendit = decryptOrNull<XenditConfig>(row?.xenditConfig ?? null)
+  const legacyPaypal = decryptOrNull<PayPalConfig>(row?.paypalConfig ?? null)
   return {
-    xendit: decryptOrNull<XenditConfig>(row?.xenditConfig ?? null),
-    paypal: decryptOrNull<PayPalConfig>(row?.paypalConfig ?? null),
+    xendit: legacyXendit
+      ? normalizeXenditConfig(legacyXendit)
+      : null,
+    paypal: legacyPaypal
+      ? normalizePaypalConfig(legacyPaypal)
+      : null,
     smtp: decryptOrNull<SmtpConfig>(row?.smtpConfig ?? null),
   }
 }
@@ -112,12 +122,13 @@ export function toIntegrationView(
       secretKeyMask: xendit ? maskSecret(xendit.secretKey) : null,
       publicKey: xendit?.publicKey ?? null,
       hasWebhookToken: !!xendit?.webhookToken,
+      mode: xendit?.mode ?? inferXenditEnvironment(xendit?.secretKey),
     },
     paypal: {
       configured: !!paypal,
       clientId: paypal?.clientId ?? null,
       clientSecretMask: paypal ? maskSecret(paypal.clientSecret) : null,
-      mode: paypal?.mode ?? 'sandbox',
+      mode: paypal?.mode === 'live' ? 'live' : 'sandbox',
     },
     smtp: {
       configured: !!smtp,
@@ -160,10 +171,21 @@ function integrationMeta(provider: ProviderSlug, config: IntegrationConfig | nul
   if (!config) return undefined
   switch (provider) {
     case 'xendit':
-      return {}
+      const normalizedXendit = normalizeXenditConfig(config as XenditConfig)
+      return {
+        mode: normalizedXendit.mode,
+        sandboxConfigured: String(Boolean(normalizedXendit.sandbox)),
+        liveConfigured: String(Boolean(normalizedXendit.live)),
+      }
     case 'paypal':
+      const normalizedPaypal = normalizePaypalConfig(config as PayPalConfig)
+      return {
+        mode: normalizedPaypal.mode,
+        sandboxConfigured: String(Boolean(normalizedPaypal.sandbox)),
+        liveConfigured: String(Boolean(normalizedPaypal.live)),
+      }
     case 'maya':
-      return { mode: (config as PayPalConfig & MayaConfig).mode }
+      return { mode: (config as MayaConfig).mode === 'live' ? 'live' : 'sandbox' }
     case 'smtp':
       return {
         host: (config as SmtpConfig).host,
@@ -177,6 +199,49 @@ function integrationMeta(provider: ProviderSlug, config: IntegrationConfig | nul
     default:
       return undefined
   }
+}
+
+function inferXenditEnvironment(secretKey?: string): 'sandbox' | 'live' {
+  return secretKey?.toLowerCase().includes('production') ? 'live' : 'sandbox'
+}
+
+export function normalizeXenditConfig(config: XenditConfig): XenditConfig {
+  const mode = config.mode === 'live' ? 'live' : inferXenditEnvironment(config.secretKey)
+  const legacyActive: XenditEnvironmentCredentials = {
+    secretKey: config.secretKey,
+    publicKey: config.publicKey,
+    webhookToken: config.webhookToken,
+  }
+  const sandbox = config.sandbox ?? (mode === 'sandbox' ? legacyActive : undefined)
+  const live = config.live ?? (mode === 'live' ? legacyActive : undefined)
+  const active = (mode === 'live' ? live : sandbox) ?? legacyActive
+  return { ...config, ...active, mode, sandbox, live }
+}
+
+export function normalizePaypalConfig(config: PayPalConfig): PayPalConfig {
+  const mode = config.mode === 'live' ? 'live' : 'sandbox'
+  const legacyActive: PayPalEnvironmentCredentials = {
+    clientId: config.clientId,
+    clientSecret: config.clientSecret,
+  }
+  const sandbox = config.sandbox ?? (mode === 'sandbox' ? legacyActive : undefined)
+  const live = config.live ?? (mode === 'live' ? legacyActive : undefined)
+  const active = (mode === 'live' ? live : sandbox) ?? legacyActive
+  return { ...config, ...active, mode, sandbox, live }
+}
+
+export function xenditCredentialsForEnvironment(
+  config: XenditConfig,
+  environment: 'sandbox' | 'live' = config.mode,
+) {
+  return normalizeXenditConfig(config)[environment] ?? null
+}
+
+export function paypalCredentialsForEnvironment(
+  config: PayPalConfig,
+  environment: 'sandbox' | 'live' = config.mode,
+) {
+  return normalizePaypalConfig(config)[environment] ?? null
 }
 
 /** Get the configuration status for all integrations for a profile. */
@@ -225,7 +290,10 @@ export async function getIntegrationConfig<T extends IntegrationConfig>(
     ))
     .limit(1)
   if (!row?.config) return null
-  return decryptJson<T>(row.config)
+  const config = decryptJson<T>(row.config)
+  if (provider === 'xendit') return normalizeXenditConfig(config as XenditConfig) as T
+  if (provider === 'paypal') return normalizePaypalConfig(config as PayPalConfig) as T
+  return config
 }
 
 export async function getIntegrationByWebhookEndpoint<T extends IntegrationConfig>(

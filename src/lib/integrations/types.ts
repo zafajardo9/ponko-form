@@ -13,16 +13,33 @@ export type ProviderSlug =
   | 'google-calendar' | 'calendly'
   | 'imagekit' | 'cloudinary'
 
-export interface XenditConfig {
+export type PaymentEnvironment = 'sandbox' | 'live'
+
+export interface XenditEnvironmentCredentials {
   secretKey: string
   publicKey?: string
   webhookToken?: string
 }
 
-export interface PayPalConfig {
+export interface XenditConfig extends XenditEnvironmentCredentials {
+  /** Active environment used for new payments. */
+  mode: PaymentEnvironment
+  /** Both sets remain encrypted so switching mode never deletes credentials. */
+  sandbox?: XenditEnvironmentCredentials
+  live?: XenditEnvironmentCredentials
+}
+
+export interface PayPalEnvironmentCredentials {
   clientId: string
   clientSecret: string
-  mode: 'sandbox' | 'live'
+}
+
+export interface PayPalConfig extends PayPalEnvironmentCredentials {
+  /** Active environment used for new payments. */
+  mode: PaymentEnvironment
+  /** Both sets remain encrypted so switching mode never deletes credentials. */
+  sandbox?: PayPalEnvironmentCredentials
+  live?: PayPalEnvironmentCredentials
 }
 
 export interface StripeConfig {
@@ -138,6 +155,7 @@ export interface IntegrationSettingsView {
     secretKeyMask: string | null
     publicKey: string | null
     hasWebhookToken: boolean
+    mode: PaymentEnvironment
   }
   paypal: {
     configured: boolean

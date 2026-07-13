@@ -21,7 +21,15 @@ export function ProviderCard({ provider, configured, meta, onConfigure, onRemove
     host: 'Host',
     fromEmail: 'Sender',
     fromName: 'Name',
+    sandboxConfigured: 'Test credentials',
+    liveConfigured: 'Live credentials',
   })[key] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase())
+  const metaValue = (key: string, value: string) =>
+    key === 'mode'
+      ? value === 'live' ? 'Live' : 'Sandbox / Test'
+      : key === 'sandboxConfigured' || key === 'liveConfigured'
+        ? value === 'true' ? 'Saved' : 'Not configured'
+      : value
 
   return (
     <article className="group flex min-h-48 flex-col rounded-xl border border-[#dedbd5] bg-white p-5 shadow-[0_1px_2px_rgba(20,20,19,0.03)] transition hover:border-[#c9c4bc] hover:shadow-[0_10px_30px_-20px_rgba(20,20,19,0.35)]">
@@ -49,7 +57,7 @@ export function ProviderCard({ provider, configured, meta, onConfigure, onRemove
           {visibleMeta.map(([key, val]) => (
             <div key={key} className="flex min-w-0 justify-between gap-4">
               <dt className="text-[#8e8b82]">{metaLabel(key)}</dt>
-              <dd className="truncate text-right font-medium text-[#57544d]">{val}</dd>
+              <dd className="truncate text-right font-medium text-[#57544d]">{metaValue(key, val)}</dd>
             </div>
           ))}
         </dl>
