@@ -79,6 +79,7 @@ export function IntegrationsHub() {
         onClose={() => setModalProvider(null)}
         onSave={handleSave}
         configured={statuses.find((s) => s.provider === modalProvider)?.configured ?? false}
+        meta={statuses.find((s) => s.provider === modalProvider)?.meta}
         onOAuth={() => {
           // For OAuth providers, poll for completion or close modal
           setModalProvider(null)

@@ -33,7 +33,7 @@ export const PROVIDER_FORMS: Record<ProviderSlug, ProviderFormConfig> = {
     fields: [
       { name: 'secretKey', label: 'Secret API key', type: 'password', required: true, placeholder: 'xnd_production_...', docLink: 'https://dashboard.xendit.co/settings/api-keys' },
       { name: 'publicKey', label: 'Public API key', type: 'text', placeholder: 'xnd_public_production_...' },
-      { name: 'webhookToken', label: 'Webhook verification token', type: 'password', placeholder: 'Optional' },
+      { name: 'webhookToken', label: 'Webhook verification token', type: 'password', required: true, placeholder: 'From Xendit Webhook Settings' },
     ],
     docsUrl: 'https://docs.xendit.co/',
   },
@@ -114,6 +114,8 @@ export const PROVIDER_FORMS: Record<ProviderSlug, ProviderFormConfig> = {
     category: 'email',
     fields: [
       { name: 'apiKey', label: 'API key', type: 'password', required: true, placeholder: 're_...', docLink: 'https://resend.com/api-keys' },
+      { name: 'fromEmail', label: 'Verified sender email', type: 'email', required: true, placeholder: 'payments@yourdomain.com' },
+      { name: 'fromName', label: 'Sender name', type: 'text', placeholder: 'Payments Team' },
     ],
     docsUrl: 'https://resend.com/docs',
   },

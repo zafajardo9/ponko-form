@@ -16,6 +16,7 @@ import {
   payments,
 } from '../../db/schema'
 import { paymentRegistry } from '../../integrations/payments/index'
+import { reconcilePayment } from '../payments/reconciliation'
 import type { GatewayCredentials } from '../../integrations/payments/types'
 import { loadIntegrationConfigs } from '../integrations/credentials'
 import { missingAddressParts, pruneHiddenValues, validateFieldRules, visibleFields } from '../page-builder/conditions'
@@ -760,6 +761,11 @@ export const advancePageSession = createServerFn({ method: 'POST', strict: false
       { sessionId: data.sessionId },
     )
     if (!session) throw new Error('Session not found')
+    if (session.formSubmissionId) {
+      await db.update(formSubmissions)
+        .set({ formData: data.collectedData })
+        .where(eq(formSubmissions.id, session.formSubmissionId))
+    }
     return session
   })
 
@@ -811,10 +817,15 @@ export const completePageSubmission = createServerFn({ method: 'POST', strict: f
       if (!empty && ruleError) throw new Error(ruleError)
     }
 
-    const [submission] = await db
-      .insert(formSubmissions)
-      .values({ formId: session.formId, formData: { ...referenceMap, ...pruned }, status: 'completed' })
-      .returning()
+    const finalFormData = { ...referenceMap, ...pruned }
+    const [submission] = session.formSubmissionId
+      ? await db.update(formSubmissions)
+          .set({ formData: finalFormData, status: 'completed', submittedAt: new Date() })
+          .where(eq(formSubmissions.id, session.formSubmissionId))
+          .returning()
+      : await db.insert(formSubmissions)
+          .values({ formId: session.formId, formData: finalFormData, status: 'completed' })
+          .returning()
 
     const meta = (session.collectedData ?? {}) as Record<string, unknown>
     const paymentId = Number(meta.__paymentId)
@@ -857,7 +868,7 @@ export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: fal
     const references = await loadFormReferences(session.formId)
     const sessionData = applyComputedFieldValues(allFields, (session.collectedData ?? {}) as Record<string, unknown>, references)
     const dataScope = { ...buildReferenceMap(references), ...sessionData }
-    const calculation = calculatePagePayment(page as FormPage, allFields, dataScope, references)
+    const calculation = calculatePagePayment(page as unknown as FormPage, allFields, dataScope, references)
     const amount = calculation.amount
     const paymentId = Number(((session.collectedData ?? {}) as Record<string, unknown>).__paymentId)
     const [existingPayment] = Number.isFinite(paymentId)
@@ -901,6 +912,37 @@ export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: fal
     })
   })
 
+async function ensurePaymentDraft(session: typeof formSubmissionSessions.$inferSelect) {
+  if (session.formSubmissionId) return session.formSubmissionId
+  const [draft] = await db.insert(formSubmissions).values({
+    formId: session.formId,
+    formData: session.collectedData as Record<string, unknown>,
+    status: 'pending_payment',
+  }).returning({ id: formSubmissions.id })
+  const [updated] = await db.update(formSubmissionSessions)
+    .set({ formSubmissionId: draft.id, updatedAt: new Date() })
+    .where(and(eq(formSubmissionSessions.id, session.id), sql`${formSubmissionSessions.formSubmissionId} IS NULL`))
+    .returning({ id: formSubmissionSessions.id })
+  if (updated) return draft.id
+  await db.delete(formSubmissions).where(eq(formSubmissions.id, draft.id))
+  const [current] = await db.select({ submissionId: formSubmissionSessions.formSubmissionId })
+    .from(formSubmissionSessions).where(eq(formSubmissionSessions.id, session.id)).limit(1)
+  if (!current?.submissionId) throw new Error('Could not initialize payment response')
+  return current.submissionId
+}
+
+export const ensurePagePaymentDraft = createServerFn({ method: 'POST', strict: false })
+  .inputValidator((data: { sessionId: number; pageId: number }) => data)
+  .handler(async ({ data }) => {
+    const [session] = await db.select().from(formSubmissionSessions)
+      .where(eq(formSubmissionSessions.id, data.sessionId)).limit(1)
+    if (!session) throw new Error('Session not found')
+    const [page] = await db.select({ id: formPages.id, hasPayment: formPages.hasPayment })
+      .from(formPages).where(eq(formPages.id, data.pageId)).limit(1)
+    if (!page?.hasPayment) throw new Error('Payment page not found')
+    return { submissionId: await ensurePaymentDraft(session) }
+  })
+
 export const initiatePagePayment = createServerFn({ method: 'POST', strict: false })
   .inputValidator((data: { sessionId: number; pageId: number; gatewaySlug: GatewaySlug }) => data)
   .handler(async ({ data }) => {
@@ -920,7 +962,7 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
     const allFields = pages.flatMap((item) => item.fields)
     const references = await loadFormReferences(session.formId)
     const amountMajor = calculatePagePayment(
-      page as FormPage,
+      page as unknown as FormPage,
       allFields,
       {
         ...buildReferenceMap(references),
@@ -940,11 +982,26 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
 
     const origin = originForReturnUrls()
     const base = `${origin}/forms/payment-return?pageSessionId=${session.id}&pageId=${page.id}`
+    const gwId = await gatewayRowId(data.gatewaySlug, gateway.getGatewayName())
+    const submissionId = await ensurePaymentDraft(session)
+    await db.update(formSubmissions).set({ formData: session.collectedData as Record<string, unknown> })
+      .where(eq(formSubmissions.id, submissionId))
+    const [payment] = await db.insert(payments).values({
+      paymentGatewayId: gwId,
+      pageSessionId: session.id,
+      formSubmissionId: submissionId,
+      amount: Math.round(amountMajor * 100),
+      currency: page.paymentCurrency,
+      status: 'pending',
+    }).returning({ id: payments.id })
+    const externalId = `ponkoform-payment-${payment.id}`
+    await db.update(payments).set({ externalId }).where(eq(payments.id, payment.id))
     const result = await withTimeout(gateway.createPayment(
       {
         amount: Math.round(amountMajor * 100),
         currency: page.paymentCurrency,
-        metadata: { pageSessionId: String(session.id), pageId: String(page.id) },
+        externalId,
+        metadata: { pageSessionId: String(session.id), pageId: String(page.id), paymentId: String(payment.id) },
         returnUrl: base,
         cancelUrl: `${base}&cancelled=1`,
       },
@@ -956,25 +1013,24 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
       phase: 'gateway-create',
     })
     if (!result.success || !result.paymentUrl) {
+      await db.update(payments).set({
+        status: 'failed', failureReason: result.error ?? 'Gateway creation failed', failedAt: new Date(), updatedAt: new Date(),
+      }).where(eq(payments.id, payment.id))
       throw new Error(result.error ?? 'Could not start the payment')
     }
 
-    const gwId = await gatewayRowId(data.gatewaySlug, gateway.getGatewayName())
-    const [payment] = await db
-      .insert(payments)
-      .values({
-        paymentGatewayId: gwId,
-        amount: Math.round(amountMajor * 100),
-        currency: page.paymentCurrency,
-        status: 'pending',
-        gatewayPaymentId: result.gatewayPaymentId,
-        gatewayResponse: { pageSessionId: session.id, pageId: page.id },
-      })
-      .returning()
+    await db.update(payments).set({
+      gatewayPaymentId: result.gatewayPaymentId,
+      paymentUrl: result.paymentUrl,
+      expiresAt: result.expiresAt ? new Date(result.expiresAt) : null,
+      gatewayResponse: { pageSessionId: session.id, pageId: page.id },
+      updatedAt: new Date(),
+    }).where(eq(payments.id, payment.id))
     await db
       .update(formSubmissionSessions)
       .set({
         status: 'payment_pending',
+        formSubmissionId: submissionId,
         collectedData: { ...(session.collectedData as Record<string, unknown>), __paymentId: payment.id },
         updatedAt: new Date(),
       })
@@ -1006,7 +1062,6 @@ export const finalizePagePayment = createServerFn({ method: 'POST', strict: fals
       .select({
         id: payments.id,
         gatewayPaymentId: payments.gatewayPaymentId,
-        slug: paymentGateways.slug,
       })
       .from(payments)
       .innerJoin(paymentGateways, eq(payments.paymentGatewayId, paymentGateways.id))
@@ -1017,17 +1072,8 @@ export const finalizePagePayment = createServerFn({ method: 'POST', strict: fals
       return { status: 'failed' as const, success: false, gatewayPaymentId: null }
     }
 
-    const [form] = await db.select().from(forms).where(eq(forms.id, session.formId)).limit(1)
-    if (!form) throw new Error('Form not found')
-    const slug = payment.slug as GatewaySlug
-    const gateway = paymentRegistry.get(slug)
-    if (!gateway) throw new Error(`Unknown gateway: ${slug}`)
-    const credentials = credentialsForSlug(slug, await loadIntegrationConfigs(form.profileId))
-    if (!credentials) throw new Error('Gateway credentials are no longer available')
-
-    const status = await gateway.verifyPayment(payment.gatewayPaymentId, credentials)
-    const paymentStatus = status === 'completed' ? 'completed' : status === 'pending' ? 'pending' : 'failed'
-    await db.update(payments).set({ status: paymentStatus }).where(eq(payments.id, payment.id))
+    const reconciliation = await reconcilePayment({ paymentId: payment.id, source: 'return' })
+    const paymentStatus = reconciliation.status
     await db
       .update(formSubmissionSessions)
       .set({

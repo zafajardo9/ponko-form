@@ -15,6 +15,7 @@ interface IntegrationModalProps {
   error?: string | null
   /** Whether this provider already has credentials saved. */
   configured?: boolean
+  meta?: Record<string, string>
 }
 
 const OAUTH_PROVIDERS: ProviderSlug[] = ['google-sheets', 'google-calendar']
@@ -25,7 +26,7 @@ const inputClass =
 const selectClass =
   'h-10 w-full rounded-md border border-[#e6dfd8] bg-[#faf9f5] px-3 text-sm text-[#141413] outline-none focus:border-[#cc785c]'
 
-export function IntegrationModal({ provider, open, onClose, onSave, onOAuth, saving, error, configured }: IntegrationModalProps) {
+export function IntegrationModal({ provider, open, onClose, onSave, onOAuth, saving, error, configured, meta }: IntegrationModalProps) {
   const cfg: ProviderFormConfig | undefined = PROVIDER_FORMS[provider]
   const [config, setConfig] = useState<Record<string, string>>({})
   const [oauthUrl, setOauthUrl] = useState<string | null>(null)
@@ -86,6 +87,15 @@ export function IntegrationModal({ provider, open, onClose, onSave, onOAuth, sav
             </div>
           )}
           <p className="text-sm text-[#6c6a64]">{cfg.description}</p>
+          {provider === 'xendit' && meta?.webhookPath && (
+            <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] px-3 py-3 text-xs text-[#6c6a64]">
+              <p className="font-medium text-[#141413]">Invoice and refund webhook URL</p>
+              <code className="mt-1 block break-all select-all">
+                {typeof window === 'undefined' ? meta.webhookPath : `${window.location.origin}${meta.webhookPath}`}
+              </code>
+              <p className="mt-2">Copy this URL into Xendit Webhook Settings and save the matching verification token below.</p>
+            </div>
+          )}
 
           {isOAuth ? (
             <div className="flex flex-col gap-4">

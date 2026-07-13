@@ -279,6 +279,10 @@ export function PageFormView({
   }
 
   if (completed) {
+    const completedPage = pages.find((page) => page.isFinal)
+    const completedRedirectUrl = completedPage?.finalRedirectUrl
+      ? interpolate(completedPage.finalRedirectUrl, { ...referenceMap, ...data })
+      : null
     return (
       <div className={outerClass} style={themed}>
         <div className={wrapperClass}>
@@ -286,6 +290,7 @@ export function PageFormView({
             <div className="mb-4 text-5xl">✓</div>
             <h1 className="text-2xl font-medium text-[#141413]">Thank you!</h1>
             <p className="mt-2 text-[#6c6a64]">Your response has been recorded.</p>
+            {completedRedirectUrl && !preview && <RedirectAfterDelay url={completedRedirectUrl} />}
           </Card>
         </div>
       </div>
@@ -331,9 +336,6 @@ export function PageFormView({
             <div className="rounded-lg bg-[#faf9f5] p-5 text-center">
               <div className="mb-3 text-4xl">✓</div>
               <p className="whitespace-pre-wrap text-[#3d3d3a]">{finalContent}</p>
-              {currentPage.finalRedirectUrl && !preview && (
-                <RedirectAfterDelay url={interpolate(currentPage.finalRedirectUrl, { ...referenceMap, ...data })} />
-              )}
             </div>
           ) : currentPage.hasPayment && !preview ? (
             sessionId ? (

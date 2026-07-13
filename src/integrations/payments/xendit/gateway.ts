@@ -5,6 +5,7 @@ import type {
   PaymentStatus,
   GatewayConfigSchema,
   GatewayCredentials,
+  PaymentDetails,
 } from '../types'
 
 export class XenditGateway extends PaymentGateway {
@@ -38,7 +39,7 @@ export class XenditGateway extends PaymentGateway {
     credentials?: GatewayCredentials,
   ): Promise<PaymentResult> {
     try {
-      const externalId = `ponkoform-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const externalId = request.externalId ?? `ponkoform-${Date.now()}-${Math.random().toString(36).slice(2)}`
       const amount = request.amount / 100
 
       const response = await fetch('https://api.xendit.co/v2/invoices', {
@@ -62,11 +63,12 @@ export class XenditGateway extends PaymentGateway {
         return { success: false, paymentUrl: null, gatewayPaymentId: null, error: err }
       }
 
-      const invoice = await response.json() as { id: string; invoice_url: string }
+      const invoice = await response.json() as { id: string; invoice_url: string; expiry_date?: string }
       return {
         success: true,
         paymentUrl: invoice.invoice_url,
         gatewayPaymentId: invoice.id,
+        expiresAt: invoice.expiry_date ?? null,
         error: null,
       }
     } catch (err) {
@@ -78,25 +80,49 @@ export class XenditGateway extends PaymentGateway {
     gatewayPaymentId: string,
     credentials?: GatewayCredentials,
   ): Promise<PaymentStatus> {
+    return (await this.getPaymentDetails(gatewayPaymentId, credentials)).status
+  }
+
+  async getPaymentDetails(
+    gatewayPaymentId: string,
+    credentials?: GatewayCredentials,
+  ): Promise<PaymentDetails> {
     try {
       const response = await fetch(`https://api.xendit.co/v2/invoices/${gatewayPaymentId}`, {
         headers: { Authorization: this.authHeader(credentials) },
       })
 
-      if (!response.ok) return 'failed'
-      const invoice = await response.json() as { status: string }
+      if (!response.ok) throw new Error(`Xendit verification failed (${response.status})`)
+      const invoice = await response.json() as Record<string, unknown> & { status: string }
 
+      let status: PaymentStatus
       switch (invoice.status) {
         case 'PAID':
         case 'SETTLED':
-          return 'completed'
+          status = 'completed'
+          break
         case 'EXPIRED':
-          return 'failed'
+          status = 'failed'
+          break
         default:
-          return 'pending'
+          status = 'pending'
       }
-    } catch {
-      return 'failed'
+      const majorToMinor = (value: unknown) =>
+        typeof value === 'number' && Number.isFinite(value) ? Math.round(value * 100) : undefined
+      return {
+        status,
+        providerStatus: invoice.status,
+        amount: majorToMinor(invoice.amount),
+        paidAmount: majorToMinor(invoice.paid_amount),
+        currency: typeof invoice.currency === 'string' ? invoice.currency : undefined,
+        paidAt: typeof invoice.paid_at === 'string' ? invoice.paid_at : undefined,
+        paymentMethod: typeof invoice.payment_method === 'string' ? invoice.payment_method : undefined,
+        paymentChannel: typeof invoice.payment_channel === 'string' ? invoice.payment_channel : undefined,
+        failureReason: typeof invoice.failure_reason === 'string' ? invoice.failure_reason : undefined,
+        raw: invoice,
+      }
+    } catch (error) {
+      throw error instanceof Error ? error : new Error('Xendit verification failed')
     }
   }
 

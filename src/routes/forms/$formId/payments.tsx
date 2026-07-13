@@ -1,9 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { requireAuth } from "../../../lib/server-fns/auth";
 import {
   getFormPayments,
+  verifyFormPayment,
+  getPaymentRecoveryLink,
+  replaceExpiredPaymentLink,
+  emailPaymentRecoveryLink,
   type PaymentViewRow,
 } from "../../../lib/server-fns/payments-view";
 import { Badge } from "../../../components/ui/Badge";
@@ -17,6 +21,8 @@ function PaymentsPage() {
   const { formId } = Route.useParams();
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<PaymentViewRow | null>(null);
+  const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ["form-payments", formId, page],
@@ -26,6 +32,41 @@ function PaymentsPage() {
   const payments = data?.payments ?? [];
   const hasPaymentFlow = data?.hasPaymentFlow ?? false;
   const formTitle = data?.formTitle;
+  const verifyMut = useMutation({
+    mutationFn: (paymentId: number) => verifyFormPayment({ data: { formId: Number(formId), paymentId } }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["form-payments", formId] });
+      setSelected(null);
+    },
+  });
+  const copyLinkMut = useMutation({
+    mutationFn: (paymentId: number) => getPaymentRecoveryLink({ data: { formId: Number(formId), paymentId } }),
+    onSuccess: async (result) => {
+      await navigator.clipboard.writeText(result.paymentUrl);
+      setRecoveryMessage("Payment link copied. You can send it to the respondent.");
+      await queryClient.invalidateQueries({ queryKey: ["form-payments", formId] });
+    },
+    onError: (error) => setRecoveryMessage((error as Error).message),
+  });
+  const replaceLinkMut = useMutation({
+    mutationFn: (paymentId: number) => replaceExpiredPaymentLink({ data: { formId: Number(formId), paymentId } }),
+    onSuccess: async (result) => {
+      await navigator.clipboard.writeText(result.paymentUrl);
+      setRecoveryMessage(result.reused ? "Active payment link copied." : "Replacement payment link created and copied.");
+      await queryClient.invalidateQueries({ queryKey: ["form-payments", formId] });
+      setSelected(null);
+    },
+    onError: (error) => setRecoveryMessage((error as Error).message),
+  });
+  const emailLinkMut = useMutation({
+    mutationFn: ({ paymentId, recipientEmail }: { paymentId: number; recipientEmail: string }) =>
+      emailPaymentRecoveryLink({ data: { formId: Number(formId), paymentId, recipientEmail } }),
+    onSuccess: async () => {
+      setRecoveryMessage("Payment reminder accepted by Resend.");
+      await queryClient.invalidateQueries({ queryKey: ["form-payments", formId] });
+    },
+    onError: (error) => setRecoveryMessage((error as Error).message),
+  });
 
   // No payment flow configured for this form.
   if (!isLoading && !hasPaymentFlow && payments.length === 0) {
@@ -210,6 +251,18 @@ function PaymentsPage() {
           payment={selected}
           onClose={() => setSelected(null)}
           formatAmount={formatAmount}
+          onVerify={() => verifyMut.mutate(selected.id)}
+          verifying={verifyMut.isPending}
+          formId={formId}
+          onCopyLink={() => copyLinkMut.mutate(selected.id)}
+          onReplaceLink={() => replaceLinkMut.mutate(selected.id)}
+          recoveryBusy={copyLinkMut.isPending || replaceLinkMut.isPending}
+          recoveryMessage={recoveryMessage}
+          onEmailLink={() => {
+            const recipientEmail = window.prompt("Recipient email address")?.trim();
+            if (recipientEmail) emailLinkMut.mutate({ paymentId: selected.id, recipientEmail });
+          }}
+          emailing={emailLinkMut.isPending}
         />
       )}
     </div>
@@ -218,9 +271,21 @@ function PaymentsPage() {
 
 function Breadcrumbs({
   formId,
+  onCopyLink,
+  onReplaceLink,
+  recoveryBusy,
+  recoveryMessage,
+  onEmailLink,
+  emailing,
   formTitle,
 }: {
   formId: string;
+  onCopyLink: () => void;
+  onReplaceLink: () => void;
+  recoveryBusy: boolean;
+  recoveryMessage: string | null;
+  onEmailLink: () => void;
+  emailing: boolean;
   formTitle?: string;
 }) {
   return (
@@ -246,10 +311,16 @@ function PaymentDetailDialog({
   payment,
   onClose,
   formatAmount,
+  onVerify,
+  verifying,
+  formId,
 }: {
   payment: PaymentViewRow;
   onClose: () => void;
   formatAmount: (amount: number, currency: string) => string;
+  onVerify: () => void;
+  verifying: boolean;
+  formId: string;
 }) {
   // Close on Escape.
   useEffect(() => {
@@ -303,6 +374,33 @@ function PaymentDetailDialog({
             </div>
           </div>
 
+          <div className="mb-5 flex flex-wrap gap-2">
+            <button onClick={onVerify} disabled={verifying} className="rounded-md bg-[#141413] px-3 py-2 text-sm text-white disabled:opacity-50">
+              {verifying ? "Verifying…" : "Verify now"}
+            </button>
+            {payment.status === "pending" && payment.paymentUrl && (
+              <>
+                <button onClick={onCopyLink} disabled={recoveryBusy} className="rounded-md border border-[#e6dfd8] px-3 py-2 text-sm text-[#141413] disabled:opacity-50">
+                  Copy payment link
+                </button>
+                <button onClick={onEmailLink} disabled={emailing || recoveryBusy} className="rounded-md border border-[#e6dfd8] px-3 py-2 text-sm text-[#141413] disabled:opacity-50">
+                  {emailing ? "Sending…" : "Email payment link"}
+                </button>
+              </>
+            )}
+            {(payment.status === "failed" || (payment.expiresAt && new Date(payment.expiresAt).getTime() <= Date.now())) && (
+              <button onClick={onReplaceLink} disabled={recoveryBusy} className="rounded-md border border-[#e6dfd8] px-3 py-2 text-sm text-[#141413] disabled:opacity-50">
+                Create replacement link
+              </button>
+            )}
+            {payment.submissionId && (
+              <Link to="/forms/$formId/submissions" params={{ formId: String(formId) }} className="rounded-md border border-[#e6dfd8] px-3 py-2 text-sm text-[#141413]">
+                Open response
+              </Link>
+            )}
+          </div>
+          {recoveryMessage && <p className="mb-5 text-sm text-[#6c6a64]">{recoveryMessage}</p>}
+
           {/* Details grid */}
           <dl className="divide-y divide-[#e6dfd8] rounded-lg border border-[#e6dfd8] bg-white">
             <DetailRow label="Payment ID" value={String(payment.id)} mono />
@@ -318,6 +416,13 @@ function PaymentDetailDialog({
               value={payment.paymentChannel ?? "—"}
             />
             <DetailRow label="Currency" value={payment.currency} />
+            <DetailRow label="External ID" value={payment.externalId ?? "—"} mono />
+            <DetailRow label="Link expires" value={payment.expiresAt ? new Date(payment.expiresAt).toLocaleString() : "Not provided"} />
+            <DetailRow label="Link copies" value={String(payment.reminderCount)} />
+            <DetailRow label="Verification source" value={payment.verificationSource ?? "—"} />
+            <DetailRow label="Paid at" value={payment.paidAt ? new Date(payment.paidAt).toLocaleString() : "—"} />
+            <DetailRow label="Refunded at" value={payment.refundedAt ? new Date(payment.refundedAt).toLocaleString() : "—"} />
+            <DetailRow label="Failure reason" value={payment.failureReason ?? "—"} />
             <DetailRow
               label="Amount (minor units)"
               value={String(payment.amount)}
@@ -325,9 +430,10 @@ function PaymentDetailDialog({
             />
             <DetailRow
               label="Execution ID"
-              value={String(payment.executionId)}
+              value={payment.executionId == null ? "—" : String(payment.executionId)}
               mono
             />
+            <DetailRow label="Page session ID" value={payment.pageSessionId == null ? "—" : String(payment.pageSessionId)} mono />
             <DetailRow
               label="Submission ID"
               value={
@@ -338,6 +444,18 @@ function PaymentDetailDialog({
               mono
             />
           </dl>
+
+          <div className="mt-5 rounded-lg border border-[#e6dfd8] bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#8e8b82]">Event timeline</p>
+            {payment.events.length === 0 ? (
+              <p className="mt-2 text-sm text-[#8e8b82]">No verification events recorded yet.</p>
+            ) : payment.events.map((event) => (
+              <div key={event.id} className="mt-3 border-t border-[#e6dfd8] pt-3 text-xs">
+                <div className="flex justify-between gap-3"><span className="font-medium">{event.eventType}</span><span>{new Date(event.receivedAt).toLocaleString()}</span></div>
+                <p className="mt-1 text-[#6c6a64]">{event.source} · {event.providerStatus ?? "unknown"} · {event.processingStatus}</p>
+              </div>
+            ))}
+          </div>
 
           {/* Raw gateway response (collapsible) */}
           {payment.gatewayResponse && (

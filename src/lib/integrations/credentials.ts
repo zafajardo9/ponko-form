@@ -11,6 +11,7 @@ import type {
   MayaConfig,
   PayPalConfig,
   ProviderSlug,
+  ResendConfig,
   SmtpConfig,
   XenditConfig,
 } from './types'
@@ -158,6 +159,8 @@ export async function upsertIntegrationConfig(
 function integrationMeta(provider: ProviderSlug, config: IntegrationConfig | null): Record<string, string> | undefined {
   if (!config) return undefined
   switch (provider) {
+    case 'xendit':
+      return {}
     case 'paypal':
     case 'maya':
       return { mode: (config as PayPalConfig & MayaConfig).mode }
@@ -167,7 +170,10 @@ function integrationMeta(provider: ProviderSlug, config: IntegrationConfig | nul
         fromEmail: (config as SmtpConfig).fromEmail,
       }
     case 'resend':
-      return {} // no public metadata to show
+      return {
+        fromEmail: (config as ResendConfig).fromEmail ?? '',
+        fromName: (config as ResendConfig).fromName ?? '',
+      }
     default:
       return undefined
   }
@@ -195,7 +201,12 @@ export async function getAllIntegrationStatuses(profileId: number): Promise<Inte
     return {
       provider,
       configured: !!row?.config,
-      meta: integrationMeta(provider, config),
+      meta: {
+        ...integrationMeta(provider, config),
+        ...(provider === 'xendit' && row?.webhookEndpointKey
+          ? { webhookPath: `/api/webhooks/xendit/${row.webhookEndpointKey}` }
+          : {}),
+      },
     }
   })
 }
@@ -217,19 +228,36 @@ export async function getIntegrationConfig<T extends IntegrationConfig>(
   return decryptJson<T>(row.config)
 }
 
+export async function getIntegrationByWebhookEndpoint<T extends IntegrationConfig>(
+  endpointKey: string,
+): Promise<{ profileId: number; config: T } | null> {
+  const [row] = await db
+    .select({ profileId: integrations.profileId, config: integrations.config })
+    .from(integrations)
+    .where(eq(integrations.webhookEndpointKey, endpointKey))
+    .limit(1)
+  if (!row?.config) return null
+  return { profileId: row.profileId, config: decryptJson<T>(row.config) }
+}
+
 /** Save (upsert) an integration config. Encrypts before storing. */
 export async function saveIntegrationConfig(
   profileId: number,
   provider: ProviderSlug,
   config: IntegrationConfig,
+  webhookEndpointKey?: string,
 ): Promise<void> {
   const encrypted = encryptJson(config)
   await db
     .insert(integrations)
-    .values({ profileId, provider, config: encrypted })
+    .values({ profileId, provider, config: encrypted, webhookEndpointKey })
     .onConflictDoUpdate({
       target: [integrations.profileId, integrations.provider],
-      set: { config: encrypted, updatedAt: new Date() },
+      set: {
+        config: encrypted,
+        ...(webhookEndpointKey ? { webhookEndpointKey } : {}),
+        updatedAt: new Date(),
+      },
     })
 }
 

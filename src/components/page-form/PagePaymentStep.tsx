@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { getPagePaymentOptions, initiatePagePayment } from '../../lib/server-fns/page-forms'
+import { ensurePagePaymentDraft, getPagePaymentOptions, initiatePagePayment } from '../../lib/server-fns/page-forms'
 import { Button } from '../ui/Button'
 
 interface PagePaymentStepProps {
@@ -25,11 +25,20 @@ export function PagePaymentStep({ sessionId, pageId, onPaymentStatusChange }: Pa
     retry: 2,
     retryDelay: (attempt) => Math.min(750 * 2 ** attempt, 3_000),
   })
+  const ensureDraft = useMutation({
+    mutationFn: () => ensurePagePaymentDraft({ data: { sessionId, pageId } }),
+  })
   const paid = data?.paymentStatus === 'completed'
 
   useEffect(() => {
     onPaymentStatusChange?.(paid)
   }, [onPaymentStatusChange, paid])
+
+  useEffect(() => {
+    ensureDraft.mutate()
+    // The session/page pair identifies one idempotent draft.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, pageId])
 
   useEffect(() => {
     if (!isLoading) {

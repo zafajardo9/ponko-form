@@ -85,6 +85,20 @@
       "when": 1783702800000,
       "tag": "0018_session_client_token",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1783861200000,
+      "tag": "0019_payment_audit_webhooks",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1783864800000,
+      "tag": "0020_payment_recovery_links",
+      "breakpoints": true
     }
   ]
 }

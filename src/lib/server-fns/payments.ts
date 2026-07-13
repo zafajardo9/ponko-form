@@ -10,6 +10,7 @@ import {
   flowVariables,
   flowExecutions,
   forms,
+  formSubmissions,
   payments,
   paymentGateways,
 } from '../../db/schema'
@@ -17,6 +18,7 @@ import { loadIntegrationConfigs } from '../integrations/credentials'
 import { paymentRegistry } from '../../integrations/payments/index'
 import type { GatewayCredentials } from '../../integrations/payments/types'
 import type { FlowNode, FlowEdge, FlowVariable } from '../flow-engine/types'
+import { reconcilePayment } from '../payments/reconciliation'
 
 /**
  * Real payment server functions (end-user, public — no auth).
@@ -186,11 +188,41 @@ export const initiatePayment = createServerFn({ method: 'POST', strict: false })
 
     const origin = originForReturnUrls()
     const base = `${origin}/forms/payment-return?executionId=${execution.id}`
+    const gwId = await withTimeout(
+      gatewayRowId(data.gatewaySlug, gateway.getGatewayName()),
+      8_000,
+      'initiatePayment.resolveGateway',
+      context,
+    )
+    let submissionId = execution.formSubmissionId
+    if (!submissionId) {
+      const [flow] = await db.select().from(flows).where(eq(flows.id, execution.flowId)).limit(1)
+      if (!flow) throw new Error('Flow not found')
+      const [draft] = await db.insert(formSubmissions).values({
+        formId: flow.formId,
+        formData: execution.variables as Record<string, unknown>,
+        status: 'pending_payment',
+      }).returning({ id: formSubmissions.id })
+      submissionId = draft.id
+      await db.update(flowExecutions).set({ formSubmissionId: submissionId })
+        .where(eq(flowExecutions.id, execution.id))
+    }
+    const [payment] = await db.insert(payments).values({
+      paymentGatewayId: gwId,
+      flowExecutionId: execution.id,
+      formSubmissionId: submissionId,
+      amount: amountMinor,
+      currency,
+      status: 'pending',
+    }).returning({ id: payments.id })
+    const externalId = `ponkoform-payment-${payment.id}`
+    await db.update(payments).set({ externalId }).where(eq(payments.id, payment.id))
     const result = await withTimeout(gateway.createPayment(
       {
         amount: amountMinor,
         currency,
-        metadata: { executionId: String(execution.id) },
+        externalId,
+        metadata: { executionId: String(execution.id), paymentId: String(payment.id) },
         returnUrl: base,
         cancelUrl: `${base}&cancelled=1`,
       },
@@ -198,23 +230,18 @@ export const initiatePayment = createServerFn({ method: 'POST', strict: false })
     ), 15_000, 'initiatePayment.gatewayCreate', context)
 
     if (!result.success || !result.paymentUrl) {
+      await db.update(payments).set({
+        status: 'failed', failureReason: result.error ?? 'Gateway creation failed', failedAt: new Date(), updatedAt: new Date(),
+      }).where(eq(payments.id, payment.id))
       throw new Error(result.error ?? 'Could not start the payment')
     }
 
-    const gwId = await withTimeout(
-      gatewayRowId(data.gatewaySlug, gateway.getGatewayName()),
-      8_000,
-      'initiatePayment.resolveGateway',
-      context,
-    )
-    await withTimeout(db.insert(payments).values({
-      paymentGatewayId: gwId,
-      flowExecutionId: execution.id,
-      amount: amountMinor,
-      currency,
-      status: 'pending',
+    await withTimeout(db.update(payments).set({
       gatewayPaymentId: result.gatewayPaymentId,
-    }), 8_000, 'initiatePayment.insertPayment', context)
+      paymentUrl: result.paymentUrl,
+      expiresAt: result.expiresAt ? new Date(result.expiresAt) : null,
+      updatedAt: new Date(),
+    }).where(eq(payments.id, payment.id)), 8_000, 'initiatePayment.updatePayment', context)
 
     await withTimeout(db
       .update(flowExecutions)
@@ -249,8 +276,6 @@ export const finalizePayment = createServerFn({ method: 'POST', strict: false })
       .select({
         id: payments.id,
         gatewayPaymentId: payments.gatewayPaymentId,
-        slug: paymentGateways.slug,
-        status: payments.status,
       })
       .from(payments)
       .innerJoin(paymentGateways, eq(payments.paymentGatewayId, paymentGateways.id))
@@ -262,28 +287,8 @@ export const finalizePayment = createServerFn({ method: 'POST', strict: false })
       return { status: 'failed' as const, success: false, gatewayPaymentId: null }
     }
 
-    const slug = payment.slug as GatewaySlug
-    const gateway = paymentRegistry.get(slug)
-    if (!gateway) throw new Error(`Unknown gateway: ${slug}`)
-
-    const [flow] = await db.select().from(flows).where(eq(flows.id, execution.flowId)).limit(1)
-    const [form] = flow
-      ? await db.select().from(forms).where(eq(forms.id, flow.formId)).limit(1)
-      : []
-    if (!form) throw new Error('Form not found')
-
-    const configs = await loadIntegrationConfigs(form.profileId)
-    const credentials = credentialsForSlug(slug, configs)
-    if (!credentials) throw new Error('Gateway credentials are no longer available')
-
-    const status = await gateway.verifyPayment(payment.gatewayPaymentId, credentials)
-
-    const paymentStatus =
-      status === 'completed' ? 'completed' : status === 'pending' ? 'pending' : 'failed'
-    await db
-      .update(payments)
-      .set({ status: paymentStatus })
-      .where(eq(payments.id, payment.id))
+    const reconciliation = await reconcilePayment({ paymentId: payment.id, source: 'return' })
+    const paymentStatus = reconciliation.status
 
     // Leave the execution in payment_pending while a Xendit invoice settles;
     // mark payment_failed on a definite failure. Success is reflected by the

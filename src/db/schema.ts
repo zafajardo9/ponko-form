@@ -39,6 +39,7 @@ export const paymentStatusEnum = pgEnum('payment_status', [
 ])
 export const submissionStatusEnum = pgEnum('submission_status', [
   'pending_payment',
+  'incomplete',
   'completed',
   'payment_failed',
 ])
@@ -325,29 +326,84 @@ export const formPaymentConfigs = pgTable('form_payment_configs', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
-export const payments = pgTable('payments', {
-  id: serial().primaryKey(),
-  formSubmissionId: integer('form_submission_id').references(
-    () => formSubmissions.id,
-    { onDelete: 'set null' },
-  ),
-  paymentGatewayId: integer('payment_gateway_id')
-    .notNull()
-    .references(() => paymentGateways.id),
-  // Links a payment to its in-progress flow run. The form_submission row only
-  // exists once the flow completes, so payments are tracked by execution first
-  // and the submission is backfilled at completion.
-  flowExecutionId: integer('flow_execution_id').references(
-    () => flowExecutions.id,
-    { onDelete: 'set null' },
-  ),
-  amount: integer('amount').notNull(),
-  currency: varchar('currency', { length: 3 }).notNull().default('USD'),
-  status: paymentStatusEnum('status').default('pending').notNull(),
-  gatewayPaymentId: text('gateway_payment_id'),
-  gatewayResponse: jsonb('gateway_response').$type<Record<string, unknown>>(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-})
+export const payments = pgTable(
+  'payments',
+  {
+    id: serial().primaryKey(),
+    formSubmissionId: integer('form_submission_id').references(
+      () => formSubmissions.id,
+      { onDelete: 'set null' },
+    ),
+    pageSessionId: integer('page_session_id').references(
+      () => formSubmissionSessions.id,
+      { onDelete: 'set null' },
+    ),
+    paymentGatewayId: integer('payment_gateway_id')
+      .notNull()
+      .references(() => paymentGateways.id),
+    flowExecutionId: integer('flow_execution_id').references(
+      () => flowExecutions.id,
+      { onDelete: 'set null' },
+    ),
+    amount: integer('amount').notNull(),
+    paidAmount: integer('paid_amount'),
+    currency: varchar('currency', { length: 3 }).notNull().default('USD'),
+    status: paymentStatusEnum('status').default('pending').notNull(),
+    externalId: text('external_id'),
+    paymentUrl: text('payment_url'),
+    expiresAt: timestamp('expires_at'),
+    gatewayPaymentId: text('gateway_payment_id'),
+    paymentMethod: text('payment_method'),
+    paymentChannel: text('payment_channel'),
+    failureReason: text('failure_reason'),
+    verificationSource: varchar('verification_source', { length: 20 })
+      .$type<'webhook' | 'return' | 'reconciliation' | 'manual'>(),
+    gatewayResponse: jsonb('gateway_response').$type<Record<string, unknown>>(),
+    paidAt: timestamp('paid_at'),
+    failedAt: timestamp('failed_at'),
+    refundedAt: timestamp('refunded_at'),
+    lastVerifiedAt: timestamp('last_verified_at'),
+    reminderCount: integer('reminder_count').notNull().default(0),
+    lastReminderAt: timestamp('last_reminder_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('payments_gateway_payment_id_idx').on(table.gatewayPaymentId),
+    uniqueIndex('payments_external_id_idx').on(table.externalId),
+    index('payments_page_session_id_idx').on(table.pageSessionId),
+  ],
+)
+
+export const paymentEvents = pgTable(
+  'payment_events',
+  {
+    id: serial().primaryKey(),
+    paymentId: integer('payment_id')
+      .notNull()
+      .references(() => payments.id, { onDelete: 'cascade' }),
+    eventKey: varchar('event_key', { length: 64 }).notNull(),
+    gatewayEventId: text('gateway_event_id'),
+    eventType: varchar('event_type', { length: 80 }).notNull(),
+    providerStatus: varchar('provider_status', { length: 40 }),
+    normalizedStatus: paymentStatusEnum('normalized_status'),
+    source: varchar('source', { length: 20 })
+      .notNull()
+      .$type<'webhook' | 'return' | 'reconciliation' | 'manual'>(),
+    payload: jsonb('payload').$type<Record<string, unknown>>(),
+    processingStatus: varchar('processing_status', { length: 20 })
+      .notNull()
+      .default('processed')
+      .$type<'processed' | 'ignored' | 'failed'>(),
+    error: text('error'),
+    receivedAt: timestamp('received_at').defaultNow().notNull(),
+    processedAt: timestamp('processed_at'),
+  },
+  (table) => [
+    uniqueIndex('payment_events_event_key_idx').on(table.eventKey),
+    index('payment_events_payment_id_received_at_idx').on(table.paymentId, table.receivedAt),
+  ],
+)
 
 // ── Flow Builder (FT001) ──
 
@@ -555,10 +611,12 @@ export const integrations = pgTable(
       .references(() => profiles.id, { onDelete: 'cascade' }),
     provider: varchar('provider', { length: 50 }).notNull(),
     config: text('config'), // encrypted JSON; null = not configured
+    webhookEndpointKey: varchar('webhook_endpoint_key', { length: 64 }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
   (table) => [
     uniqueIndex('integrations_profile_provider_idx').on(table.profileId, table.provider),
+    uniqueIndex('integrations_webhook_endpoint_key_idx').on(table.webhookEndpointKey),
   ],
 )

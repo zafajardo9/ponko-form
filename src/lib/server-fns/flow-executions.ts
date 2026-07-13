@@ -142,17 +142,18 @@ export const completeExecution = createServerFn({ method: 'POST', strict: false 
     if (!flow) throw new Error('Flow not found')
 
     // Record the run as a form submission (variable values + execution path).
-    const [submission] = await db
-      .insert(formSubmissions)
-      .values({
-        formId: flow.formId,
-        status: 'completed',
-        formData: {
-          ...data.variables,
-          __executionPath: data.history.map((h) => ({ nodeId: h.nodeId, nodeType: h.nodeType })),
-        },
-      })
-      .returning()
+    const formData = {
+      ...data.variables,
+      __executionPath: data.history.map((h) => ({ nodeId: h.nodeId, nodeType: h.nodeType })),
+    }
+    const [submission] = execution.formSubmissionId
+      ? await db.update(formSubmissions)
+          .set({ status: 'completed', formData, submittedAt: new Date() })
+          .where(eq(formSubmissions.id, execution.formSubmissionId))
+          .returning()
+      : await db.insert(formSubmissions)
+          .values({ formId: flow.formId, status: 'completed', formData })
+          .returning()
 
     const [updated] = await db
       .update(flowExecutions)

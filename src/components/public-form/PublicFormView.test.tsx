@@ -45,7 +45,30 @@ describe('PublicFormView recovery', () => {
     await act(async () => undefined)
     await act(async () => vi.advanceTimersByTimeAsync(3_000))
 
-    expect(screen.getByText(/server is taking longer than expected/i)).toBeTruthy()
+    expect(screen.getByText(/taking a little longer than usual/i)).toBeTruthy()
+  })
+
+  it('uses the form theme while its detailed definition is loading', async () => {
+    serverFns.getPublicForm.mockResolvedValue({
+      id: 7,
+      title: 'Background Check',
+      description: null,
+      theme: { primaryColor: '#2563eb', backgroundColor: '#f5f3ff', radius: 'pill' },
+    })
+    serverFns.getFields.mockReturnValue(new Promise(() => undefined))
+    serverFns.getFlow.mockReturnValue(new Promise(() => undefined))
+    serverFns.getPageForm.mockReturnValue(new Promise(() => undefined))
+    renderPublicForm()
+
+    expect(await screen.findByRole('heading', { name: 'Background Check' })).toBeTruthy()
+    const loadingStatus = screen.getByRole('status')
+    let themedAncestor: HTMLElement | null = loadingStatus
+    while (themedAncestor && !themedAncestor.style.getPropertyValue('--ponko-primary')) {
+      themedAncestor = themedAncestor.parentElement
+    }
+    expect(themedAncestor?.style.getPropertyValue('--ponko-primary')).toBe('#2563eb')
+    expect(themedAncestor?.style.getPropertyValue('--ponko-bg')).toBe('#f5f3ff')
+    expect(themedAncestor?.style.getPropertyValue('--ponko-radius')).toBe('9999px')
   })
 
   it('retries a failed definition query without losing the recovery UI', async () => {

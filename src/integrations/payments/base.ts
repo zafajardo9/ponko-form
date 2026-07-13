@@ -2,6 +2,7 @@ import type {
   PaymentRequest,
   PaymentResult,
   PaymentStatus,
+  PaymentDetails,
   GatewayConfigSchema,
   GatewayCredentials,
 } from './types'
@@ -29,5 +30,12 @@ export abstract class PaymentGateway {
     gatewayPaymentId: string,
     credentials?: GatewayCredentials,
   ): Promise<PaymentStatus>
+  async getPaymentDetails(
+    gatewayPaymentId: string,
+    credentials?: GatewayCredentials,
+  ): Promise<PaymentDetails> {
+    const status = await this.verifyPayment(gatewayPaymentId, credentials)
+    return { status, providerStatus: status }
+  }
   abstract getConfigSchema(): GatewayConfigSchema
 }

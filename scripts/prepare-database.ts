@@ -1,4 +1,5 @@
 import { config } from 'dotenv'
+import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { neon } from '@neondatabase/serverless'
 
@@ -10,16 +11,15 @@ async function main() {
 
   const sql = neon(databaseUrl)
 
-  // Production predates a reliable Drizzle migration journal. Keep release
-  // preparation idempotent and limited to schema required by the deployed app.
-  await sql`
-    ALTER TABLE form_submission_sessions
-    ADD COLUMN IF NOT EXISTS client_token varchar(64)
-  `
-  await sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS form_submission_sessions_form_id_client_token_idx
-    ON form_submission_sessions (form_id, client_token)
-  `
+  // Production predates a reliable Drizzle migration journal. Compatibility
+  // migrations are intentionally idempotent and applied without replaying the
+  // historical journal.
+  for (const filename of ['0018_session_client_token.sql', '0019_payment_audit_webhooks.sql', '0020_payment_recovery_links.sql']) {
+    const migration = await readFile(resolve(import.meta.dirname, `../drizzle/${filename}`), 'utf8')
+    for (const statement of migration.split('--> statement-breakpoint')) {
+      if (statement.trim()) await sql.query(statement, [])
+    }
+  }
 
   console.log('Production database compatibility migrations applied.')
 }

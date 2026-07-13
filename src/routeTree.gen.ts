@@ -29,6 +29,8 @@ import { Route as FormsFormIdPaymentsRouteImport } from './routes/forms/$formId/
 import { Route as FormsFormIdFlowRouteImport } from './routes/forms/$formId/flow'
 import { Route as FormsFormIdEditRouteImport } from './routes/forms/$formId/edit'
 import { Route as FlowExecutionIdCompleteRouteImport } from './routes/flow/$executionId/complete'
+import { Route as ApiInternalReconcilePaymentsRouteImport } from './routes/api/internal/reconcile-payments'
+import { Route as ApiWebhooksXenditEndpointKeyRouteImport } from './routes/api/webhooks/xendit/$endpointKey'
 
 const McpRoute = McpRouteImport.update({
   id: '/mcp',
@@ -131,6 +133,18 @@ const FlowExecutionIdCompleteRoute = FlowExecutionIdCompleteRouteImport.update({
   path: '/flow/$executionId/complete',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiInternalReconcilePaymentsRoute =
+  ApiInternalReconcilePaymentsRouteImport.update({
+    id: '/api/internal/reconcile-payments',
+    path: '/api/internal/reconcile-payments',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiWebhooksXenditEndpointKeyRoute =
+  ApiWebhooksXenditEndpointKeyRouteImport.update({
+    id: '/api/webhooks/xendit/$endpointKey',
+    path: '/api/webhooks/xendit/$endpointKey',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -145,6 +159,7 @@ export interface FileRoutesByFullPath {
   '/docs/': typeof DocsIndexRoute
   '/forms/': typeof FormsIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/api/internal/reconcile-payments': typeof ApiInternalReconcilePaymentsRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
   '/forms/$formId/flow': typeof FormsFormIdFlowRoute
@@ -153,6 +168,7 @@ export interface FileRoutesByFullPath {
   '/forms/embed/$formId': typeof FormsEmbedFormIdRoute
   '/forms/submit/$formId': typeof FormsSubmitFormIdRoute
   '/integrations/google/callback': typeof IntegrationsGoogleCallbackRoute
+  '/api/webhooks/xendit/$endpointKey': typeof ApiWebhooksXenditEndpointKeyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -167,6 +183,7 @@ export interface FileRoutesByTo {
   '/docs': typeof DocsIndexRoute
   '/forms': typeof FormsIndexRoute
   '/settings': typeof SettingsIndexRoute
+  '/api/internal/reconcile-payments': typeof ApiInternalReconcilePaymentsRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
   '/forms/$formId/flow': typeof FormsFormIdFlowRoute
@@ -175,6 +192,7 @@ export interface FileRoutesByTo {
   '/forms/embed/$formId': typeof FormsEmbedFormIdRoute
   '/forms/submit/$formId': typeof FormsSubmitFormIdRoute
   '/integrations/google/callback': typeof IntegrationsGoogleCallbackRoute
+  '/api/webhooks/xendit/$endpointKey': typeof ApiWebhooksXenditEndpointKeyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -190,6 +208,7 @@ export interface FileRoutesById {
   '/docs/': typeof DocsIndexRoute
   '/forms/': typeof FormsIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/api/internal/reconcile-payments': typeof ApiInternalReconcilePaymentsRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
   '/forms/$formId/flow': typeof FormsFormIdFlowRoute
@@ -198,6 +217,7 @@ export interface FileRoutesById {
   '/forms/embed/$formId': typeof FormsEmbedFormIdRoute
   '/forms/submit/$formId': typeof FormsSubmitFormIdRoute
   '/integrations/google/callback': typeof IntegrationsGoogleCallbackRoute
+  '/api/webhooks/xendit/$endpointKey': typeof ApiWebhooksXenditEndpointKeyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -214,6 +234,7 @@ export interface FileRouteTypes {
     | '/docs/'
     | '/forms/'
     | '/settings/'
+    | '/api/internal/reconcile-payments'
     | '/flow/$executionId/complete'
     | '/forms/$formId/edit'
     | '/forms/$formId/flow'
@@ -222,6 +243,7 @@ export interface FileRouteTypes {
     | '/forms/embed/$formId'
     | '/forms/submit/$formId'
     | '/integrations/google/callback'
+    | '/api/webhooks/xendit/$endpointKey'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -236,6 +258,7 @@ export interface FileRouteTypes {
     | '/docs'
     | '/forms'
     | '/settings'
+    | '/api/internal/reconcile-payments'
     | '/flow/$executionId/complete'
     | '/forms/$formId/edit'
     | '/forms/$formId/flow'
@@ -244,6 +267,7 @@ export interface FileRouteTypes {
     | '/forms/embed/$formId'
     | '/forms/submit/$formId'
     | '/integrations/google/callback'
+    | '/api/webhooks/xendit/$endpointKey'
   id:
     | '__root__'
     | '/'
@@ -258,6 +282,7 @@ export interface FileRouteTypes {
     | '/docs/'
     | '/forms/'
     | '/settings/'
+    | '/api/internal/reconcile-payments'
     | '/flow/$executionId/complete'
     | '/forms/$formId/edit'
     | '/forms/$formId/flow'
@@ -266,6 +291,7 @@ export interface FileRouteTypes {
     | '/forms/embed/$formId'
     | '/forms/submit/$formId'
     | '/integrations/google/callback'
+    | '/api/webhooks/xendit/$endpointKey'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -281,6 +307,7 @@ export interface RootRouteChildren {
   DocsIndexRoute: typeof DocsIndexRoute
   FormsIndexRoute: typeof FormsIndexRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
+  ApiInternalReconcilePaymentsRoute: typeof ApiInternalReconcilePaymentsRoute
   FlowExecutionIdCompleteRoute: typeof FlowExecutionIdCompleteRoute
   FormsFormIdEditRoute: typeof FormsFormIdEditRoute
   FormsFormIdFlowRoute: typeof FormsFormIdFlowRoute
@@ -289,6 +316,7 @@ export interface RootRouteChildren {
   FormsEmbedFormIdRoute: typeof FormsEmbedFormIdRoute
   FormsSubmitFormIdRoute: typeof FormsSubmitFormIdRoute
   IntegrationsGoogleCallbackRoute: typeof IntegrationsGoogleCallbackRoute
+  ApiWebhooksXenditEndpointKeyRoute: typeof ApiWebhooksXenditEndpointKeyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -433,6 +461,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FlowExecutionIdCompleteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/internal/reconcile-payments': {
+      id: '/api/internal/reconcile-payments'
+      path: '/api/internal/reconcile-payments'
+      fullPath: '/api/internal/reconcile-payments'
+      preLoaderRoute: typeof ApiInternalReconcilePaymentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/webhooks/xendit/$endpointKey': {
+      id: '/api/webhooks/xendit/$endpointKey'
+      path: '/api/webhooks/xendit/$endpointKey'
+      fullPath: '/api/webhooks/xendit/$endpointKey'
+      preLoaderRoute: typeof ApiWebhooksXenditEndpointKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -449,6 +491,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocsIndexRoute: DocsIndexRoute,
   FormsIndexRoute: FormsIndexRoute,
   SettingsIndexRoute: SettingsIndexRoute,
+  ApiInternalReconcilePaymentsRoute: ApiInternalReconcilePaymentsRoute,
   FlowExecutionIdCompleteRoute: FlowExecutionIdCompleteRoute,
   FormsFormIdEditRoute: FormsFormIdEditRoute,
   FormsFormIdFlowRoute: FormsFormIdFlowRoute,
@@ -457,6 +500,7 @@ const rootRouteChildren: RootRouteChildren = {
   FormsEmbedFormIdRoute: FormsEmbedFormIdRoute,
   FormsSubmitFormIdRoute: FormsSubmitFormIdRoute,
   IntegrationsGoogleCallbackRoute: IntegrationsGoogleCallbackRoute,
+  ApiWebhooksXenditEndpointKeyRoute: ApiWebhooksXenditEndpointKeyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

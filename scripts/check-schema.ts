@@ -26,12 +26,35 @@ async function main() {
         WHERE schemaname = 'public'
           AND tablename = 'form_submission_sessions'
           AND indexname = ${REQUIRED_INDEX}
-      ) AS has_client_token_index
+      ) AS has_client_token_index,
+      EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'payment_events'
+      ) AS has_payment_events,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'payments' AND column_name = 'page_session_id'
+      ) AS has_payment_page_session,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'integrations' AND column_name = 'webhook_endpoint_key'
+      ) AS has_webhook_endpoint_key,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'payments' AND column_name = 'payment_url'
+      ) AS has_payment_recovery_link
   `
 
-  if (!compatibility?.has_client_token || !compatibility?.has_client_token_index) {
+  if (
+    !compatibility?.has_client_token ||
+    !compatibility?.has_client_token_index ||
+    !compatibility?.has_payment_events ||
+    !compatibility?.has_payment_page_session ||
+    !compatibility?.has_webhook_endpoint_key ||
+    !compatibility?.has_payment_recovery_link
+  ) {
     throw new Error(
-      'Database schema is incompatible: apply drizzle/0018_session_client_token.sql before starting the app.',
+      'Database schema is incompatible: run npm run db:prepare before starting the app.',
     )
   }
 

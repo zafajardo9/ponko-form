@@ -54,6 +54,8 @@ export interface SmtpConfig {
 
 export interface ResendConfig {
   apiKey: string
+  fromEmail?: string
+  fromName?: string
 }
 
 export interface GoogleSheetsConfig {

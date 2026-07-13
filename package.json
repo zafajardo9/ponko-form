@@ -16,6 +16,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:check": "tsx scripts/check-schema.ts",
     "db:prepare": "tsx scripts/prepare-database.ts && npm run db:check",
+    "payments:reconcile": "tsx scripts/reconcile-payments.ts",
     "db:push": "drizzle-kit push",
     "db:pull": "drizzle-kit pull",
     "db:studio": "drizzle-kit studio",

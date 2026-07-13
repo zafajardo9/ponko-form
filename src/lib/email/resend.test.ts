@@ -1,0 +1,33 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { sendPaymentReminderEmail } from './resend'
+
+describe('Resend payment reminders', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('sends the payment link without exposing the API key in the body', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 'email-1' }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(sendPaymentReminderEmail({
+      config: { apiKey: 're_secret', fromEmail: 'payments@example.com', fromName: 'Example' },
+      recipient: 'customer@example.com',
+      formTitle: 'Background Check',
+      amount: 'PHP 100.00',
+      paymentUrl: 'https://checkout.xendit.co/inv-1',
+    })).resolves.toEqual({ messageId: 'email-1' })
+
+    const [, request] = fetchMock.mock.calls[0]
+    expect(request.headers.Authorization).toBe('Bearer re_secret')
+    expect(request.body).toContain('https://checkout.xendit.co/inv-1')
+    expect(request.body).not.toContain('re_secret')
+  })
+
+  it('requires a configured sender address', async () => {
+    await expect(sendPaymentReminderEmail({
+      config: { apiKey: 're_secret' },
+      recipient: 'customer@example.com',
+      formTitle: 'Form',
+      amount: 'PHP 100.00',
+      paymentUrl: 'https://example.com/pay',
+    })).rejects.toThrow(/sender email/i)
+  })
+})

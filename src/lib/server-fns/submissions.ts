@@ -20,6 +20,10 @@ export interface ResponseColumn {
   label: string;
 }
 
+function paymentStatusPriority(status: string) {
+  return status === 'refunded' ? 4 : status === 'completed' ? 3 : status === 'pending' ? 2 : 1
+}
+
 /**
  * Build the response columns for a form.
  *
@@ -287,6 +291,8 @@ export const getSubmissions = createServerFn({ method: "GET", strict: false })
         );
       for (const p of paymentRows) {
         if (p.submissionId != null) {
+          const existing = paymentMap.get(p.submissionId);
+          if (existing && paymentStatusPriority(existing.status) >= paymentStatusPriority(p.status)) continue;
           paymentMap.set(p.submissionId, {
             status: p.status,
             amount: p.amount,
@@ -446,6 +452,8 @@ export const exportSubmissionsCsv = createServerFn({ method: "GET" })
         );
       for (const p of paymentRows) {
         if (p.submissionId != null) {
+          const existing = paymentMap.get(p.submissionId);
+          if (existing && paymentStatusPriority(existing.status) >= paymentStatusPriority(p.status)) continue;
           paymentMap.set(p.submissionId, {
             status: p.status,
             amount: p.amount,

@@ -6,11 +6,13 @@ import type {
   IntegrationStatus,
   PayPalConfig,
   ProviderSlug,
+  ResendConfig,
   SmtpConfig,
   XenditConfig,
 } from '../integrations/types'
 import {
   getAllIntegrationStatuses,
+  getIntegrationConfig,
   loadIntegrationConfigs,
   removeIntegrationConfig,
   requireProfile,
@@ -150,7 +152,16 @@ export const deleteIntegration = createServerFn({ method: 'POST' })
 export const getIntegrations = createServerFn({ method: 'GET' }).handler(
   async (): Promise<IntegrationStatus[]> => {
     const profile = await requireProfile()
-    return getAllIntegrationStatuses(profile.id)
+    let statuses = await getAllIntegrationStatuses(profile.id)
+    const xendit = statuses.find((item) => item.provider === 'xendit')
+    if (xendit?.configured && !xendit.meta?.webhookPath) {
+      const config = await getIntegrationConfig<XenditConfig>(profile.id, 'xendit')
+      if (config) {
+        await saveIntegrationConfig(profile.id, 'xendit', config, crypto.randomUUID().replaceAll('-', ''))
+        statuses = await getAllIntegrationStatuses(profile.id)
+      }
+    }
+    return statuses
   },
 )
 
@@ -162,7 +173,39 @@ export const saveIntegration = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data }) => {
     const profile = await requireProfile()
-    await saveIntegrationConfig(profile.id, data.provider, data.config as unknown as IntegrationConfig)
+    if (data.provider === 'xendit') {
+      const existing = await getIntegrationConfig<XenditConfig>(profile.id, 'xendit')
+      const input = data.config as Partial<XenditConfig>
+      const secretKey = String(input.secretKey ?? '').trim() || existing?.secretKey
+      if (!secretKey) throw new Error('Xendit secret API key is required')
+      const webhookToken = String(input.webhookToken ?? '').trim() || existing?.webhookToken
+      if (!webhookToken) throw new Error('Xendit webhook verification token is required')
+      const config: XenditConfig = {
+        secretKey,
+        publicKey: String(input.publicKey ?? '').trim() || existing?.publicKey,
+        webhookToken,
+      }
+      const statuses = await getAllIntegrationStatuses(profile.id)
+      const existingPath = statuses.find((item) => item.provider === 'xendit')?.meta?.webhookPath
+      const endpointKey = existingPath?.split('/').pop() ?? crypto.randomUUID().replaceAll('-', '')
+      await saveIntegrationConfig(profile.id, 'xendit', config, endpointKey)
+    } else if (data.provider === 'resend') {
+      const existing = await getIntegrationConfig<ResendConfig>(profile.id, 'resend')
+      const input = data.config as Partial<ResendConfig>
+      const apiKey = String(input.apiKey ?? '').trim() || existing?.apiKey
+      const fromEmail = String(input.fromEmail ?? '').trim() || existing?.fromEmail
+      if (!apiKey) throw new Error('Resend API key is required')
+      if (!fromEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fromEmail)) {
+        throw new Error('A valid verified Resend sender email is required')
+      }
+      await saveIntegrationConfig(profile.id, 'resend', {
+        apiKey,
+        fromEmail,
+        fromName: String(input.fromName ?? '').trim() || existing?.fromName,
+      })
+    } else {
+      await saveIntegrationConfig(profile.id, data.provider, data.config as unknown as IntegrationConfig)
+    }
     return { success: true }
   })
 

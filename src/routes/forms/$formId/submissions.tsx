@@ -97,6 +97,14 @@ function SubmissionsPage() {
       filterType: "date-range",
       width: "170px",
     },
+    {
+      key: "status",
+      header: "Response",
+      accessor: (row) => <ResponseStatusBadge status={row.status} />,
+      sortable: true,
+      sortKey: "status",
+      width: "130px",
+    },
     ...columns.map(
       (col): DataTableColumn<SubmissionRow> => ({
         key: col.key,
@@ -288,6 +296,14 @@ function PaymentBadge({ status }: { status: string }) {
     default:
       return <span className="text-xs text-[#8e8b82]">{status}</span>;
   }
+}
+
+function ResponseStatusBadge({ status }: { status: string }) {
+  if (status === "completed") return <Badge variant="paid">Completed</Badge>;
+  if (status === "incomplete") return <Badge variant="pending">Incomplete paid</Badge>;
+  if (status === "pending_payment") return <Badge variant="pending">Awaiting payment</Badge>;
+  if (status === "payment_failed") return <Badge variant="failed">Payment failed</Badge>;
+  return <span className="text-xs text-[#8e8b82]">{status}</span>;
 }
 
 function ResponseDialog({
