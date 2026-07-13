@@ -84,11 +84,26 @@ export class PayPalGateway extends PaymentGateway {
         id: string
         links: { rel: string; href: string }[]
       }
-      const approvalLink = order.links.find((l) => l.rel === 'payer-action')
+      // PayPal currently documents `payer-action`, while some Orders v2
+      // responses and older account configurations still return `approve`.
+      // Both are buyer checkout links; accepting either prevents a valid order
+      // from being recorded as failed without redirecting the respondent.
+      const approvalLink = order.links.find(
+        (link) => link.rel === 'payer-action' || link.rel === 'approve',
+      )
+
+      if (!approvalLink?.href) {
+        return {
+          success: false,
+          paymentUrl: null,
+          gatewayPaymentId: order.id,
+          error: 'PayPal order did not include a checkout URL',
+        }
+      }
 
       return {
         success: true,
-        paymentUrl: approvalLink?.href ?? null,
+        paymentUrl: approvalLink.href,
         gatewayPaymentId: order.id,
         error: null,
       }

@@ -2,9 +2,10 @@ import { createServerFn } from '@tanstack/react-start'
 import { auth } from '@clerk/tanstack-react-start/server'
 import { randomBytes } from 'node:crypto'
 import { db } from '../../db/index'
-import { formPages, forms, profiles } from '../../db/schema'
-import { eq, desc } from 'drizzle-orm'
+import { formPageFields, formPages, formTemplates, forms, profiles } from '../../db/schema'
+import { asc, desc, eq, isNull, or, sql } from 'drizzle-orm'
 import type { FormTheme } from '../theme'
+import type { TemplatePageData } from '../form-templates/types'
 
 async function ensureProfile(clerkId: string) {
   const existing = await db
@@ -108,6 +109,83 @@ export const createForm = createServerFn({ method: 'POST' })
       },
     ])
     return form
+  })
+
+export const getFormTemplates = createServerFn({ method: 'GET' }).handler(async () => {
+  const { userId } = await auth()
+  if (!userId) throw new Error('Unauthorized')
+  const profile = await ensureProfile(userId)
+  return db.select().from(formTemplates)
+    .where(or(isNull(formTemplates.profileId), eq(formTemplates.profileId, profile.id)))
+    .orderBy(asc(formTemplates.category), desc(formTemplates.usageCount), asc(formTemplates.name))
+})
+
+function validTemplatePages(value: unknown): value is TemplatePageData[] {
+  if (!Array.isArray(value) || value.length === 0) return false
+  const finalPages = value.filter((page) => page && typeof page === 'object' && (page as TemplatePageData).isFinal)
+  return finalPages.length === 1 && value.every((page) => {
+    if (!page || typeof page !== 'object') return false
+    const item = page as TemplatePageData
+    return typeof item.title === 'string' && item.title.trim().length > 0 && Array.isArray(item.fields)
+  })
+}
+
+export const createFormFromTemplate = createServerFn({ method: 'POST' })
+  .inputValidator((data: { templateId: number; title?: string }) => data)
+  .handler(async ({ data }) => {
+    const { userId } = await auth()
+    if (!userId) throw new Error('Unauthorized')
+    const profile = await ensureProfile(userId)
+    const [template] = await db.select().from(formTemplates)
+      .where(eq(formTemplates.id, data.templateId)).limit(1)
+    if (!template || (template.profileId !== null && template.profileId !== profile.id)) {
+      throw new Error('Template not found')
+    }
+    if (!validTemplatePages(template.pagesData)) throw new Error('Template data is invalid')
+    const title = data.title?.trim() || template.name
+    if (!title) throw new Error('Form title is required')
+
+    const [form] = await db.insert(forms).values({
+      profileId: profile.id,
+      publicId: await createUniquePublicId(),
+      title: title.slice(0, 255),
+      description: template.description,
+    }).returning()
+
+    try {
+      for (const pageData of [...template.pagesData].sort((a, b) => a.position - b.position)) {
+        const [page] = await db.insert(formPages).values({
+          formId: form.id,
+          title: pageData.title.slice(0, 255),
+          description: pageData.description ?? null,
+          position: pageData.position,
+          isFinal: pageData.isFinal,
+          finalTemplate: pageData.isFinal ? pageData.finalTemplate ?? 'Your response has been recorded.' : null,
+        }).returning({ id: formPages.id })
+        if (!pageData.isFinal && pageData.fields.length > 0) {
+          await db.insert(formPageFields).values(pageData.fields.map((field, index) => ({
+            pageId: page.id,
+            fieldType: field.fieldType,
+            label: field.label.slice(0, 255),
+            placeholder: field.placeholder?.slice(0, 255) ?? null,
+            required: Boolean(field.required),
+            options: field.options ?? null,
+            bindVariable: field.bindVariable,
+            position: Number.isFinite(field.position) ? field.position : index,
+            width: field.width ?? 'full',
+            validationRules: null,
+          })))
+        }
+      }
+      await db.update(formTemplates).set({
+        usageCount: sql`${formTemplates.usageCount} + 1`,
+        updatedAt: new Date(),
+      }).where(eq(formTemplates.id, template.id))
+      return form
+    } catch (error) {
+      await db.delete(forms).where(eq(forms.id, form.id))
+      throw error
+    }
   })
 
 export const updateForm = createServerFn({ method: 'POST' })

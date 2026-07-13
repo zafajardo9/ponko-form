@@ -14,7 +14,15 @@ async function main() {
   // Production predates a reliable Drizzle migration journal. Compatibility
   // migrations are intentionally idempotent and applied without replaying the
   // historical journal.
-  for (const filename of ['0018_session_client_token.sql', '0019_payment_audit_webhooks.sql', '0020_payment_recovery_links.sql']) {
+  for (const filename of [
+    // The production database predates the atomic page-form save function.
+    // CREATE OR REPLACE makes this safe for both repaired and current schemas.
+    '0017_replace_page_form_atomic.sql',
+    '0018_session_client_token.sql',
+    '0019_payment_audit_webhooks.sql',
+    '0020_payment_recovery_links.sql',
+    '0021_form_templates.sql',
+  ]) {
     const migration = await readFile(resolve(import.meta.dirname, `../drizzle/${filename}`), 'utf8')
     for (const statement of migration.split('--> statement-breakpoint')) {
       if (statement.trim()) await sql.query(statement, [])

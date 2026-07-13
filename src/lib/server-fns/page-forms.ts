@@ -42,6 +42,26 @@ import { assertFormOwner, uniqueVarName } from './flow-helpers'
 
 type GatewaySlug = 'paypal' | 'xendit'
 
+function paymentStartIssue(gatewaySlug: GatewaySlug, gatewayName: string, detail?: string | null) {
+  const normalized = (detail ?? '').toLowerCase()
+  const configurationProblem =
+    normalized.includes('access token') ||
+    normalized.includes('credential') ||
+    normalized.includes('api key') ||
+    normalized.includes('unauthorized') ||
+    normalized.includes('authentication')
+
+  return {
+    code: configurationProblem ? 'gateway_configuration' : 'gateway_unavailable',
+    title: `${gatewayName} could not open checkout`,
+    message: configurationProblem
+      ? `This payment method needs attention from the form owner. You can choose another payment method or try again later.`
+      : `We could not connect to ${gatewayName}. Your answers are safe—try again or choose another payment method.`,
+    gatewaySlug,
+    retryable: true,
+  }
+}
+
 function credentialsForSlug(
   slug: GatewaySlug,
   configs: Awaited<ReturnType<typeof loadIntegrationConfigs>>,
@@ -1013,10 +1033,26 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
       phase: 'gateway-create',
     })
     if (!result.success || !result.paymentUrl) {
+      const issue = paymentStartIssue(data.gatewaySlug, gateway.getGatewayName(), result.error)
       await db.update(payments).set({
-        status: 'failed', failureReason: result.error ?? 'Gateway creation failed', failedAt: new Date(), updatedAt: new Date(),
+        status: 'failed',
+        failureReason: result.error ?? 'Gateway creation failed',
+        failedAt: new Date(),
+        updatedAt: new Date(),
       }).where(eq(payments.id, payment.id))
-      throw new Error(result.error ?? 'Could not start the payment')
+      console.error('[payment] checkout creation failed', {
+        paymentId: payment.id,
+        gateway: data.gatewaySlug,
+        category: issue.code,
+        correlationId: `page-${session.id}`,
+      })
+      return {
+        paymentUrl: null,
+        issue: {
+          ...issue,
+          reference: `PAY-${String(payment.id).padStart(6, '0')}`,
+        },
+      }
     }
 
     await db.update(payments).set({
@@ -1035,7 +1071,7 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
         updatedAt: new Date(),
       })
       .where(eq(formSubmissionSessions.id, session.id))
-      return { paymentUrl: result.paymentUrl }
+      return { paymentUrl: result.paymentUrl, issue: null }
     })(), 25_000, 'initiatePagePayment', {
       sessionId: data.sessionId,
       pageId: data.pageId,

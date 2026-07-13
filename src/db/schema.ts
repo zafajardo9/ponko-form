@@ -11,6 +11,7 @@ import {
   uniqueIndex,
   index,
 } from 'drizzle-orm/pg-core'
+import type { TemplatePageData } from '../lib/form-templates/types'
 
 export const formStatusEnum = pgEnum('form_status', ['draft', 'published'])
 export const fieldTypeEnum = pgEnum('field_type', [
@@ -234,6 +235,27 @@ export const formPageFields = pgTable(
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
   (table) => [index('form_page_fields_page_id_position_idx').on(table.pageId, table.position)],
+)
+
+export const formTemplates = pgTable(
+  'form_templates',
+  {
+    id: serial().primaryKey(),
+    profileId: integer('profile_id').references(() => profiles.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 255 }).notNull(),
+    description: text('description'),
+    category: varchar('category', { length: 50 }).notNull().default('general'),
+    pagesData: jsonb('pages_data').$type<TemplatePageData[]>().notNull().default([]),
+    isBuiltin: boolean('is_builtin').notNull().default(false),
+    usageCount: integer('usage_count').notNull().default(0),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('form_templates_profile_id_idx').on(table.profileId),
+    index('form_templates_category_idx').on(table.category),
+    uniqueIndex('form_templates_builtin_name_idx').on(table.isBuiltin, table.name),
+  ],
 )
 
 export const fieldConditions = pgTable(

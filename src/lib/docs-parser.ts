@@ -23,6 +23,14 @@ function extractTitle(md: string): string {
 
 /** Extract the first paragraph after the H1 to use as a description. */
 function extractDescription(md: string): string {
+  // A short opening quote is the most intentional summary for article-style
+  // Markdown, so prefer it over the first body paragraph when one is present.
+  const openingQuote = md.match(/^>\s+(.+)$/m)
+  if (openingQuote) {
+    const quote = openingQuote[1].replace(/[*_`]/g, '').trim()
+    if (quote) return quote.slice(0, 200)
+  }
+
   // Get content after the first H1 and before the next heading
   const afterH1 = md.replace(/^#\s+.+$/m, '').trim()
   // Find the first paragraph (non-empty, non-heading line)

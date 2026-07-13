@@ -68,50 +68,44 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
     <div
       ref={rootRef}
       className="
-        prose prose-sm max-w-none
+        max-w-none text-[#3d3d3a]
 
         /* ── Headings ── */
-        prose-headings:font-semibold prose-headings:text-[#141413] prose-headings:tracking-tight
-        prose-h1:text-3xl prose-h1:mt-0 prose-h1:mb-6 prose-h1:pb-4 prose-h1:border-b prose-h1:border-[#e6dfd8]
-        prose-h2:text-2xl prose-h2:mt-12 prose-h2:mb-4 prose-h2:pb-2.5 prose-h2:border-b prose-h2:border-[#e6dfd8]/60
-        prose-h3:text-lg prose-h3:mt-10 prose-h3:mb-3
-        prose-h4:text-base prose-h4:mt-8 prose-h4:mb-2 prose-h4:uppercase prose-h4:tracking-wider prose-h4:text-[#8e8b82]
+        [&_h1]:mt-0 [&_h1]:mb-8 [&_h1]:border-b [&_h1]:border-[#e6dfd8] [&_h1]:pb-5
+        [&_h1]:text-3xl [&_h1]:font-semibold [&_h1]:tracking-tight [&_h1]:text-[#141413]
+        [&_h2]:mt-14 [&_h2]:mb-5 [&_h2]:border-t [&_h2]:border-[#e6dfd8] [&_h2]:pt-10
+        [&_h2]:text-[1.75rem] [&_h2]:font-semibold [&_h2]:leading-tight [&_h2]:tracking-tight [&_h2]:text-[#141413]
+        [&_h3]:mt-10 [&_h3]:mb-4 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:leading-snug [&_h3]:tracking-tight [&_h3]:text-[#141413]
+        [&_h4]:mt-8 [&_h4]:mb-3 [&_h4]:text-sm [&_h4]:font-semibold [&_h4]:uppercase [&_h4]:tracking-[0.12em] [&_h4]:text-[#766f66]
 
         /* ── Body text ── */
-        prose-p:text-[#3d3d3a] prose-p:leading-7 prose-p:my-4 prose-p:text-[15px]
+        [&_p]:my-5 [&_p]:text-[16px] [&_p]:leading-8 [&_p]:text-[#4f4b45]
+        sm:[&_p]:text-[17px]
 
         /* ── Links ── */
-        prose-a:text-[#cc785c] prose-a:no-underline prose-a:font-medium
-        hover:prose-a:text-[#a9583e] hover:prose-a:underline
+        [&_a]:font-medium [&_a]:text-[#b95f43] [&_a]:underline [&_a]:decoration-[#ddb5a7]
+        [&_a]:decoration-1 [&_a]:underline-offset-4 hover:[&_a]:text-[#8f432d] hover:[&_a]:decoration-[#b95f43]
 
         /* ── Strong / emphasis ── */
-        prose-strong:text-[#141413] prose-strong:font-semibold
-        prose-em:text-[#57544d]
+        [&_strong]:font-semibold [&_strong]:text-[#1d1c1a] [&_em]:text-[#57544d]
 
         /* ── Inline code ── */
-        prose-code:text-sm prose-code:font-normal
-        prose-code:bg-[#f5f0e8] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-[#6b46a8]
-        prose-code:before:content-none prose-code:after:content-none
+        [&_code]:rounded-md [&_code]:border [&_code]:border-[#e3dbd0] [&_code]:bg-[#f5f0e8]
+        [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.84em] [&_code]:font-normal [&_code]:text-[#77539a]
 
         /* ── Code blocks ── */
-        /* Override all prose pre defaults so our custom code blocks render cleanly */
-        prose-pre:!p-0 prose-pre:!m-0 prose-pre:!bg-transparent
-        prose-pre:!border-none prose-pre:!shadow-none prose-pre:!rounded-none
-        prose-pre:!overflow-visible prose-pre:!whitespace-normal
-        prose-pre:my-5
-        prose-pre:[&>code]:!bg-transparent prose-pre:[&>code]:!p-0
+        [&_pre]:m-0 [&_pre]:overflow-visible [&_pre]:whitespace-normal [&_pre]:border-0 [&_pre]:bg-transparent [&_pre]:p-0 [&_pre]:shadow-none
 
         /* ── Blockquotes ── */
-        prose-blockquote:border-l-[3px] prose-blockquote:border-[#cc785c]
-        prose-blockquote:bg-[#faf9f5] prose-blockquote:rounded-r-md
-        prose-blockquote:px-5 prose-blockquote:py-3.5 prose-blockquote:my-5
-        prose-blockquote:text-sm prose-blockquote:text-[#57544d] prose-blockquote:not-italic
-        prose-blockquote:leading-relaxed
+        [&_blockquote]:relative [&_blockquote]:my-8 [&_blockquote]:rounded-xl [&_blockquote]:border [&_blockquote]:border-[#e3d7ca]
+        [&_blockquote]:border-l-4 [&_blockquote]:border-l-[#cc785c] [&_blockquote]:bg-[#fbf7f1]
+        [&_blockquote]:px-5 [&_blockquote]:py-4 [&_blockquote]:text-[15px] [&_blockquote]:not-italic [&_blockquote]:leading-7 [&_blockquote]:text-[#57544d]
 
         /* ── Lists ── */
-        prose-ol:pl-6 prose-ol:my-4 prose-ul:pl-6 prose-ul:my-4
-        prose-li:my-1.5 prose-li:text-[#3d3d3a] prose-li:text-[15px]
-        prose-li:marker:text-[#cc785c]
+        [&_ol]:my-6 [&_ol]:list-decimal [&_ol]:space-y-2.5 [&_ol]:pl-7
+        [&_ul]:my-6 [&_ul]:list-disc [&_ul]:space-y-2.5 [&_ul]:pl-7
+        [&_li]:pl-1.5 [&_li]:text-[16px] [&_li]:leading-7 [&_li]:text-[#4f4b45] sm:[&_li]:text-[17px]
+        [&_li::marker]:font-semibold [&_li::marker]:text-[#c5775d]
 
         /* ── Tables ── */
         prose-table:my-0 prose-table:w-full prose-table:border-collapse
@@ -131,10 +125,11 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
         [&_.docs-table_tr:last-child_td]:border-b-0
 
         /* ── Images ── */
-        prose-img:rounded-lg prose-img:shadow-sm prose-img:my-8
+        [&_img]:my-9 [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-xl [&_img]:border [&_img]:border-[#e6dfd8] [&_img]:shadow-sm
 
         /* ── Horizontal rules ── */
-        prose-hr:border-[#e6dfd8] prose-hr:my-10
+        [&_hr]:my-12 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-[#e6dfd8]
+        [&_hr+h2]:border-t-0 [&_hr+h2]:pt-0
 
         /* ── Code samples ── */
         [&_.code-block]:my-7 [&_.code-block]:overflow-hidden [&_.code-block]:rounded-lg
@@ -154,14 +149,14 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
         [&_.code-pre]:!m-0 [&_.code-pre]:overflow-x-auto [&_.code-pre]:!bg-transparent
         [&_.code-pre]:!p-4 [&_.code-pre]:font-mono [&_.code-pre]:text-[13px] [&_.code-pre]:leading-6
         [&_.code-pre]:text-[#f5f0e8]
-        [&_.code-pre_code]:!bg-transparent [&_.code-pre_code]:!p-0 [&_.code-pre_code]:!font-inherit
+        [&_.code-pre_code]:!border-0 [&_.code-pre_code]:!bg-transparent [&_.code-pre_code]:!p-0 [&_.code-pre_code]:!font-inherit
         [&_.code-pre_code]:!text-inherit
 
         /* ── Heading scroll margins ── */
         [&_h2]:scroll-mt-24 [&_h3]:scroll-mt-24 [&_h4]:scroll-mt-24
 
         /* ── Heading anchor links ── */
-        [&_.heading-anchor]:opacity-0 [&_.heading-anchor]:ml-1.5
+        [&_.heading-anchor]:ml-2 [&_.heading-anchor]:opacity-0
         [&_.heading-anchor]:text-[#cc785c] [&_.heading-anchor]:no-underline
         [&_.heading-anchor]:text-sm [&_.heading-anchor]:font-normal
         hover:[&_.heading-anchor]:opacity-100
@@ -175,6 +170,9 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
 
         /* ── Blockquote strong text ── */
         [&_blockquote_strong]:text-[#141413]
+
+        /* ── First and last element rhythm ── */
+        [&>*:first-child]:mt-0 [&>*:last-child]:mb-0
       "
       dangerouslySetInnerHTML={{ __html: html }}
     />
@@ -379,21 +377,35 @@ function renderCodeBlock(code: string, lang: string): string {
 }
 
 function renderInline(text: string): string {
-  // Escape HTML entities first
-  // Inline code (do first to avoid interfering with other markers)
+  // Images must be parsed before links because their syntax overlaps.
+  text = text.replace(
+    /!\[([^\]]*)\]\(([^)]+)\)/g,
+    (_match, alt: string, src: string) =>
+      `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" loading="lazy" />`,
+  );
+  // Inline code (do first to avoid interfering with other markers).
   text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
   // Bold
   text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   // Italic
   text = text.replace(/\*([^*]+)\*/g, "<em>$1</em>");
   // Links
-  text = text.replace(
-    /\[([^\]]+)\]\(([^)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener">$1</a>',
-  );
-  // Images
-  text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" />');
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, label, href) => {
+    const resolvedHref = resolveDocHref(href);
+    const isExternal = /^https?:\/\//i.test(resolvedHref);
+    const externalAttrs = isExternal
+      ? ' target="_blank" rel="noopener noreferrer"'
+      : "";
+    return `<a href="${escapeHtml(resolvedHref)}"${externalAttrs}>${label}</a>`;
+  });
   return text;
+}
+
+/** Turn familiar Markdown file links into working links inside the docs app. */
+function resolveDocHref(href: string): string {
+  const match = href.match(/^(?:\.\/)?([^/#]+)\.md(#[^\s]+)?$/i);
+  if (!match) return href;
+  return `/docs/${match[1]}${match[2] ?? ""}`;
 }
 
 function renderTable(rows: string[]): string {
@@ -453,16 +465,6 @@ function escapeHtml(text: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-}
-
-function escapeAttr(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\n/g, "\\n");
 }
 
 function slugify(text: string): string {

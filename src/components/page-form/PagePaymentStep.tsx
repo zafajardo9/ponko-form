@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { ensurePagePaymentDraft, getPagePaymentOptions, initiatePagePayment } from '../../lib/server-fns/page-forms'
 import { Button } from '../ui/Button'
+import { AlertTriangle, CheckCircle2, LockKeyhole, RotateCcw } from 'lucide-react'
 
 interface PagePaymentStepProps {
   sessionId: number
@@ -19,6 +20,13 @@ function formatMoney(amount: number, currency: string) {
 export function PagePaymentStep({ sessionId, pageId, onPaymentStatusChange }: PagePaymentStepProps) {
   const [loadingSlow, setLoadingSlow] = useState(false)
   const [pendingGateway, setPendingGateway] = useState<string | null>(null)
+  const [paymentIssue, setPaymentIssue] = useState<{
+    title: string
+    message: string
+    reference: string
+    gatewaySlug: string
+    retryable: boolean
+  } | null>(null)
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['page-payment-options', sessionId, pageId],
     queryFn: () => getPagePaymentOptions({ data: { sessionId, pageId } }),
@@ -53,9 +61,17 @@ export function PagePaymentStep({ sessionId, pageId, onPaymentStatusChange }: Pa
     mutationFn: (gatewaySlug: 'paypal' | 'xendit') =>
       initiatePagePayment({ data: { sessionId, pageId, gatewaySlug } }),
     retry: false,
-    onMutate: (gatewaySlug) => setPendingGateway(gatewaySlug),
+    onMutate: (gatewaySlug) => {
+      setPendingGateway(gatewaySlug)
+      setPaymentIssue(null)
+    },
     onSuccess: (result) => {
-      window.location.href = result.paymentUrl
+      setPendingGateway(null)
+      if (result.paymentUrl) {
+        window.location.href = result.paymentUrl
+        return
+      }
+      if (result.issue) setPaymentIssue(result.issue)
     },
     onError: () => setPendingGateway(null),
   })
@@ -92,9 +108,13 @@ export function PagePaymentStep({ sessionId, pageId, onPaymentStatusChange }: Pa
       </p>
 
       {paid && (
-        <p className="mt-3 rounded-lg border border-[#d8ead4] bg-[#f3fbf1] px-3 py-2 text-sm text-[#3f7a42]">
-          Payment confirmed. You can continue.
-        </p>
+        <div className="mt-4 flex items-start gap-3 rounded-xl border border-[#cfe3ca] bg-[#f3fbf1] px-4 py-3 text-[#356a39]" role="status">
+          <CheckCircle2 className="mt-0.5 shrink-0" size={18} aria-hidden="true" />
+          <div>
+            <p className="text-sm font-semibold">Payment confirmed</p>
+            <p className="mt-0.5 text-xs leading-relaxed">Your transaction was verified. You can continue with the form.</p>
+          </div>
+        </div>
       )}
 
       {data.showBreakdown && data.breakdown.length > 0 && (
@@ -131,27 +151,68 @@ export function PagePaymentStep({ sessionId, pageId, onPaymentStatusChange }: Pa
           No connected gateway can process this currency.
         </p>
       ) : (
-        <div className="mt-5 flex flex-wrap gap-2">
-          {data.gateways.map((gateway) => (
-            <Button
-              key={gateway.slug}
-              onClick={() => initiate.mutate(gateway.slug)}
-              disabled={initiate.isPending || paid}
-            >
-              {paid
-                ? 'Paid'
-                : initiate.isPending && pendingGateway === gateway.slug
-                  ? `Connecting to ${gateway.name}…`
-                  : `Pay with ${gateway.name}`}
-            </Button>
-          ))}
+        <div className="mt-5">
+          <div className="flex flex-wrap gap-2">
+            {data.gateways.map((gateway) => (
+              <Button
+                key={gateway.slug}
+                onClick={() => initiate.mutate(gateway.slug)}
+                disabled={initiate.isPending || paid}
+              >
+                {paid
+                  ? 'Paid'
+                  : initiate.isPending && pendingGateway === gateway.slug
+                    ? `Opening ${gateway.name}…`
+                    : `Pay with ${gateway.name}`}
+              </Button>
+            ))}
+          </div>
+          {!paid && (
+            <p className="mt-3 flex items-center gap-1.5 text-xs text-[#7b766f]">
+              <LockKeyhole size={13} aria-hidden="true" />
+              Checkout opens securely with the payment provider. Your form answers stay saved here.
+            </p>
+          )}
         </div>
       )}
 
-      {initiate.isError && (
-        <p className="mt-3 text-sm text-[#c64545]">
-          {(initiate.error as Error)?.message ?? 'Could not start payment.'}
-        </p>
+      {(paymentIssue || initiate.isError) && (
+        <div className="mt-4 overflow-hidden rounded-xl border border-[#e6bf72] bg-[#fffaf0]" role="alert">
+          <div className="flex items-start gap-3 p-4">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f9e7bd] text-[#946313]">
+              <AlertTriangle size={18} aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-[#4d3915]">
+                {paymentIssue?.title ?? 'Checkout could not be opened'}
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-[#725a2b]">
+                {paymentIssue?.message ?? 'Your answers are safe. Please try again or choose another payment method.'}
+              </p>
+              {paymentIssue?.reference && (
+                <p className="mt-2 text-xs text-[#8b7449]">
+                  Support reference: <span className="font-mono font-medium">{paymentIssue.reference}</span>
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 border-t border-[#ead5a8] bg-[#fff7e6] px-4 py-3">
+            {paymentIssue?.retryable && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => initiate.mutate(paymentIssue.gatewaySlug as 'paypal' | 'xendit')}
+                disabled={initiate.isPending}
+              >
+                <RotateCcw size={14} aria-hidden="true" />
+                Try again
+              </Button>
+            )}
+            {data.gateways.length > 1 && (
+              <span className="text-xs text-[#725a2b]">Or select another payment method above.</span>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )

@@ -94,8 +94,8 @@ function DocPage() {
   const readingMinutes = Math.max(3, Math.ceil(docData.content.split(/\s+/).length / 220));
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-10">
-      <div className="flex gap-10">
+    <div className="mx-auto max-w-[1440px] px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+      <div className="flex gap-8 2xl:gap-12">
         <DocSidebar currentSlug={slug} allDocs={sorted} headings={docData.headings} />
 
         <main className="min-w-0 flex-1">
@@ -107,7 +107,7 @@ function DocPage() {
             <span className="truncate text-[#57544d]">{docData.title}</span>
           </div>
 
-          <header className="mb-8 rounded-lg border border-[#e6dfd8] bg-[#efe9de] p-6 sm:p-8">
+          <header className="mb-8 overflow-hidden rounded-2xl border border-[#e4ddd3] bg-[linear-gradient(135deg,#f2ece2_0%,#f7f3ed_62%,#efe4d9_100%)] p-6 shadow-[0_14px_40px_rgba(59,45,35,0.06)] sm:p-9 lg:p-11">
             <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-[#6c6a64]">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-[#faf9f5] px-3 py-1 text-xs font-medium text-[#cc785c]">
                 <BookOpen size={13} />
@@ -119,7 +119,7 @@ function DocPage() {
               </span>
             </div>
 
-            <h1 className="max-w-3xl text-4xl font-semibold leading-tight tracking-tight text-[#141413] sm:text-5xl">
+            <h1 className="max-w-4xl text-4xl font-semibold leading-[1.08] tracking-[-0.035em] text-[#141413] sm:text-5xl lg:text-[3.5rem]">
               {docData.title}
             </h1>
             {docData.description && (
@@ -162,8 +162,10 @@ function DocPage() {
             </details>
           )}
 
-          <article className="min-w-0 rounded-lg border border-[#e6dfd8] bg-white px-5 py-7 shadow-sm sm:px-8 lg:px-10">
-            <MarkdownRenderer content={docData.content} />
+          <article className="min-w-0 rounded-2xl border border-[#e6dfd8] bg-white px-5 py-8 shadow-[0_18px_50px_rgba(42,34,27,0.055)] sm:px-9 sm:py-11 lg:px-12 lg:py-14">
+            <div className="mx-auto max-w-[820px]">
+              <MarkdownRenderer content={docData.content} />
+            </div>
           </article>
 
           <nav className="mt-8 grid gap-4 border-t border-[#e6dfd8] pt-8 sm:grid-cols-2">

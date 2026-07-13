@@ -42,7 +42,13 @@ async function main() {
       EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = 'payments' AND column_name = 'payment_url'
-      ) AS has_payment_recovery_link
+      ) AS has_payment_recovery_link,
+      EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'form_templates'
+      ) AS has_form_templates,
+      to_regprocedure('public.replace_page_form(integer,jsonb,jsonb)') IS NOT NULL
+        AS has_replace_page_form
   `
 
   if (
@@ -51,7 +57,9 @@ async function main() {
     !compatibility?.has_payment_events ||
     !compatibility?.has_payment_page_session ||
     !compatibility?.has_webhook_endpoint_key ||
-    !compatibility?.has_payment_recovery_link
+    !compatibility?.has_payment_recovery_link ||
+    !compatibility?.has_form_templates ||
+    !compatibility?.has_replace_page_form
   ) {
     throw new Error(
       'Database schema is incompatible: run npm run db:prepare before starting the app.',

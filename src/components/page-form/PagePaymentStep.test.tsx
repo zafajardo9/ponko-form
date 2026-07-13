@@ -58,7 +58,41 @@ describe('PagePaymentStep recovery', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Pay with PayPal' }))
 
-    expect(await screen.findByRole('button', { name: 'Connecting to PayPal…' })).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Opening PayPal…' })).toBeTruthy()
     expect(serverFns.initiatePagePayment).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows a recoverable checkout problem with a support reference', async () => {
+    serverFns.getPagePaymentOptions.mockResolvedValue({
+      amount: 18894.29,
+      currency: 'PHP',
+      gateways: [
+        { slug: 'paypal', name: 'PayPal' },
+        { slug: 'xendit', name: 'Xendit' },
+      ],
+      breakdown: [],
+      showBreakdown: false,
+      missingReferences: [],
+      paymentStatus: null,
+    })
+    serverFns.initiatePagePayment.mockResolvedValue({
+      paymentUrl: null,
+      issue: {
+        code: 'gateway_configuration',
+        title: 'PayPal could not open checkout',
+        message: 'This payment method needs attention from the form owner.',
+        reference: 'PAY-000005',
+        gatewaySlug: 'paypal',
+        retryable: true,
+      },
+    })
+    renderPaymentStep()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Pay with PayPal' }))
+
+    expect((await screen.findByRole('alert')).textContent).toContain('PayPal could not open checkout')
+    expect(screen.getByText(/PAY-000005/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy()
+    expect(screen.getByText(/select another payment method/i)).toBeTruthy()
   })
 })
