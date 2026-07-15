@@ -13,8 +13,8 @@ Multi-tenant form builder with flow automation, payment integration, and multi-s
 ## 🚀 Quick Start
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Visit [http://localhost:3000](http://localhost:3000).
@@ -39,19 +39,41 @@ The [`memory-ponko/`](memory-ponko/) directory contains everything you need to u
 | [`docs/flow-builder-guide.md`](docs/flow-builder-guide.md) | Complete technical reference — node types, variables, expressions, runtime, API |
 | [`docs/flow-form-guide.md`](docs/flow-form-guide.md) | Tutorial & computation handbook — step-by-step building, patterns, troubleshooting |
 
+## Deploy to Render
+
+The repository includes a [`render.yaml`](render.yaml) Blueprint for a Render
+Node.js web service. In Render, choose **New → Blueprint**, connect this
+repository, and provide the secret values requested by the Blueprint:
+
+- `DATABASE_URL`
+- `VITE_CLERK_PUBLISHABLE_KEY`
+- `CLERK_PUBLISHABLE_KEY` (use the same `pk_...` value)
+- `CLERK_SECRET_KEY`
+- `CREDENTIALS_ENCRYPTION_KEY`
+
+The build installs the frozen pnpm lockfile, compiles the application, applies
+the idempotent database migrations, validates the schema, and seeds built-in
+form templates. The start command only starts the Render server, keeping free
+tier cold starts fast. Health checks use `/api/health`.
+
+In Clerk, allow the generated `https://<service-name>.onrender.com` domain. For
+Xendit, configure the webhook URL shown in **Settings → Integrations** after the
+service is live. PayPal and Xendit return URLs are generated from the active
+Render request domain.
+
 ## 🧪 Scripts
 
 ```bash
 # Database
-npm run db:generate          # Generate Drizzle migration
-npm run db:migrate           # Apply migrations
-npm run db:seed-flow         # Seed Payment Plan sample flow
-npm run db:seed-service-flow # Seed Service Order sample flow
+pnpm db:generate          # Generate Drizzle migration
+pnpm db:migrate           # Apply migrations
+pnpm db:seed-flow         # Seed Payment Plan sample flow
+pnpm db:seed-service-flow # Seed Service Order sample flow
 
 # Development
-npm run dev                  # Start dev server
-npm run build                # Production build
-npm run test                 # Run tests
+pnpm dev                  # Start dev server
+pnpm build                # Production build
+pnpm test                 # Run tests
 ```
 
 ## 🏗️ Tech Stack
@@ -65,4 +87,4 @@ npm run test                 # Run tests
 | **Auth** | [Clerk](https://clerk.com) |
 | **Flow Canvas** | [React Flow](https://xyflow.com) |
 | **Expression Engine** | [math.js](https://mathjs.org) |
-| **Deployment** | Vercel (Node.js serverless) |
+| **Deployment** | Render (long-running Node.js web service) |

@@ -194,6 +194,13 @@ export function validateFieldRules(
   field: PageField,
   value: unknown,
 ): string | null {
+  if (
+    field.fieldType === 'satisfaction' &&
+    !isEmpty(value) &&
+    !field.options?.some((option) => option.value === String(value))
+  ) {
+    return `${field.label || 'This field'} needs a valid rating.`
+  }
   const rules = field.validationRules
   if (!rules) return null
   if (isEmpty(value)) {

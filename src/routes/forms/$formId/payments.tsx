@@ -13,7 +13,7 @@ import {
 import { Badge } from "../../../components/ui/Badge";
 
 export const Route = createFileRoute("/forms/$formId/payments")({
-  beforeLoad: () => requireAuth(),
+  beforeLoad: ({ location }) => requireAuth({ data: { returnTo: location.href } }),
   component: PaymentsPage,
 });
 
@@ -271,21 +271,9 @@ function PaymentsPage() {
 
 function Breadcrumbs({
   formId,
-  onCopyLink,
-  onReplaceLink,
-  recoveryBusy,
-  recoveryMessage,
-  onEmailLink,
-  emailing,
   formTitle,
 }: {
   formId: string;
-  onCopyLink: () => void;
-  onReplaceLink: () => void;
-  recoveryBusy: boolean;
-  recoveryMessage: string | null;
-  onEmailLink: () => void;
-  emailing: boolean;
   formTitle?: string;
 }) {
   return (
@@ -314,6 +302,12 @@ function PaymentDetailDialog({
   onVerify,
   verifying,
   formId,
+  onCopyLink,
+  onReplaceLink,
+  recoveryBusy,
+  recoveryMessage,
+  onEmailLink,
+  emailing,
 }: {
   payment: PaymentViewRow;
   onClose: () => void;
@@ -321,6 +315,12 @@ function PaymentDetailDialog({
   onVerify: () => void;
   verifying: boolean;
   formId: string;
+  onCopyLink: () => void;
+  onReplaceLink: () => void;
+  recoveryBusy: boolean;
+  recoveryMessage: string | null;
+  onEmailLink: () => void;
+  emailing: boolean;
 }) {
   // Close on Escape.
   useEffect(() => {

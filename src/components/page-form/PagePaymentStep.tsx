@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { ensurePagePaymentDraft, getPagePaymentOptions, initiatePagePayment } from '../../lib/server-fns/page-forms'
 import { Button } from '../ui/Button'
@@ -37,10 +37,15 @@ export function PagePaymentStep({ sessionId, pageId, onPaymentStatusChange }: Pa
     mutationFn: () => ensurePagePaymentDraft({ data: { sessionId, pageId } }),
   })
   const paid = data?.paymentStatus === 'completed'
+  const paymentStatusCallbackRef = useRef(onPaymentStatusChange)
 
   useEffect(() => {
-    onPaymentStatusChange?.(paid)
-  }, [onPaymentStatusChange, paid])
+    paymentStatusCallbackRef.current = onPaymentStatusChange
+  }, [onPaymentStatusChange])
+
+  useEffect(() => {
+    paymentStatusCallbackRef.current?.(paid)
+  }, [paid])
 
   useEffect(() => {
     ensureDraft.mutate()

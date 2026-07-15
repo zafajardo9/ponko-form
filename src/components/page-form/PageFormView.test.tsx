@@ -11,6 +11,9 @@ const serverFns = vi.hoisted(() => ({
   advancePageSession: vi.fn(),
   completePageSubmission: vi.fn(),
   getPageSessionData: vi.fn(),
+  ensurePagePaymentDraft: vi.fn(),
+  getPagePaymentOptions: vi.fn(),
+  initiatePagePayment: vi.fn(),
 }))
 
 vi.mock('../../lib/server-fns/page-forms', () => serverFns)
@@ -86,11 +89,15 @@ const pages = [
   },
 ] as FormPage[]
 
-function renderPageForm(testPages = pages, description?: string) {
+function renderPageForm(
+  testPages = pages,
+  description?: string,
+  emailSurvey?: { token: string; rating: string; bindVariable: string },
+) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <PageFormView formId={1} title="Contact form" description={description} pages={testPages} />
+      <PageFormView formId={1} title="Contact form" description={description} pages={testPages} emailSurvey={emailSurvey} />
     </QueryClientProvider>,
   )
 }
@@ -119,6 +126,16 @@ describe('PageFormView session resilience', () => {
   beforeEach(() => {
     serverFns.advancePageSession.mockResolvedValue({ id: 10 })
     serverFns.completePageSubmission.mockResolvedValue({})
+    serverFns.ensurePagePaymentDraft.mockResolvedValue({ submissionId: 1 })
+    serverFns.getPagePaymentOptions.mockResolvedValue({
+      amount: 25,
+      currency: 'USD',
+      gateways: [{ slug: 'paypal', name: 'PayPal' }],
+      breakdown: [],
+      showBreakdown: false,
+      missingReferences: [],
+      paymentStatus: null,
+    })
   })
 
   afterEach(() => {
@@ -198,11 +215,65 @@ describe('PageFormView session resilience', () => {
     expect(screen.queryByRole('button', { name: 'Submit' })).toBeNull()
   })
 
+  it('starts an email survey session with its rating preselected', async () => {
+    const surveyPages = [{
+      ...pages[0],
+      fields: [{
+        ...pages[0].fields[0],
+        fieldType: 'satisfaction' as const,
+        label: 'Satisfaction',
+        bindVariable: 'satisfaction_score',
+        options: [
+          { label: 'Poor', value: '1' },
+          { label: 'Excellent', value: '5' },
+        ],
+      }],
+    }, pages[1]] as FormPage[]
+    serverFns.startPageSession.mockResolvedValue({
+      id: 10,
+      currentPageIndex: 0,
+      collectedData: { satisfaction_score: '5' },
+      status: 'in_progress',
+    })
+
+    renderPageForm(surveyPages, undefined, {
+      token: 'a'.repeat(43),
+      rating: '5',
+      bindVariable: 'satisfaction_score',
+    })
+
+    expect((screen.getByLabelText('Satisfaction') as HTMLInputElement).value).toBe('5')
+    await waitFor(() => expect(serverFns.startPageSession).toHaveBeenCalledWith({
+      data: {
+        formId: 1,
+        clientToken: expect.any(String),
+        emailSurveyToken: 'a'.repeat(43),
+        emailSurveyRating: '5',
+      },
+    }))
+  })
+
   it('shows a payment preparation state until a session exists', () => {
     serverFns.startPageSession.mockReturnValue(new Promise(() => undefined))
     renderPageForm([{ ...pages[0], hasPayment: true, fields: [] }, pages[1]])
 
     expect(screen.getByText('Preparing secure payment…')).toBeTruthy()
+  })
+
+  it('does not loop when an unpaid payment page reports its status', async () => {
+    serverFns.startPageSession.mockResolvedValue({ id: 10 })
+    const paymentPages = [{ ...pages[0], hasPayment: true, fields: [] }, pages[1]]
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    renderPageForm(paymentPages)
+
+    expect(await screen.findByText('Amount due')).toBeTruthy()
+    await waitFor(() => expect(serverFns.getPagePaymentOptions).toHaveBeenCalledTimes(1))
+    expect(
+      consoleError.mock.calls.some((call) =>
+        call.some((value) => String(value).includes('Maximum update depth exceeded')),
+      ),
+    ).toBe(false)
   })
 
   it('shows only the recorded confirmation when a completed payment session resumes', async () => {

@@ -5,7 +5,7 @@ import { Card } from '../../components/ui/Card'
 import { Puzzle } from 'lucide-react'
 
 export const Route = createFileRoute('/settings/')({
-  beforeLoad: () => requireAuth(),
+  beforeLoad: ({ location }) => requireAuth({ data: { returnTo: location.href } }),
   component: SettingsPage,
 })
 

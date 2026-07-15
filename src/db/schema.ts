@@ -31,6 +31,7 @@ export const fieldTypeEnum = pgEnum('field_type', [
   'address',
   'computation',
   'file_upload',
+  'satisfaction',
 ])
 export const paymentStatusEnum = pgEnum('payment_status', [
   'pending',
@@ -124,7 +125,7 @@ export const formFields = pgTable(
     label: varchar('label', { length: 255 }).notNull(),
     placeholder: text('placeholder'),
     required: boolean('required').default(false).notNull(),
-    options: jsonb('options').$type<{ label: string; value: string; price?: number | null }[]>(),
+    options: jsonb('options').$type<{ label: string; value: string; emoji?: string | null; price?: number | null }[]>(),
     order: integer('order').notNull().default(0),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
@@ -199,6 +200,7 @@ export const formPageFields = pgTable(
     options: jsonb('options').$type<{
       label: string
       value: string
+      emoji?: string | null
       price?: number | null
       priceReference?: string | null
       additionalPrice?: number | null
@@ -298,6 +300,33 @@ export const formSubmissions = pgTable(
   (table) => [index('form_submissions_form_id_idx').on(table.formId)],
 )
 
+export const emailSurveyInvitations = pgTable(
+  'email_survey_invitations',
+  {
+    id: serial().primaryKey(),
+    formId: integer('form_id')
+      .notNull()
+      .references(() => forms.id, { onDelete: 'cascade' }),
+    fieldId: integer('field_id')
+      .notNull()
+      .references(() => formPageFields.id, { onDelete: 'cascade' }),
+    tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+    recipientReference: varchar('recipient_reference', { length: 255 }),
+    formSubmissionId: integer('form_submission_id').references(
+      () => formSubmissions.id,
+      { onDelete: 'set null' },
+    ),
+    expiresAt: timestamp('expires_at').notNull(),
+    usedAt: timestamp('used_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('email_survey_invitations_token_hash_idx').on(table.tokenHash),
+    index('email_survey_invitations_form_id_idx').on(table.formId),
+    index('email_survey_invitations_field_id_idx').on(table.fieldId),
+  ],
+)
+
 export const formSubmissionSessions = pgTable(
   'form_submission_sessions',
   {
@@ -310,6 +339,10 @@ export const formSubmissionSessions = pgTable(
       { onDelete: 'set null' },
     ),
     clientToken: varchar('client_token', { length: 64 }),
+    emailSurveyInvitationId: integer('email_survey_invitation_id').references(
+      () => emailSurveyInvitations.id,
+      { onDelete: 'set null' },
+    ),
     currentPageIndex: integer('current_page_index').notNull().default(0),
     collectedData: jsonb('collected_data').$type<Record<string, unknown>>().notNull().default({}),
     status: varchar('status', { length: 20 })
@@ -323,6 +356,7 @@ export const formSubmissionSessions = pgTable(
   (table) => [
     index('form_submission_sessions_form_id_idx').on(table.formId),
     uniqueIndex('form_submission_sessions_form_id_client_token_idx').on(table.formId, table.clientToken),
+    uniqueIndex('form_submission_sessions_email_survey_invitation_idx').on(table.emailSurveyInvitationId),
   ],
 )
 

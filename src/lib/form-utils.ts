@@ -13,11 +13,11 @@ function isAddressEmpty(field: FieldConfig, value: FieldValue) {
 }
 
 export function validateField(field: FieldConfig, value: FieldValue): string | null {
-  const strVal = Array.isArray(value)
+  const strVal = String(Array.isArray(value)
     ? value.join('')
     : value && typeof value === 'object'
       ? Object.values(value).join('')
-      : value
+      : value ?? '')
   const arrVal = Array.isArray(value) ? value : []
 
   if (field.required) {
@@ -32,6 +32,10 @@ export function validateField(field: FieldConfig, value: FieldValue): string | n
 
   if (strVal && field.type === 'number') {
     if (isNaN(Number(strVal))) return 'Please enter a valid number'
+  }
+
+  if (strVal && field.type === 'satisfaction' && !field.options?.some((option) => option.value === String(strVal))) {
+    return 'Please select a valid rating'
   }
 
   return null

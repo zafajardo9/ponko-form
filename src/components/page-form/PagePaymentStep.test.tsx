@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PagePaymentStep } from './PagePaymentStep'
 
@@ -94,5 +94,45 @@ describe('PagePaymentStep recovery', () => {
     expect(screen.getByText(/PAY-000005/)).toBeTruthy()
     expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy()
     expect(screen.getByText(/select another payment method/i)).toBeTruthy()
+  })
+
+  it('does not report the same status again when only the callback identity changes', async () => {
+    serverFns.getPagePaymentOptions.mockResolvedValue({
+      amount: 25,
+      currency: 'USD',
+      gateways: [{ slug: 'paypal', name: 'PayPal' }],
+      breakdown: [],
+      showBreakdown: false,
+      missingReferences: [],
+      paymentStatus: null,
+    })
+    const firstCallback = vi.fn()
+    const secondCallback = vi.fn()
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    })
+    const view = render(
+      <QueryClientProvider client={client}>
+        <PagePaymentStep
+          sessionId={10}
+          pageId={20}
+          onPaymentStatusChange={firstCallback}
+        />
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => expect(firstCallback).toHaveBeenCalledOnce())
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <PagePaymentStep
+          sessionId={10}
+          pageId={20}
+          onPaymentStatusChange={secondCallback}
+        />
+      </QueryClientProvider>,
+    )
+
+    await act(async () => undefined)
+    expect(secondCallback).not.toHaveBeenCalled()
   })
 })

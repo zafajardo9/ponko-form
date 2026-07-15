@@ -5,6 +5,7 @@ import { getPublicForm } from '../../lib/server-fns/forms'
 import { getFlow } from '../../lib/server-fns/flows'
 import { getPageForm } from '../../lib/server-fns/page-forms'
 import { submitFormResponse } from '../../lib/server-fns/submissions'
+import { getEmailSurveyPrefill } from '../../lib/server-fns/email-surveys'
 import { FieldRenderer } from '../form-builder/fields/FieldRenderer'
 import { FlowExecutionContainer } from '../flow-execution/FlowExecutionContainer'
 import { PageFormView } from '../page-form/PageFormView'
@@ -22,6 +23,8 @@ interface PublicFormViewProps {
    * uses a transparent background so it blends into the parent site.
    */
   embed?: boolean
+  emailSurveyToken?: string | null
+  emailSurveyRating?: string | null
 }
 
 /**
@@ -32,7 +35,12 @@ interface PublicFormViewProps {
  * Both render without the app navigation; the only difference is the `embed`
  * layout, which is responsive to whatever container the iframe is placed in.
  */
-export function PublicFormView({ publicId, embed = false }: PublicFormViewProps) {
+export function PublicFormView({
+  publicId,
+  embed = false,
+  emailSurveyToken,
+  emailSurveyRating,
+}: PublicFormViewProps) {
   const [values, setValues] = useState<Record<number, FieldValue>>({})
   const [errors, setErrors] = useState<Record<number, string>>({})
   const [submitted, setSubmitted] = useState(false)
@@ -46,6 +54,15 @@ export function PublicFormView({ publicId, embed = false }: PublicFormViewProps)
     retryDelay: (attempt) => Math.min(750 * 2 ** attempt, 3_000),
   })
   const { data: form, isLoading: formsLoading } = formQuery
+  const hasEmailSurveyLink = Boolean(emailSurveyToken && emailSurveyRating)
+  const emailSurveyQuery = useQuery({
+    queryKey: ['email-survey-prefill', publicId, emailSurveyToken, emailSurveyRating],
+    queryFn: () => getEmailSurveyPrefill({
+      data: { publicId, token: emailSurveyToken!, rating: emailSurveyRating! },
+    }),
+    enabled: hasEmailSurveyLink,
+    retry: false,
+  })
 
   useEffect(() => {
     if (!form?.title) return
@@ -106,8 +123,8 @@ export function PublicFormView({ publicId, embed = false }: PublicFormViewProps)
   const outerClass = embed ? 'w-full' : 'min-h-screen bg-[var(--ponko-bg,#faf9f5)]'
 
   const detailsLoading = !!form && (fieldsLoading || flowLoading || pagesLoading)
-  const loading = formsLoading || detailsLoading
-  const loadError = formQuery.error ?? fieldsQuery.error ?? flowQuery.error ?? pageFormQuery.error
+  const loading = formsLoading || detailsLoading || (hasEmailSurveyLink && emailSurveyQuery.isLoading)
+  const loadError = formQuery.error ?? fieldsQuery.error ?? flowQuery.error ?? pageFormQuery.error ?? emailSurveyQuery.error
 
   useEffect(() => {
     if (!loading) {
@@ -123,6 +140,7 @@ export function PublicFormView({ publicId, embed = false }: PublicFormViewProps)
     if (fieldsQuery.isError) void fieldsQuery.refetch()
     if (flowQuery.isError) void flowQuery.refetch()
     if (pageFormQuery.isError) void pageFormQuery.refetch()
+    if (emailSurveyQuery.isError) void emailSurveyQuery.refetch()
   }
 
   if (loadError) {
@@ -166,6 +184,24 @@ export function PublicFormView({ publicId, embed = false }: PublicFormViewProps)
     )
   }
 
+  if (hasEmailSurveyLink && emailSurveyQuery.data && !emailSurveyQuery.data.valid) {
+    const expired = emailSurveyQuery.data.reason === 'expired'
+    return (
+      <div className={outerClass} style={themed}>
+        <div className={wrapperClass}>
+          <Card className="py-16 text-center">
+            <h1 className="text-2xl font-medium text-[#141413]">
+              {expired ? 'This feedback link has expired' : 'This feedback link is not valid'}
+            </h1>
+            <p className="mt-2 text-[#6c6a64]">
+              Ask the sender for a new survey link, or open the regular form without the email rating link.
+            </p>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
   if (pageForm?.pages.length) {
     return (
       <PageFormView
@@ -176,6 +212,11 @@ export function PublicFormView({ publicId, embed = false }: PublicFormViewProps)
         references={pageForm.references ?? []}
         theme={theme}
         embed={embed}
+        emailSurvey={emailSurveyQuery.data?.valid ? {
+          token: emailSurveyToken!,
+          rating: emailSurveyQuery.data.rating,
+          bindVariable: emailSurveyQuery.data.bindVariable,
+        } : undefined}
       />
     )
   }

@@ -245,7 +245,7 @@ function ChartTooltip({
 // ── Route ──
 
 export const Route = createFileRoute("/dashboard/")({
-  beforeLoad: () => requireAuth(),
+  beforeLoad: ({ location }) => requireAuth({ data: { returnTo: location.href } }),
   component: DashboardPage,
 });
 

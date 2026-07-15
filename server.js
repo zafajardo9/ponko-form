@@ -1,8 +1,7 @@
 /**
- * Render / generic Node.js server entry point for TanStack Start.
+ * Render Node.js server entry point for TanStack Start.
  *
- * Unlike Vercel (where static files are served by the CDN via outputDirectory),
- * Render needs a single Node.js process that serves both:
+ * Render runs one long-lived Node.js process that serves both:
  *   1. Static assets from dist/client/ (JS, CSS, images, fonts)
  *   2. SSR / server functions via the TanStack Start fetch handler
  *

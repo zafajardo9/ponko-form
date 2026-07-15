@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { themeVars, type FormTheme } from '../../lib/theme'
 import {
@@ -34,6 +34,11 @@ interface PageFormViewProps {
   embed?: boolean
   preview?: boolean
   resumeSessionId?: number
+  emailSurvey?: {
+    token: string
+    rating: string
+    bindVariable: string
+  }
 }
 
 function interpolate(template: string, data: Record<string, unknown>) {
@@ -69,9 +74,12 @@ export function PageFormView({
   embed = false,
   preview = false,
   resumeSessionId,
+  emailSurvey,
 }: PageFormViewProps) {
   const [currentPageIndex, setCurrentPageIndex] = useState(0)
-  const [data, setData] = useState<Record<string, unknown>>({})
+  const [data, setData] = useState<Record<string, unknown>>(() =>
+    emailSurvey ? { [emailSurvey.bindVariable]: emailSurvey.rating } : {},
+  )
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [sessionId, setSessionId] = useState<number | null>(resumeSessionId ?? null)
   const [paidPages, setPaidPages] = useState<Record<number, boolean>>({})
@@ -116,12 +124,24 @@ export function PageFormView({
 
   const startMut = useMutation({
     mutationFn: (id: number) => startPageSession({
-      data: { formId: id, clientToken: sessionClientToken },
+      data: {
+        formId: id,
+        clientToken: sessionClientToken,
+        emailSurveyToken: emailSurvey?.token,
+        emailSurveyRating: emailSurvey?.rating,
+      },
     }),
     retry: 2,
     retryDelay: (attempt) => Math.min(750 * 2 ** attempt, 3_000),
     onSuccess: (session) => {
       setSessionId(session.id)
+      if (session.collectedData && typeof session.collectedData === 'object') {
+        setData((current) => session.status === 'completed'
+          ? session.collectedData as Record<string, unknown>
+          : { ...session.collectedData, ...current })
+      }
+      if (typeof session.currentPageIndex === 'number') setCurrentPageIndex(session.currentPageIndex)
+      if (session.status === 'completed') setCompleted(true)
       setPaymentGateMessage('')
     },
     onError: () => {
@@ -175,6 +195,15 @@ export function PageFormView({
   const allFields = useMemo(() => pages.flatMap((page) => page.fields), [pages])
   const currentPage = pages[currentPageIndex]
   const currentPaymentPaid = currentPage?.hasPayment ? Boolean(paidPages[currentPage.id]) : true
+  const handlePaymentStatusChange = useCallback((paid: boolean) => {
+    const pageId = currentPage?.id
+    if (!pageId) return
+    setPaidPages((previous) => {
+      if (previous[pageId] === paid) return previous
+      return { ...previous, [pageId]: paid }
+    })
+    if (paid) setPaymentGateMessage('')
+  }, [currentPage?.id])
   const computedData = useMemo(
     () => applyComputedFieldValues(allFields, data, references),
     [allFields, data, references],
@@ -343,10 +372,7 @@ export function PageFormView({
               <PagePaymentStep
                 sessionId={sessionId}
                 pageId={currentPage.id}
-                onPaymentStatusChange={(paid) => {
-                  setPaidPages((prev) => ({ ...prev, [currentPage.id]: paid }))
-                  if (paid) setPaymentGateMessage('')
-                }}
+                onPaymentStatusChange={handlePaymentStatusChange}
               />
             ) : (
               <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-5 text-center" role="status">

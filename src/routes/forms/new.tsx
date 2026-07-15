@@ -11,7 +11,7 @@ import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 
 export const Route = createFileRoute('/forms/new')({
-  beforeLoad: () => requireAuth(),
+  beforeLoad: ({ location }) => requireAuth({ data: { returnTo: location.href } }),
   component: NewFormPage,
 })
 

@@ -20,7 +20,7 @@ export interface TemplatePageData {
   fields: TemplateFieldData[]
 }
 
-export type FormTemplateCategory = 'contact' | 'support' | 'sales' | 'general' | 'custom'
+export type FormTemplateCategory = 'contact' | 'support' | 'sales' | 'survey' | 'general' | 'custom'
 
 export interface FormTemplateRecord {
   id: number

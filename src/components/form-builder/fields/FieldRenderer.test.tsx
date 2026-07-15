@@ -44,6 +44,25 @@ describe('FieldRenderer choice and calendar controls', () => {
     expect(onChange).toHaveBeenCalledWith('identity')
   })
 
+  it('selects a satisfaction rating', () => {
+    const onChange = vi.fn()
+    const field: FieldConfig = {
+      id: 9,
+      type: 'satisfaction',
+      label: 'How satisfied are you?',
+      required: true,
+      options: [
+        { label: 'Dissatisfied', value: '1', emoji: '😕' },
+        { label: 'Satisfied', value: '5', emoji: '😍' },
+      ],
+    }
+
+    render(<FieldRenderer field={field} value="" onChange={onChange} />)
+
+    fireEvent.click(screen.getByRole('radio', { name: /^Satisfied$/i }))
+    expect(onChange).toHaveBeenCalledWith('5')
+  })
+
   it('changes and clears a calendar value', () => {
     const onChange = vi.fn()
     const dateField: FieldConfig = {

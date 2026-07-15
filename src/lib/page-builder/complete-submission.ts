@@ -1,8 +1,9 @@
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { db } from '../../db/index'
 import {
   formSubmissionSessions,
   formSubmissions,
+  emailSurveyInvitations,
   payments,
 } from '../../db/schema'
 import {
@@ -85,6 +86,15 @@ export async function completePageSubmissionRecord(
   const paymentId = Number(meta.__paymentId)
   if (Number.isFinite(paymentId)) {
     await db.update(payments).set({ formSubmissionId: submission.id }).where(eq(payments.id, paymentId))
+  }
+  if (session.emailSurveyInvitationId) {
+    await db
+      .update(emailSurveyInvitations)
+      .set({
+        formSubmissionId: submission.id,
+        usedAt: sql`coalesce(${emailSurveyInvitations.usedAt}, now())`,
+      })
+      .where(eq(emailSurveyInvitations.id, session.emailSurveyInvitationId))
   }
 
   const [updated] = await db

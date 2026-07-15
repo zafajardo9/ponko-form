@@ -20,6 +20,7 @@ export type FieldValue = string | string[] | number | AddressValue | UploadFileV
 export interface FieldOption {
   label: string
   value: string
+  emoji?: string | null
   price?: number | null
   priceReference?: string | null
   additionalPrice?: number | null
@@ -28,7 +29,7 @@ export interface FieldOption {
 
 export interface FieldConfig {
   id: number
-  type: 'text' | 'email' | 'number' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'payment' | 'date' | 'time' | 'datetime' | 'content' | 'media' | 'address' | 'computation' | 'file_upload'
+  type: 'text' | 'email' | 'number' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'payment' | 'date' | 'time' | 'datetime' | 'content' | 'media' | 'address' | 'computation' | 'file_upload' | 'satisfaction'
   label: string
   placeholder?: string | null
   required: boolean
@@ -77,6 +78,10 @@ function formatDateValue(value: string): string {
   }).format(date)
 }
 
+function isImageUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value)
+}
+
 export function FieldRenderer({ field, value, onChange, error, readOnly }: FieldRendererProps) {
   const inputBase =
     'w-full rounded-[var(--ponko-radius,6px)] border border-[#e6dfd8] bg-[#faf9f5] px-3.5 py-2.5 text-sm text-[#141413] placeholder:text-[#8e8b82] outline-none focus:border-[var(--ponko-primary,#cc785c)] focus:ring-2 focus:ring-[var(--ponko-primary-soft,#cc785c29)] transition-colors disabled:opacity-60'
@@ -88,7 +93,9 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
     : value && typeof value === 'object'
       ? ''
       : String(value ?? '')
-  const arrValue = Array.isArray(value) ? value : []
+  const arrValue: string[] = Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : []
   const addressValue =
     value && typeof value === 'object' && !Array.isArray(value)
       ? { country: 'Philippines', ...value }
@@ -347,6 +354,45 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
               <span className="text-sm font-medium leading-5 text-[#3d3d3a]">{opt.label}</span>
             </label>
           )})}
+        </div>
+      )}
+
+      {field.type === 'satisfaction' && (
+        <div className="overflow-x-auto pb-1" role="radiogroup" aria-label={field.label}>
+          <div className="flex min-w-max gap-2 sm:min-w-0">
+            {options.map((opt) => {
+              const selected = strValue === opt.value
+              const visual = opt.emoji?.trim() || opt.value
+              return (
+                <label
+                  key={opt.value}
+                  className={`group flex min-h-24 min-w-24 flex-1 cursor-pointer flex-col items-center justify-center gap-2 rounded-[var(--ponko-radius,10px)] border px-3 py-3 text-center transition-all focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] sm:min-w-0 ${
+                    selected
+                      ? 'border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary-soft,#cc785c29)] shadow-sm'
+                      : 'border-[#e6dfd8] bg-[#faf9f5] hover:border-[#cfc4b8] hover:bg-white'
+                  } ${readOnly ? 'cursor-not-allowed opacity-60' : ''}`}
+                >
+                  <input
+                    type="radio"
+                    name={`field-${field.id}`}
+                    value={opt.value}
+                    checked={selected}
+                    disabled={readOnly}
+                    onChange={() => onChange(opt.value)}
+                    className="peer sr-only"
+                  />
+                  {isImageUrl(visual) ? (
+                    <img src={visual} alt="" className="h-9 w-9 object-contain" />
+                  ) : (
+                    <span aria-hidden="true" className="whitespace-nowrap text-2xl leading-none text-[#d59b25]">
+                      {visual}
+                    </span>
+                  )}
+                  <span className="max-w-28 text-xs font-medium leading-4 text-[#3d3d3a]">{opt.label}</span>
+                </label>
+              )
+            })}
+          </div>
         </div>
       )}
 

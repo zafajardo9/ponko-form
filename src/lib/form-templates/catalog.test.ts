@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { BUILTIN_FORM_TEMPLATES } from './catalog'
 
 describe('built-in form templates', () => {
-  it('defines the five planned templates', () => {
+  it('defines the built-in templates', () => {
     expect(BUILTIN_FORM_TEMPLATES.map((template) => template.name)).toEqual([
+      'Customer Satisfaction Survey',
       'Contact Intake',
       'Support Ticket',
       'Deal Qualification',
@@ -29,5 +30,19 @@ describe('built-in form templates', () => {
     )
     expect(selectFields.length).toBeGreaterThan(0)
     expect(selectFields.every((field) => (field.options?.length ?? 0) >= 2)).toBe(true)
+  })
+
+  it('includes a ready-to-use satisfaction survey with numeric rating options', () => {
+    const survey = BUILTIN_FORM_TEMPLATES.find((template) => template.name === 'Customer Satisfaction Survey')
+    const ratings = survey?.pagesData.flatMap((page) =>
+      page.fields.filter((field) => field.fieldType === 'satisfaction'),
+    ) ?? []
+
+    expect(survey?.category).toBe('survey')
+    expect(ratings).toHaveLength(2)
+    expect(ratings.every((field) => field.required)).toBe(true)
+    expect(ratings.every((field) =>
+      (field.options?.length ?? 0) >= 2 && field.options?.every((option) => Number.isFinite(Number(option.value))),
+    )).toBe(true)
   })
 })

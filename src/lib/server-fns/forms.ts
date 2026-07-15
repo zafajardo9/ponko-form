@@ -3,7 +3,7 @@ import { auth } from '@clerk/tanstack-react-start/server'
 import { randomBytes } from 'node:crypto'
 import { db } from '../../db/index'
 import { formPageFields, formPages, formTemplates, forms, profiles } from '../../db/schema'
-import { asc, desc, eq, isNull, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, isNull, or, sql } from 'drizzle-orm'
 import type { FormTheme } from '../theme'
 import type { TemplatePageData } from '../form-templates/types'
 
@@ -207,10 +207,10 @@ export const updateForm = createServerFn({ method: 'POST' })
     const [form] = await db
       .update(forms)
       .set({ ...fields, updatedAt: new Date() })
-      .where(eq(forms.id, id))
+      .where(and(eq(forms.id, id), eq(forms.profileId, profile.id)))
       .returning()
 
-    if (!form || form.profileId !== profile.id) throw new Error('Not found')
+    if (!form) throw new Error('Not found')
     return form
   })
 

@@ -15,6 +15,7 @@ export type PageFieldType =
   | 'address'
   | 'computation'
   | 'file_upload'
+  | 'satisfaction'
 
 export type ConditionOperator =
   | 'equals'
@@ -92,6 +93,7 @@ export interface FieldValidationRules {
 export interface PageFieldOption {
   label: string
   value: string
+  emoji?: string | null
   price?: number | null
   priceReference?: string | null
   additionalPrice?: number | null

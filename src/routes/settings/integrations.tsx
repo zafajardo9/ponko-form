@@ -3,7 +3,7 @@ import { requireAuth } from '../../lib/server-fns/auth'
 import { IntegrationsHub } from '../../components/integrations/IntegrationsHub'
 
 export const Route = createFileRoute('/settings/integrations')({
-  beforeLoad: () => requireAuth(),
+  beforeLoad: ({ location }) => requireAuth({ data: { returnTo: location.href } }),
   component: IntegrationsPage,
 })
 

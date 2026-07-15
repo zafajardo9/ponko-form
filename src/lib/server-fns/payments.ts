@@ -1,5 +1,4 @@
 import { createServerFn } from '@tanstack/react-start'
-import { getRequestUrl } from '@tanstack/react-start/server'
 import { and, eq, desc } from 'drizzle-orm'
 import { db } from '../../db/index'
 import { withTimeout } from '../../db/with-timeout'
@@ -19,6 +18,7 @@ import { paymentRegistry } from '../../integrations/payments/index'
 import type { GatewayCredentials } from '../../integrations/payments/types'
 import type { FlowNode, FlowEdge, FlowVariable } from '../flow-engine/types'
 import { reconcilePayment } from '../payments/reconciliation'
+import { publicRequestOrigin } from './request-origin'
 
 /**
  * Real payment server functions (end-user, public — no auth).
@@ -104,14 +104,6 @@ async function gatewayRowId(slug: GatewaySlug, name: string): Promise<number> {
   return created.id
 }
 
-function originForReturnUrls(): string {
-  try {
-    return new URL(getRequestUrl()).origin
-  } catch {
-    return process.env.APP_URL ?? 'http://localhost:3000'
-  }
-}
-
 /**
  * getPaymentOptions({ executionId })
  * What the inline payment step needs: the amount + currency for display, and
@@ -187,7 +179,7 @@ export const initiatePayment = createServerFn({ method: 'POST', strict: false })
       throw new Error(`The form owner has not connected ${gateway.getGatewayName()}`)
     }
 
-    const origin = originForReturnUrls()
+    const origin = publicRequestOrigin()
     const base = `${origin}/forms/payment-return?executionId=${execution.id}`
     const gwId = await withTimeout(
       gatewayRowId(data.gatewaySlug, gateway.getGatewayName()),

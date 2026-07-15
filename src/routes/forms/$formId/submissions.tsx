@@ -12,7 +12,7 @@ import { DataTable } from "../../../components/ui/DataTable";
 import type { DataTableColumn } from "../../../components/ui/DataTableTypes";
 
 export const Route = createFileRoute("/forms/$formId/submissions")({
-  beforeLoad: () => requireAuth(),
+  beforeLoad: ({ location }) => requireAuth({ data: { returnTo: location.href } }),
   component: SubmissionsPage,
 });
 

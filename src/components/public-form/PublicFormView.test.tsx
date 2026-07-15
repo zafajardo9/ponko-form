@@ -11,6 +11,8 @@ const serverFns = vi.hoisted(() => ({
   getFlow: vi.fn(),
   getPageForm: vi.fn(),
   submitFormResponse: vi.fn(),
+  getEmailSurveyPrefill: vi.fn(),
+  pageFormView: vi.fn((_props: Record<string, unknown>) => null),
 }))
 
 vi.mock('../../lib/server-fns/forms', () => ({ getPublicForm: serverFns.getPublicForm }))
@@ -18,14 +20,15 @@ vi.mock('../../lib/server-fns/fields', () => ({ getFields: serverFns.getFields }
 vi.mock('../../lib/server-fns/flows', () => ({ getFlow: serverFns.getFlow }))
 vi.mock('../../lib/server-fns/page-forms', () => ({ getPageForm: serverFns.getPageForm }))
 vi.mock('../../lib/server-fns/submissions', () => ({ submitFormResponse: serverFns.submitFormResponse }))
+vi.mock('../../lib/server-fns/email-surveys', () => ({ getEmailSurveyPrefill: serverFns.getEmailSurveyPrefill }))
 vi.mock('../flow-execution/FlowExecutionContainer', () => ({ FlowExecutionContainer: () => null }))
-vi.mock('../page-form/PageFormView', () => ({ PageFormView: () => null }))
+vi.mock('../page-form/PageFormView', () => ({ PageFormView: serverFns.pageFormView }))
 
-function renderPublicForm() {
+function renderPublicForm(props: { emailSurveyToken?: string; emailSurveyRating?: string } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <PublicFormView publicId="public-form" />
+      <PublicFormView publicId="public-form" {...props} />
     </QueryClientProvider>,
   )
 }
@@ -83,5 +86,42 @@ describe('PublicFormView recovery', () => {
 
     await waitFor(() => expect(serverFns.getPublicForm).toHaveBeenCalledTimes(4))
     expect(await screen.findByRole('heading', { name: 'Form not found' })).toBeTruthy()
+  })
+
+  it('validates an email survey token and passes the preselected rating to the page form', async () => {
+    serverFns.getPublicForm.mockResolvedValue({ id: 7, title: 'Survey', description: null, theme: null })
+    serverFns.getFields.mockResolvedValue([])
+    serverFns.getFlow.mockResolvedValue(null)
+    serverFns.getPageForm.mockResolvedValue({ pages: [{ id: 1 }], references: [] })
+    serverFns.getEmailSurveyPrefill.mockResolvedValue({
+      valid: true,
+      completed: false,
+      fieldId: 9,
+      fieldLabel: 'Satisfaction',
+      bindVariable: 'satisfaction_score',
+      rating: '5',
+    })
+
+    renderPublicForm({ emailSurveyToken: 'a'.repeat(43), emailSurveyRating: '5' })
+
+    await waitFor(() => expect(serverFns.pageFormView).toHaveBeenCalled())
+    expect(serverFns.pageFormView.mock.calls.at(-1)?.[0].emailSurvey).toEqual({
+      token: 'a'.repeat(43),
+      rating: '5',
+      bindVariable: 'satisfaction_score',
+    })
+  })
+
+  it('shows an expired-link message instead of opening the form', async () => {
+    serverFns.getPublicForm.mockResolvedValue({ id: 7, title: 'Survey', description: null, theme: null })
+    serverFns.getFields.mockResolvedValue([])
+    serverFns.getFlow.mockResolvedValue(null)
+    serverFns.getPageForm.mockResolvedValue({ pages: [{ id: 1 }], references: [] })
+    serverFns.getEmailSurveyPrefill.mockResolvedValue({ valid: false, reason: 'expired' })
+
+    renderPublicForm({ emailSurveyToken: 'a'.repeat(43), emailSurveyRating: '5' })
+
+    expect(await screen.findByRole('heading', { name: /feedback link has expired/i })).toBeTruthy()
+    expect(serverFns.pageFormView).not.toHaveBeenCalled()
   })
 })

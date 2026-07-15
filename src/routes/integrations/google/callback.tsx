@@ -6,8 +6,10 @@ import {
 import { useEffect, useState } from "react";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
+import { requireAuth } from "../../../lib/server-fns/auth";
 
 export const Route = createFileRoute("/integrations/google/callback")({
+  beforeLoad: ({ location }) => requireAuth({ data: { returnTo: location.href } }),
   component: GoogleCallbackPage,
 });
 

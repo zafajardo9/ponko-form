@@ -1,4 +1,5 @@
 import type { FormTemplateCategory, TemplatePageData } from './types'
+import { satisfactionOptions } from '../page-builder/satisfaction'
 
 export interface BuiltinFormTemplate {
   name: string
@@ -12,6 +13,58 @@ const finalPage = (message: string, position: number): TemplatePageData => ({
 })
 
 export const BUILTIN_FORM_TEMPLATES: BuiltinFormTemplate[] = [
+  {
+    name: 'Customer Satisfaction Survey',
+    description: 'Measure customer satisfaction, recommendation intent, and collect actionable feedback.',
+    category: 'survey',
+    pagesData: [
+      {
+        title: 'Your Experience',
+        description: 'Tell us how we did. Your feedback helps us improve.',
+        position: 0,
+        isFinal: false,
+        fields: [
+          {
+            fieldType: 'satisfaction',
+            label: 'How satisfied are you with your experience?',
+            required: true,
+            options: satisfactionOptions('five-point'),
+            bindVariable: 'satisfaction_score',
+            position: 0,
+            width: 'full',
+          },
+          {
+            fieldType: 'satisfaction',
+            label: 'How likely are you to recommend us?',
+            required: true,
+            options: satisfactionOptions('nps'),
+            bindVariable: 'recommendation_score',
+            position: 1,
+            width: 'full',
+          },
+          {
+            fieldType: 'textarea',
+            label: 'What could we do better?',
+            placeholder: 'Share any details that would help us improve.',
+            required: false,
+            bindVariable: 'feedback',
+            position: 2,
+            width: 'full',
+          },
+          {
+            fieldType: 'email',
+            label: 'Email address',
+            placeholder: 'Optional, if you would like a follow-up',
+            required: false,
+            bindVariable: 'email',
+            position: 3,
+            width: 'full',
+          },
+        ],
+      },
+      finalPage('Thank you for sharing your feedback. Your response helps us create a better experience.', 1),
+    ],
+  },
   {
     name: 'Contact Intake',
     description: 'Collect contact inquiries with name, email, phone, company, and message.',

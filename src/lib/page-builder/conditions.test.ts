@@ -114,4 +114,19 @@ describe('page-builder conditions', () => {
       ),
     ).toBe('Use four or more.')
   })
+
+  it('rejects a satisfaction value outside the configured rating scale', () => {
+    const field = {
+      label: 'Satisfaction',
+      fieldType: 'satisfaction',
+      options: [
+        { label: 'Low', value: '1' },
+        { label: 'High', value: '5' },
+      ],
+      validationRules: null,
+    } as PageField
+
+    expect(validateFieldRules(field, '5')).toBeNull()
+    expect(validateFieldRules(field, '3')).toContain('valid rating')
+  })
 })

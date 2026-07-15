@@ -22,10 +22,25 @@ export function TemplatePreview({ template }: { template: FormTemplateRecord }) 
             {!page.isFinal && page.fields.length > 0 && (
               <div className="mt-4 grid gap-2 pl-10 sm:grid-cols-2">
                 {[...page.fields].sort((a, b) => a.position - b.position).map((field) => (
-                  <div key={field.bindVariable} className="flex items-center gap-2 text-xs text-[#6c6a64]">
-                    <ChevronRight size={12} className="text-[#b0aaa1]" />
-                    <span>{field.label}</span>
-                    {field.required && <span className="text-[#b75b47]">Required</span>}
+                  <div key={field.bindVariable} className={field.fieldType === 'satisfaction' ? 'sm:col-span-2' : ''}>
+                    <div className="flex items-center gap-2 text-xs text-[#6c6a64]">
+                      <ChevronRight size={12} className="text-[#b0aaa1]" />
+                      <span>{field.label}</span>
+                      {field.required && <span className="text-[#b75b47]">Required</span>}
+                    </div>
+                    {field.fieldType === 'satisfaction' && (
+                      <div className="mt-2 flex gap-1.5 pl-5" aria-label={`${field.label} rating preview`}>
+                        {(field.options ?? []).map((option) => (
+                          <span
+                            key={option.value}
+                            title={option.label}
+                            className="flex min-h-9 min-w-9 items-center justify-center rounded-md border border-[#e6dfd8] bg-[#faf9f5] px-2 text-sm text-[#6c6a64]"
+                          >
+                            {option.emoji || option.value}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

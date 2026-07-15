@@ -1,11 +1,11 @@
 import { createServerFn } from '@tanstack/react-start'
 import { auth } from '@clerk/tanstack-react-start/server'
-import { getRequestUrl } from '@tanstack/react-start/server'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { db } from '../../db/index'
 import { withTimeout } from '../../db/with-timeout'
 import {
   fieldConditions,
+  emailSurveyInvitations,
   formPageFields,
   formPages,
   formSubmissionSessions,
@@ -37,6 +37,8 @@ import type {
   PaymentComputation,
 } from '../page-builder/types'
 import { assertFormOwner, uniqueVarName } from './flow-helpers'
+import { emailSurveyTokenHash, validEmailSurveyToken } from './email-survey-token'
+import { publicRequestOrigin } from './request-origin'
 
 type GatewaySlug = 'paypal' | 'xendit'
 
@@ -90,14 +92,6 @@ async function gatewayRowId(slug: GatewaySlug, name: string): Promise<number> {
     .values({ name, slug, isActive: true })
     .returning({ id: paymentGateways.id })
   return created.id
-}
-
-function originForReturnUrls(): string {
-  try {
-    return new URL(getRequestUrl()).origin
-  } catch {
-    return process.env.APP_URL ?? 'http://localhost:3000'
-  }
 }
 
 async function assertFieldBindingAvailable(formId: number, bindVariable: string, excludedFieldId?: number) {
@@ -176,6 +170,15 @@ async function ensurePageBuilderFieldTypes() {
         WHERE t.typname = 'field_type' AND e.enumlabel = 'file_upload'
       ) THEN
         ALTER TYPE "public"."field_type" ADD VALUE 'file_upload';
+      END IF;
+
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_enum e
+        JOIN pg_type t ON t.oid = e.enumtypid
+        WHERE t.typname = 'field_type' AND e.enumlabel = 'satisfaction'
+      ) THEN
+        ALTER TYPE "public"."field_type" ADD VALUE 'satisfaction';
       END IF;
     END $$;
   `)
@@ -540,6 +543,17 @@ export const savePageForm = createServerFn({ method: 'POST', strict: false })
     const seenBindings = new Set<string>()
     for (const page of orderedPages) {
       for (const field of page.fields) {
+        if (field.fieldType === 'satisfaction') {
+          const options = field.options ?? []
+          const values = options.map((option) => option.value.trim())
+          if (options.length < 2) throw new Error(`Satisfaction field "${field.label}" needs at least two rating levels`)
+          if (values.some((value) => !value || !Number.isFinite(Number(value)))) {
+            throw new Error(`Satisfaction field "${field.label}" needs numeric rating values`)
+          }
+          if (new Set(values).size !== values.length) {
+            throw new Error(`Satisfaction field "${field.label}" has duplicate rating values`)
+          }
+        }
         if (referenceKeys.has(field.bindVariable)) {
           throw new Error(`"${field.bindVariable}" is already used as a reference key`)
         }
@@ -618,7 +632,12 @@ export const savePageForm = createServerFn({ method: 'POST', strict: false })
   })
 
 export const startPageSession = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: { formId: number; clientToken: string }) => data)
+  .inputValidator((data: {
+    formId: number
+    clientToken: string
+    emailSurveyToken?: string
+    emailSurveyRating?: string
+  }) => data)
   .handler(async ({ data }) => {
     if (!/^[a-zA-Z0-9_-]{16,64}$/.test(data.clientToken)) {
       throw new Error('Invalid session token')
@@ -626,6 +645,68 @@ export const startPageSession = createServerFn({ method: 'POST', strict: false }
 
     const startedAt = Date.now()
     const correlationId = data.clientToken.slice(0, 12)
+
+    if (data.emailSurveyToken || data.emailSurveyRating) {
+      if (
+        !data.emailSurveyToken ||
+        !data.emailSurveyRating ||
+        !validEmailSurveyToken(data.emailSurveyToken)
+      ) {
+        throw new Error('Invalid email survey link')
+      }
+      const [invitation] = await db
+        .select({
+          id: emailSurveyInvitations.id,
+          expiresAt: emailSurveyInvitations.expiresAt,
+          usedAt: emailSurveyInvitations.usedAt,
+          formSubmissionId: emailSurveyInvitations.formSubmissionId,
+          bindVariable: formPageFields.bindVariable,
+          options: formPageFields.options,
+        })
+        .from(emailSurveyInvitations)
+        .innerJoin(forms, eq(emailSurveyInvitations.formId, forms.id))
+        .innerJoin(formPageFields, eq(emailSurveyInvitations.fieldId, formPageFields.id))
+        .where(and(
+          eq(emailSurveyInvitations.formId, data.formId),
+          eq(emailSurveyInvitations.tokenHash, emailSurveyTokenHash(data.emailSurveyToken)),
+          eq(forms.status, 'published'),
+          eq(formPageFields.fieldType, 'satisfaction'),
+        ))
+        .limit(1)
+      const completedInvitation = Boolean(invitation?.usedAt || invitation?.formSubmissionId)
+      const options = (invitation?.options ?? []) as PageFieldOption[]
+      if (
+        !invitation ||
+        (!completedInvitation && invitation.expiresAt.getTime() <= Date.now()) ||
+        !options.some((option) => option.value === data.emailSurveyRating)
+      ) {
+        throw new Error('This email survey link is invalid or has expired')
+      }
+
+      const initialData = { [invitation.bindVariable]: data.emailSurveyRating }
+      const [session] = await db
+        .insert(formSubmissionSessions)
+        .values({
+          formId: data.formId,
+          clientToken: data.clientToken,
+          emailSurveyInvitationId: invitation.id,
+          collectedData: initialData,
+        })
+        .onConflictDoUpdate({
+          target: formSubmissionSessions.emailSurveyInvitationId,
+          set: {
+            collectedData: sql`CASE
+              WHEN ${formSubmissionSessions.status} = 'completed' THEN ${formSubmissionSessions.collectedData}
+              ELSE ${formSubmissionSessions.collectedData} || ${JSON.stringify(initialData)}::jsonb
+            END`,
+            updatedAt: new Date(),
+          },
+        })
+        .returning()
+      if (!session) throw new Error('Unable to start email survey response')
+      return session
+    }
+
     const result = await withTimeout(
       db.execute(sql`
         INSERT INTO form_submission_sessions (
@@ -646,14 +727,25 @@ export const startPageSession = createServerFn({ method: 'POST', strict: false }
           AND status = 'published'
         ON CONFLICT (form_id, client_token)
         DO UPDATE SET client_token = EXCLUDED.client_token
-        RETURNING id
+        RETURNING id, current_page_index, collected_data, status
       `),
       8_000,
       'startPageSession.upsertSession',
       { formId: data.formId, correlationId, phase: 'session-upsert' },
-    ) as unknown as { rows: { id: number }[] }
-    const session = result.rows[0]
-    if (!session) throw new Error('Form not found or not published')
+    ) as unknown as { rows: {
+      id: number
+      current_page_index: number
+      collected_data: Record<string, unknown>
+      status: string
+    }[] }
+    const row = result.rows[0]
+    if (!row) throw new Error('Form not found or not published')
+    const session = {
+      id: row.id,
+      currentPageIndex: row.current_page_index,
+      collectedData: row.collected_data ?? {},
+      status: row.status,
+    }
 
     console.info('[database-operation-complete]', {
       operation: 'startPageSession.upsertSession',
@@ -842,7 +934,7 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
     const credentials = credentialsForSlug(data.gatewaySlug, configs)
     if (!credentials) throw new Error(`The form owner has not connected ${gateway.getGatewayName()}`)
 
-    const origin = originForReturnUrls()
+    const origin = publicRequestOrigin()
     const base = `${origin}/forms/payment-return?pageSessionId=${session.id}&pageId=${page.id}`
     const gwId = await gatewayRowId(data.gatewaySlug, gateway.getGatewayName())
     const submissionId = await ensurePaymentDraft(session)

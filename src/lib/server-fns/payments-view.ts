@@ -24,6 +24,7 @@ import {
 import type { GatewayCredentials } from "../../integrations/payments/types";
 import type { ResendConfig } from "../integrations/types";
 import { sendPaymentReminderEmail } from "../email/resend";
+import { publicRequestOrigin } from "./request-origin";
 
 /**
  * Payment view model returned to the form creator's Payments page.
@@ -291,8 +292,7 @@ export const replaceExpiredPaymentLink = createServerFn({ method: "POST", strict
         ? { ...paypalCredentialsForEnvironment(configs.paypal, environment), mode: environment }
         : undefined;
     if (!credentials) throw new Error("Payment gateway credentials are unavailable")
-    const baseUrl = process.env.APP_URL?.replace(/\/$/, "")
-    if (!baseUrl) throw new Error("APP_URL is required to create a replacement payment link")
+    const baseUrl = publicRequestOrigin()
     const [replacement] = await db.insert(payments).values({
       formSubmissionId: payment.formSubmissionId,
       pageSessionId: payment.pageSessionId,

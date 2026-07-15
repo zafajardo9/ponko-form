@@ -9,7 +9,7 @@ import { ShareDialog } from "../../components/dashboard/ShareDialog";
 import { Button } from "../../components/ui/Button";
 
 export const Route = createFileRoute("/forms/")({
-  beforeLoad: () => requireAuth(),
+  beforeLoad: ({ location }) => requireAuth({ data: { returnTo: location.href } }),
   component: FormsPage,
 });
 

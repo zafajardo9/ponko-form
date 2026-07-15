@@ -1,4 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
+import { requireAuth } from "../../../lib/server-fns/auth";
 
 /**
  * The Flow builder has been merged into the unified editor at
@@ -6,7 +7,8 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
  * redirects there so existing links and bookmarks keep working.
  */
 export const Route = createFileRoute("/forms/$formId/flow")({
-  beforeLoad: ({ params }) => {
+  beforeLoad: async ({ params, location }) => {
+    await requireAuth({ data: { returnTo: location.href } });
     throw redirect({
       to: "/forms/$formId/edit",
       params: { formId: params.formId },

@@ -21,6 +21,7 @@ import { Route as SettingsIntegrationsRouteImport } from './routes/settings/inte
 import { Route as FormsPaymentReturnRouteImport } from './routes/forms/payment-return'
 import { Route as FormsNewRouteImport } from './routes/forms/new'
 import { Route as DocsSlugRouteImport } from './routes/docs/$slug'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as IntegrationsGoogleCallbackRouteImport } from './routes/integrations/google/callback'
 import { Route as FormsSubmitFormIdRouteImport } from './routes/forms/submit/$formId'
 import { Route as FormsEmbedFormIdRouteImport } from './routes/forms/embed/$formId'
@@ -92,6 +93,11 @@ const DocsSlugRoute = DocsSlugRouteImport.update({
   path: '/docs/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IntegrationsGoogleCallbackRoute =
   IntegrationsGoogleCallbackRouteImport.update({
     id: '/integrations/google/callback',
@@ -149,6 +155,7 @@ const ApiWebhooksXenditEndpointKeyRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/api/health': typeof ApiHealthRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/forms/new': typeof FormsNewRoute
   '/forms/payment-return': typeof FormsPaymentReturnRoute
@@ -173,6 +180,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/api/health': typeof ApiHealthRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/forms/new': typeof FormsNewRoute
   '/forms/payment-return': typeof FormsPaymentReturnRoute
@@ -198,6 +206,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/api/health': typeof ApiHealthRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/forms/new': typeof FormsNewRoute
   '/forms/payment-return': typeof FormsPaymentReturnRoute
@@ -224,6 +233,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/mcp'
+    | '/api/health'
     | '/docs/$slug'
     | '/forms/new'
     | '/forms/payment-return'
@@ -248,6 +258,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/mcp'
+    | '/api/health'
     | '/docs/$slug'
     | '/forms/new'
     | '/forms/payment-return'
@@ -272,6 +283,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/mcp'
+    | '/api/health'
     | '/docs/$slug'
     | '/forms/new'
     | '/forms/payment-return'
@@ -297,6 +309,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   McpRoute: typeof McpRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   DocsSlugRoute: typeof DocsSlugRoute
   FormsNewRoute: typeof FormsNewRoute
   FormsPaymentReturnRoute: typeof FormsPaymentReturnRoute
@@ -405,6 +418,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/integrations/google/callback': {
       id: '/integrations/google/callback'
       path: '/integrations/google/callback'
@@ -481,6 +501,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   McpRoute: McpRoute,
+  ApiHealthRoute: ApiHealthRoute,
   DocsSlugRoute: DocsSlugRoute,
   FormsNewRoute: FormsNewRoute,
   FormsPaymentReturnRoute: FormsPaymentReturnRoute,

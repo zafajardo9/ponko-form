@@ -1,10 +1,11 @@
-import { BriefcaseBusiness, Building2, Headphones, MessageSquareText } from 'lucide-react'
+import { BriefcaseBusiness, Building2, Headphones, MessageSquareText, Smile } from 'lucide-react'
 import type { FormTemplateRecord } from '../../lib/form-templates/types'
 
 const categoryIcon = {
   contact: MessageSquareText,
   support: Headphones,
   sales: BriefcaseBusiness,
+  survey: Smile,
   general: Building2,
   custom: Building2,
 }

@@ -22,6 +22,8 @@ async function main() {
     '0019_payment_audit_webhooks.sql',
     '0020_payment_recovery_links.sql',
     '0021_form_templates.sql',
+    '0022_satisfaction_field_type.sql',
+    '0023_email_survey_invitations.sql',
   ]) {
     const migration = await readFile(resolve(import.meta.dirname, `../drizzle/${filename}`), 'utf8')
     for (const statement of migration.split('--> statement-breakpoint')) {

@@ -24,6 +24,11 @@ import { CSS } from '@dnd-kit/utilities'
 import { savePageForm } from '../../lib/server-fns/page-forms'
 import { addressRequiredParts } from '../../lib/page-builder/conditions'
 import { richTextHtml } from '../form-builder/fields/FieldRenderer'
+import {
+  inferSatisfactionPreset,
+  satisfactionOptions,
+  type SatisfactionPreset,
+} from '../../lib/page-builder/satisfaction'
 import type {
   ConditionAction,
   ConditionOperator,
@@ -66,6 +71,7 @@ import {
   SlidersHorizontal,
   Save,
   ShieldCheck,
+  Smile,
   Trash2,
   Type,
   Underline as UnderlineIcon,
@@ -89,6 +95,7 @@ const FIELD_ITEMS: FieldPaletteItem[] = [
   { type: 'checkbox', label: 'Checkboxes', icon: <CheckSquare size={14} /> },
   { type: 'checkbox', label: 'Terms', icon: <ShieldCheck size={14} />, preset: 'terms' },
   { type: 'radio', label: 'Radio', icon: <CircleDot size={14} /> },
+  { type: 'satisfaction', label: 'Satisfaction', icon: <Smile size={14} /> },
   { type: 'date', label: 'Date', icon: <Calendar size={14} /> },
   { type: 'time', label: 'Time', icon: <Clock size={14} /> },
   { type: 'datetime', label: 'Date & Time', icon: <CalendarClock size={14} /> },
@@ -127,6 +134,7 @@ interface PageBuilderWorkspaceProps {
   references: FormReference[]
   gateways: { id: number; name: string }[]
   onChanged: () => void
+  onDraftChange?: (draft: { pages: FormPage[]; references: FormReference[] }) => void
 }
 
 type Selection =
@@ -242,6 +250,7 @@ export function PageBuilderWorkspace({
   references,
   gateways,
   onChanged,
+  onDraftChange,
 }: PageBuilderWorkspaceProps) {
   const incomingPages = useMemo(() => sortPages(pages), [pages])
   const incomingReferences = useMemo(() => sortReferences(references), [references])
@@ -266,6 +275,10 @@ export function PageBuilderWorkspace({
 
   const currentSnapshot = useMemo(() => snapshotBuilder(draftPages, draftReferences), [draftPages, draftReferences])
   const isDirty = currentSnapshot !== savedSnapshot
+
+  useEffect(() => {
+    onDraftChange?.({ pages: draftPages, references: draftReferences })
+  }, [draftPages, draftReferences, onDraftChange])
 
   useEffect(() => {
     if (isDirty) return
@@ -441,6 +454,8 @@ export function PageBuilderWorkspace({
                 ? 'File upload'
               : fieldType === 'computation'
                 ? 'Total'
+              : fieldType === 'satisfaction'
+                ? 'How satisfied are you?'
               : '',
       placeholder: fieldType === 'content'
         ? '<p>Add helpful details for this page.</p>'
@@ -468,6 +483,8 @@ export function PageBuilderWorkspace({
             { label: 'acceptCustom', value: '' },
             { label: 'multiple', value: 'false' },
           ]
+        : fieldType === 'satisfaction'
+        ? satisfactionOptions('five-point')
         : ['select', 'checkbox', 'radio'].includes(fieldType)
         ? [
             { label: 'Option 1', value: 'option_1' },
@@ -1603,6 +1620,18 @@ function SortableFieldCard({ field, pages, selected, onSelect, onMoveToPage }: S
             </div>
           </button>
         )}
+        {field.fieldType === 'satisfaction' && (
+          <button type="button" onClick={onSelect} className="mt-3 block w-full text-left">
+            <div className="flex gap-1.5 overflow-hidden">
+              {(field.options ?? []).map((option) => (
+                <span key={option.value} className="flex min-w-0 flex-1 flex-col items-center rounded-md border border-[#e6dfd8] bg-white px-1 py-2">
+                  <span className="text-lg leading-none">{option.emoji || option.value}</span>
+                  <span className="mt-1 max-w-full truncate text-[10px] text-[#8e8b82]">{option.label}</span>
+                </span>
+              ))}
+            </div>
+          </button>
+        )}
       </div>
     </div>
   )
@@ -1617,6 +1646,97 @@ interface FieldSettingsProps {
   onMoveToPage: (pageId: number) => void
   onDelete: () => void
   onSaveConditions: (conditions: FieldCondition[]) => void
+}
+
+function SatisfactionSettings({ field, onUpdate }: Pick<FieldSettingsProps, 'field' | 'onUpdate'>) {
+  const inferredPreset = inferSatisfactionPreset(field.options)
+  const [preset, setPreset] = useState<SatisfactionPreset>(inferredPreset)
+  const options = field.options ?? satisfactionOptions('five-point')
+
+  useEffect(() => {
+    const inferred = inferSatisfactionPreset(field.options)
+    if (inferred !== 'custom') setPreset(inferred)
+    else setPreset('custom')
+  }, [field.id, field.options])
+
+  function selectPreset(nextPreset: SatisfactionPreset) {
+    setPreset(nextPreset)
+    if (nextPreset !== 'custom') onUpdate({ options: satisfactionOptions(nextPreset) })
+  }
+
+  function updateOption(index: number, patch: Partial<PageFieldOption>) {
+    setPreset('custom')
+    onUpdate({
+      options: options.map((option, optionIndex) => optionIndex === index ? { ...option, ...patch } : option),
+    })
+  }
+
+  function addOption() {
+    const numericValues = options.map((option) => Number(option.value)).filter(Number.isFinite)
+    const value = String(numericValues.length ? Math.max(...numericValues) + 1 : options.length + 1)
+    setPreset('custom')
+    onUpdate({ options: [...options, { label: `Rating ${value}`, value, emoji: value }] })
+  }
+
+  function removeOption(index: number) {
+    if (options.length <= 2) return
+    setPreset('custom')
+    onUpdate({ options: options.filter((_, optionIndex) => optionIndex !== index) })
+  }
+
+  return (
+    <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
+      <Field label="Rating scale">
+        <select value={preset} onChange={(event) => selectPreset(event.target.value as SatisfactionPreset)} className={inputClass}>
+          <option value="five-point">5-point satisfaction</option>
+          <option value="stars">Star rating</option>
+          <option value="nps">Net Promoter Score (0–10)</option>
+          <option value="custom">Custom scale</option>
+        </select>
+      </Field>
+      <div className="mt-3 flex flex-col gap-2">
+        {options.map((option, index) => (
+          <div key={`${option.value}-${index}`} className="grid grid-cols-[64px_minmax(0,1fr)_64px_32px] gap-2">
+            <input
+              aria-label={`Rating ${index + 1} visual`}
+              value={option.emoji ?? ''}
+              onChange={(event) => updateOption(index, { emoji: event.target.value || null })}
+              className={inputClass}
+              placeholder="😊"
+            />
+            <input
+              aria-label={`Rating ${index + 1} label`}
+              value={option.label}
+              onChange={(event) => updateOption(index, { label: event.target.value })}
+              className={inputClass}
+              placeholder="Satisfied"
+            />
+            <input
+              aria-label={`Rating ${index + 1} value`}
+              type="number"
+              value={option.value}
+              onChange={(event) => updateOption(index, { value: event.target.value })}
+              className={inputClass}
+              placeholder="5"
+            />
+            <button
+              type="button"
+              aria-label={`Remove rating ${index + 1}`}
+              onClick={() => removeOption(index)}
+              disabled={options.length <= 2}
+              className="rounded-md text-[#8e8b82] hover:bg-white hover:text-[#c64545] disabled:opacity-30"
+            >
+              <X size={14} className="mx-auto" />
+            </button>
+          </div>
+        ))}
+      </div>
+      <button type="button" onClick={addOption} className="mt-3 text-xs font-medium text-[#a9583e] hover:text-[#7f3f2d]">
+        + Add rating level
+      </button>
+      <p className="mt-2 text-xs leading-5 text-[#8e8b82]">The saved value is numeric and can be used in logic, calculations, submissions, and exports. Visuals accept emoji or image URLs.</p>
+    </div>
+  )
 }
 
 function FieldSettings({ field, pages, fields, references, onUpdate, onMoveToPage, onDelete, onSaveConditions }: FieldSettingsProps) {
@@ -1676,6 +1796,14 @@ function FieldSettings({ field, pages, fields, references, onUpdate, onMoveToPag
     return Number.isFinite(parsed) ? parsed : null
   }
 
+  function changeFieldType(fieldType: PageFieldType) {
+    if (fieldType === 'satisfaction' && field.fieldType !== 'satisfaction') {
+      onUpdate({ fieldType, options: satisfactionOptions('five-point') })
+      return
+    }
+    onUpdate({ fieldType })
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div>
@@ -1687,7 +1815,7 @@ function FieldSettings({ field, pages, fields, references, onUpdate, onMoveToPag
         <input value={field.label} onChange={(e) => onUpdate({ label: e.target.value })} className={inputClass} />
       </Field>
       <Field label="Type">
-        <select value={field.fieldType} onChange={(e) => onUpdate({ fieldType: e.target.value as PageFieldType })} className={inputClass}>
+        <select value={field.fieldType} onChange={(e) => changeFieldType(e.target.value as PageFieldType)} className={inputClass}>
           {FIELD_ITEMS.filter((item) => !item.preset).map((item) => (
             <option key={item.type} value={item.type}>
               {item.label}
@@ -1843,6 +1971,10 @@ function FieldSettings({ field, pages, fields, references, onUpdate, onMoveToPag
             ))}
           </div>
         </div>
+      )}
+
+      {field.fieldType === 'satisfaction' && (
+        <SatisfactionSettings field={field} onUpdate={onUpdate} />
       )}
 
       {field.fieldType === 'computation' && (
@@ -2050,6 +2182,7 @@ function computationFormulaFields(fields: PageField[], currentField: PageField) 
     field.id !== currentField.id &&
     !['content', 'media', 'address'].includes(field.fieldType) &&
     (field.fieldType === 'number' ||
+      field.fieldType === 'satisfaction' ||
       field.fieldType === 'computation' ||
       ['select', 'checkbox', 'radio'].includes(field.fieldType)),
   )
@@ -2290,6 +2423,7 @@ function checkFormulaExpression(
 
 function fieldCanProvideFormulaValue(field: PageField) {
   return field.fieldType === 'number' ||
+    field.fieldType === 'satisfaction' ||
     field.fieldType === 'computation' ||
     (['select', 'checkbox', 'radio'].includes(field.fieldType) && Boolean(field.validationRules?.optionPricesEnabled))
 }
@@ -3133,7 +3267,7 @@ function LogicDialog({
         <div className="flex flex-col gap-3">
           {conditions.map((condition, index) => {
             const sourceField = fields.find((item) => item.bindVariable === condition.sourceFieldBinding)
-            const sourceOptions = ['select', 'checkbox', 'radio'].includes(sourceField?.fieldType ?? '')
+            const sourceOptions = ['select', 'checkbox', 'radio', 'satisfaction'].includes(sourceField?.fieldType ?? '')
               ? sourceField?.options ?? []
               : []
             const valueDisabled = ['is_empty', 'is_not_empty'].includes(condition.operator)

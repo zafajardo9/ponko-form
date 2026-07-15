@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { createFileRoute } from '@tanstack/react-router'
+import { auth } from '@clerk/tanstack-react-start/server'
 import z from 'zod'
 
 import { handleMcpRequest } from '#/utils/mcp-handler'
@@ -47,7 +48,13 @@ server.registerTool(
 export const Route = createFileRoute('/mcp')({
   server: {
     handlers: {
-      POST: async ({ request }) => handleMcpRequest(request, server),
+      POST: async ({ request }) => {
+        const { isAuthenticated, userId } = await auth()
+        if (!isAuthenticated || !userId) {
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+        return handleMcpRequest(request, server)
+      },
     },
   },
 })

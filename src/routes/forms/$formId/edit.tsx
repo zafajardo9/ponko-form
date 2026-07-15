@@ -53,6 +53,10 @@ import { PageFormView } from "../../../components/page-form/PageFormView";
 import { ShareDialog } from "../../../components/dashboard/ShareDialog";
 import { SettingsDialog } from "../../../components/flow-builder/SettingsDialog";
 import { themeVars, type FormTheme } from "../../../lib/theme";
+import type {
+  FormPage,
+  FormReference,
+} from "../../../lib/page-builder/types";
 import { FlowValidator } from "../../../lib/flow-engine/FlowValidator";
 import {
   linearizePrimaryPath,
@@ -70,7 +74,7 @@ import type {
 import type { FlowNodeData } from "../../../components/flow-builder/nodes/NodeShell";
 
 export const Route = createFileRoute("/forms/$formId/edit")({
-  beforeLoad: () => requireAuth(),
+  beforeLoad: ({ location }) => requireAuth({ data: { returnTo: location.href } }),
   component: UnifiedEditorPage,
 });
 
@@ -100,6 +104,10 @@ function UnifiedEditorPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [pagePreviewDraft, setPagePreviewDraft] = useState<{
+    pages: FormPage[];
+    references: FormReference[];
+  } | null>(null);
   const [rightPanelWidth, setRightPanelWidth] = useState(288);
   const rightPanelRef = useRef<HTMLDivElement>(null);
   const isResizing = useRef(false);
@@ -145,6 +153,17 @@ function UnifiedEditorPage() {
       queryClient.invalidateQueries({ queryKey: ["flow", formId] }),
       queryClient.invalidateQueries({ queryKey: ["page-form", formId] }),
     ]);
+
+  const handlePagePreviewDraft = useCallback(
+    (draft: { pages: FormPage[]; references: FormReference[] }) => {
+      setPagePreviewDraft(draft);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    setPagePreviewDraft(null);
+  }, [formId]);
 
   // ── Optimistic updates ──
   // Mutating the cached flow in `onMutate` makes the List/Canvas reflect a
@@ -731,8 +750,8 @@ function UnifiedEditorPage() {
               <PageFormView
                 title={form?.title ?? "Form"}
                 description={form?.description}
-                pages={pageForm.pages}
-                references={pageForm.references ?? []}
+                pages={pagePreviewDraft?.pages ?? pageForm.pages}
+                references={pagePreviewDraft?.references ?? pageForm.references ?? []}
                 theme={(form?.theme as FormTheme | null) ?? null}
                 preview
               />
@@ -837,6 +856,7 @@ function UnifiedEditorPage() {
           onChanged={() => {
             queryClient.invalidateQueries({ queryKey: ["page-form", formId] });
           }}
+          onDraftChange={handlePagePreviewDraft}
         />
       ) : (
         <div className="flex flex-1 flex-col overflow-y-auto lg:min-h-0 lg:flex-row lg:overflow-hidden">

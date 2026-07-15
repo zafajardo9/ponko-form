@@ -1,11 +1,17 @@
 import { SignUp } from '@clerk/tanstack-react-start'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { redirectAuthenticatedUser, safeAuthReturnTo } from '../lib/server-fns/auth'
 
 export const Route = createFileRoute('/sign-up/$')({
+  validateSearch: (search: Record<string, unknown>) => ({
+    redirect_url: safeAuthReturnTo(search.redirect_url),
+  }),
+  beforeLoad: ({ search }) => redirectAuthenticatedUser({ data: { returnTo: search.redirect_url } }),
   component: Page,
 })
 
 function Page() {
+  const { redirect_url } = Route.useSearch()
   return (
     <div className="flex min-h-[calc(100vh-64px)] bg-[#faf9f5]">
       {/* Branding panel — hidden on small screens */}
@@ -52,11 +58,16 @@ function Page() {
       <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
         <div className="text-sm text-[#6c6a64]">
           Already have an account?{' '}
-          <a href="/sign-in/" className="font-medium text-[#cc785c] hover:text-[#a9583e]">
+          <Link
+            to="/sign-in/$"
+            params={{ _splat: '' }}
+            search={{ redirect_url }}
+            className="font-medium text-[#cc785c] hover:text-[#a9583e]"
+          >
             Sign in
-          </a>
+          </Link>
         </div>
-        <SignUp routing="path" path="/sign-up" />
+        <SignUp routing="path" path="/sign-up" forceRedirectUrl={redirect_url} />
       </div>
     </div>
   )

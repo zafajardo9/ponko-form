@@ -1,7 +1,7 @@
 {
-  "buildCommand": "npm run build:deploy",
+  "buildCommand": "pnpm run build:deploy",
   "outputDirectory": "dist/client",
-  "installCommand": "npm install",
+  "installCommand": "pnpm install --frozen-lockfile",
   "regions": ["iad1"],
   "functions": {
     "api/index.ts": {
@@ -17,7 +17,7 @@
   "crons": [
     {
       "path": "/api/internal/reconcile-payments",
-      "schedule": "0 * * * *"
+      "schedule": "0 2 * * *"
     }
   ]
 }

@@ -110,9 +110,15 @@ importers:
       recharts:
         specifier: ^3.9.1
         version: 3.9.2(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react-is@17.0.2)(react@19.2.7)(redux@5.0.1)
+      srvx:
+        specifier: ^0.8.16
+        version: 0.8.16
       tailwindcss:
         specifier: ^4.1.18
         version: 4.3.2
+      tsx:
+        specifier: ^4.21.0
+        version: 4.23.0
       zod:
         specifier: ^4.3.6
         version: 4.4.3
@@ -156,9 +162,6 @@ importers:
       jsdom:
         specifier: ^28.1.0
         version: 28.1.0(@noble/hashes@1.8.0)
-      tsx:
-        specifier: ^4.21.0
-        version: 4.23.0
       typescript:
         specifier: ^6.0.2
         version: 6.0.3
@@ -3118,6 +3121,11 @@ packages:
 
   srvx@0.11.21:
     resolution: {integrity: sha512-GWTHjKMeekX8CwJf4VU9Oo6mJpSGaflGMddbCvR+Cmmh9sslRMiGbAoqqZacE0r1ncARh6buCEETr2W52F8b1w==}
+    engines: {node: '>=20.16.0'}
+    hasBin: true
+
+  srvx@0.8.16:
+    resolution: {integrity: sha512-hmcGW4CgroeSmzgF1Ihwgl+Ths0JqAJ7HwjP2X7e3JzY7u4IydLMcdnlqGQiQGUswz+PO9oh/KtCpOISIvs9QQ==}
     engines: {node: '>=20.16.0'}
     hasBin: true
 
@@ -6293,6 +6301,8 @@ snapshots:
   source-map@0.7.6: {}
 
   srvx@0.11.21: {}
+
+  srvx@0.8.16: {}
 
   stackback@0.0.2: {}
 
