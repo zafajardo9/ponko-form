@@ -153,6 +153,15 @@ describe('PageFormView session resilience', () => {
     expect(screen.queryByText('Preparing secure submission…')).toBeNull()
   })
 
+  it('does not include the final thank-you page in the progress total', () => {
+    serverFns.startPageSession.mockReturnValue(new Promise(() => undefined))
+
+    renderPageForm()
+
+    expect(screen.getByText('Page 1 of 1')).toBeTruthy()
+    expect(screen.queryByText('Page 1 of 2')).toBeNull()
+  })
+
   it('shows the form name once when the description duplicates it', () => {
     serverFns.startPageSession.mockResolvedValue({ id: 10 })
 

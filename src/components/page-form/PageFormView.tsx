@@ -194,6 +194,10 @@ export function PageFormView({
 
   const allFields = useMemo(() => pages.flatMap((page) => page.fields), [pages])
   const currentPage = pages[currentPageIndex]
+  const progressPageTotal = pages.filter((page) => !page.isFinal).length
+  const progressPageCurrent = pages
+    .slice(0, currentPageIndex + 1)
+    .filter((page) => !page.isFinal).length
   const currentPaymentPaid = currentPage?.hasPayment ? Boolean(paidPages[currentPage.id]) : true
   const handlePaymentStatusChange = useCallback((paid: boolean) => {
     const pageId = currentPage?.id
@@ -210,10 +214,12 @@ export function PageFormView({
   )
   const currentValues = computedData as Record<string, FieldValue>
   const themed = themeVars(resolvedTheme ?? null)
-  const outerClass = embed ? 'w-full' : 'min-h-screen bg-[var(--ponko-bg,#faf9f5)]'
+  const outerClass = embed
+    ? 'w-full'
+    : 'flex min-h-screen items-center bg-[var(--ponko-bg,#faf9f5)]'
   const wrapperClass = embed
-    ? 'w-full px-4 py-6'
-    : 'mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8 lg:py-14'
+    ? 'w-full min-w-0 px-3 py-4 sm:px-4 sm:py-6'
+    : 'mx-auto w-full min-w-0 max-w-5xl px-3 py-4 sm:px-6 sm:py-10 lg:px-8 lg:py-14'
 
   if (resumeQuery.isLoading) {
     return (
@@ -335,13 +341,15 @@ export function PageFormView({
   return (
     <div className={outerClass} style={themed}>
       <div className={wrapperClass}>
-        <Card>
+        <Card className="min-w-0 max-sm:p-4">
           <div className="mb-8">
             <h1 className="text-2xl font-medium text-[#141413]">{resolvedTitle}</h1>
             {visibleDescription && <p className="mt-2 text-[#6c6a64]">{visibleDescription}</p>}
           </div>
 
-          <PageProgressBar current={currentPageIndex + 1} total={pages.length} />
+          {!currentPage.isFinal && (
+            <PageProgressBar current={progressPageCurrent} total={progressPageTotal} />
+          )}
 
           {!preview && !resumeSessionId && startMut.isError && (
             <div className="mb-6 flex flex-col gap-3 rounded-lg border border-[#d7a84c] bg-[#fff8e7] px-4 py-3 text-sm text-[#6b4f16] sm:flex-row sm:items-center sm:justify-between" role="alert">

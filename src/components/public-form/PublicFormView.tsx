@@ -113,14 +113,16 @@ export function PublicFormView({
 
   // Outer wrapper: centered card on the standalone page, fluid full-width when embedded.
   const wrapperClass = embed
-    ? 'w-full px-4 py-6'
-    : 'mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8 lg:py-14'
+    ? 'w-full min-w-0 px-3 py-4 sm:px-4 sm:py-6'
+    : 'mx-auto w-full min-w-0 max-w-5xl px-3 py-4 sm:px-6 sm:py-10 lg:px-8 lg:py-14'
 
   // Per-form theming: set CSS vars on a full-bleed wrapper (standalone gets the
   // themed page background; embed stays transparent to blend into the host site).
   const theme = (form?.theme ?? null) as FormTheme | null
   const themed = themeVars(theme)
-  const outerClass = embed ? 'w-full' : 'min-h-screen bg-[var(--ponko-bg,#faf9f5)]'
+  const outerClass = embed
+    ? 'w-full'
+    : 'flex min-h-screen items-center bg-[var(--ponko-bg,#faf9f5)]'
 
   const detailsLoading = !!form && (fieldsLoading || flowLoading || pagesLoading)
   const loading = formsLoading || detailsLoading || (hasEmailSurveyLink && emailSurveyQuery.isLoading)
@@ -275,36 +277,36 @@ export function PublicFormView({
   return (
     <div className={outerClass} style={themed}>
       <div className={wrapperClass}>
-      <Card>
-        <div className="mb-8">
-          <h1 className="text-2xl font-medium text-[#141413]">{form.title}</h1>
-          {form.description && (
-            <p className="mt-2 text-[#6c6a64]">{form.description}</p>
-          )}
-        </div>
+        <Card className="min-w-0 max-sm:p-4">
+          <div className="mb-8">
+            <h1 className="text-2xl font-medium text-[#141413]">{form.title}</h1>
+            {form.description && (
+              <p className="mt-2 text-[#6c6a64]">{form.description}</p>
+            )}
+          </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-          {(fields as FieldConfig[]).map((field) => (
-            <FieldRenderer
-              key={field.id}
-              field={field}
-              value={values[field.id] ?? ''}
-              onChange={(v) => handleChange(field.id, v)}
-              error={errors[field.id]}
-            />
-          ))}
+          <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+            {(fields as FieldConfig[]).map((field) => (
+              <FieldRenderer
+                key={field.id}
+                field={field}
+                value={values[field.id] ?? ''}
+                onChange={(v) => handleChange(field.id, v)}
+                error={errors[field.id]}
+              />
+            ))}
 
-          {submitMutation.isError && (
-            <p className="text-sm text-[#c64545]">
-              {(submitMutation.error as Error)?.message ?? 'Submission failed. Please try again.'}
-            </p>
-          )}
+            {submitMutation.isError && (
+              <p className="text-sm text-[#c64545]">
+                {(submitMutation.error as Error)?.message ?? 'Submission failed. Please try again.'}
+              </p>
+            )}
 
-          <Button type="submit" disabled={submitMutation.isPending}>
-            {submitMutation.isPending ? 'Submitting…' : 'Submit'}
-          </Button>
-        </form>
-      </Card>
+            <Button type="submit" disabled={submitMutation.isPending}>
+              {submitMutation.isPending ? 'Submitting…' : 'Submit'}
+            </Button>
+          </form>
+        </Card>
       </div>
     </div>
   )

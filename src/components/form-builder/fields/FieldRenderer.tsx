@@ -210,8 +210,8 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-sm font-medium text-[#141413]">
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <label className="break-words text-sm font-medium text-[#141413]">
         {field.label}
         {field.required && <span className="ml-0.5 text-[#c64545]">*</span>}
       </label>
@@ -358,41 +358,44 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
       )}
 
       {field.type === 'satisfaction' && (
-        <div className="overflow-x-auto pb-1" role="radiogroup" aria-label={field.label}>
-          <div className="flex min-w-max gap-2 sm:min-w-0">
-            {options.map((opt) => {
-              const selected = strValue === opt.value
-              const visual = opt.emoji?.trim() || opt.value
-              return (
-                <label
-                  key={opt.value}
-                  className={`group flex min-h-24 min-w-24 flex-1 cursor-pointer flex-col items-center justify-center gap-2 rounded-[var(--ponko-radius,10px)] border px-3 py-3 text-center transition-all focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] sm:min-w-0 ${
-                    selected
-                      ? 'border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary-soft,#cc785c29)] shadow-sm'
-                      : 'border-[#e6dfd8] bg-[#faf9f5] hover:border-[#cfc4b8] hover:bg-white'
-                  } ${readOnly ? 'cursor-not-allowed opacity-60' : ''}`}
-                >
-                  <input
-                    type="radio"
-                    name={`field-${field.id}`}
-                    value={opt.value}
-                    checked={selected}
-                    disabled={readOnly}
-                    onChange={() => onChange(opt.value)}
-                    className="peer sr-only"
-                  />
-                  {isImageUrl(visual) ? (
-                    <img src={visual} alt="" className="h-9 w-9 object-contain" />
-                  ) : (
-                    <span aria-hidden="true" className="whitespace-nowrap text-2xl leading-none text-[#d59b25]">
-                      {visual}
-                    </span>
-                  )}
-                  <span className="max-w-28 text-xs font-medium leading-4 text-[#3d3d3a]">{opt.label}</span>
-                </label>
-              )
-            })}
-          </div>
+        <div
+          className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(2.5rem,1fr))] gap-1 sm:gap-2"
+          role="radiogroup"
+          aria-label={field.label}
+        >
+          {options.map((opt) => {
+            const selected = strValue === opt.value
+            const visual = opt.emoji?.trim() || opt.value
+            return (
+              <label
+                key={opt.value}
+                title={opt.label}
+                className={`group flex min-h-11 min-w-0 cursor-pointer items-center justify-center rounded-full p-1 text-center transition-all focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] sm:min-h-14 sm:p-2 ${
+                  selected
+                    ? 'scale-110 opacity-100 drop-shadow-sm'
+                    : 'opacity-65 hover:scale-105 hover:opacity-100'
+                } ${readOnly ? 'cursor-not-allowed opacity-60' : ''}`}
+              >
+                <input
+                  type="radio"
+                  name={`field-${field.id}`}
+                  value={opt.value}
+                  checked={selected}
+                  disabled={readOnly}
+                  onChange={() => onChange(opt.value)}
+                  className="peer sr-only"
+                />
+                {isImageUrl(visual) ? (
+                  <img src={visual} alt="" className="h-7 w-7 object-contain sm:h-9 sm:w-9" />
+                ) : (
+                  <span aria-hidden="true" className="whitespace-nowrap text-xl leading-none text-[#d59b25] sm:text-2xl">
+                    {visual}
+                  </span>
+                )}
+                <span className="sr-only">{opt.label}</span>
+              </label>
+            )
+          })}
         </div>
       )}
 

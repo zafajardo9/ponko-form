@@ -77,7 +77,9 @@ export function FlowExecutionContainer({
   // In resume mode the theme is fetched (getResumeData); fresh-start gets it via prop.
   const [themeState, setThemeState] = useState<FormTheme | null>(theme ?? null)
   const themed = themeVars(themeState)
-  const outerClass = embed ? 'w-full' : 'min-h-screen bg-[var(--ponko-bg,#faf9f5)]'
+  const outerClass = embed
+    ? 'w-full'
+    : 'flex min-h-screen items-center bg-[var(--ponko-bg,#faf9f5)]'
 
   const startMut = useMutation({ mutationFn: (id: number) => startFlowExecution({ data: { flowId: id } }) })
   const advanceMut = useMutation({

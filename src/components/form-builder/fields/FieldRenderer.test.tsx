@@ -63,6 +63,27 @@ describe('FieldRenderer choice and calendar controls', () => {
     expect(onChange).toHaveBeenCalledWith('5')
   })
 
+  it('lays out satisfaction choices as a compact responsive emoji grid', () => {
+    const field: FieldConfig = {
+      id: 10,
+      type: 'satisfaction',
+      label: 'Satisfaction level',
+      required: false,
+      options: Array.from({ length: 11 }, (_, index) => ({
+        label: index === 0 ? 'Not at all likely' : index === 10 ? 'Extremely likely' : String(index),
+        value: String(index),
+      })),
+    }
+
+    render(<FieldRenderer field={field} value="" onChange={vi.fn()} />)
+
+    const group = screen.getByRole('radiogroup', { name: 'Satisfaction level' })
+    expect(group.className).toContain('auto-fit')
+    expect(group.className).not.toContain('overflow-x-auto')
+    expect(screen.getByText('Not at all likely').className).toBe('sr-only')
+    expect(screen.getAllByRole('radio')).toHaveLength(11)
+  })
+
   it('changes and clears a calendar value', () => {
     const onChange = vi.fn()
     const dateField: FieldConfig = {
