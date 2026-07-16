@@ -11,6 +11,7 @@ import {
   type PaymentViewRow,
 } from "../../../lib/server-fns/payments-view";
 import { Badge } from "../../../components/ui/Badge";
+import { FormSectionNav } from "../../../components/forms/FormSectionNav";
 
 export const Route = createFileRoute("/forms/$formId/payments")({
   beforeLoad: ({ location }) => requireAuth({ data: { returnTo: location.href } }),
@@ -73,6 +74,7 @@ function PaymentsPage() {
     return (
       <div className="mx-auto max-w-5xl px-6 py-12">
         <Breadcrumbs formId={formId} formTitle={formTitle} />
+        <div className="mb-8"><FormSectionNav formId={formId} active="payments" /></div>
         <h1 className="mb-2 text-2xl font-medium text-[#141413]">Payments</h1>
         <div className="mt-8 rounded-xl border border-dashed border-[#e6dfd8] py-24 text-center">
           <p className="text-[#8e8b82]">
@@ -125,6 +127,7 @@ function PaymentsPage() {
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
       <Breadcrumbs formId={formId} formTitle={formTitle} />
+      <div className="mb-8"><FormSectionNav formId={formId} active="payments" /></div>
 
       <h1 className="text-2xl font-medium text-[#141413]">
         Payments

@@ -27,6 +27,7 @@ import { Route as FormsSubmitFormIdRouteImport } from './routes/forms/submit/$fo
 import { Route as FormsEmbedFormIdRouteImport } from './routes/forms/embed/$formId'
 import { Route as FormsFormIdSubmissionsRouteImport } from './routes/forms/$formId/submissions'
 import { Route as FormsFormIdPaymentsRouteImport } from './routes/forms/$formId/payments'
+import { Route as FormsFormIdInvoicingRouteImport } from './routes/forms/$formId/invoicing'
 import { Route as FormsFormIdFlowRouteImport } from './routes/forms/$formId/flow'
 import { Route as FormsFormIdEditRouteImport } from './routes/forms/$formId/edit'
 import { Route as FlowExecutionIdCompleteRouteImport } from './routes/flow/$executionId/complete'
@@ -124,6 +125,11 @@ const FormsFormIdPaymentsRoute = FormsFormIdPaymentsRouteImport.update({
   path: '/forms/$formId/payments',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FormsFormIdInvoicingRoute = FormsFormIdInvoicingRouteImport.update({
+  id: '/forms/$formId/invoicing',
+  path: '/forms/$formId/invoicing',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FormsFormIdFlowRoute = FormsFormIdFlowRouteImport.update({
   id: '/forms/$formId/flow',
   path: '/forms/$formId/flow',
@@ -170,6 +176,7 @@ export interface FileRoutesByFullPath {
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
   '/forms/$formId/flow': typeof FormsFormIdFlowRoute
+  '/forms/$formId/invoicing': typeof FormsFormIdInvoicingRoute
   '/forms/$formId/payments': typeof FormsFormIdPaymentsRoute
   '/forms/$formId/submissions': typeof FormsFormIdSubmissionsRoute
   '/forms/embed/$formId': typeof FormsEmbedFormIdRoute
@@ -195,6 +202,7 @@ export interface FileRoutesByTo {
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
   '/forms/$formId/flow': typeof FormsFormIdFlowRoute
+  '/forms/$formId/invoicing': typeof FormsFormIdInvoicingRoute
   '/forms/$formId/payments': typeof FormsFormIdPaymentsRoute
   '/forms/$formId/submissions': typeof FormsFormIdSubmissionsRoute
   '/forms/embed/$formId': typeof FormsEmbedFormIdRoute
@@ -221,6 +229,7 @@ export interface FileRoutesById {
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
   '/forms/$formId/flow': typeof FormsFormIdFlowRoute
+  '/forms/$formId/invoicing': typeof FormsFormIdInvoicingRoute
   '/forms/$formId/payments': typeof FormsFormIdPaymentsRoute
   '/forms/$formId/submissions': typeof FormsFormIdSubmissionsRoute
   '/forms/embed/$formId': typeof FormsEmbedFormIdRoute
@@ -248,6 +257,7 @@ export interface FileRouteTypes {
     | '/flow/$executionId/complete'
     | '/forms/$formId/edit'
     | '/forms/$formId/flow'
+    | '/forms/$formId/invoicing'
     | '/forms/$formId/payments'
     | '/forms/$formId/submissions'
     | '/forms/embed/$formId'
@@ -273,6 +283,7 @@ export interface FileRouteTypes {
     | '/flow/$executionId/complete'
     | '/forms/$formId/edit'
     | '/forms/$formId/flow'
+    | '/forms/$formId/invoicing'
     | '/forms/$formId/payments'
     | '/forms/$formId/submissions'
     | '/forms/embed/$formId'
@@ -298,6 +309,7 @@ export interface FileRouteTypes {
     | '/flow/$executionId/complete'
     | '/forms/$formId/edit'
     | '/forms/$formId/flow'
+    | '/forms/$formId/invoicing'
     | '/forms/$formId/payments'
     | '/forms/$formId/submissions'
     | '/forms/embed/$formId'
@@ -324,6 +336,7 @@ export interface RootRouteChildren {
   FlowExecutionIdCompleteRoute: typeof FlowExecutionIdCompleteRoute
   FormsFormIdEditRoute: typeof FormsFormIdEditRoute
   FormsFormIdFlowRoute: typeof FormsFormIdFlowRoute
+  FormsFormIdInvoicingRoute: typeof FormsFormIdInvoicingRoute
   FormsFormIdPaymentsRoute: typeof FormsFormIdPaymentsRoute
   FormsFormIdSubmissionsRoute: typeof FormsFormIdSubmissionsRoute
   FormsEmbedFormIdRoute: typeof FormsEmbedFormIdRoute
@@ -460,6 +473,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FormsFormIdPaymentsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/forms/$formId/invoicing': {
+      id: '/forms/$formId/invoicing'
+      path: '/forms/$formId/invoicing'
+      fullPath: '/forms/$formId/invoicing'
+      preLoaderRoute: typeof FormsFormIdInvoicingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/forms/$formId/flow': {
       id: '/forms/$formId/flow'
       path: '/forms/$formId/flow'
@@ -516,6 +536,7 @@ const rootRouteChildren: RootRouteChildren = {
   FlowExecutionIdCompleteRoute: FlowExecutionIdCompleteRoute,
   FormsFormIdEditRoute: FormsFormIdEditRoute,
   FormsFormIdFlowRoute: FormsFormIdFlowRoute,
+  FormsFormIdInvoicingRoute: FormsFormIdInvoicingRoute,
   FormsFormIdPaymentsRoute: FormsFormIdPaymentsRoute,
   FormsFormIdSubmissionsRoute: FormsFormIdSubmissionsRoute,
   FormsEmbedFormIdRoute: FormsEmbedFormIdRoute,

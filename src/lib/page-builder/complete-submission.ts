@@ -20,6 +20,7 @@ import {
   verifiedRecaptchaFieldIds,
   verifyRecaptchaFields,
 } from '../integrations/recaptcha'
+import { dispatchSubmissionEmails } from '../invoicing/delivery'
 
 function pageFieldValueIsEmpty(field: PageField, value: unknown) {
   if (field.fieldType === 'address') {
@@ -125,6 +126,9 @@ export async function completePageSubmissionRecord(
     })
     .where(eq(formSubmissionSessions.id, session.id))
     .returning()
+  await dispatchSubmissionEmails(submission.id).catch((error) => {
+    console.error(`[submission:${submission.id}] Email dispatch failed`, error)
+  })
   return { session: updated, submission }
 }
 

@@ -47,6 +47,18 @@ async function main() {
         SELECT 1 FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = 'form_templates'
       ) AS has_form_templates,
+      EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'form_invoice_configs'
+      ) AS has_invoice_configs,
+      EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'form_confirmation_configs'
+      ) AS has_confirmation_configs,
+      EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'email_delivery_logs'
+      ) AS has_email_delivery_logs,
       to_regprocedure('public.replace_page_form(integer,jsonb,jsonb)') IS NOT NULL
         AS has_replace_page_form
   `
@@ -59,6 +71,9 @@ async function main() {
     !compatibility?.has_webhook_endpoint_key ||
     !compatibility?.has_payment_recovery_link ||
     !compatibility?.has_form_templates ||
+    !compatibility?.has_invoice_configs ||
+    !compatibility?.has_confirmation_configs ||
+    !compatibility?.has_email_delivery_logs ||
     !compatibility?.has_replace_page_form
   ) {
     throw new Error(

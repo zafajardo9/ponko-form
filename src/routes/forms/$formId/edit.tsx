@@ -49,6 +49,7 @@ import { Badge } from "../../../components/ui/Badge";
 import { PreviewDialog } from "../../../components/ui/PreviewDialog";
 import { FlowPreviewModal } from "../../../components/ui/FlowPreviewModal";
 import { PageBuilderWorkspace } from "../../../components/page-builder/PageBuilderWorkspace";
+import { FormSectionNav } from "../../../components/forms/FormSectionNav";
 import { PageFormView } from "../../../components/page-form/PageFormView";
 import { ShareDialog } from "../../../components/dashboard/ShareDialog";
 import { SettingsDialog } from "../../../components/flow-builder/SettingsDialog";
@@ -672,26 +673,7 @@ function UnifiedEditorPage() {
         </div>
 
         <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:gap-3 sm:px-0 sm:pb-0">
-          {/* Build | Responses tabs */}
-          <nav className="flex flex-none rounded-lg border border-[#e6dfd8] bg-[#f5f0e8] p-0.5 text-sm">
-            <span className="flex items-center gap-1 rounded-md bg-white px-3 py-1 font-medium text-[#141413] shadow-sm">
-              <span className="text-xs text-[#cc785c]">◆</span> Build
-            </span>
-            <Link
-              to="/forms/$formId/submissions"
-              params={{ formId }}
-              className="rounded-md px-3 py-1 text-[#6c6a64] hover:text-[#141413]"
-            >
-              Responses
-            </Link>
-            <Link
-              to="/forms/$formId/payments"
-              params={{ formId }}
-              className="rounded-md px-3 py-1 text-[#6c6a64] hover:text-[#141413]"
-            >
-              Payments
-            </Link>
-          </nav>
+          <FormSectionNav formId={formId} active="build" />
 
           {/* Variables & Valid live in the build sub-toolbar (shown in both
               List and Canvas); only page-level actions remain in the header. */}

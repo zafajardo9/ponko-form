@@ -13,6 +13,7 @@ import {
   profiles,
 } from "../../db/schema";
 import { eq, desc, asc, inArray, sql, and } from "drizzle-orm";
+import { dispatchSubmissionEmails } from "../invoicing/delivery";
 
 /** A response column: the key to read from a submission's formData + its label. */
 export interface ResponseColumn {
@@ -140,6 +141,9 @@ export const submitFormResponse = createServerFn({
         status: "completed",
       })
       .returning();
+    await dispatchSubmissionEmails(submission.id).catch((error) => {
+      console.error(`[submission:${submission.id}] Email dispatch failed`, error);
+    });
     return submission;
   });
 

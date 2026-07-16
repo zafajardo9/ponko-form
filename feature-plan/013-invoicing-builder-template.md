@@ -2,7 +2,14 @@
 
 > **Feature Plan** — Form creators design a custom invoice/receipt template that is emailed to respondents after successful payment. The invoice includes payment details (amount, currency, date, gateway, invoice number) plus any form field data. Also covers post-submission confirmation emails where the creator builds the email content that respondents receive after successfully submitting.
 
-**Status:** 🚧 **Planned** — not yet implemented
+**Status:** ✅ **Implemented** — July 16, 2026
+
+> **Implementation note:** The shipped design is grounded in
+> `plans/013-invoicing-builder-template/PLAN.md`. It adds shared form-section
+> navigation, invoice and confirmation builders, safe template rendering,
+> Resend/SMTP delivery, idempotent delivery logs, atomic invoice numbering,
+> test sends, and failed-delivery retries. The database changes are provided by
+> `drizzle/0025_invoicing_builder.sql` and the production compatibility runner.
 
 **Dependencies:**
 - 🚧 **FT-004 (Form Notifications)** — FT-013 builds on FT-004's template variable interpolation engine (`src/lib/template-engine.ts`, `interpolate()`). FT-013 extends it with payment-specific variables (`{{payment_amount}}`, `{{payment_currency}}`, `{{payment_date}}`, `{{payment_gateway}}`, `{{payment_id}}`, `{{invoice_number}}`). If FT-004 is not yet implemented, the shared `interpolate()` function must be built here first.

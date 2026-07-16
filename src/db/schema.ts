@@ -115,6 +115,70 @@ export const forms = pgTable(
   ],
 )
 
+export type InvoiceLineItemField = {
+  label: string
+  variable: string
+}
+
+export const formInvoiceConfigs = pgTable(
+  'form_invoice_configs',
+  {
+    id: serial().primaryKey(),
+    formId: integer('form_id')
+      .notNull()
+      .references(() => forms.id, { onDelete: 'cascade' }),
+    enabled: boolean('enabled').notNull().default(false),
+    respondentEmailField: varchar('respondent_email_field', { length: 100 }),
+    subjectTemplate: varchar('subject_template', { length: 255 })
+      .notNull()
+      .default('Invoice {{invoice_number}} for {{form_title}}'),
+    bodyTemplate: text('body_template')
+      .notNull()
+      .default('<h1>Invoice {{invoice_number}}</h1><p>Thank you for your payment.</p>'),
+    bodyTemplatePlain: text('body_template_plain'),
+    fromName: varchar('from_name', { length: 255 }),
+    logoUrl: text('logo_url'),
+    accentColor: varchar('accent_color', { length: 7 }).notNull().default('#cc785c'),
+    invoicePrefix: varchar('invoice_prefix', { length: 20 }).notNull().default('INV-'),
+    invoiceStartNumber: integer('invoice_start_number').notNull().default(1000),
+    nextInvoiceNumber: integer('next_invoice_number').notNull().default(1000),
+    includePaymentDetails: boolean('include_payment_details').notNull().default(true),
+    includeLineItems: boolean('include_line_items').notNull().default(false),
+    lineItemFields: jsonb('line_item_fields')
+      .$type<InvoiceLineItemField[]>()
+      .notNull()
+      .default([]),
+    lastTestSentAt: timestamp('last_test_sent_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex('form_invoice_configs_form_id_idx').on(table.formId)],
+)
+
+export const formConfirmationConfigs = pgTable(
+  'form_confirmation_configs',
+  {
+    id: serial().primaryKey(),
+    formId: integer('form_id')
+      .notNull()
+      .references(() => forms.id, { onDelete: 'cascade' }),
+    enabled: boolean('enabled').notNull().default(false),
+    respondentEmailField: varchar('respondent_email_field', { length: 100 }),
+    subjectTemplate: varchar('subject_template', { length: 255 })
+      .notNull()
+      .default('Thanks for submitting {{form_title}}'),
+    bodyTemplate: text('body_template')
+      .notNull()
+      .default('<h1>Thank you</h1><p>Your response has been recorded.</p>'),
+    bodyTemplatePlain: text('body_template_plain'),
+    fromName: varchar('from_name', { length: 255 }),
+    lastTestSentAt: timestamp('last_test_sent_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex('form_confirmation_configs_form_id_idx').on(table.formId)],
+)
+
 export const formFields = pgTable(
   'form_fields',
   {
@@ -429,6 +493,64 @@ export const payments = pgTable(
     uniqueIndex('payments_gateway_payment_id_idx').on(table.gatewayPaymentId),
     uniqueIndex('payments_external_id_idx').on(table.externalId),
     index('payments_page_session_id_idx').on(table.pageSessionId),
+  ],
+)
+
+export type EmailTemplateKind = 'invoice' | 'confirmation'
+export type EmailDeliveryStatus = 'queued' | 'sending' | 'sent' | 'failed'
+export type EmailTemplateSnapshot = {
+  subjectTemplate: string
+  bodyTemplate: string
+  bodyTemplatePlain?: string | null
+  fromName?: string | null
+  logoUrl?: string | null
+  accentColor?: string | null
+  includePaymentDetails?: boolean
+  includeLineItems?: boolean
+  lineItemFields?: InvoiceLineItemField[]
+}
+
+export const emailDeliveryLogs = pgTable(
+  'email_delivery_logs',
+  {
+    id: serial().primaryKey(),
+    formId: integer('form_id')
+      .notNull()
+      .references(() => forms.id, { onDelete: 'cascade' }),
+    formSubmissionId: integer('form_submission_id')
+      .notNull()
+      .references(() => formSubmissions.id, { onDelete: 'cascade' }),
+    paymentId: integer('payment_id').references(() => payments.id, { onDelete: 'set null' }),
+    templateKind: varchar('template_kind', { length: 20 }).notNull().$type<EmailTemplateKind>(),
+    recipientEmail: varchar('recipient_email', { length: 255 }).notNull(),
+    invoiceNumber: varchar('invoice_number', { length: 50 }),
+    subject: varchar('subject', { length: 255 }).notNull(),
+    templateSnapshot: jsonb('template_snapshot').$type<EmailTemplateSnapshot>().notNull(),
+    status: varchar('status', { length: 20 })
+      .notNull()
+      .default('queued')
+      .$type<EmailDeliveryStatus>(),
+    provider: varchar('provider', { length: 20 }),
+    messageId: varchar('message_id', { length: 255 }),
+    errorMessage: text('error_message'),
+    attemptCount: integer('attempt_count').notNull().default(0),
+    lastAttemptAt: timestamp('last_attempt_at'),
+    sentAt: timestamp('sent_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('email_delivery_logs_submission_kind_idx').on(
+      table.formSubmissionId,
+      table.templateKind,
+    ),
+    uniqueIndex('email_delivery_logs_form_invoice_number_idx').on(
+      table.formId,
+      table.invoiceNumber,
+    ),
+    index('email_delivery_logs_form_created_at_idx').on(table.formId, table.createdAt),
+    index('email_delivery_logs_status_idx').on(table.status),
+    index('email_delivery_logs_payment_id_idx').on(table.paymentId),
   ],
 )
 

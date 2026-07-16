@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
+import { dispatchSubmissionEmails } from '../invoicing/delivery'
 import { db } from '../../db/index'
 import {
   flows,
@@ -166,6 +167,10 @@ export const completeExecution = createServerFn({ method: 'POST', strict: false 
       })
       .where(eq(flowExecutions.id, data.executionId))
       .returning()
+
+    await dispatchSubmissionEmails(submission.id).catch((error) => {
+      console.error(`[submission:${submission.id}] Email dispatch failed`, error)
+    })
 
     return { execution: updated, submission }
   })

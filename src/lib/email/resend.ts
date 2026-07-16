@@ -1,5 +1,35 @@
 import type { ResendConfig } from '../integrations/types'
 
+export async function sendResendEmail(input: {
+  config: ResendConfig
+  recipient: string
+  subject: string
+  html: string
+  text: string
+  fromName?: string | null
+}) {
+  if (!input.config.fromEmail) throw new Error('Resend verified sender email is not configured')
+  const senderName = input.fromName?.trim() || input.config.fromName?.trim() || 'PonkoForm'
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${input.config.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: `${senderName} <${input.config.fromEmail}>`,
+      to: [input.recipient],
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+    }),
+    signal: AbortSignal.timeout(12_000),
+  })
+  const result = await response.json().catch(() => ({})) as { id?: string; message?: string }
+  if (!response.ok || !result.id) throw new Error(result.message ?? `Resend delivery failed (${response.status})`)
+  return { messageId: result.id }
+}
+
 function escapeHtml(value: string) {
   return value.replace(/[&<>'"]/g, (character) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',

@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { FormSectionNav } from "../../../components/forms/FormSectionNav";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useEffect, useState, useCallback } from "react";
 import { requireAuth } from "../../../lib/server-fns/auth";
@@ -195,6 +196,9 @@ function SubmissionsPage() {
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">
       {/* Header */}
+      <div className="mb-5">
+        <FormSectionNav formId={formId} active="responses" />
+      </div>
       <div className="mb-8 flex items-center justify-between">
         <div>
           <div className="mb-1 flex items-center gap-2 text-sm text-[#6c6a64]">
