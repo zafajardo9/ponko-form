@@ -96,6 +96,7 @@ const FIELD_ITEMS: FieldPaletteItem[] = [
   { type: 'checkbox', label: 'Terms', icon: <ShieldCheck size={14} />, preset: 'terms' },
   { type: 'radio', label: 'Radio', icon: <CircleDot size={14} /> },
   { type: 'satisfaction', label: 'Satisfaction', icon: <Smile size={14} /> },
+  { type: 'recaptcha', label: 'reCAPTCHA', icon: <ShieldCheck size={14} /> },
   { type: 'date', label: 'Date', icon: <Calendar size={14} /> },
   { type: 'time', label: 'Time', icon: <Clock size={14} /> },
   { type: 'datetime', label: 'Date & Time', icon: <CalendarClock size={14} /> },
@@ -456,6 +457,8 @@ export function PageBuilderWorkspace({
                 ? 'Total'
               : fieldType === 'satisfaction'
                 ? 'How satisfied are you?'
+              : fieldType === 'recaptcha'
+                ? ''
               : '',
       placeholder: fieldType === 'content'
         ? '<p>Add helpful details for this page.</p>'
@@ -464,7 +467,7 @@ export function PageBuilderWorkspace({
           : fieldType === 'file_upload'
             ? 'Upload an image or file.'
           : null,
-      required: (isTerms || fieldType === 'file_upload') && fieldType !== 'computation',
+      required: (isTerms || fieldType === 'file_upload' || fieldType === 'recaptcha') && fieldType !== 'computation',
       options: isTerms
         ? [
             {
@@ -1632,6 +1635,15 @@ function SortableFieldCard({ field, pages, selected, onSelect, onMoveToPage }: S
             </div>
           </button>
         )}
+        {field.fieldType === 'recaptcha' && (
+          <button type="button" onClick={onSelect} className="mt-3 block w-full text-left">
+            <div className="flex h-[70px] max-w-[304px] items-center gap-3 rounded border border-[#d8d8d8] bg-white px-4 text-sm text-[#3d3d3a]">
+              <span className="h-7 w-7 rounded border-2 border-[#777]" />
+              <span>I’m not a robot</span>
+              <span className="ml-auto text-[10px] text-[#777]">reCAPTCHA</span>
+            </div>
+          </button>
+        )}
       </div>
     </div>
   )
@@ -1801,6 +1813,10 @@ function FieldSettings({ field, pages, fields, references, onUpdate, onMoveToPag
       onUpdate({ fieldType, options: satisfactionOptions('five-point') })
       return
     }
+    if (fieldType === 'recaptcha' && field.fieldType !== 'recaptcha') {
+      onUpdate({ fieldType, required: true, options: null, placeholder: null })
+      return
+    }
     onUpdate({ fieldType })
   }
 
@@ -1811,8 +1827,13 @@ function FieldSettings({ field, pages, fields, references, onUpdate, onMoveToPag
         <h3 className="mt-1 text-lg font-medium text-[#141413]">{field.label || 'Untitled field'}</h3>
       </div>
 
-      <Field label="Label">
-        <input value={field.label} onChange={(e) => onUpdate({ label: e.target.value })} className={inputClass} />
+      <Field label={field.fieldType === 'recaptcha' ? 'Label (optional)' : 'Label'}>
+        <input
+          value={field.label}
+          onChange={(e) => onUpdate({ label: e.target.value })}
+          className={inputClass}
+          placeholder={field.fieldType === 'recaptcha' ? 'Leave blank to show only the widget' : undefined}
+        />
       </Field>
       <Field label="Type">
         <select value={field.fieldType} onChange={(e) => changeFieldType(e.target.value as PageFieldType)} className={inputClass}>
@@ -1926,7 +1947,7 @@ function FieldSettings({ field, pages, fields, references, onUpdate, onMoveToPag
       )}
 
       <div className="grid grid-cols-2 gap-3">
-        {!isContentField(field) && field.fieldType !== 'computation' && (
+        {!isContentField(field) && field.fieldType !== 'computation' && field.fieldType !== 'recaptcha' && (
           <label className="flex items-center gap-2 text-sm text-[#141413]">
             <input type="checkbox" checked={field.required} onChange={(e) => onUpdate({ required: e.target.checked })} className="h-4 w-4 accent-[#cc785c]" />
             Required
@@ -1975,6 +1996,12 @@ function FieldSettings({ field, pages, fields, references, onUpdate, onMoveToPag
 
       {field.fieldType === 'satisfaction' && (
         <SatisfactionSettings field={field} onUpdate={onUpdate} />
+      )}
+
+      {field.fieldType === 'recaptcha' && (
+        <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 text-xs leading-5 text-[#6c6a64]">
+          Uses the Google reCAPTCHA v2 checkbox credentials configured in Settings → Integrations → Security. The secret key is never exposed to respondents.
+        </div>
       )}
 
       {field.fieldType === 'computation' && (
@@ -2028,7 +2055,7 @@ function FieldSettings({ field, pages, fields, references, onUpdate, onMoveToPag
 
       {!isContentField(field) && field.fieldType !== 'computation' && (
         <div className="grid grid-cols-1 gap-3">
-        <button
+        {field.fieldType !== 'recaptcha' && <button
           type="button"
           onClick={() => setRulesOpen(true)}
           className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 text-left transition-colors hover:border-[#cc785c]/70 hover:bg-[#efe9de]"
@@ -2040,7 +2067,7 @@ function FieldSettings({ field, pages, fields, references, onUpdate, onMoveToPag
             </span>
           </div>
           <p className="mt-1 text-xs text-[#8e8b82]">Allowed characters, lengths, ranges, and messages.</p>
-        </button>
+        </button>}
 
         <button
           type="button"
@@ -2180,7 +2207,7 @@ function computationSourceFields(fields: PageField[], currentFieldId: number, mo
 function computationFormulaFields(fields: PageField[], currentField: PageField) {
   return fields.filter((field) =>
     field.id !== currentField.id &&
-    !['content', 'media', 'address'].includes(field.fieldType) &&
+    !['content', 'media', 'address', 'recaptcha'].includes(field.fieldType) &&
     (field.fieldType === 'number' ||
       field.fieldType === 'satisfaction' ||
       field.fieldType === 'computation' ||
@@ -2200,7 +2227,6 @@ function formulaOperatorSymbol(operator: FormulaOperator) {
 function formulaTermLabel(
   term: NonNullable<FieldComputation['terms']>[number],
   fields: PageField[],
-  references: FormReference[],
 ) {
   if (term.source === 'field') {
     const field = fields.find((item) => item.bindVariable === term.fieldBinding)
@@ -2215,13 +2241,11 @@ function ExpressionPreview({
   expression,
   terms,
   fields,
-  references,
 }: {
   field: PageField
   expression?: string | null
   terms: NonNullable<FieldComputation['terms']>
   fields: PageField[]
-  references: FormReference[]
 }) {
   const expressionTokens = expression?.trim()
   return (
@@ -2240,7 +2264,7 @@ function ExpressionPreview({
           terms.map((term, index) => (
             <span key={term.id ?? index} className="contents">
               {index > 0 && formulaToken(formulaOperatorSymbol(term.operator), 'operator', `operator-${index}`)}
-              {formulaToken(formulaTermLabel(term, fields, references), term.source === 'reference' ? 'reference' : 'source', `term-${index}`)}
+              {formulaToken(formulaTermLabel(term, fields), term.source === 'reference' ? 'reference' : 'source', `term-${index}`)}
             </span>
           ))
         )}
@@ -2847,7 +2871,6 @@ function ComputationDialog({
               expression={computation.expression}
               terms={computation.terms ?? []}
               fields={fields}
-              references={numberReferences}
             />
             <FormulaComposer
               field={field}
@@ -3281,7 +3304,7 @@ function LogicDialog({
                       className={inputClass}
                     >
                       <option value="">Choose field...</option>
-                      {fields.filter((item) => item.id !== field.id).map((item) => (
+                      {fields.filter((item) => item.id !== field.id && item.fieldType !== 'recaptcha').map((item) => (
                         <option key={item.id} value={item.bindVariable}>
                           {item.label || item.bindVariable}
                         </option>

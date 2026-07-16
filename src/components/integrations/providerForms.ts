@@ -1,6 +1,6 @@
 import type { ProviderSlug } from '../../lib/integrations/types'
 
-export type ProviderCategory = 'payments' | 'email' | 'data-export' | 'ai' | 'scheduling' | 'file-storage'
+export type ProviderCategory = 'payments' | 'email' | 'data-export' | 'ai' | 'scheduling' | 'file-storage' | 'security'
 
 export interface ProviderFormField {
   name: string
@@ -212,6 +212,20 @@ export const PROVIDER_FORMS: Record<ProviderSlug, ProviderFormConfig> = {
     ],
     docsUrl: 'https://cloudinary.com/documentation',
   },
+
+  // ── Security ──
+  recaptcha: {
+    provider: 'recaptcha',
+    name: 'Google reCAPTCHA',
+    icon: '🛡️',
+    description: 'Protect published forms from spam with a reCAPTCHA v2 “I’m not a robot” checkbox.',
+    category: 'security',
+    fields: [
+      { name: 'siteKey', label: 'Site key', type: 'text', required: true, placeholder: '6Lc...', docLink: 'https://www.google.com/recaptcha/admin/create' },
+      { name: 'secretKey', label: 'Secret key', type: 'password', required: true, placeholder: 'Saved securely and used only by the server' },
+    ],
+    docsUrl: 'https://developers.google.com/recaptcha/docs/display',
+  },
 }
 
 export const CATEGORIES: { key: ProviderCategory; label: string; icon: string }[] = [
@@ -221,4 +235,5 @@ export const CATEGORIES: { key: ProviderCategory; label: string; icon: string }[
   { key: 'ai', label: 'AI', icon: '🧠' },
   { key: 'scheduling', label: 'Scheduling', icon: '📅' },
   { key: 'file-storage', label: 'File Storage', icon: '☁️' },
+  { key: 'security', label: 'Security', icon: '🛡️' },
 ]

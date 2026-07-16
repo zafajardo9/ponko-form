@@ -62,7 +62,7 @@ export function IntegrationModal({ provider, open, onClose, onSave, onOAuth, sav
 
   function handleSave() {
     const withDefaults = { ...config }
-    for (const field of cfg.fields) {
+    for (const field of cfg!.fields) {
       if (field.type === 'select' && !withDefaults[field.name]) {
         withDefaults[field.name] = meta?.[field.name]?.toLowerCase() ?? field.placeholder ?? ''
       }
@@ -263,11 +263,13 @@ export function IntegrationModal({ provider, open, onClose, onSave, onOAuth, sav
                   <input
                     id={`integration-${provider}-${field.name}`}
                     type={field.type}
-                    value={config[field.name] ?? ''}
+                    value={config[field.name] ?? (field.type === 'password' ? '' : meta?.[field.name] ?? '')}
                     onChange={(e) => update(field.name, e.target.value)}
                     placeholder={
                       field.type === 'password' && configured && (!isPaymentEnvironmentProvider || activeEnvironmentSaved)
-                        ? `Saved for ${activeEnvironment === 'live' ? 'Live' : 'Test'} — leave blank to keep`
+                        ? isPaymentEnvironmentProvider
+                          ? `Saved for ${activeEnvironment === 'live' ? 'Live' : 'Test'} — leave blank to keep`
+                          : 'Saved — leave blank to keep'
                         : (field.placeholder ?? '')
                     }
                     autoComplete="off"

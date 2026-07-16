@@ -23,6 +23,7 @@ import { FieldRenderer } from '../form-builder/fields/FieldRenderer'
 import type { FieldValue } from '../form-builder/fields/FieldRenderer'
 import { PageProgressBar } from './PageProgressBar'
 import { PagePaymentStep } from './PagePaymentStep'
+import { RecaptchaField } from './RecaptchaField'
 
 interface PageFormViewProps {
   formId?: number
@@ -39,6 +40,7 @@ interface PageFormViewProps {
     rating: string
     bindVariable: string
   }
+  recaptchaSiteKey?: string | null
 }
 
 function interpolate(template: string, data: Record<string, unknown>) {
@@ -75,6 +77,7 @@ export function PageFormView({
   preview = false,
   resumeSessionId,
   emailSurvey,
+  recaptchaSiteKey: initialRecaptchaSiteKey,
 }: PageFormViewProps) {
   const [currentPageIndex, setCurrentPageIndex] = useState(0)
   const [data, setData] = useState<Record<string, unknown>>(() =>
@@ -85,6 +88,7 @@ export function PageFormView({
   const [paidPages, setPaidPages] = useState<Record<number, boolean>>({})
   const [paymentGateMessage, setPaymentGateMessage] = useState('')
   const [completed, setCompleted] = useState(false)
+  const [captchaEpoch, setCaptchaEpoch] = useState(0)
   const [sessionClientToken] = useState(createSessionClientToken)
   const sessionCorrelationId = sessionClientToken.slice(0, 12)
   const startedRef = useRef(false)
@@ -100,6 +104,7 @@ export function PageFormView({
   const pages = (resumeQuery.data?.pages ?? initialPages ?? []).sort(
     (a, b) => a.position - b.position,
   )
+  const allFields = useMemo(() => pages.flatMap((page) => page.fields), [pages])
   const references = resumeQuery.data?.references ?? initialReferences
   const referenceMap = useMemo(() => buildReferenceMap(references), [references])
   const resolvedTitle = resumeQuery.data?.form.title ?? title
@@ -110,6 +115,18 @@ export function PageFormView({
       ? null
       : trimmedDescription
   const resolvedTheme = (resumeQuery.data?.form.theme as FormTheme | null | undefined) ?? theme
+  const recaptchaSiteKey = resumeQuery.data?.recaptchaSiteKey ?? initialRecaptchaSiteKey ?? null
+
+  function resetCaptchaFields() {
+    setData((current) => {
+      const next = { ...current }
+      for (const field of allFields) {
+        if (field.fieldType === 'recaptcha') delete next[field.bindVariable]
+      }
+      return next
+    })
+    setCaptchaEpoch((value) => value + 1)
+  }
 
   useEffect(() => {
     if (!resumeSessionId || preview || !resolvedTitle) return
@@ -153,11 +170,13 @@ export function PageFormView({
   const advanceMut = useMutation({
     mutationFn: (vars: { currentPageIndex: number; collectedData: Record<string, unknown> }) =>
       advancePageSession({ data: { sessionId: sessionId!, ...vars } }),
+    onError: resetCaptchaFields,
   })
   const completeMut = useMutation({
     mutationFn: (collectedData: Record<string, unknown>) =>
       completePageSubmission({ data: { sessionId: sessionId!, collectedData } }),
     onSuccess: () => setCompleted(true),
+    onError: resetCaptchaFields,
   })
 
   useEffect(() => {
@@ -192,7 +211,6 @@ export function PageFormView({
     startMut.mutate(formId)
   }
 
-  const allFields = useMemo(() => pages.flatMap((page) => page.fields), [pages])
   const currentPage = pages[currentPageIndex]
   const progressPageTotal = pages.filter((page) => !page.isFinal).length
   const progressPageCurrent = pages
@@ -305,7 +323,11 @@ export function PageFormView({
     }
     const nextIndex = currentPageIndex + 1
     if (!preview && sessionId) {
-      await advanceMut.mutateAsync({ currentPageIndex: nextIndex, collectedData: nextData })
+      try {
+        await advanceMut.mutateAsync({ currentPageIndex: nextIndex, collectedData: nextData })
+      } catch {
+        return
+      }
     }
     setCurrentPageIndex(nextIndex)
   }
@@ -399,7 +421,17 @@ export function PageFormView({
               {currentPage.fields.filter((field) =>
                 isFieldVisible(field, computedData, referenceMap) &&
                 (field.fieldType !== 'computation' || field.validationRules?.computation?.showBreakdown !== false),
-              ).map((field) => (
+              ).map((field) => field.fieldType === 'recaptcha' ? (
+                <RecaptchaField
+                  key={`${field.id}-${captchaEpoch}`}
+                  label={field.label}
+                  required={field.required}
+                  siteKey={recaptchaSiteKey}
+                  preview={preview}
+                  onChange={(value) => updateValue(field, value)}
+                  error={errors[field.bindVariable]}
+                />
+              ) : (
                 <FieldRenderer
                   key={field.id}
                   field={fieldConfig(field)}
@@ -409,6 +441,12 @@ export function PageFormView({
                 />
               ))}
             </div>
+          )}
+
+          {(advanceMut.isError || completeMut.isError) && (
+            <p className="mt-4 text-sm text-[#c64545]" role="alert">
+              {((advanceMut.error ?? completeMut.error) as Error)?.message ?? 'Submission failed. Please try again.'}
+            </p>
           )}
 
           <div className="mt-8 flex items-center justify-between gap-3">

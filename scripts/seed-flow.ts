@@ -46,6 +46,7 @@ async function main() {
       .insert(forms)
       .values({
         profileId: profile.id,
+        publicId: 'seed-payment-plan',
         title: 'Payment Plan (Seed)',
         description: 'Sample flow-powered form created by seed-flow.ts',
         status: 'draft',

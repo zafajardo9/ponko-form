@@ -752,6 +752,7 @@ function UnifiedEditorPage() {
                 description={form?.description}
                 pages={pagePreviewDraft?.pages ?? pageForm.pages}
                 references={pagePreviewDraft?.references ?? pageForm.references ?? []}
+                recaptchaSiteKey={pageForm.recaptchaSiteKey}
                 theme={(form?.theme as FormTheme | null) ?? null}
                 preview
               />

@@ -12,6 +12,7 @@ export type ProviderSlug =
   | 'gemini'
   | 'google-calendar' | 'calendly'
   | 'imagekit' | 'cloudinary'
+  | 'recaptcha'
 
 export type PaymentEnvironment = 'sandbox' | 'live'
 
@@ -113,6 +114,13 @@ export interface CloudinaryConfig {
   apiSecret: string
 }
 
+export interface RecaptchaConfig {
+  /** Safe to expose to respondent-facing pages. */
+  siteKey: string
+  /** Server-only verification credential. */
+  secretKey: string
+}
+
 /** Union of every possible integration config — helps typed destructuring. */
 export type IntegrationConfig =
   | XenditConfig
@@ -128,6 +136,7 @@ export type IntegrationConfig =
   | CalendlyConfig
   | ImageKitConfig
   | CloudinaryConfig
+  | RecaptchaConfig
 
 /** Everything a user can configure (legacy — loaded from integration_settings). */
 export interface IntegrationConfigs {

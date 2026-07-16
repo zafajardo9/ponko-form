@@ -168,6 +168,7 @@ async function main() {
       .insert(forms)
       .values({
         profileId: profile.id,
+        publicId: "seed-service-order",
         title: "Service Order",
         description:
           "Immigration & consultancy services — select services, automatic fee + VAT + deposit calculation",

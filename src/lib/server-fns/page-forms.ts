@@ -19,11 +19,20 @@ import { reconcilePayment } from '../payments/reconciliation'
 import type { GatewayCredentials } from '../../integrations/payments/types'
 import { loadIntegrationConfigs } from '../integrations/credentials'
 import {
+  getRecaptchaConfigForForm,
+  mergeSubmissionSessionData,
+  publicSubmissionData,
+  verifiedRecaptchaFieldIds,
+  verifyRecaptchaFields,
+  withVerifiedRecaptchaFieldIds,
+} from '../integrations/recaptcha'
+import {
   applyComputedFieldValues,
   buildReferenceMap,
   calculatePagePayment,
 } from '../page-builder/references'
 import { completePageSubmissionRecord, completePaidPageSubmission } from '../page-builder/complete-submission'
+import { isFieldVisible } from '../page-builder/conditions'
 import { hydratePages, loadFormReferences } from '../page-builder/server-data'
 import type {
   ConditionAction,
@@ -180,6 +189,15 @@ async function ensurePageBuilderFieldTypes() {
       ) THEN
         ALTER TYPE "public"."field_type" ADD VALUE 'satisfaction';
       END IF;
+
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_enum e
+        JOIN pg_type t ON t.oid = e.enumtypid
+        WHERE t.typname = 'field_type' AND e.enumlabel = 'recaptcha'
+      ) THEN
+        ALTER TYPE "public"."field_type" ADD VALUE 'recaptcha';
+      END IF;
     END $$;
   `)
 }
@@ -191,7 +209,15 @@ export const getPageForm = createServerFn({ method: 'GET', strict: false })
     if (!form) return null
     const pages = await hydratePages(data.formId)
     if (pages.length === 0) return null
-    return { form, pages, references: await loadFormReferences(data.formId) }
+    const recaptcha = pages.some((page) => page.fields.some((field) => field.fieldType === 'recaptcha'))
+      ? await getRecaptchaConfigForForm(data.formId)
+      : null
+    return {
+      form,
+      pages,
+      references: await loadFormReferences(data.formId),
+      recaptchaSiteKey: recaptcha?.siteKey ?? null,
+    }
   })
 
 export const getPageSessionData = createServerFn({ method: 'GET', strict: false })
@@ -205,7 +231,20 @@ export const getPageSessionData = createServerFn({ method: 'GET', strict: false 
     if (!session) throw new Error('Session not found')
     const [form] = await db.select().from(forms).where(eq(forms.id, session.formId)).limit(1)
     if (!form) throw new Error('Form not found')
-    return { session, form, pages: await hydratePages(session.formId), references: await loadFormReferences(session.formId) }
+    const pages = await hydratePages(session.formId)
+    const recaptcha = pages.some((page) => page.fields.some((field) => field.fieldType === 'recaptcha'))
+      ? await getRecaptchaConfigForForm(session.formId)
+      : null
+    return {
+      session: {
+        ...session,
+        collectedData: publicSubmissionData((session.collectedData ?? {}) as Record<string, unknown>),
+      },
+      form,
+      pages,
+      references: await loadFormReferences(session.formId),
+      recaptchaSiteKey: recaptcha?.siteKey ?? null,
+    }
   })
 
 export const ensurePageForm = createServerFn({ method: 'POST', strict: false })
@@ -602,7 +641,7 @@ export const savePageForm = createServerFn({ method: 'POST', strict: false })
             fieldType: field.fieldType,
             label: field.label,
             placeholder: field.placeholder ?? null,
-            required: field.required,
+            required: field.fieldType === 'recaptcha' ? true : field.required,
             options: field.options ?? null,
             bindVariable: field.bindVariable,
             position: fieldIndex,
@@ -768,12 +807,43 @@ export const advancePageSession = createServerFn({ method: 'POST', strict: false
     }) => data,
   )
   .handler(async ({ data }) => {
+    const [existing] = await db
+      .select()
+      .from(formSubmissionSessions)
+      .where(eq(formSubmissionSessions.id, data.sessionId))
+      .limit(1)
+    if (!existing) throw new Error('Session not found')
+
+    const pages = await hydratePages(existing.formId)
+    const previousPage = pages[data.currentPageIndex - 1]
+    let collectedData = mergeSubmissionSessionData(
+      (existing.collectedData ?? {}) as Record<string, unknown>,
+      data.collectedData,
+    )
+    if (previousPage) {
+      const references = await loadFormReferences(existing.formId)
+      const referenceMap = buildReferenceMap(references)
+      const captchaFields = previousPage.fields.filter((field) =>
+        field.fieldType === 'recaptcha' && isFieldVisible(field, collectedData, referenceMap),
+      )
+      const verified = await verifyRecaptchaFields(
+        existing.formId,
+        captchaFields,
+        collectedData,
+        verifiedRecaptchaFieldIds(collectedData),
+      )
+      collectedData = withVerifiedRecaptchaFieldIds(collectedData, verified)
+    }
+    for (const field of pages.flatMap((page) => page.fields)) {
+      if (field.fieldType === 'recaptcha') delete collectedData[field.bindVariable]
+    }
+
     const [session] = await withTimeout(
       db
         .update(formSubmissionSessions)
         .set({
           currentPageIndex: data.currentPageIndex,
-          collectedData: data.collectedData,
+          collectedData,
           status: data.status ?? 'in_progress',
           updatedAt: new Date(),
         })
@@ -786,7 +856,7 @@ export const advancePageSession = createServerFn({ method: 'POST', strict: false
     if (!session) throw new Error('Session not found')
     if (session.formSubmissionId) {
       await db.update(formSubmissions)
-        .set({ formData: data.collectedData })
+        .set({ formData: publicSubmissionData(collectedData) })
         .where(eq(formSubmissions.id, session.formSubmissionId))
     }
     return session

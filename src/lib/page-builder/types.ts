@@ -16,6 +16,7 @@ export type PageFieldType =
   | 'computation'
   | 'file_upload'
   | 'satisfaction'
+  | 'recaptcha'
 
 export type ConditionOperator =
   | 'equals'
@@ -161,6 +162,8 @@ export interface PageForm {
   }
   pages: FormPage[]
   references?: FormReference[]
+  /** Public reCAPTCHA site key. The matching secret is never serialized. */
+  recaptchaSiteKey?: string | null
 }
 
 export interface PageSubmissionSession {

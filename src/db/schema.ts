@@ -32,6 +32,7 @@ export const fieldTypeEnum = pgEnum('field_type', [
   'computation',
   'file_upload',
   'satisfaction',
+  'recaptcha',
 ])
 export const paymentStatusEnum = pgEnum('payment_status', [
   'pending',

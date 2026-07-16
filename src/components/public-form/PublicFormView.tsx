@@ -212,6 +212,7 @@ export function PublicFormView({
         description={form.description}
         pages={pageForm.pages}
         references={pageForm.references ?? []}
+        recaptchaSiteKey={pageForm.recaptchaSiteKey}
         theme={theme}
         embed={embed}
         emailSurvey={emailSurveyQuery.data?.valid ? {

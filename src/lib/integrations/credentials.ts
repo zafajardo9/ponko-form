@@ -13,6 +13,7 @@ import type {
   PayPalEnvironmentCredentials,
   ProviderSlug,
   ResendConfig,
+  RecaptchaConfig,
   SmtpConfig,
   XenditConfig,
   XenditEnvironmentCredentials,
@@ -196,6 +197,8 @@ function integrationMeta(provider: ProviderSlug, config: IntegrationConfig | nul
         fromEmail: (config as ResendConfig).fromEmail ?? '',
         fromName: (config as ResendConfig).fromName ?? '',
       }
+    case 'recaptcha':
+      return { siteKey: (config as RecaptchaConfig).siteKey }
     default:
       return undefined
   }
@@ -258,6 +261,7 @@ export async function getAllIntegrationStatuses(profileId: number): Promise<Inte
     'gemini',
     'google-calendar', 'calendly',
     'imagekit', 'cloudinary',
+    'recaptcha',
   ]
 
   return allProviders.map((provider) => {

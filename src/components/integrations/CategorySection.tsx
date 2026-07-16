@@ -26,6 +26,7 @@ export function CategorySection({ categoryKey, statuses, onConfigure, onRemove }
     ai: 'Add intelligent generation and assistance to your workflows.',
     scheduling: 'Connect form responses with appointments and calendars.',
     'file-storage': 'Store and transform uploaded files and media.',
+    security: 'Protect public forms from automated spam and abuse.',
   }[categoryKey]
 
   return (

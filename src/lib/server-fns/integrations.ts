@@ -7,6 +7,7 @@ import type {
   PayPalConfig,
   ProviderSlug,
   ResendConfig,
+  RecaptchaConfig,
   SmtpConfig,
   XenditConfig,
 } from '../integrations/types'
@@ -287,6 +288,17 @@ export const saveIntegration = createServerFn({ method: 'POST' })
         fromEmail,
         fromName: String(input.fromName ?? '').trim() || existing?.fromName,
       })
+    } else if (data.provider === 'recaptcha') {
+      const existing = await getIntegrationConfig<RecaptchaConfig>(profile.id, 'recaptcha')
+      const input = data.config as Partial<RecaptchaConfig>
+      const siteKey = String(input.siteKey ?? '').trim() || existing?.siteKey
+      const secretKey = String(input.secretKey ?? '').trim() || existing?.secretKey
+      if (!siteKey) throw new Error('Google reCAPTCHA site key is required')
+      if (!secretKey) throw new Error('Google reCAPTCHA secret key is required')
+      if (siteKey.length > 255 || secretKey.length > 255) {
+        throw new Error('Google reCAPTCHA credentials are not valid')
+      }
+      await saveIntegrationConfig(profile.id, 'recaptcha', { siteKey, secretKey })
     } else {
       await saveIntegrationConfig(profile.id, data.provider, data.config as unknown as IntegrationConfig)
     }

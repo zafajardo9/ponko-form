@@ -15,6 +15,11 @@ import {
 import { applyComputedFieldValues, buildReferenceMap } from './references'
 import { hydratePages, loadFormReferences } from './server-data'
 import type { PageField } from './types'
+import {
+  replaceRecaptchaTokensWithResult,
+  verifiedRecaptchaFieldIds,
+  verifyRecaptchaFields,
+} from '../integrations/recaptcha'
 
 function pageFieldValueIsEmpty(field: PageField, value: unknown) {
   if (field.fieldType === 'address') {
@@ -40,6 +45,12 @@ export async function completePageSubmissionRecord(
   const allFields = pages.flatMap((page) => page.fields)
   const withComputations = applyComputedFieldValues(allFields, collectedData, references)
   const pruned = pruneHiddenValues(allFields, withComputations, referenceMap)
+  const verifiedFieldIds = await verifyRecaptchaFields(
+    session.formId,
+    visibleFields(allFields, pruned, referenceMap),
+    pruned,
+    verifiedRecaptchaFieldIds((session.collectedData ?? {}) as Record<string, unknown>),
+  )
   const paymentPage = pages.find((page) => page.hasPayment)
   if (paymentPage) {
     const meta = (session.collectedData ?? {}) as Record<string, unknown>
@@ -59,7 +70,9 @@ export async function completePageSubmissionRecord(
 
   for (const field of visibleFields(allFields, pruned, referenceMap)) {
     const value = pruned[field.bindVariable]
-    const empty = pageFieldValueIsEmpty(field, value)
+    const empty = field.fieldType === 'recaptcha' && verifiedFieldIds.includes(field.id)
+      ? false
+      : pageFieldValueIsEmpty(field, value)
     if (field.required && empty) {
       const missing = field.fieldType === 'address' ? missingAddressParts(field, value) : []
       throw new Error(
@@ -72,7 +85,10 @@ export async function completePageSubmissionRecord(
     if (!empty && ruleError) throw new Error(ruleError)
   }
 
-  const finalFormData = { ...referenceMap, ...pruned }
+  const finalFormData = {
+    ...referenceMap,
+    ...replaceRecaptchaTokensWithResult(pages, pruned, verifiedFieldIds),
+  }
   const [submission] = session.formSubmissionId
     ? await db.update(formSubmissions)
         .set({ formData: finalFormData, status: 'completed', submittedAt: new Date() })

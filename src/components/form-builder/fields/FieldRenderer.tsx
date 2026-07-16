@@ -29,7 +29,7 @@ export interface FieldOption {
 
 export interface FieldConfig {
   id: number
-  type: 'text' | 'email' | 'number' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'payment' | 'date' | 'time' | 'datetime' | 'content' | 'media' | 'address' | 'computation' | 'file_upload' | 'satisfaction'
+  type: 'text' | 'email' | 'number' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'payment' | 'date' | 'time' | 'datetime' | 'content' | 'media' | 'address' | 'computation' | 'file_upload' | 'satisfaction' | 'recaptcha'
   label: string
   placeholder?: string | null
   required: boolean
