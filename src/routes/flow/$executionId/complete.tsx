@@ -1,19 +1,23 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Suspense, lazy, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getCompletionData } from '../../../lib/server-fns/flow-executions'
 import { TemplateInterpolator } from '../../../lib/flow-engine/TemplateInterpolator'
 import { Card } from '../../../components/ui/Card'
 import { Button } from '../../../components/ui/Button'
 import { buildInvoice } from '../../../components/flow-execution/invoice'
+import { InvoiceDownloadButton } from '../../../components/flow-execution/InvoiceDownloadButton'
 import { themeVars, type FormTheme } from '../../../lib/theme'
 import type { FlowVariable, FlowVariableType } from '../../../lib/flow-engine/types'
-
-// @react-pdf/renderer is browser-only; load it lazily and render only after
-// mount so it never touches the SSR path.
-const InvoicePDF = lazy(() => import('../../../components/flow-execution/InvoicePDF'))
+import { isValidPublicSessionToken } from '../../../lib/public-session-access'
 
 export const Route = createFileRoute('/flow/$executionId/complete')({
+  validateSearch: (search: Record<string, unknown>) => ({
+    executionClientToken:
+      typeof search.executionClientToken === 'string' &&
+      isValidPublicSessionToken(search.executionClientToken)
+        ? search.executionClientToken
+        : null,
+  }),
   component: CompletePage,
 })
 
@@ -21,12 +25,18 @@ const interpolator = new TemplateInterpolator()
 
 function CompletePage() {
   const { executionId } = Route.useParams()
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  const { executionClientToken } = Route.useSearch()
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['completion', executionId],
-    queryFn: () => getCompletionData({ data: { executionId: Number(executionId) } }),
+    queryKey: ['completion', executionId, Boolean(executionClientToken)],
+    queryFn: () =>
+      getCompletionData({
+        data: {
+          executionId: Number(executionId),
+          clientToken: executionClientToken!,
+        },
+      }),
+    enabled: Boolean(executionClientToken),
   })
 
   if (isLoading) {
@@ -37,7 +47,7 @@ function CompletePage() {
     )
   }
 
-  if (isError || !data) {
+  if (!executionClientToken || isError || !data) {
     return (
       <div className="mx-auto max-w-xl px-6 py-24 text-center">
         <h1 className="text-2xl font-medium text-[#141413]">Receipt unavailable</h1>
@@ -154,17 +164,7 @@ function CompletePage() {
 
       {/* Actions */}
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-        {mounted && (
-          <Suspense
-            fallback={
-              <span className="inline-flex h-10 items-center rounded-[var(--ponko-radius,8px)] bg-[var(--ponko-primary-soft,#cc785c99)] px-5 text-sm font-medium text-white">
-                Preparing PDF…
-              </span>
-            }
-          >
-            <InvoicePDF invoice={invoice} fileName={`${invoice.invoiceNo}.pdf`} />
-          </Suspense>
-        )}
+        <InvoiceDownloadButton invoice={invoice} fileName={`${invoice.invoiceNo}.pdf`} />
         {data.formPublicId && (
           <Link to="/forms/submit/$formId" params={{ formId: data.formPublicId }}>
             <Button variant="secondary">Submit another response</Button>

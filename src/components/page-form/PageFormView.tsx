@@ -24,6 +24,7 @@ import type { FieldValue } from '../form-builder/fields/FieldRenderer'
 import { PageProgressBar } from './PageProgressBar'
 import { PagePaymentStep } from './PagePaymentStep'
 import { RecaptchaField } from './RecaptchaField'
+import { createPublicSessionToken } from '../../lib/public-session-access'
 
 interface PageFormViewProps {
   formId?: number
@@ -35,6 +36,7 @@ interface PageFormViewProps {
   embed?: boolean
   preview?: boolean
   resumeSessionId?: number
+  resumeClientToken?: string
   emailSurvey?: {
     token: string
     rating: string
@@ -57,13 +59,8 @@ function fieldConfig(field: PageField) {
     placeholder: field.placeholder,
     required: field.required,
     options: field.options,
+    validationRules: field.validationRules ?? null,
   }
-}
-
-function createSessionClientToken() {
-  const generated = globalThis.crypto?.randomUUID?.().replaceAll('-', '')
-  if (generated) return generated
-  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`
 }
 
 export function PageFormView({
@@ -76,6 +73,7 @@ export function PageFormView({
   embed = false,
   preview = false,
   resumeSessionId,
+  resumeClientToken,
   emailSurvey,
   recaptchaSiteKey: initialRecaptchaSiteKey,
 }: PageFormViewProps) {
@@ -89,7 +87,7 @@ export function PageFormView({
   const [paymentGateMessage, setPaymentGateMessage] = useState('')
   const [completed, setCompleted] = useState(false)
   const [captchaEpoch, setCaptchaEpoch] = useState(0)
-  const [sessionClientToken] = useState(createSessionClientToken)
+  const [sessionClientToken] = useState(() => resumeClientToken ?? createPublicSessionToken())
   const sessionCorrelationId = sessionClientToken.slice(0, 12)
   const startedRef = useRef(false)
   const submissionQueuedRef = useRef<Record<string, unknown> | null>(null)
@@ -97,8 +95,14 @@ export function PageFormView({
 
   const resumeQuery = useQuery({
     queryKey: ['page-session', resumeSessionId],
-    queryFn: () => getPageSessionData({ data: { sessionId: resumeSessionId! } }),
-    enabled: !!resumeSessionId,
+    queryFn: () =>
+      getPageSessionData({
+        data: {
+          sessionId: resumeSessionId!,
+          clientToken: sessionClientToken,
+        },
+      }),
+    enabled: !!resumeSessionId && !!resumeClientToken,
   })
 
   const pages = (resumeQuery.data?.pages ?? initialPages ?? []).sort(
@@ -169,12 +173,24 @@ export function PageFormView({
   })
   const advanceMut = useMutation({
     mutationFn: (vars: { currentPageIndex: number; collectedData: Record<string, unknown> }) =>
-      advancePageSession({ data: { sessionId: sessionId!, ...vars } }),
+      advancePageSession({
+        data: {
+          sessionId: sessionId!,
+          clientToken: sessionClientToken,
+          ...vars,
+        },
+      }),
     onError: resetCaptchaFields,
   })
   const completeMut = useMutation({
     mutationFn: (collectedData: Record<string, unknown>) =>
-      completePageSubmission({ data: { sessionId: sessionId!, collectedData } }),
+      completePageSubmission({
+        data: {
+          sessionId: sessionId!,
+          clientToken: sessionClientToken,
+          collectedData,
+        },
+      }),
     onSuccess: () => setCompleted(true),
     onError: resetCaptchaFields,
   })
@@ -401,6 +417,7 @@ export function PageFormView({
             sessionId ? (
               <PagePaymentStep
                 sessionId={sessionId}
+                clientToken={sessionClientToken}
                 pageId={currentPage.id}
                 onPaymentStatusChange={handlePaymentStatusChange}
               />

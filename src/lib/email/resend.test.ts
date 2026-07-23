@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { sendPaymentReminderEmail } from './resend'
+import { sendPaymentReminderEmail, sendResendEmail } from './resend'
 
 describe('Resend payment reminders', () => {
   afterEach(() => vi.unstubAllGlobals())
@@ -29,5 +29,22 @@ describe('Resend payment reminders', () => {
       amount: 'PHP 100.00',
       paymentUrl: 'https://example.com/pay',
     })).rejects.toThrow(/sender email/i)
+  })
+
+  it('forwards a stable idempotency key to the email API', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 'email-2' }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await sendResendEmail({
+      config: { apiKey: 're_secret', fromEmail: 'forms@example.com' },
+      recipient: 'customer@example.com',
+      subject: 'Submission received',
+      html: '<p>Thanks</p>',
+      text: 'Thanks',
+      idempotencyKey: 'submission-delivery/42',
+    })
+
+    const [, request] = fetchMock.mock.calls[0]
+    expect(request.headers['Idempotency-Key']).toBe('submission-delivery/42')
   })
 })

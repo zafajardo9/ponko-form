@@ -9,11 +9,11 @@ import { useEffect, useState, useCallback } from "react";
 import { requireAuth } from "../../../lib/server-fns/auth";
 import {
   getSubmissions,
-  exportSubmissionsCsv,
   setSubmissionArchived,
   deleteSubmission,
 } from "../../../lib/server-fns/submissions";
 import type { ResponseColumn } from "../../../lib/server-fns/submissions";
+import { submissionCsvDownloadUrl } from "../../../lib/submissions/csv";
 import { Badge } from "../../../components/ui/Badge";
 import { DataTable } from "../../../components/ui/DataTable";
 import type { DataTableColumn } from "../../../components/ui/DataTableTypes";
@@ -282,33 +282,21 @@ function SubmissionsPage() {
     [],
   );
 
-  // CSV export
-  const exportMutation = useMutation({
-    mutationFn: async () => {
-      const csv = await exportSubmissionsCsv({
-        data: {
-          formId: Number(formId),
-          filters,
-          sortKey,
-          sortDir,
-          search: search || undefined,
-          archived: responseView === "archived",
-        },
-      });
-      return csv;
-    },
-    onSuccess: (csv: string) => {
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${form?.title ?? "form"}_submissions.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    },
-  });
+  const downloadCsv = useCallback(() => {
+    const anchor = document.createElement("a");
+    anchor.href = submissionCsvDownloadUrl({
+      formId,
+      filters,
+      sortKey,
+      sortDir,
+      search: search || undefined,
+      archived: responseView === "archived",
+    });
+    anchor.hidden = true;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  }, [filters, formId, responseView, search, sortDir, sortKey]);
 
   return (
     <FormWorkspaceLayout
@@ -384,14 +372,14 @@ function SubmissionsPage() {
         }}
         onSortChange={handleSortChange}
         onFilterChange={handleFilterChange}
-        loading={isLoading || exportMutation.isPending}
+        loading={isLoading}
         emptyMessage={
           responseView === "archived"
             ? "No archived responses."
             : "No responses yet."
         }
         onRowClick={(row) => openResponse(row, rows.indexOf(row))}
-        onExportCsv={() => exportMutation.mutate()}
+        onExportCsv={downloadCsv}
         initialSort={{ key: "submitted_at", dir: "desc" }}
         searchValue={searchInput}
         onSearchChange={setSearchInput}

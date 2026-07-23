@@ -9,10 +9,15 @@
  */
 
 import { createServer } from 'node:http'
-import { readFile } from 'node:fs/promises'
-import { join, extname } from 'node:path'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { config } from 'dotenv'
+import {
+  applyBaseResponseHeaders,
+  readRequestBody,
+  RequestBodyTooLargeError,
+  tryServeStatic,
+} from './server-delivery.js'
 
 // Load .env files for local development.
 // On Render, set env vars in the Render dashboard instead.
@@ -20,51 +25,13 @@ config({ path: ['.env.local', '.env'] })
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const CLIENT_DIR = join(__dirname, 'dist', 'client')
-
-/** Map file extensions to Content-Type headers for static file serving. */
-const MIME_TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.css':  'text/css; charset=utf-8',
-  '.js':   'application/javascript; charset=utf-8',
-  '.mjs':  'application/javascript; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.png':  'image/png',
-  '.jpg':  'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif':  'image/gif',
-  '.svg':  'image/svg+xml',
-  '.webp': 'image/webp',
-  '.ico':  'image/x-icon',
-  '.woff': 'font/woff',
-  '.woff2':'font/woff2',
-  '.ttf':  'font/ttf',
-  '.txt':  'text/plain; charset=utf-8',
-}
-
-/** Try to serve a static file from dist/client/. Returns Response or null. */
-async function tryServeStatic(url) {
-  const ext = extname(url).toLowerCase()
-  if (!ext || !(ext in MIME_TYPES)) return null
-
-  // Security: prevent directory traversal
-  const normalized = url.replace(/\.\./g, '').replace(/\/\//g, '/')
-  const filePath = join(CLIENT_DIR, normalized)
-
-  try {
-    const content = await readFile(filePath)
-    return new Response(content, {
-      status: 200,
-      headers: {
-        'Content-Type': MIME_TYPES[ext],
-        'Cache-Control': ext === '.html'
-          ? 'no-cache'
-          : 'public, max-age=31536000, immutable',
-      },
-    })
-  } catch {
-    return null
-  }
-}
+const DEFAULT_MAX_REQUEST_BODY_BYTES = 2 * 1_024 * 1_024
+const MAX_REQUEST_BODY_BYTES = boundedInteger(
+  process.env.MAX_REQUEST_BODY_BYTES,
+  DEFAULT_MAX_REQUEST_BODY_BYTES,
+  64 * 1_024,
+  25 * 1_024 * 1_024,
+)
 
 /**
  * Forward a Node.js (req, res) through the TanStack Start fetch handler.
@@ -92,7 +59,9 @@ async function handleSsr(req, res, fetchHandler) {
     // Build Web Request body (only for methods that support it)
     const method = req.method || 'GET'
     const hasBody = method !== 'GET' && method !== 'HEAD'
-    const body = hasBody ? await readBody(req) : undefined
+    const body = hasBody
+      ? await readRequestBody(req, MAX_REQUEST_BODY_BYTES)
+      : undefined
 
     const webReq = new Request(url, {
       method,
@@ -124,28 +93,28 @@ async function handleSsr(req, res, fetchHandler) {
       res.end()
     }
   } catch (err) {
-    console.error('SSR error:', err)
+    const statusCode = err instanceof RequestBodyTooLargeError ? 413 : 500
+    if (statusCode >= 500) console.error('SSR error:', err)
     if (!res.headersSent) {
-      res.statusCode = 500
-      res.setHeader('Content-Type', 'text/plain')
-      res.end('Internal Server Error')
+      res.statusCode = statusCode
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+      if (statusCode === 413) res.setHeader('Connection', 'close')
+      res.end(statusCode === 413 ? 'Payload Too Large' : 'Internal Server Error')
     }
   }
 }
 
-/** Read the Node.js request body into a Buffer (for POST/PUT/etc.). */
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = []
-    req.on('data', (chunk) => chunks.push(chunk))
-    req.on('end', () => resolve(Buffer.concat(chunks)))
-    req.on('error', reject)
-  })
+function boundedInteger(value, fallback, minimum, maximum) {
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed >= minimum && parsed <= maximum
+    ? parsed
+    : fallback
 }
 
 // ── Start ──
 
 const PORT = Number(process.env.PORT) || 3000
+const HOST = process.env.HOST || '0.0.0.0'
 
 async function main() {
   const mod = await import('./dist/server/server.js')
@@ -153,19 +122,13 @@ async function main() {
 
   const server = createServer(async (req, res) => {
     try {
+      applyBaseResponseHeaders(req, res)
+
       // 1. Serve static files (CSS, JS, images) from dist/client/
-      const staticRes = await tryServeStatic(req.url || '/')
-      if (staticRes) {
-        res.statusCode = staticRes.status
-        for (const [key, value] of staticRes.headers.entries()) {
-          res.setHeader(key, value)
-        }
-        const body = Buffer.from(await staticRes.arrayBuffer())
-        res.end(body)
-        return
-      }
+      if (await tryServeStatic(req, res, CLIENT_DIR)) return
 
       // 2. Everything else → SSR (pages, server functions)
+      res.setHeader('Cache-Control', 'no-store')
       await handleSsr(req, res, serverHandler.fetch)
     } catch (err) {
       console.error('Request error:', err)
@@ -176,9 +139,40 @@ async function main() {
     }
   })
 
-  server.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`)
+  server.headersTimeout = 15_000
+  server.requestTimeout = 60_000
+  server.keepAliveTimeout = 5_000
+  server.maxRequestsPerSocket = 1_000
+
+  server.listen(PORT, HOST, () => {
+    console.log(`Server running on http://${HOST}:${PORT}`)
   })
+
+  let shuttingDown = false
+  const shutdown = (signal) => {
+    if (shuttingDown) return
+    shuttingDown = true
+    console.info(`[server-shutdown] received ${signal}`)
+
+    const forceCloseTimer = setTimeout(() => {
+      console.error('[server-shutdown] forcing remaining connections closed')
+      server.closeAllConnections()
+    }, 25_000)
+    forceCloseTimer.unref()
+
+    server.close((error) => {
+      clearTimeout(forceCloseTimer)
+      if (error) {
+        console.error('[server-shutdown] close failed', {
+          category: error instanceof Error ? error.name : 'UnknownError',
+        })
+        process.exitCode = 1
+      }
+    })
+  }
+
+  process.once('SIGTERM', () => shutdown('SIGTERM'))
+  process.once('SIGINT', () => shutdown('SIGINT'))
 }
 
 main().catch((err) => {

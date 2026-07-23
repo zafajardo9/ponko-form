@@ -1,6 +1,6 @@
 import { db } from '../../db/index'
 import { flows, forms, profiles } from '../../db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { FlowVariableType } from '../flow-engine/types'
 
 /**
@@ -12,24 +12,27 @@ import type { FlowVariableType } from '../flow-engine/types'
 
 /** Assert the authenticated user owns the given form. Returns the form. */
 export async function assertFormOwner(formId: number, clerkId: string) {
-  const [profile] = await db
-    .select()
-    .from(profiles)
-    .where(eq(profiles.clerkId, clerkId))
+  const [owned] = await db
+    .select({ form: forms })
+    .from(forms)
+    .innerJoin(profiles, eq(forms.profileId, profiles.id))
+    .where(and(eq(forms.id, formId), eq(profiles.clerkId, clerkId)))
     .limit(1)
-  if (!profile) throw new Error('Unauthorized')
-
-  const [form] = await db.select().from(forms).where(eq(forms.id, formId)).limit(1)
-  if (!form || form.profileId !== profile.id) throw new Error('Not found')
-  return form
+  if (!owned) throw new Error('Not found')
+  return owned.form
 }
 
 /** Assert the authenticated user owns the form behind the given flow. Returns the flow. */
 export async function assertFlowOwner(flowId: number, clerkId: string) {
-  const [flow] = await db.select().from(flows).where(eq(flows.id, flowId)).limit(1)
-  if (!flow) throw new Error('Not found')
-  await assertFormOwner(flow.formId, clerkId)
-  return flow
+  const [owned] = await db
+    .select({ flow: flows })
+    .from(flows)
+    .innerJoin(forms, eq(flows.formId, forms.id))
+    .innerJoin(profiles, eq(forms.profileId, profiles.id))
+    .where(and(eq(flows.id, flowId), eq(profiles.clerkId, clerkId)))
+    .limit(1)
+  if (!owned) throw new Error('Not found')
+  return owned.flow
 }
 
 /** Map a legacy/form field type to a flow variable type. */

@@ -10,7 +10,7 @@ import {
 } from '../../db/schema'
 import { eq } from 'drizzle-orm'
 import { assertFormOwner, uniqueVarName, variableTypeForField } from './flow-helpers'
-import type { FlowNode, FlowEdge, FlowVariable } from '../flow-engine/types'
+import { loadFlow } from '../flow-engine/server-data'
 
 /**
  * getFlow(formId)
@@ -19,31 +19,16 @@ import type { FlowNode, FlowEdge, FlowVariable } from '../flow-engine/types'
  * structured for the frontend. Returns `null` if the form has no flow
  * (i.e. it is a legacy linear form, per REQ-4.1).
  *
- * Public: the end-user submission route calls this to detect a flow, and the
- * builder calls it to load the canvas. No ownership check on read.
+ * Editor-only: public runtimes use `getPublicFormRuntime`, which enforces
+ * published status. This endpoint owner-gates the complete draft definition.
  */
 export const getFlow = createServerFn({ method: 'GET', strict: false })
-  .inputValidator((data: { formId: number }) => data)
+  .validator((data: { formId: number }) => data)
   .handler(async ({ data }) => {
-    const [flow] = await db.select().from(flows).where(eq(flows.formId, data.formId)).limit(1)
-    if (!flow) return null
-
-    const [nodes, edges, variables] = await Promise.all([
-      db.select().from(flowNodes).where(eq(flowNodes.flowId, flow.id)).orderBy(flowNodes.id),
-      db.select().from(flowEdges).where(eq(flowEdges.flowId, flow.id)).orderBy(flowEdges.id),
-      db
-        .select()
-        .from(flowVariables)
-        .where(eq(flowVariables.flowId, flow.id))
-        .orderBy(flowVariables.id),
-    ])
-
-    return {
-      flow,
-      nodes: nodes as FlowNode[],
-      edges: edges as FlowEdge[],
-      variables: variables as FlowVariable[],
-    }
+    const { userId } = await auth()
+    if (!userId) throw new Error('Unauthorized')
+    await assertFormOwner(data.formId, userId)
+    return loadFlow(data.formId)
   })
 
 /**
@@ -64,33 +49,22 @@ async function buildFlowFromFields(formId: number): Promise<number> {
     .orderBy(formFields.order)
 
   const [flow] = await db.insert(flows).values({ formId }).returning()
-
-  const [startNode] = await db
-    .insert(flowNodes)
-    .values({ flowId: flow.id, type: 'start', label: 'Start', positionX: 250, positionY: 100 })
-    .returning()
-
   const used = new Set<string>()
-  let prevNodeId = startNode.id
-  let y = 240
-
-  for (const field of fields) {
+  const fieldPlans = fields.map((field, index) => {
     const varName = uniqueVarName(field.label, used, `field_${field.id}`)
-    await db.insert(flowVariables).values({
-      flowId: flow.id,
-      name: varName,
-      type: variableTypeForField(field.type),
-      description: `Imported from "${field.label}"`,
-    })
-
-    const [node] = await db
-      .insert(flowNodes)
-      .values({
+    return {
+      variable: {
         flowId: flow.id,
-        type: 'form_field',
+        name: varName,
+        type: variableTypeForField(field.type),
+        description: `Imported from "${field.label}"`,
+      } satisfies typeof flowVariables.$inferInsert,
+      node: {
+        flowId: flow.id,
+        type: 'form_field' as const,
         label: field.label,
         positionX: 250,
-        positionY: y,
+        positionY: 240 + index * 140,
         config: {
           fieldType: field.type,
           label: field.label,
@@ -99,43 +73,71 @@ async function buildFlowFromFields(formId: number): Promise<number> {
           options: field.options ?? undefined,
           bindToVariable: varName,
         },
-      })
-      .returning()
+      } satisfies typeof flowNodes.$inferInsert,
+      variableName: varName,
+    }
+  })
 
-    await db.insert(flowEdges).values({
+  const summaryY = 240 + fields.length * 140
+  const nodeValues: (typeof flowNodes.$inferInsert)[] = [
+    {
       flowId: flow.id,
-      sourceNodeId: prevNodeId,
-      targetNodeId: node.id,
-    })
-    prevNodeId = node.id
-    y += 140
-  }
-
-  // Summary node after the last field (terminal).
-  const [summaryNode] = await db
-    .insert(flowNodes)
-    .values({
+      type: 'start',
+      label: 'Start',
+      positionX: 250,
+      positionY: 100,
+    },
+    ...fieldPlans.map((plan) => plan.node),
+    {
       flowId: flow.id,
       type: 'summary',
       label: 'Summary',
       positionX: 250,
-      positionY: y,
+      positionY: summaryY,
       config: {
         title: 'Thank you!',
         template: 'Your response has been recorded.',
       },
-    })
-    .returning()
+    },
+  ]
 
-  await db.insert(flowEdges).values({
-    flowId: flow.id,
-    sourceNodeId: prevNodeId,
-    targetNodeId: summaryNode.id,
-  })
+  const [, createdNodes] = await Promise.all([
+    fieldPlans.length > 0
+      ? db.insert(flowVariables).values(fieldPlans.map((plan) => plan.variable))
+      : Promise.resolve(),
+    db.insert(flowNodes).values(nodeValues).returning(),
+  ])
+
+  const startNode = createdNodes.find((node) => node.type === 'start')
+  const summaryNode = createdNodes.find((node) => node.type === 'summary')
+  const fieldNodeByVariable = new Map(
+    createdNodes
+      .filter((node) => node.type === 'form_field')
+      .map((node) => [
+        (node.config as Record<string, unknown>).bindToVariable,
+        node.id,
+      ]),
+  )
+  const orderedNodeIds = [
+    startNode?.id,
+    ...fieldPlans.map((plan) => fieldNodeByVariable.get(plan.variableName)),
+    summaryNode?.id,
+  ]
+  if (orderedNodeIds.some((id) => id === undefined)) {
+    throw new Error('Unable to create the legacy form flow')
+  }
+
+  await db.insert(flowEdges).values(
+    orderedNodeIds.slice(0, -1).map((sourceNodeId, index) => ({
+      flowId: flow.id,
+      sourceNodeId: sourceNodeId!,
+      targetNodeId: orderedNodeIds[index + 1]!,
+    })),
+  )
 
   await db
     .update(flows)
-    .set({ startNodeId: startNode.id, updatedAt: new Date() })
+    .set({ startNodeId: startNode!.id, updatedAt: new Date() })
     .where(eq(flows.id, flow.id))
 
   return flow.id
@@ -151,7 +153,7 @@ async function buildFlowFromFields(formId: number): Promise<number> {
  * with its legacy `form_fields` kept intact as a backup. Owner-gated.
  */
 export const ensureFlow = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: { formId: number }) => data)
+  .validator((data: { formId: number }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')

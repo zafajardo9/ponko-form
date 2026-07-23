@@ -24,7 +24,7 @@ export function safeAuthReturnTo(value: unknown): string {
 // must run inside a server function — calling it directly in beforeLoad fails
 // on the client with "Cannot read properties of undefined (reading 'auth')".
 export const requireAuth = createServerFn({ method: 'GET' })
-  .inputValidator((data?: { returnTo?: string }) => ({
+  .validator((data?: { returnTo?: string }) => ({
     returnTo: safeAuthReturnTo(data?.returnTo),
   }))
   .handler(async ({ data }) => {
@@ -40,7 +40,7 @@ export const requireAuth = createServerFn({ method: 'GET' })
   })
 
 export const redirectAuthenticatedUser = createServerFn({ method: 'GET' })
-  .inputValidator((data?: { returnTo?: string }) => ({
+  .validator((data?: { returnTo?: string }) => ({
     returnTo: safeAuthReturnTo(data?.returnTo),
   }))
   .handler(async ({ data }) => {

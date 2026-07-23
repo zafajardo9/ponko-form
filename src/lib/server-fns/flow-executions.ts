@@ -17,6 +17,30 @@ import type {
   ExecutionHistoryEntry,
   FlowVariable,
 } from '../flow-engine/types'
+import { isValidPublicSessionToken } from '../public-session-access'
+import { ensureFlowSubmissionDraft } from '../flow-engine/submission-draft'
+
+function flowExecutionAccessWhere(executionId: number, clientToken: string) {
+  if (!isValidPublicSessionToken(clientToken)) {
+    throw new Error('Invalid execution token')
+  }
+  return and(
+    eq(flowExecutions.id, executionId),
+    eq(flowExecutions.clientToken, clientToken),
+  )
+}
+
+function publicExecution(execution: typeof flowExecutions.$inferSelect) {
+  return {
+    id: execution.id,
+    status: execution.status,
+    currentNodeId: execution.currentNodeId,
+    variables: execution.variables,
+    history: execution.history,
+    completedAt: execution.completedAt,
+    createdAt: execution.createdAt,
+  }
+}
 
 /**
  * Flow execution management (end-user, public — no auth).
@@ -52,10 +76,19 @@ function computeDefaultValues(variables: FlowVariable[]): Record<string, unknown
  * at the flow's start node. Returns the execution row.
  */
 export const startFlowExecution = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: { flowId: number }) => data)
+  .validator((data: { flowId: number; clientToken: string }) => data)
   .handler(async ({ data }) => {
-    const [flow] = await db.select().from(flows).where(eq(flows.id, data.flowId)).limit(1)
-    if (!flow) throw new Error('Flow not found')
+    if (!isValidPublicSessionToken(data.clientToken)) {
+      throw new Error('Invalid execution token')
+    }
+    const [record] = await db
+      .select({ flow: flows })
+      .from(flows)
+      .innerJoin(forms, eq(flows.formId, forms.id))
+      .where(and(eq(flows.id, data.flowId), eq(forms.status, 'published')))
+      .limit(1)
+    if (!record) throw new Error('Flow not found')
+    const flow = record.flow
 
     const variables = await db
       .select()
@@ -78,6 +111,7 @@ export const startFlowExecution = createServerFn({ method: 'POST', strict: false
       .insert(flowExecutions)
       .values({
         flowId: data.flowId,
+        clientToken: data.clientToken,
         status: 'in_progress',
         currentNodeId: startNodeId,
         variables: computeDefaultValues(variables as FlowVariable[]),
@@ -85,7 +119,7 @@ export const startFlowExecution = createServerFn({ method: 'POST', strict: false
       })
       .returning()
 
-    return execution
+    return publicExecution(execution)
   })
 
 /**
@@ -94,9 +128,10 @@ export const startFlowExecution = createServerFn({ method: 'POST', strict: false
  * variables, history, and status. Returns the updated execution row.
  */
 export const advanceExecution = createServerFn({ method: 'POST', strict: false })
-  .inputValidator(
+  .validator(
     (data: {
       executionId: number
+      clientToken: string
       currentNodeId: number
       variables: Record<string, unknown>
       history: ExecutionHistoryEntry[]
@@ -104,6 +139,23 @@ export const advanceExecution = createServerFn({ method: 'POST', strict: false }
     }) => data,
   )
   .handler(async ({ data }) => {
+    const [existing] = await db
+      .select({ flowId: flowExecutions.flowId })
+      .from(flowExecutions)
+      .where(flowExecutionAccessWhere(data.executionId, data.clientToken))
+      .limit(1)
+    if (!existing) throw new Error('Execution not found')
+    const [currentNode] = await db
+      .select({ id: flowNodes.id })
+      .from(flowNodes)
+      .where(
+        and(
+          eq(flowNodes.id, data.currentNodeId),
+          eq(flowNodes.flowId, existing.flowId),
+        ),
+      )
+      .limit(1)
+    if (!currentNode) throw new Error('Flow node not found')
     const [execution] = await db
       .update(flowExecutions)
       .set({
@@ -112,10 +164,10 @@ export const advanceExecution = createServerFn({ method: 'POST', strict: false }
         history: data.history,
         ...(data.status ? { status: data.status } : {}),
       })
-      .where(eq(flowExecutions.id, data.executionId))
+      .where(flowExecutionAccessWhere(data.executionId, data.clientToken))
       .returning()
     if (!execution) throw new Error('Execution not found')
-    return execution
+    return publicExecution(execution)
   })
 
 /**
@@ -124,37 +176,48 @@ export const advanceExecution = createServerFn({ method: 'POST', strict: false }
  * variable values, and link it. Returns the execution and submission.
  */
 export const completeExecution = createServerFn({ method: 'POST', strict: false })
-  .inputValidator(
+  .validator(
     (data: {
       executionId: number
+      clientToken: string
       variables: Record<string, unknown>
       history: ExecutionHistoryEntry[]
     }) => data,
   )
   .handler(async ({ data }) => {
-    const [execution] = await db
-      .select()
+    const [record] = await db
+      .select({
+        execution: flowExecutions,
+        formId: flows.formId,
+      })
       .from(flowExecutions)
-      .where(eq(flowExecutions.id, data.executionId))
+      .innerJoin(flows, eq(flows.id, flowExecutions.flowId))
+      .where(flowExecutionAccessWhere(data.executionId, data.clientToken))
       .limit(1)
-    if (!execution) throw new Error('Execution not found')
-
-    const [flow] = await db.select().from(flows).where(eq(flows.id, execution.flowId)).limit(1)
-    if (!flow) throw new Error('Flow not found')
+    if (!record) throw new Error('Execution not found')
+    const execution = record.execution
 
     // Record the run as a form submission (variable values + execution path).
     const formData = {
       ...data.variables,
       __executionPath: data.history.map((h) => ({ nodeId: h.nodeId, nodeType: h.nodeType })),
     }
-    const [submission] = execution.formSubmissionId
-      ? await db.update(formSubmissions)
-          .set({ status: 'completed', formData, submittedAt: new Date() })
-          .where(eq(formSubmissions.id, execution.formSubmissionId))
-          .returning()
-      : await db.insert(formSubmissions)
-          .values({ formId: flow.formId, status: 'completed', formData })
-          .returning()
+    const submissionId = await ensureFlowSubmissionDraft(
+      execution,
+      record.formId,
+      'incomplete',
+    )
+    const [submission] = await db
+      .update(formSubmissions)
+      .set({ status: 'completed', formData, submittedAt: new Date() })
+      .where(
+        and(
+          eq(formSubmissions.id, submissionId),
+          eq(formSubmissions.formId, record.formId),
+        ),
+      )
+      .returning()
+    if (!submission) throw new Error('Flow response not found')
 
     const [updated] = await db
       .update(flowExecutions)
@@ -165,14 +228,15 @@ export const completeExecution = createServerFn({ method: 'POST', strict: false 
         formSubmissionId: submission.id,
         completedAt: new Date(),
       })
-      .where(eq(flowExecutions.id, data.executionId))
+      .where(flowExecutionAccessWhere(data.executionId, data.clientToken))
       .returning()
 
     await dispatchSubmissionEmails(submission.id).catch((error) => {
       console.error(`[submission:${submission.id}] Email dispatch failed`, error)
     })
 
-    return { execution: updated, submission }
+    if (!updated) throw new Error('Execution not found')
+    return { success: true, execution: publicExecution(updated) }
   })
 
 /**
@@ -182,52 +246,54 @@ export const completeExecution = createServerFn({ method: 'POST', strict: false 
  * and the summary node's title/template (if the run ended at one).
  */
 export const getCompletionData = createServerFn({ method: 'GET', strict: false })
-  .inputValidator((data: { executionId: number }) => data)
+  .validator((data: { executionId: number; clientToken: string }) => data)
   .handler(async ({ data }) => {
     const [execution] = await db
       .select()
       .from(flowExecutions)
-      .where(eq(flowExecutions.id, data.executionId))
+      .where(flowExecutionAccessWhere(data.executionId, data.clientToken))
       .limit(1)
     if (!execution) throw new Error('Execution not found')
 
-    const [flow] = await db.select().from(flows).where(eq(flows.id, execution.flowId)).limit(1)
-    const [form] = flow
-      ? await db.select().from(forms).where(eq(forms.id, flow.formId)).limit(1)
-      : []
-
-    const variables = await db
-      .select()
-      .from(flowVariables)
-      .where(eq(flowVariables.flowId, execution.flowId))
-      .orderBy(flowVariables.id)
+    const [[context], variables, nodes, [payment]] = await Promise.all([
+      db
+        .select({ flow: flows, form: forms })
+        .from(flows)
+        .innerJoin(forms, eq(forms.id, flows.formId))
+        .where(eq(flows.id, execution.flowId))
+        .limit(1),
+      db
+        .select()
+        .from(flowVariables)
+        .where(eq(flowVariables.flowId, execution.flowId))
+        .orderBy(flowVariables.id),
+      db.select().from(flowNodes).where(eq(flowNodes.flowId, execution.flowId)),
+      db
+        .select({
+          status: payments.status,
+          amount: payments.amount,
+          currency: payments.currency,
+          gatewayPaymentId: payments.gatewayPaymentId,
+          gatewayName: paymentGateways.name,
+        })
+        .from(payments)
+        .innerJoin(paymentGateways, eq(payments.paymentGatewayId, paymentGateways.id))
+        .where(eq(payments.flowExecutionId, data.executionId))
+        .orderBy(desc(payments.id))
+        .limit(1),
+    ])
+    const flow = context?.flow
+    const form = context?.form
 
     // Find the summary node the run ended on (any summary node visited in history).
-    const nodes = await db.select().from(flowNodes).where(eq(flowNodes.flowId, execution.flowId))
     const history = (execution.history as { nodeId: number; nodeType: string }[]) ?? []
     const visitedIds = new Set(history.map((h) => h.nodeId))
     const summaryNode =
       nodes.find((n) => n.type === 'summary' && visitedIds.has(n.id)) ??
       nodes.find((n) => n.type === 'summary')
 
-    // Latest payment attempt for this run (if any), so the receipt can show a
-    // paid/failed state and the gateway used.
-    const [payment] = await db
-      .select({
-        status: payments.status,
-        amount: payments.amount,
-        currency: payments.currency,
-        gatewayPaymentId: payments.gatewayPaymentId,
-        gatewayName: paymentGateways.name,
-      })
-      .from(payments)
-      .innerJoin(paymentGateways, eq(payments.paymentGatewayId, paymentGateways.id))
-      .where(eq(payments.flowExecutionId, data.executionId))
-      .orderBy(desc(payments.id))
-      .limit(1)
-
     return {
-      execution,
+      execution: publicExecution(execution),
       formId: flow?.formId ?? null,
       formPublicId: form?.publicId ?? null,
       formTitle: form?.title ?? 'Form',
@@ -256,13 +322,13 @@ export const getCompletionData = createServerFn({ method: 'GET', strict: false }
  * Fetch the current execution context (for page refresh / resume).
  */
 export const getExecutionState = createServerFn({ method: 'GET', strict: false })
-  .inputValidator((data: { executionId: number }) => data)
+  .validator((data: { executionId: number; clientToken: string }) => data)
   .handler(async ({ data }) => {
     const [execution] = await db
       .select()
       .from(flowExecutions)
-      .where(eq(flowExecutions.id, data.executionId))
+      .where(flowExecutionAccessWhere(data.executionId, data.clientToken))
       .limit(1)
     if (!execution) throw new Error('Execution not found')
-    return execution
+    return publicExecution(execution)
   })

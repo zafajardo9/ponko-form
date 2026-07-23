@@ -7,6 +7,7 @@ import { FlowExecutionContainer } from '../../components/flow-execution/FlowExec
 import { PageFormView } from '../../components/page-form/PageFormView'
 import { Button } from '../../components/ui/Button'
 import { paymentVerificationPhase } from '../../lib/payment-verification'
+import { isValidPublicSessionToken } from '../../lib/public-session-access'
 
 /**
  * Payment return route.
@@ -19,7 +20,17 @@ import { paymentVerificationPhase } from '../../lib/payment-verification'
 export const Route = createFileRoute('/forms/payment-return')({
   validateSearch: (search: Record<string, unknown>) => ({
     executionId: search.executionId == null ? null : Number(search.executionId),
+    executionClientToken:
+      typeof search.executionClientToken === 'string' &&
+      isValidPublicSessionToken(search.executionClientToken)
+        ? search.executionClientToken
+        : null,
     pageSessionId: search.pageSessionId == null ? null : Number(search.pageSessionId),
+    pageClientToken:
+      typeof search.pageClientToken === 'string' &&
+      isValidPublicSessionToken(search.pageClientToken)
+        ? search.pageClientToken
+        : null,
     cancelled: search.cancelled === '1' || search.cancelled === 1 || search.cancelled === true,
   }),
   component: PaymentReturnPage,
@@ -28,19 +39,31 @@ export const Route = createFileRoute('/forms/payment-return')({
 type Phase = 'verifying' | 'pending' | 'verification_error' | 'done'
 
 function PaymentReturnPage() {
-  const { executionId, cancelled } = Route.useSearch()
-  const { pageSessionId } = Route.useSearch()
+  const { executionId, executionClientToken, cancelled } = Route.useSearch()
+  const { pageSessionId, pageClientToken } = Route.useSearch()
   const [phase, setPhase] = useState<Phase>(cancelled ? 'done' : 'verifying')
   const [result, setResult] = useState<{ success: boolean; gatewayPaymentId?: string }>({
     success: false,
   })
   const startedRef = useRef(false)
+  const pageSessionAccessValid = !pageSessionId || Boolean(pageClientToken)
+  const executionAccessValid = !executionId || Boolean(executionClientToken)
 
   const finalize = useMutation({
     mutationFn: () =>
       pageSessionId
-        ? finalizePagePayment({ data: { sessionId: pageSessionId } })
-        : finalizePayment({ data: { executionId: executionId! } }),
+        ? finalizePagePayment({
+            data: {
+              sessionId: pageSessionId,
+              clientToken: pageClientToken!,
+            },
+          })
+        : finalizePayment({
+            data: {
+              executionId: executionId!,
+              clientToken: executionClientToken!,
+            },
+          }),
     onSuccess: (data) => {
       const nextPhase = paymentVerificationPhase(data)
       if (nextPhase !== 'done') {
@@ -55,13 +78,22 @@ function PaymentReturnPage() {
 
   // Kick off verification once (unless the visitor cancelled at the gateway).
   useEffect(() => {
-    if (startedRef.current || cancelled) return
+    if (
+      startedRef.current ||
+      cancelled ||
+      !pageSessionAccessValid ||
+      !executionAccessValid
+    ) return
     startedRef.current = true
     finalize.mutate()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  if (!Number.isFinite(executionId ?? pageSessionId)) {
+  if (
+    !Number.isFinite(executionId ?? pageSessionId) ||
+    !pageSessionAccessValid ||
+    !executionAccessValid
+  ) {
     return (
       <div className="mx-auto max-w-xl px-6 py-24 text-center">
         <h1 className="text-2xl font-medium text-[#141413]">Invalid payment link</h1>
@@ -121,8 +153,21 @@ function PaymentReturnPage() {
 
   // phase === 'done' — resume the flow with the verified outcome.
   if (pageSessionId) {
-    return <PageFormView resumeSessionId={pageSessionId} />
+    return (
+      <PageFormView
+        resumeSessionId={pageSessionId}
+        resumeClientToken={pageClientToken!}
+      />
+    )
   }
 
-  return <FlowExecutionContainer resume={{ executionId: executionId!, paymentResult: result }} />
+  return (
+    <FlowExecutionContainer
+      resume={{
+        executionId: executionId!,
+        clientToken: executionClientToken!,
+        paymentResult: result,
+      }}
+    />
+  )
 }

@@ -15,8 +15,11 @@ function isValidVariableName(name: string): boolean {
  * getFlowVariables(flowId) — list all variables for a flow.
  */
 export const getFlowVariables = createServerFn({ method: 'GET' })
-  .inputValidator((data: { flowId: number }) => data)
+  .validator((data: { flowId: number }) => data)
   .handler(async ({ data }) => {
+    const { userId } = await auth()
+    if (!userId) throw new Error('Unauthorized')
+    await assertFlowOwner(data.flowId, userId)
     return db
       .select()
       .from(flowVariables)
@@ -29,7 +32,7 @@ export const getFlowVariables = createServerFn({ method: 'GET' })
  * Declares a new variable. Validates snake_case name and uniqueness within the flow.
  */
 export const createFlowVariable = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     (data: {
       flowId: number
       name: string
@@ -74,7 +77,7 @@ export const createFlowVariable = createServerFn({ method: 'POST' })
  * Re-validates name uniqueness if the name changes.
  */
 export const updateFlowVariable = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     (data: {
       flowId: number
       varId: number
@@ -111,9 +114,9 @@ export const updateFlowVariable = createServerFn({ method: 'POST' })
     const [variable] = await db
       .update(flowVariables)
       .set(changes)
-      .where(eq(flowVariables.id, data.varId))
+      .where(and(eq(flowVariables.id, data.varId), eq(flowVariables.flowId, data.flowId)))
       .returning()
-    if (!variable || variable.flowId !== data.flowId) throw new Error('Not found')
+    if (!variable) throw new Error('Not found')
     return variable
   })
 
@@ -122,7 +125,7 @@ export const updateFlowVariable = createServerFn({ method: 'POST' })
  * Refuses if any node references it (by name) in its config.
  */
 export const deleteFlowVariable = createServerFn({ method: 'POST' })
-  .inputValidator((data: { flowId: number; varId: number }) => data)
+  .validator((data: { flowId: number; varId: number }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
@@ -131,9 +134,9 @@ export const deleteFlowVariable = createServerFn({ method: 'POST' })
     const [variable] = await db
       .select()
       .from(flowVariables)
-      .where(eq(flowVariables.id, data.varId))
+      .where(and(eq(flowVariables.id, data.varId), eq(flowVariables.flowId, data.flowId)))
       .limit(1)
-    if (!variable || variable.flowId !== data.flowId) throw new Error('Not found')
+    if (!variable) throw new Error('Not found')
 
     // Check no node references this variable.
     const nodes = await db.select().from(flowNodes).where(eq(flowNodes.flowId, data.flowId))
@@ -145,7 +148,9 @@ export const deleteFlowVariable = createServerFn({ method: 'POST' })
       )
     }
 
-    await db.delete(flowVariables).where(eq(flowVariables.id, data.varId))
+    await db
+      .delete(flowVariables)
+      .where(and(eq(flowVariables.id, data.varId), eq(flowVariables.flowId, data.flowId)))
     return { success: true }
   })
 

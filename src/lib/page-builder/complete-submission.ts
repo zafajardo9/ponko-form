@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { db } from '../../db/index'
 import {
   formSubmissionSessions,
@@ -21,6 +21,7 @@ import {
   verifyRecaptchaFields,
 } from '../integrations/recaptcha'
 import { dispatchSubmissionEmails } from '../invoicing/delivery'
+import { ensurePageSubmissionDraft } from './submission-draft'
 
 function pageFieldValueIsEmpty(field: PageField, value: unknown) {
   if (field.fieldType === 'address') {
@@ -68,7 +69,12 @@ export async function completePageSubmissionRecord(
     const [payment] = await db
       .select({ status: payments.status })
       .from(payments)
-      .where(eq(payments.id, paymentId))
+      .where(
+        and(
+          eq(payments.id, paymentId),
+          eq(payments.pageSessionId, session.id),
+        ),
+      )
       .limit(1)
     if (payment?.status !== 'completed') {
       throw new Error('Payment has not been completed yet.')
@@ -96,19 +102,26 @@ export async function completePageSubmissionRecord(
     ...referenceMap,
     ...replaceRecaptchaTokensWithResult(pages, pruned, verifiedFieldIds),
   }
-  const [submission] = session.formSubmissionId
-    ? await db.update(formSubmissions)
-        .set({ formData: finalFormData, status: 'completed', submittedAt: new Date() })
-        .where(eq(formSubmissions.id, session.formSubmissionId))
-        .returning()
-    : await db.insert(formSubmissions)
-        .values({ formId: session.formId, formData: finalFormData, status: 'completed' })
-        .returning()
+  const submissionId = await ensurePageSubmissionDraft(session, 'incomplete')
+  const [submission] = await db
+    .update(formSubmissions)
+    .set({ formData: finalFormData, status: 'completed', submittedAt: new Date() })
+    .where(and(eq(formSubmissions.id, submissionId), eq(formSubmissions.formId, session.formId)))
+    .returning()
+  if (!submission) throw new Error('Form response not found')
 
   const meta = (session.collectedData ?? {}) as Record<string, unknown>
   const paymentId = Number(meta.__paymentId)
   if (Number.isFinite(paymentId)) {
-    await db.update(payments).set({ formSubmissionId: submission.id }).where(eq(payments.id, paymentId))
+    await db
+      .update(payments)
+      .set({ formSubmissionId: submission.id })
+      .where(
+        and(
+          eq(payments.id, paymentId),
+          eq(payments.pageSessionId, session.id),
+        ),
+      )
   }
   if (session.emailSurveyInvitationId) {
     await db

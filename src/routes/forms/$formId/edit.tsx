@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  lazy,
+  Suspense,
   useEffect,
   useMemo,
   useRef,
@@ -8,18 +10,19 @@ import {
   useCallback,
   type CSSProperties,
 } from "react";
-import {
-  useNodesState,
-  useEdgesState,
-  addEdge,
-  type Node,
-  type Edge,
-  type Connection,
-} from "@xyflow/react";
 import { requireAuth } from "../../../lib/server-fns/auth";
-import { getForms, updateForm } from "../../../lib/server-fns/forms";
-import { getFlow, ensureFlow } from "../../../lib/server-fns/flows";
-import { ensurePageForm, getPageForm } from "../../../lib/server-fns/page-forms";
+import {
+  getEditorForm,
+  updateForm,
+} from "../../../lib/server-fns/forms";
+import {
+  ensurePageForm,
+  type SavedPageForm,
+} from "../../../lib/server-fns/page-forms";
+import {
+  applySavedPageForm,
+  type EditorFormData,
+} from "../../../lib/editor-cache";
 import {
   addFlowNode,
   updateFlowNode,
@@ -38,26 +41,15 @@ import {
   deleteFlowVariable,
 } from "../../../lib/server-fns/flow-variables";
 import { getActiveGateways } from "../../../lib/server-fns/gateways";
-import { FlowCanvas } from "../../../components/flow-builder/FlowCanvas";
-import { BuilderPalette } from "../../../components/flow-builder/BuilderPalette";
-import { FlowListBuilder } from "../../../components/flow-builder/FlowListBuilder";
-import { NodeConfigPanel } from "../../../components/flow-builder/NodeConfigPanel";
-import { VariablesManager } from "../../../components/flow-builder/VariablesManager";
 import { FlowToolbar } from "../../../components/flow-builder/FlowToolbar";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { PreviewDialog } from "../../../components/ui/PreviewDialog";
-import { FlowPreviewModal } from "../../../components/ui/FlowPreviewModal";
-import { PageBuilderWorkspace } from "../../../components/page-builder/PageBuilderWorkspace";
 import { FormSectionNav } from "../../../components/forms/FormSectionNav";
-import { PageFormView } from "../../../components/page-form/PageFormView";
 import { ShareDialog } from "../../../components/dashboard/ShareDialog";
 import { SettingsDialog } from "../../../components/flow-builder/SettingsDialog";
 import { themeVars, type FormTheme } from "../../../lib/theme";
-import type {
-  FormPage,
-  FormReference,
-} from "../../../lib/page-builder/types";
+import type { FormPage, FormReference } from "../../../lib/page-builder/types";
 import { FlowValidator } from "../../../lib/flow-engine/FlowValidator";
 import {
   linearizePrimaryPath,
@@ -72,7 +64,55 @@ import type {
   FlowValidationError,
   GroupedField,
 } from "../../../lib/flow-engine/types";
-import type { FlowNodeData } from "../../../components/flow-builder/nodes/NodeShell";
+import type { FlowCanvasWorkspaceHandle } from "../../../components/flow-builder/FlowCanvasWorkspace";
+
+const PageFormView = lazy(() =>
+  import("../../../components/page-form/PageFormView").then((module) => ({
+    default: module.PageFormView,
+  })),
+);
+
+const PageBuilderWorkspace = lazy(() =>
+  import("../../../components/page-builder/PageBuilderWorkspace").then(
+    (module) => ({ default: module.PageBuilderWorkspace }),
+  ),
+);
+
+const FlowCanvasWorkspace = lazy(() =>
+  import("../../../components/flow-builder/FlowCanvasWorkspace").then(
+    (module) => ({ default: module.FlowCanvasWorkspace }),
+  ),
+);
+
+const BuilderPalette = lazy(() =>
+  import("../../../components/flow-builder/BuilderPalette").then((module) => ({
+    default: module.BuilderPalette,
+  })),
+);
+
+const FlowListBuilder = lazy(() =>
+  import("../../../components/flow-builder/FlowListBuilder").then((module) => ({
+    default: module.FlowListBuilder,
+  })),
+);
+
+const NodeConfigPanel = lazy(() =>
+  import("../../../components/flow-builder/NodeConfigPanel").then((module) => ({
+    default: module.NodeConfigPanel,
+  })),
+);
+
+const VariablesManager = lazy(() =>
+  import("../../../components/flow-builder/VariablesManager").then((module) => ({
+    default: module.VariablesManager,
+  })),
+);
+
+const FlowPreviewModal = lazy(() =>
+  import("../../../components/ui/FlowPreviewModal").then((module) => ({
+    default: module.FlowPreviewModal,
+  })),
+);
 
 export const Route = createFileRoute("/forms/$formId/edit")({
   beforeLoad: ({ location }) => requireAuth({ data: { returnTo: location.href } }),
@@ -111,37 +151,24 @@ function UnifiedEditorPage() {
   } | null>(null);
   const [rightPanelWidth, setRightPanelWidth] = useState(288);
   const rightPanelRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<FlowCanvasWorkspaceHandle>(null);
   const isResizing = useRef(false);
   const ensuredRef = useRef(false);
 
-  const { data: allForms = [] } = useQuery({
-    queryKey: ["forms"],
-    queryFn: () => getForms(),
-  });
-  const form = (allForms as any[]).find((f: any) => f.id === Number(formId));
-  const isPublished = form?.status === "published";
-
   const {
-    data: flowData,
+    data: editorData,
     isLoading,
-    isError: flowError,
-    error: flowQueryError,
+    isError: editorError,
+    error: editorQueryError,
   } = useQuery({
-    queryKey: ["flow", formId],
-    queryFn: () => getFlow({ data: { formId: Number(formId) } }),
+    queryKey: ["editor-form", formId],
+    queryFn: () => getEditorForm({ data: { formId: Number(formId) } }),
     enabled: !!formId,
   });
-
-  const {
-    data: pageForm,
-    isLoading: pageLoading,
-    isError: pageError,
-    error: pageQueryError,
-  } = useQuery({
-    queryKey: ["page-form", formId],
-    queryFn: () => getPageForm({ data: { formId: Number(formId) } }),
-    enabled: !!formId,
-  });
+  const form = editorData?.form;
+  const flowData = editorData?.flow;
+  const pageForm = editorData?.pageForm;
+  const isPublished = form?.status === "published";
 
   const { data: gateways = [] } = useQuery({
     queryKey: ["gateways"],
@@ -150,9 +177,11 @@ function UnifiedEditorPage() {
 
   const flowId = flowData?.flow.id ?? null;
   const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ["editor-form", formId] });
+  const invalidateFormMetadata = () =>
     Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["flow", formId] }),
-      queryClient.invalidateQueries({ queryKey: ["page-form", formId] }),
+      invalidate(),
+      queryClient.invalidateQueries({ queryKey: ["forms"] }),
     ]);
 
   const handlePagePreviewDraft = useCallback(
@@ -162,7 +191,19 @@ function UnifiedEditorPage() {
     [],
   );
 
+  const handlePageSaved = useCallback(
+    (saved: SavedPageForm) => {
+      queryClient.setQueryData<EditorFormData>(
+        ["editor-form", formId],
+        (current) => applySavedPageForm(current, saved),
+      );
+      setPagePreviewDraft(null);
+    },
+    [formId, queryClient],
+  );
+
   useEffect(() => {
+    ensuredRef.current = false;
     setPagePreviewDraft(null);
   }, [formId]);
 
@@ -225,24 +266,18 @@ function UnifiedEditorPage() {
     }
   }
 
-  // Lazily ensure every form is flow-backed: if there's no flow yet, build one
-  // (from existing fields, or a blank Start → Summary).
-  const ensureMutation = useMutation({
-    mutationFn: () => ensureFlow({ data: { formId: Number(formId) } }),
-    onSuccess: invalidate,
-  });
   const ensurePageMutation = useMutation({
     mutationFn: () => ensurePageForm({ data: { formId: Number(formId) } }),
     onSuccess: invalidate,
   });
   useEffect(() => {
-    if (pageLoading || isLoading || ensuredRef.current) return;
+    if (isLoading || ensuredRef.current || !editorData) return;
     if (pageForm) return;
     if (flowData === null) {
       ensuredRef.current = true;
       ensurePageMutation.mutate();
     }
-  }, [pageLoading, isLoading, pageForm, flowData, ensurePageMutation]);
+  }, [isLoading, editorData, pageForm, flowData, ensurePageMutation]);
 
   // Validate the current flow whenever its definition changes.
   const validation = useMemo(() => {
@@ -264,55 +299,17 @@ function UnifiedEditorPage() {
     return { errors, byNode };
   }, [flowData]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-
-  // Sync server flow data into React Flow state (Canvas view).
-  useEffect(() => {
-    if (!flowData) return;
-    setNodes(
-      flowData.nodes.map((n) => {
-        const messages = validation.byNode.get(n.id);
-        return {
-          id: String(n.id),
-          type: n.type,
-          position: { x: n.positionX, y: n.positionY },
-          data: {
-            label: n.label ?? FLOW_LABELS[n.type],
-            config: n.config,
-            hasError: !!messages,
-            errorCount: messages?.length,
-            errorMessages: messages,
-            // Injected for the Field Group container's inline editing (Canvas).
-            variables: flowData.variables,
-            onUpdateConfig: (config: Record<string, unknown>) =>
-              updateNodeMutation.mutate({ nodeId: n.id, config }),
-          } as FlowNodeData,
-        };
-      }),
-    );
-    setEdges(
-      flowData.edges.map((e) => ({
-        id: String(e.id),
-        source: String(e.sourceNodeId),
-        target: String(e.targetNodeId),
-        label: e.metadata?.matchValue,
-        type: "smoothstep",
-      })),
-    );
-  }, [flowData, validation, setNodes, setEdges]);
-
   // ── Mutations ──
   const publishMutation = useMutation({
     mutationFn: (status: "draft" | "published") =>
       updateForm({ data: { id: Number(formId), status } }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["forms"] }),
+    onSuccess: invalidateFormMetadata,
   });
 
   const settingsMutation = useMutation({
     mutationFn: ({ title, theme }: { title: string; theme: FormTheme }) =>
       updateForm({ data: { id: Number(formId), title, theme } }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["forms"] }),
+    onSuccess: invalidateFormMetadata,
   });
 
   const addNodeMutation = useMutation({
@@ -514,141 +511,50 @@ function UnifiedEditorPage() {
     [flowId, listAnchorId, insertNodeMutation],
   );
 
-  // ── Canvas handlers ──
-  const handleConnect = useCallback(
-    (connection: Connection) => {
-      setEdges((eds) => addEdge({ ...connection, type: "smoothstep" }, eds));
-      addEdgeMutation.mutate({
-        sourceNodeId: Number(connection.source),
-        targetNodeId: Number(connection.target),
-      });
-    },
-    [setEdges, addEdgeMutation],
-  );
-
-  const handleDropNode = useCallback(
-    (
-      type: Exclude<FlowNodeType, "start">,
-      position: { x: number; y: number },
-    ) => {
-      addNodeMutation.mutate({
-        type,
-        positionX: position.x,
-        positionY: position.y,
-      });
-    },
-    [addNodeMutation],
-  );
-
-  const handleNodeDragStop = useCallback(() => {
-    if (!flowId) return;
-    saveLayoutMutation.mutate(
-      nodes.map((n) => ({
-        id: Number(n.id),
-        positionX: n.position.x,
-        positionY: n.position.y,
-      })),
-    );
-  }, [flowId, nodes, saveLayoutMutation]);
-
-  const handleNodesDelete = useCallback(
-    (deleted: Node[]) => {
-      for (const n of deleted) {
-        if (n.type === "start") continue;
-        deleteNodeMutation.mutate(Number(n.id));
-      }
-    },
-    [deleteNodeMutation],
-  );
-
-  const handleEdgesDelete = useCallback(
-    (deleted: Edge[]) => {
-      for (const e of deleted) deleteEdgeMutation.mutate(Number(e.id));
-    },
-    [deleteEdgeMutation],
-  );
-
   const handleSaveNow = useCallback(() => {
-    if (!flowId) return;
+    if (view === "canvas") {
+      canvasRef.current?.saveNow();
+      return;
+    }
+    if (!flowData) return;
     saveLayoutMutation.mutate(
-      nodes.map((n) => ({
-        id: Number(n.id),
-        positionX: n.position.x,
-        positionY: n.position.y,
+      flowData.nodes.map((node) => ({
+        id: node.id,
+        positionX: node.positionX,
+        positionY: node.positionY,
       })),
     );
-  }, [flowId, nodes, saveLayoutMutation]);
+  }, [flowData, saveLayoutMutation, view]);
 
-  // Simple layered auto-layout (BFS levels from Start).
   const handleAutoLayout = useCallback(() => {
-    if (!flowData) return;
-    const level = new Map<number, number>();
-    const start = flowData.nodes.find((n) => n.type === "start");
-    if (!start) return;
-    const queue: number[] = [start.id];
-    level.set(start.id, 0);
-    while (queue.length) {
-      const id = queue.shift()!;
-      const lvl = level.get(id)!;
-      for (const e of flowData.edges.filter((e) => e.sourceNodeId === id)) {
-        if (!level.has(e.targetNodeId)) {
-          level.set(e.targetNodeId, lvl + 1);
-          queue.push(e.targetNodeId);
-        }
-      }
-    }
-    const byLevel = new Map<number, number[]>();
-    for (const n of flowData.nodes) {
-      const lvl = level.get(n.id) ?? 0;
-      byLevel.set(lvl, [...(byLevel.get(lvl) ?? []), n.id]);
-    }
-    const layout: { id: number; positionX: number; positionY: number }[] = [];
-    for (const [lvl, ids] of byLevel) {
-      ids.forEach((id, i) => {
-        layout.push({
-          id,
-          positionX: 120 + i * 280,
-          positionY: 60 + lvl * 150,
-        });
-      });
-    }
-    setNodes((nds) =>
-      nds.map((n) => {
-        const pos = layout.find((l) => l.id === Number(n.id));
-        return pos
-          ? { ...n, position: { x: pos.positionX, y: pos.positionY } }
-          : n;
-      }),
-    );
-    saveLayoutMutation.mutate(layout);
-  }, [flowData, setNodes, saveLayoutMutation]);
+    canvasRef.current?.autoLayout();
+  }, []);
 
   const selectedNode =
     flowData?.nodes.find((n) => String(n.id) === selectedNodeId) ?? null;
 
   const hasPageBuilder = !!pageForm?.pages.length;
   const pageSetupStalled =
-    !pageLoading &&
     !isLoading &&
+    !!editorData &&
     !pageForm &&
     flowData === null &&
     ensuredRef.current &&
     ensurePageMutation.isSuccess &&
     !ensurePageMutation.isPending;
   const setupError =
-    (pageError ? pageQueryError : null) ||
-    (flowError ? flowQueryError : null) ||
+    (editorError ? editorQueryError : null) ||
     ensurePageMutation.error ||
-    ensureMutation.error ||
     (pageSetupStalled
       ? new Error("The page builder was created, but the editor could not reload it.")
       : null);
   const loading =
     !setupError &&
-    (pageLoading ||
+    (isLoading ||
+      !editorData ||
       (hasPageBuilder
         ? ensurePageMutation.isPending
-        : isLoading || flowData === null || ensureMutation.isPending));
+        : flowData === null));
 
   return (
     <div className="flex h-[calc(100dvh-64px)] min-h-0 flex-col overflow-hidden">
@@ -672,7 +578,7 @@ function UnifiedEditorPage() {
           )}
         </div>
 
-        <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:gap-3 sm:px-0 sm:pb-0">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <FormSectionNav formId={formId} active="build" />
 
           {/* Variables & Valid live in the build sub-toolbar (shown in both
@@ -729,21 +635,43 @@ function UnifiedEditorPage() {
             className="rounded-lg bg-[var(--ponko-bg,#faf9f5)] p-4 sm:p-6"
           >
             {pageForm ? (
-              <PageFormView
-                title={form?.title ?? "Form"}
-                description={form?.description}
-                pages={pagePreviewDraft?.pages ?? pageForm.pages}
-                references={pagePreviewDraft?.references ?? pageForm.references ?? []}
-                recaptchaSiteKey={pageForm.recaptchaSiteKey}
-                theme={(form?.theme as FormTheme | null) ?? null}
-                preview
-              />
+              <Suspense
+                fallback={
+                  <div
+                    role="status"
+                    className="h-64 animate-pulse rounded-xl bg-[#efe9de]"
+                  >
+                    <span className="sr-only">Loading preview…</span>
+                  </div>
+                }
+              >
+                <PageFormView
+                  title={form?.title ?? "Form"}
+                  description={form?.description}
+                  pages={pagePreviewDraft?.pages ?? pageForm.pages}
+                  references={pagePreviewDraft?.references ?? pageForm.references ?? []}
+                  recaptchaSiteKey={pageForm.recaptchaSiteKey}
+                  theme={(form?.theme as FormTheme | null) ?? null}
+                  preview
+                />
+              </Suspense>
             ) : flowData ? (
-              <FlowPreviewModal
-                nodes={flowData.nodes}
-                edges={flowData.edges}
-                variables={flowData.variables}
-              />
+              <Suspense
+                fallback={
+                  <div
+                    role="status"
+                    className="h-64 animate-pulse rounded-xl bg-[#efe9de]"
+                  >
+                    <span className="sr-only">Loading preview…</span>
+                  </div>
+                }
+              >
+                <FlowPreviewModal
+                  nodes={flowData.nodes}
+                  edges={flowData.edges}
+                  variables={flowData.variables}
+                />
+              </Suspense>
             ) : null}
           </div>
         </PreviewDialog>
@@ -818,8 +746,7 @@ function UnifiedEditorPage() {
               className="mt-5"
               onClick={() => {
                 ensuredRef.current = false;
-                queryClient.invalidateQueries({ queryKey: ["page-form", formId] });
-                queryClient.invalidateQueries({ queryKey: ["flow", formId] });
+                invalidate();
               }}
             >
               Retry
@@ -831,24 +758,44 @@ function UnifiedEditorPage() {
           Preparing editor…
         </div>
       ) : hasPageBuilder && pageForm ? (
-        <PageBuilderWorkspace
-          formId={Number(formId)}
-          pages={pageForm.pages}
-          references={pageForm.references ?? []}
-          gateways={gateways as { id: number; name: string; slug: string }[]}
-          onChanged={() => {
-            queryClient.invalidateQueries({ queryKey: ["page-form", formId] });
-          }}
-          onDraftChange={handlePagePreviewDraft}
-        />
+        <Suspense
+          fallback={
+            <div
+              role="status"
+              className="flex flex-1 items-center justify-center bg-[#f5f0e8] text-sm text-[#8e8b82]"
+            >
+              Loading page builder…
+            </div>
+          }
+        >
+          <PageBuilderWorkspace
+            formId={Number(formId)}
+            pages={pageForm.pages}
+            references={pageForm.references ?? []}
+            gateways={gateways as { id: number; name: string; slug: string }[]}
+            onChanged={handlePageSaved}
+            onDraftChange={handlePagePreviewDraft}
+          />
+        </Suspense>
       ) : (
         <div className="flex flex-1 flex-col overflow-y-auto lg:min-h-0 lg:flex-row lg:overflow-hidden">
           {/* Left: unified palette */}
           <div className="flex-none border-b border-[#e6dfd8] bg-[#faf9f5] p-4 lg:w-60 lg:overflow-y-auto lg:border-b-0 lg:border-r">
-            <BuilderPalette
-              onAddField={handleAddField}
-              onAddNode={handleAddLogic}
-            />
+            <Suspense
+              fallback={
+                <div
+                  role="status"
+                  className="h-48 animate-pulse rounded-lg bg-[#efe9de]"
+                >
+                  <span className="sr-only">Loading builder palette…</span>
+                </div>
+              }
+            >
+              <BuilderPalette
+                onAddField={handleAddField}
+                onAddNode={handleAddLogic}
+              />
+            </Suspense>
           </div>
 
           {/* Center: view toggle + (list | canvas) */}
@@ -904,54 +851,96 @@ function UnifiedEditorPage() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   {flowData && (
-                    <FlowListBuilder
-                      nodes={flowData.nodes}
-                      edges={flowData.edges}
-                      selectedNodeId={
-                        selectedNodeId == null ? null : Number(selectedNodeId)
+                    <Suspense
+                      fallback={
+                        <div
+                          role="status"
+                          className="h-64 animate-pulse rounded-xl bg-[#efe9de]"
+                        >
+                          <span className="sr-only">Loading form steps…</span>
+                        </div>
                       }
-                      byNodeErrors={validation.byNode}
-                      variables={flowData.variables}
-                      onSelect={(id) =>
-                        setSelectedNodeId(id == null ? null : String(id))
-                      }
-                      onReorder={(orderedNodeIds) =>
-                        reorderMutation.mutate(orderedNodeIds)
-                      }
-                      onUpdateNode={(nodeId, config) =>
-                        updateNodeMutation.mutate({ nodeId, config })
-                      }
-                      onDelete={(nodeId) => {
-                        removeNodeMutation.mutate(nodeId);
-                        if (selectedNodeId === String(nodeId))
-                          setSelectedNodeId(null);
-                      }}
-                      onMoveFieldToGroup={(nodeId, groupId) =>
-                        moveFieldToGroupMutation.mutate({ nodeId, groupId })
-                      }
-                      onEditBranchesInCanvas={() => setView("canvas")}
-                    />
+                    >
+                      <FlowListBuilder
+                        nodes={flowData.nodes}
+                        edges={flowData.edges}
+                        selectedNodeId={
+                          selectedNodeId == null ? null : Number(selectedNodeId)
+                        }
+                        byNodeErrors={validation.byNode}
+                        variables={flowData.variables}
+                        onSelect={(id) =>
+                          setSelectedNodeId(id == null ? null : String(id))
+                        }
+                        onReorder={(orderedNodeIds) =>
+                          reorderMutation.mutate(orderedNodeIds)
+                        }
+                        onUpdateNode={(nodeId, config) =>
+                          updateNodeMutation.mutate({ nodeId, config })
+                        }
+                        onDelete={(nodeId) => {
+                          removeNodeMutation.mutate(nodeId);
+                          if (selectedNodeId === String(nodeId))
+                            setSelectedNodeId(null);
+                        }}
+                        onMoveFieldToGroup={(nodeId, groupId) =>
+                          moveFieldToGroupMutation.mutate({ nodeId, groupId })
+                        }
+                        onEditBranchesInCanvas={() => setView("canvas")}
+                      />
+                    </Suspense>
                   )}
                 </div>
               </div>
             ) : (
               <div className="flex-1">
-                <FlowCanvas
-                  nodes={nodes}
-                  edges={edges}
-                  onNodesChange={onNodesChange}
-                  onEdgesChange={onEdgesChange}
-                  onConnect={handleConnect}
-                  onNodeClick={(id) => {
-                    setSelectedNodeId(id);
-                    setShowVariables(false);
-                  }}
-                  onPaneClick={() => setSelectedNodeId(null)}
-                  onDropNode={handleDropNode}
-                  onNodeDragStop={handleNodeDragStop}
-                  onNodesDelete={handleNodesDelete}
-                  onEdgesDelete={handleEdgesDelete}
-                />
+                {flowData && (
+                  <Suspense
+                    fallback={
+                      <div
+                        role="status"
+                        className="flex h-full items-center justify-center bg-[#f5f0e8] text-sm text-[#8e8b82]"
+                      >
+                        Loading canvas…
+                      </div>
+                    }
+                  >
+                    <FlowCanvasWorkspace
+                      ref={canvasRef}
+                      flow={flowData}
+                      errorsByNode={validation.byNode}
+                      onSelectNode={(id) => {
+                        setSelectedNodeId(id);
+                        if (id) setShowVariables(false);
+                      }}
+                      onUpdateNodeConfig={(nodeId, config) =>
+                        updateNodeMutation.mutate({ nodeId, config })
+                      }
+                      onAddNode={(type, position) =>
+                        addNodeMutation.mutate({
+                          type,
+                          positionX: position.x,
+                          positionY: position.y,
+                        })
+                      }
+                      onAddEdge={(sourceNodeId, targetNodeId) =>
+                        addEdgeMutation.mutate({
+                          sourceNodeId,
+                          targetNodeId,
+                        })
+                      }
+                      onDeleteNode={(nodeId) =>
+                        deleteNodeMutation.mutate(nodeId)
+                      }
+                      onDeleteEdge={(edgeId) =>
+                        deleteEdgeMutation.mutate(edgeId)
+                      }
+                      onSaveLayout={(layout) =>
+                        saveLayoutMutation.mutate(layout)
+                      }
+                    />
+                  </Suspense>
+                )}
               </div>
             )}
           </div>
@@ -1000,31 +989,47 @@ function UnifiedEditorPage() {
             <div className="p-4">
               {showVariables ? (
                 flowData && (
-                  <VariablesManager
-                    variables={flowData.variables}
-                    nodes={flowData.nodes}
-                    onCreate={(v) => createVarMutation.mutate(v)}
-                    onUpdate={(varId, changes) =>
-                      updateVarMutation.mutate({ varId, ...changes })
+                  <Suspense
+                    fallback={
+                      <p role="status" className="text-sm text-[#8e8b82]">
+                        Loading variables…
+                      </p>
                     }
-                    onDelete={(varId) => deleteVarMutation.mutate(varId)}
-                    onClose={() => setShowVariables(false)}
-                  />
+                  >
+                    <VariablesManager
+                      variables={flowData.variables}
+                      nodes={flowData.nodes}
+                      onCreate={(v) => createVarMutation.mutate(v)}
+                      onUpdate={(varId, changes) =>
+                        updateVarMutation.mutate({ varId, ...changes })
+                      }
+                      onDelete={(varId) => deleteVarMutation.mutate(varId)}
+                      onClose={() => setShowVariables(false)}
+                    />
+                  </Suspense>
                 )
               ) : selectedNode && flowData ? (
-                <NodeConfigPanel
-                  node={selectedNode}
-                  variables={flowData.variables}
-                  gateways={gateways as { id: number; name: string }[]}
-                  onUpdate={(nodeId, patch) =>
-                    updateNodeMutation.mutate({ nodeId, ...patch })
+                <Suspense
+                  fallback={
+                    <p role="status" className="text-sm text-[#8e8b82]">
+                      Loading step settings…
+                    </p>
                   }
-                  onClose={() => setSelectedNodeId(null)}
-                  onDelete={(nodeId) => {
-                    removeNodeMutation.mutate(nodeId);
-                    setSelectedNodeId(null);
-                  }}
-                />
+                >
+                  <NodeConfigPanel
+                    node={selectedNode}
+                    variables={flowData.variables}
+                    gateways={gateways as { id: number; name: string }[]}
+                    onUpdate={(nodeId, patch) =>
+                      updateNodeMutation.mutate({ nodeId, ...patch })
+                    }
+                    onClose={() => setSelectedNodeId(null)}
+                    onDelete={(nodeId) => {
+                      removeNodeMutation.mutate(nodeId);
+                      setSelectedNodeId(null);
+                    }}
+                  />
+                </Suspense>
               ) : (
                 <div className="pt-8 text-center text-sm text-[#8e8b82]">
                   Click a step to configure it. Add fields and logic from the

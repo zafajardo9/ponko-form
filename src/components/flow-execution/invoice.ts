@@ -2,7 +2,7 @@ import type { FlowVariable } from '../../lib/flow-engine/types'
 
 /**
  * Pure invoice model shared by the on-page receipt and the PDF document. Kept
- * free of any @react-pdf/renderer import so it is safe to use during SSR.
+ * free of any PDF rendering import so it is safe to use during SSR.
  */
 export interface InvoiceLine {
   label: string

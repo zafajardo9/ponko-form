@@ -19,6 +19,12 @@ import type { GatewayCredentials } from '../../integrations/payments/types'
 import type { FlowNode, FlowEdge, FlowVariable } from '../flow-engine/types'
 import { reconcilePayment } from '../payments/reconciliation'
 import { publicRequestOrigin } from './request-origin'
+import {
+  flowPaymentReturnUrl,
+  isValidPublicSessionToken,
+} from '../public-session-access'
+import { ensureFlowSubmissionDraft } from '../flow-engine/submission-draft'
+import { claimPaymentCheckout } from '../payments/checkout-claim'
 
 /**
  * Real payment server functions (end-user, public — no auth).
@@ -38,32 +44,61 @@ type GatewaySlug = 'paypal' | 'xendit'
 interface ResolvedContext {
   execution: typeof flowExecutions.$inferSelect
   node: typeof flowNodes.$inferSelect
+  formId: number
   formProfileId: number
 }
 
 /** execution → current node (must be a payment node) → owning profile id. */
-async function resolvePaymentContext(executionId: number): Promise<ResolvedContext> {
-  const [execution] = await db
-    .select()
+function executionAccessWhere(executionId: number, clientToken: string) {
+  if (!isValidPublicSessionToken(clientToken)) {
+    throw new Error('Invalid execution token')
+  }
+  return and(
+    eq(flowExecutions.id, executionId),
+    eq(flowExecutions.clientToken, clientToken),
+  )
+}
+
+function publicExecution(execution: typeof flowExecutions.$inferSelect) {
+  return {
+    id: execution.id,
+    status: execution.status,
+    currentNodeId: execution.currentNodeId,
+    variables: execution.variables,
+    history: execution.history,
+    completedAt: execution.completedAt,
+    createdAt: execution.createdAt,
+  }
+}
+
+async function resolvePaymentContext(
+  executionId: number,
+  clientToken: string,
+): Promise<ResolvedContext> {
+  const [context] = await db
+    .select({
+      execution: flowExecutions,
+      node: flowNodes,
+      formId: forms.id,
+      formProfileId: forms.profileId,
+    })
     .from(flowExecutions)
-    .where(eq(flowExecutions.id, executionId))
+    .innerJoin(
+      flowNodes,
+      and(
+        eq(flowNodes.id, flowExecutions.currentNodeId),
+        eq(flowNodes.flowId, flowExecutions.flowId),
+      ),
+    )
+    .innerJoin(flows, eq(flows.id, flowExecutions.flowId))
+    .innerJoin(forms, eq(forms.id, flows.formId))
+    .where(executionAccessWhere(executionId, clientToken))
     .limit(1)
-  if (!execution) throw new Error('Execution not found')
-  if (execution.currentNodeId == null) throw new Error('Execution has no current step')
-
-  const [node] = await db
-    .select()
-    .from(flowNodes)
-    .where(eq(flowNodes.id, execution.currentNodeId))
-    .limit(1)
-  if (!node || node.type !== 'payment') throw new Error('Current step is not a payment')
-
-  const [flow] = await db.select().from(flows).where(eq(flows.id, execution.flowId)).limit(1)
-  if (!flow) throw new Error('Flow not found')
-  const [form] = await db.select().from(forms).where(eq(forms.id, flow.formId)).limit(1)
-  if (!form) throw new Error('Form not found')
-
-  return { execution, node, formProfileId: form.profileId }
+  if (!context) throw new Error('Execution not found')
+  if (context.node.type !== 'payment') {
+    throw new Error('Current step is not a payment')
+  }
+  return context
 }
 
 /** Map a gateway slug to the owner's decrypted credentials (or null if unset). */
@@ -91,15 +126,13 @@ function credentialsForSlug(
 
 /** Resolve-or-insert the paymentGateways row for a slug; returns its id. */
 async function gatewayRowId(slug: GatewaySlug, name: string): Promise<number> {
-  const [existing] = await db
-    .select({ id: paymentGateways.id })
-    .from(paymentGateways)
-    .where(eq(paymentGateways.slug, slug))
-    .limit(1)
-  if (existing) return existing.id
   const [created] = await db
     .insert(paymentGateways)
     .values({ name, slug, isActive: true })
+    .onConflictDoUpdate({
+      target: paymentGateways.slug,
+      set: { name, isActive: true },
+    })
     .returning({ id: paymentGateways.id })
   return created.id
 }
@@ -110,10 +143,13 @@ async function gatewayRowId(slug: GatewaySlug, name: string): Promise<number> {
  * the list of gateways the FORM OWNER has connected (so the visitor can choose).
  */
 export const getPaymentOptions = createServerFn({ method: 'GET', strict: false })
-  .inputValidator((data: { executionId: number }) => data)
+  .validator((data: { executionId: number; clientToken: string }) => data)
   .handler(async ({ data }) => {
     return withTimeout((async () => {
-    const { execution, node, formProfileId } = await resolvePaymentContext(data.executionId)
+    const { execution, node, formProfileId } = await resolvePaymentContext(
+      data.executionId,
+      data.clientToken,
+    )
     const config = node.config as Record<string, unknown>
     const amountVar = config.amountVariable as string | undefined
     const amount = amountVar ? Number((execution.variables as Record<string, unknown>)?.[amountVar] ?? 0) : 0
@@ -144,12 +180,18 @@ export const getPaymentOptions = createServerFn({ method: 'GET', strict: false }
  * checkout URL for the client to redirect to.
  */
 export const initiatePayment = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: { executionId: number; gatewaySlug: GatewaySlug }) => data)
+  .validator(
+    (data: {
+      executionId: number
+      clientToken: string
+      gatewaySlug: GatewaySlug
+    }) => data,
+  )
   .handler(async ({ data }) => {
     return withTimeout((async () => {
     const context = { correlationId: `flow-${data.executionId}`, phase: 'payment-initiation' }
-    const { execution, node, formProfileId } = await withTimeout(
-      resolvePaymentContext(data.executionId),
+    const { execution, node, formId, formProfileId } = await withTimeout(
+      resolvePaymentContext(data.executionId, data.clientToken),
       8_000,
       'initiatePayment.resolveContext',
       context,
@@ -180,30 +222,33 @@ export const initiatePayment = createServerFn({ method: 'POST', strict: false })
     }
 
     const origin = publicRequestOrigin()
-    const base = `${origin}/forms/payment-return?executionId=${execution.id}`
+    const base = flowPaymentReturnUrl(
+      origin,
+      execution.id,
+      data.clientToken,
+    )
     const gwId = await withTimeout(
       gatewayRowId(data.gatewaySlug, gateway.getGatewayName()),
       8_000,
       'initiatePayment.resolveGateway',
       context,
     )
-    let submissionId = execution.formSubmissionId
-    if (!submissionId) {
-      const [flow] = await db.select().from(flows).where(eq(flows.id, execution.flowId)).limit(1)
-      if (!flow) throw new Error('Flow not found')
-      const [draft] = await db.insert(formSubmissions).values({
-        formId: flow.formId,
-        formData: execution.variables as Record<string, unknown>,
-        status: 'pending_payment',
-      }).returning({ id: formSubmissions.id })
-      submissionId = draft.id
-      await db.update(flowExecutions).set({ formSubmissionId: submissionId })
-        .where(eq(flowExecutions.id, execution.id))
-    }
+    const submissionId = await ensureFlowSubmissionDraft(
+      execution,
+      formId,
+      'pending_payment',
+    )
     await db.update(formSubmissions)
       .set({ status: 'pending_payment', formData: execution.variables as Record<string, unknown> })
       .where(eq(formSubmissions.id, submissionId))
-    const [payment] = await db.insert(payments).values({
+    const checkoutKey = [
+      'flow',
+      execution.id,
+      data.gatewaySlug,
+      amountMinor,
+      currency.toUpperCase(),
+    ].join(':')
+    const checkout = await claimPaymentCheckout(checkoutKey, {
       paymentGatewayId: gwId,
       flowExecutionId: execution.id,
       formSubmissionId: submissionId,
@@ -211,7 +256,17 @@ export const initiatePayment = createServerFn({ method: 'POST', strict: false })
       currency,
       status: 'pending',
       gatewayResponse: { environment: credentials.mode ?? 'sandbox' },
-    }).returning({ id: payments.id })
+    })
+    if (checkout.disposition === 'reuse' && checkout.payment.paymentUrl) {
+      return { paymentUrl: checkout.payment.paymentUrl }
+    }
+    if (checkout.disposition === 'wait') {
+      throw new Error('Checkout is already being prepared. Try again in a moment.')
+    }
+    if (checkout.disposition === 'completed') {
+      throw new Error('This payment has already been completed.')
+    }
+    const payment = checkout.payment
     const externalId = `ponkoform-payment-${payment.id}`
     await db.update(payments).set({ externalId }).where(eq(payments.id, payment.id))
     const result = await withTimeout(gateway.createPayment(
@@ -235,7 +290,7 @@ export const initiatePayment = createServerFn({ method: 'POST', strict: false })
         .where(and(eq(formSubmissions.id, submissionId), eq(formSubmissions.status, 'pending_payment')))
       await db.update(flowExecutions)
         .set({ status: 'payment_failed' })
-        .where(eq(flowExecutions.id, execution.id))
+        .where(executionAccessWhere(execution.id, data.clientToken))
       throw new Error(result.error ?? 'Could not start the payment')
     }
 
@@ -250,7 +305,7 @@ export const initiatePayment = createServerFn({ method: 'POST', strict: false })
     await withTimeout(db
       .update(flowExecutions)
       .set({ status: 'payment_pending' })
-      .where(eq(flowExecutions.id, execution.id)), 8_000, 'initiatePayment.updateExecution', context)
+      .where(executionAccessWhere(execution.id, data.clientToken)), 8_000, 'initiatePayment.updateExecution', context)
 
       return { paymentUrl: result.paymentUrl }
     })(), 25_000, 'initiatePayment', {
@@ -266,13 +321,13 @@ export const initiatePayment = createServerFn({ method: 'POST', strict: false })
  * execution status, and reports the outcome so the flow can resume.
  */
 export const finalizePayment = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: { executionId: number }) => data)
+  .validator((data: { executionId: number; clientToken: string }) => data)
   .handler(async ({ data }) => {
     return withTimeout((async () => {
     const [execution] = await db
       .select()
       .from(flowExecutions)
-      .where(eq(flowExecutions.id, data.executionId))
+      .where(executionAccessWhere(data.executionId, data.clientToken))
       .limit(1)
     if (!execution) throw new Error('Execution not found')
 
@@ -301,7 +356,7 @@ export const finalizePayment = createServerFn({ method: 'POST', strict: false })
       await db
         .update(flowExecutions)
         .set({ status: 'payment_failed' })
-        .where(eq(flowExecutions.id, execution.id))
+        .where(executionAccessWhere(execution.id, data.clientToken))
     }
 
       return {
@@ -322,31 +377,43 @@ export const finalizePayment = createServerFn({ method: 'POST', strict: false })
  * rebuild the engine via FlowEngine.restore() after the payment redirect.
  */
 export const getResumeData = createServerFn({ method: 'GET', strict: false })
-  .inputValidator((data: { executionId: number }) => data)
+  .validator((data: { executionId: number; clientToken: string }) => data)
   .handler(async ({ data }) => {
     const [execution] = await db
       .select()
       .from(flowExecutions)
-      .where(eq(flowExecutions.id, data.executionId))
+      .where(executionAccessWhere(data.executionId, data.clientToken))
       .limit(1)
     if (!execution) throw new Error('Execution not found')
 
-    const [flow] = await db.select().from(flows).where(eq(flows.id, execution.flowId)).limit(1)
-    if (!flow) throw new Error('Flow not found')
-    const [form] = await db.select().from(forms).where(eq(forms.id, flow.formId)).limit(1)
-
-    const [nodes, edges, variables] = await Promise.all([
-      db.select().from(flowNodes).where(eq(flowNodes.flowId, flow.id)).orderBy(flowNodes.id),
-      db.select().from(flowEdges).where(eq(flowEdges.flowId, flow.id)).orderBy(flowEdges.id),
+    const [[context], nodes, edges, variables] = await Promise.all([
+      db
+        .select({ flow: flows, form: forms })
+        .from(flows)
+        .innerJoin(forms, eq(forms.id, flows.formId))
+        .where(eq(flows.id, execution.flowId))
+        .limit(1),
+      db
+        .select()
+        .from(flowNodes)
+        .where(eq(flowNodes.flowId, execution.flowId))
+        .orderBy(flowNodes.id),
+      db
+        .select()
+        .from(flowEdges)
+        .where(eq(flowEdges.flowId, execution.flowId))
+        .orderBy(flowEdges.id),
       db
         .select()
         .from(flowVariables)
-        .where(eq(flowVariables.flowId, flow.id))
+        .where(eq(flowVariables.flowId, execution.flowId))
         .orderBy(flowVariables.id),
     ])
+    if (!context) throw new Error('Flow not found')
+    const { flow, form } = context
 
     return {
-      execution,
+      execution: publicExecution(execution),
       formId: flow.formId,
       title: form?.title ?? 'Form',
       description: form?.description ?? null,

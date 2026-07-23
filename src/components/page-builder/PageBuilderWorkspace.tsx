@@ -1,8 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { EditorContent, useEditor } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import Underline from '@tiptap/extension-underline'
 import {
   DndContext,
   KeyboardSensor,
@@ -21,7 +18,10 @@ import {
   rectSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { savePageForm } from '../../lib/server-fns/page-forms'
+import {
+  savePageForm,
+  type SavedPageForm,
+} from '../../lib/server-fns/page-forms'
 import { addressRequiredParts } from '../../lib/page-builder/conditions'
 import { richTextHtml } from '../form-builder/fields/FieldRenderer'
 import {
@@ -52,7 +52,6 @@ import {
   AlignJustify,
   MapPin,
   AtSign,
-  Bold,
   Calendar,
   CalendarClock,
   Calculator,
@@ -63,13 +62,8 @@ import {
   Clock,
   FileText,
   GripVertical,
-  Heading1,
-  Heading2,
   Hash,
   Image,
-  Italic,
-  List,
-  ListOrdered,
   Plus,
   SlidersHorizontal,
   Save,
@@ -77,10 +71,11 @@ import {
   Smile,
   Trash2,
   Type,
-  Underline as UnderlineIcon,
   Upload,
   X,
 } from 'lucide-react'
+
+const RichTextEditor = lazy(() => import('./RichTextEditor'))
 
 type FieldPaletteItem = {
   type: PageFieldType
@@ -137,7 +132,7 @@ interface PageBuilderWorkspaceProps {
   pages: FormPage[]
   references: FormReference[]
   gateways: { id: number; name: string; slug: string }[]
-  onChanged: () => void
+  onChanged: (saved: SavedPageForm) => void
   onDraftChange?: (draft: { pages: FormPage[]; references: FormReference[] }) => void
 }
 
@@ -276,6 +271,7 @@ export function PageBuilderWorkspace({
   )
   const [settingsPanelWidth, setSettingsPanelWidth] = useState(360)
   const [panelMode, setPanelMode] = useState<'settings' | 'references'>('settings')
+  const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false)
   const isResizingSettings = useRef(false)
 
   const currentSnapshot = useMemo(() => snapshotBuilder(draftPages, draftReferences), [draftPages, draftReferences])
@@ -305,6 +301,17 @@ export function PageBuilderWorkspace({
     window.addEventListener('beforeunload', beforeUnload)
     return () => window.removeEventListener('beforeunload', beforeUnload)
   }, [isDirty])
+
+  useEffect(() => {
+    if (!mobileSettingsOpen) return
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setMobileSettingsOpen(false)
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [mobileSettingsOpen])
 
   const currentPage = draftPages.find((page) => page.id === selectedPageId) ?? draftPages[0]
   const selectedField =
@@ -371,7 +378,7 @@ export function PageBuilderWorkspace({
             ? { type: 'page', pageId: nextPage.id }
             : null,
       )
-      onChanged()
+      onChanged(saved)
     },
   })
 
@@ -421,6 +428,7 @@ export function PageBuilderWorkspace({
     setDraftPages(next)
     setSelectedPageId(page.id)
     setSelection({ type: 'page', pageId: page.id })
+    setMobileSettingsOpen(false)
   }
 
   function deletePageLocal(pageId: number) {
@@ -434,6 +442,7 @@ export function PageBuilderWorkspace({
     setDraftPages(next)
     setSelectedPageId(next[0]?.id ?? 0)
     setSelection(next[0] ? { type: 'page', pageId: next[0].id } : null)
+    setMobileSettingsOpen(false)
   }
 
   function addFieldLocal(item: FieldPaletteItem) {
@@ -514,6 +523,7 @@ export function PageBuilderWorkspace({
     )
     setPanelMode('settings')
     setSelection({ type: 'field', fieldId: field.id })
+    setMobileSettingsOpen(true)
   }
 
   function deleteFieldLocal(fieldId: number) {
@@ -526,6 +536,7 @@ export function PageBuilderWorkspace({
       })),
     )
     if (currentPage) setSelection({ type: 'page', pageId: currentPage.id })
+    setMobileSettingsOpen(false)
   }
 
   function moveFieldToPageLocal(fieldId: number, targetPageId: number) {
@@ -648,6 +659,7 @@ export function PageBuilderWorkspace({
                       setSelectedPageId(page.id)
                       setPanelMode('settings')
                       setSelection({ type: 'page', pageId: page.id })
+                      setMobileSettingsOpen(false)
                     }}
                   />
                 ))}
@@ -723,6 +735,7 @@ export function PageBuilderWorkspace({
                         onSelect={() => {
                           setPanelMode('settings')
                           setSelection({ type: 'field', fieldId: field.id })
+                          setMobileSettingsOpen(true)
                         }}
                         onMoveToPage={(pageId) => moveFieldToPageLocal(field.id, pageId)}
                       />
@@ -735,9 +748,23 @@ export function PageBuilderWorkspace({
         </div>
       </main>
 
+      {mobileSettingsOpen && (
+        <button
+          type="button"
+          aria-label="Close field settings"
+          onClick={() => setMobileSettingsOpen(false)}
+          className="fixed inset-0 z-40 bg-[#141413]/35 backdrop-blur-[1px] lg:hidden"
+        />
+      )}
+
       <aside
-        className="relative flex-none border-t border-[#e6dfd8] bg-[#faf9f5] lg:overflow-y-auto lg:border-l lg:border-t-0"
-        style={{ width: `min(100%, ${settingsPanelWidth}px)` }}
+        aria-label="Settings panel"
+        className={`w-full flex-none border-t border-[#e6dfd8] bg-[#faf9f5] lg:relative lg:z-auto lg:max-h-none lg:w-[min(100%,var(--settings-panel-width))] lg:overflow-y-auto lg:border-l lg:border-t-0 lg:rounded-none lg:shadow-none ${
+          mobileSettingsOpen
+            ? 'fixed inset-x-0 bottom-0 z-50 max-h-[82dvh] overflow-y-auto rounded-t-2xl shadow-[0_-16px_48px_rgba(20,20,19,0.18)]'
+            : 'relative'
+        }`}
+        style={{ '--settings-panel-width': `${settingsPanelWidth}px` } as CSSProperties}
       >
         <div
           onMouseDown={(event) => {
@@ -768,6 +795,25 @@ export function PageBuilderWorkspace({
           className="absolute left-0 top-0 z-10 hidden h-full w-1.5 cursor-col-resize transition-colors hover:bg-[#cc785c]/30 active:bg-[#cc785c]/50 lg:block"
           aria-hidden="true"
         />
+        {mobileSettingsOpen && (
+          <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-[#e6dfd8] bg-[#faf9f5]/95 px-4 pb-3 pt-2 backdrop-blur lg:hidden">
+            <span className="absolute left-1/2 top-1.5 h-1 w-10 -translate-x-1/2 rounded-full bg-[#d8cec3]" />
+            <div className="min-w-0 flex-1 pt-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-[#8e8b82]">Field settings</p>
+              <p className="truncate text-sm font-medium text-[#141413]">
+                {selectedField?.label || 'Untitled field'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMobileSettingsOpen(false)}
+              className="mt-2 inline-flex h-9 w-9 flex-none items-center justify-center rounded-full border border-[#e6dfd8] bg-white text-[#6c6a64] transition-colors hover:border-[#cc785c] hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]"
+              aria-label="Close field settings"
+            >
+              <X size={17} />
+            </button>
+          </div>
+        )}
         <div className="p-4">
           <div className="mb-4 grid grid-cols-2 gap-1 rounded-lg border border-[#e6dfd8] bg-[#f5f0e8] p-1 text-sm">
             <button
@@ -2010,10 +2056,20 @@ function FieldSettings({ field, pages, fields, references, onUpdate, onMoveToPag
 
       {field.fieldType === 'content' ? (
         <FieldGroup label="Body">
-          <RichTextEditor
-            value={field.placeholder ?? ''}
-            onChange={(html) => onUpdate({ placeholder: html || null })}
-          />
+          <Suspense
+            fallback={(
+              <div
+                role="status"
+                aria-label="Loading rich text editor"
+                className="h-48 animate-pulse rounded-md border border-[#e6dfd8] bg-[#faf9f5]"
+              />
+            )}
+          >
+            <RichTextEditor
+              value={field.placeholder ?? ''}
+              onChange={(html) => onUpdate({ placeholder: html || null })}
+            />
+          </Suspense>
         </FieldGroup>
       ) : field.fieldType === 'media' ? (
         <>
@@ -2177,7 +2233,9 @@ function FieldSettings({ field, pages, fields, references, onUpdate, onMoveToPag
             </span>
           </div>
           <p className="mt-1 text-xs text-[#8e8b82]">Choose fields and reference adjustments for this calculated total.</p>
+
         </button>
+
       )}
 
       {['select', 'checkbox', 'radio'].includes(field.fieldType) && (
@@ -2365,6 +2423,9 @@ function computationFormulaFields(fields: PageField[], currentField: PageField) 
     (field.fieldType === 'number' ||
       field.fieldType === 'satisfaction' ||
       field.fieldType === 'computation' ||
+      field.fieldType === 'text' ||
+      field.fieldType === 'email' ||
+      field.fieldType === 'textarea' ||
       ['select', 'checkbox', 'radio'].includes(field.fieldType)),
   )
 }
@@ -2443,7 +2504,7 @@ function FormulaComposer({
   const availableFields = computationFormulaFields(fields, field)
   const computationFields = availableFields.filter((item) => item.fieldType === 'computation')
   const inputFields = availableFields.filter((item) => item.fieldType !== 'computation')
-  const numericReferences = references.filter((reference) => reference.type === 'number' || reference.type === 'percentage')
+  const availableReferences = references.filter((reference) => reference.type === 'number' || reference.type === 'percentage' || reference.type === 'text')
 
   function append(value: string) {
     onChange(`${expression}${expression.trim() ? ' ' : ''}${value}`.trimStart())
@@ -2506,8 +2567,8 @@ function FormulaComposer({
         />
         <TokenPickerGroup
           title="References"
-          emptyText="No number or percentage references yet."
-          items={numericReferences.map((reference) => ({
+          emptyText="No references available yet."
+          items={availableReferences.map((reference) => ({
             key: reference.key,
             label: reference.label || reference.key,
             meta: `${reference.value} · {{${reference.key}}}`,
@@ -2835,7 +2896,7 @@ function ExpressionBuilder({
   onChange: (terms: NonNullable<FieldComputation['terms']>) => void
 }) {
   const availableFields = computationFormulaFields(fields, field)
-  const numericReferences = references.filter((reference) => reference.type === 'number' || reference.type === 'percentage')
+  const availableReferences = references.filter((reference) => reference.type === 'number' || reference.type === 'percentage' || reference.type === 'text')
 
   function updateTerm(index: number, patch: Partial<NonNullable<FieldComputation['terms']>[number]>) {
     onChange(terms.map((term, termIndex) => (termIndex === index ? { ...term, ...patch } : term)))
@@ -2847,9 +2908,9 @@ function ExpressionBuilder({
       {
         id: tempId().toString(),
         operator: terms.length === 0 ? 'set' : 'add',
-        source: availableFields.length > 0 ? 'field' : numericReferences.length > 0 ? 'reference' : 'fixed',
+        source: availableFields.length > 0 ? 'field' : availableReferences.length > 0 ? 'reference' : 'fixed',
         fieldBinding: availableFields[0]?.bindVariable ?? null,
-        referenceKey: availableFields.length === 0 ? numericReferences[0]?.key ?? null : null,
+        referenceKey: availableFields.length === 0 ? availableReferences[0]?.key ?? null : null,
         fixedValue: 0,
       },
     ])
@@ -2897,7 +2958,7 @@ function ExpressionBuilder({
                   updateTerm(index, {
                     source,
                     fieldBinding: source === 'field' ? availableFields[0]?.bindVariable ?? null : null,
-                    referenceKey: source === 'reference' ? numericReferences[0]?.key ?? null : null,
+                    referenceKey: source === 'reference' ? availableReferences[0]?.key ?? null : null,
                     fixedValue: source === 'fixed' ? term.fixedValue ?? 0 : null,
                   })
                 }}
@@ -2927,7 +2988,7 @@ function ExpressionBuilder({
                   className={inputClass}
                 >
                   <option value="">Select reference...</option>
-                  {numericReferences.map((reference) => (
+                  {availableReferences.map((reference) => (
                     <option key={reference.id} value={reference.key}>
                       {reference.label || reference.key} {`{{${reference.key}}}`} = {reference.value}
                     </option>
@@ -2973,7 +3034,7 @@ function ComputationDialog({
   onClose: () => void
   onChange: (computation: FieldComputation) => void
 }) {
-  const numberReferences = references.filter((reference) => reference.type === 'number' || reference.type === 'percentage')
+  const availableReferences = references.filter((reference) => reference.type === 'number' || reference.type === 'percentage' || reference.type === 'text')
   const mode = computation.mode ?? 'sum_priced_options'
   const availableFields = computationSourceFields(fields, field.id, mode)
   const selectedBindings = computation.fieldBindings ?? []
@@ -3016,6 +3077,18 @@ function ComputationDialog({
             <option value="formula">Service subtotal + adjustments</option>
           </select>
         </Field>
+
+        <Field label="Output type">
+          <select
+            value={computation.outputMode ?? 'number'}
+            onChange={(e) => update({ outputMode: e.target.value as 'number' | 'text' })}
+            className={inputClass}
+          >
+            <option value="number">Number (for calculations & prices)</option>
+            <option value="text">Text (concatenate field values)</option>
+          </select>
+        </Field>
+
         <FormulaCheckResult check={computationCheck} />
 
         {mode === 'expression' ? (
@@ -3029,14 +3102,14 @@ function ComputationDialog({
             <FormulaComposer
               field={field}
               fields={fields}
-              references={numberReferences}
+              references={availableReferences}
               expression={computation.expression ?? ''}
               onChange={(expression) => update({ expression })}
             />
             <ExpressionBuilder
               field={field}
               fields={fields}
-              references={numberReferences}
+              references={availableReferences}
               terms={computation.terms ?? []}
               onChange={(terms) => update({ terms })}
             />
@@ -3047,7 +3120,7 @@ function ComputationDialog({
               sourceFields={availableFields}
               selectedBindings={selectedBindings}
               adjustments={mode === 'formula' ? computation.adjustments ?? [] : []}
-              references={numberReferences}
+              references={availableReferences}
             />
 
             <PaymentFieldChecklist
@@ -3063,7 +3136,7 @@ function ComputationDialog({
 
             {mode === 'formula' && (
               <FormulaAdjustmentsEditor
-                references={numberReferences}
+                references={availableReferences}
                 adjustments={computation.adjustments ?? []}
                 onChange={(adjustments) => update({ adjustments })}
               />
@@ -3079,6 +3152,16 @@ function ComputationDialog({
             className="h-4 w-4 accent-[#cc785c]"
           />
           Show this total to respondents
+        </label>
+
+        <label className="flex items-center gap-2 rounded-lg border border-[#e6dfd8] bg-white p-3 text-sm text-[#141413]">
+          <input
+            type="checkbox"
+            checked={computation.visible !== false}
+            onChange={(e) => update({ visible: e.target.checked ? undefined : false })}
+            className="h-4 w-4 accent-[#cc785c]"
+          />
+          Visible to respondent (uncheck to hide and run in background)
         </label>
       </div>
     </FieldDialog>
@@ -3546,113 +3629,6 @@ function LogicDialog({
 
 const inputClass =
   'h-10 w-full rounded-md border border-[#e6dfd8] bg-[#faf9f5] px-3 py-2 text-sm text-[#141413] outline-none focus:border-[#cc785c] focus:ring-2 focus:ring-[#cc785c]/20'
-
-function RichTextEditor({
-  value,
-  onChange,
-}: {
-  value: string
-  onChange: (html: string) => void
-}) {
-  const [, setEditorVersion] = useState(0)
-  const lastEditorHtmlRef = useRef(value || '<p></p>')
-  const editor = useEditor({
-    extensions: [StarterKit, Underline],
-    content: value || '<p></p>',
-    immediatelyRender: false,
-    editorProps: {
-      attributes: {
-        class:
-          'rich-text-content min-h-40 rounded-b-md bg-[#faf9f5] px-3 py-3 text-sm leading-6 text-[#141413] outline-none',
-      },
-    },
-    onUpdate: ({ editor }) => {
-      const html = editor.getHTML()
-      lastEditorHtmlRef.current = html
-      onChange(html)
-      setEditorVersion((version) => version + 1)
-    },
-    onSelectionUpdate: () => {
-      setEditorVersion((version) => version + 1)
-    },
-    onTransaction: () => {
-      setEditorVersion((version) => version + 1)
-    },
-  })
-
-  useEffect(() => {
-    if (!editor) return
-    const nextValue = value || '<p></p>'
-    if (nextValue === lastEditorHtmlRef.current) return
-    if (editor.getHTML() !== nextValue) {
-      lastEditorHtmlRef.current = nextValue
-      editor.commands.setContent(nextValue, { emitUpdate: false })
-    }
-  }, [editor, value])
-
-  if (!editor) {
-    return <div className="h-48 rounded-md border border-[#e6dfd8] bg-[#faf9f5]" />
-  }
-
-  return (
-    <div className="overflow-hidden rounded-md border border-[#e6dfd8] focus-within:border-[#cc785c] focus-within:ring-2 focus-within:ring-[#cc785c]/20">
-      <div className="flex flex-wrap gap-1 border-b border-[#e6dfd8] bg-white p-1.5">
-        <ToolbarButton active={editor.isActive('bold')} label="Bold" onPress={() => editor.chain().focus().toggleBold().run()}>
-          <Bold size={15} />
-        </ToolbarButton>
-        <ToolbarButton active={editor.isActive('italic')} label="Italic" onPress={() => editor.chain().focus().toggleItalic().run()}>
-          <Italic size={15} />
-        </ToolbarButton>
-        <ToolbarButton active={editor.isActive('underline')} label="Underline" onPress={() => editor.chain().focus().toggleUnderline().run()}>
-          <UnderlineIcon size={15} />
-        </ToolbarButton>
-        <ToolbarButton active={editor.isActive('heading', { level: 1 })} label="Heading 1" onPress={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}>
-          <Heading1 size={15} />
-        </ToolbarButton>
-        <ToolbarButton active={editor.isActive('heading', { level: 2 })} label="Heading 2" onPress={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>
-          <Heading2 size={15} />
-        </ToolbarButton>
-        <ToolbarButton active={editor.isActive('bulletList')} label="Bullet list" onPress={() => editor.chain().focus().toggleBulletList().run()}>
-          <List size={15} />
-        </ToolbarButton>
-        <ToolbarButton active={editor.isActive('orderedList')} label="Numbered list" onPress={() => editor.chain().focus().toggleOrderedList().run()}>
-          <ListOrdered size={15} />
-        </ToolbarButton>
-      </div>
-      <EditorContent editor={editor} className="rich-text-editor" />
-    </div>
-  )
-}
-
-function ToolbarButton({
-  active,
-  label,
-  onPress,
-  children,
-}: {
-  active: boolean
-  label: string
-  onPress: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onMouseDown={(event) => {
-        event.preventDefault()
-        onPress()
-      }}
-      title={label}
-      aria-label={label}
-      aria-pressed={active}
-      className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
-        active ? 'bg-[#cc785c] text-white' : 'text-[#6c6a64] hover:bg-[#efe9de] hover:text-[#141413]'
-      }`}
-    >
-      {children}
-    </button>
-  )
-}
 
 function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (

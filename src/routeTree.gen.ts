@@ -33,6 +33,7 @@ import { Route as FormsFormIdEditRouteImport } from './routes/forms/$formId/edit
 import { Route as FlowExecutionIdCompleteRouteImport } from './routes/flow/$executionId/complete'
 import { Route as ApiInternalReconcilePaymentsRouteImport } from './routes/api/internal/reconcile-payments'
 import { Route as ApiWebhooksXenditEndpointKeyRouteImport } from './routes/api/webhooks/xendit/$endpointKey'
+import { Route as ApiFormsFormIdSubmissionsExportRouteImport } from './routes/api/forms/$formId/submissions-export'
 
 const McpRoute = McpRouteImport.update({
   id: '/mcp',
@@ -157,6 +158,12 @@ const ApiWebhooksXenditEndpointKeyRoute =
     path: '/api/webhooks/xendit/$endpointKey',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiFormsFormIdSubmissionsExportRoute =
+  ApiFormsFormIdSubmissionsExportRouteImport.update({
+    id: '/api/forms/$formId/submissions-export',
+    path: '/api/forms/$formId/submissions-export',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -182,6 +189,7 @@ export interface FileRoutesByFullPath {
   '/forms/embed/$formId': typeof FormsEmbedFormIdRoute
   '/forms/submit/$formId': typeof FormsSubmitFormIdRoute
   '/integrations/google/callback': typeof IntegrationsGoogleCallbackRoute
+  '/api/forms/$formId/submissions-export': typeof ApiFormsFormIdSubmissionsExportRoute
   '/api/webhooks/xendit/$endpointKey': typeof ApiWebhooksXenditEndpointKeyRoute
 }
 export interface FileRoutesByTo {
@@ -208,6 +216,7 @@ export interface FileRoutesByTo {
   '/forms/embed/$formId': typeof FormsEmbedFormIdRoute
   '/forms/submit/$formId': typeof FormsSubmitFormIdRoute
   '/integrations/google/callback': typeof IntegrationsGoogleCallbackRoute
+  '/api/forms/$formId/submissions-export': typeof ApiFormsFormIdSubmissionsExportRoute
   '/api/webhooks/xendit/$endpointKey': typeof ApiWebhooksXenditEndpointKeyRoute
 }
 export interface FileRoutesById {
@@ -235,6 +244,7 @@ export interface FileRoutesById {
   '/forms/embed/$formId': typeof FormsEmbedFormIdRoute
   '/forms/submit/$formId': typeof FormsSubmitFormIdRoute
   '/integrations/google/callback': typeof IntegrationsGoogleCallbackRoute
+  '/api/forms/$formId/submissions-export': typeof ApiFormsFormIdSubmissionsExportRoute
   '/api/webhooks/xendit/$endpointKey': typeof ApiWebhooksXenditEndpointKeyRoute
 }
 export interface FileRouteTypes {
@@ -263,6 +273,7 @@ export interface FileRouteTypes {
     | '/forms/embed/$formId'
     | '/forms/submit/$formId'
     | '/integrations/google/callback'
+    | '/api/forms/$formId/submissions-export'
     | '/api/webhooks/xendit/$endpointKey'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -289,6 +300,7 @@ export interface FileRouteTypes {
     | '/forms/embed/$formId'
     | '/forms/submit/$formId'
     | '/integrations/google/callback'
+    | '/api/forms/$formId/submissions-export'
     | '/api/webhooks/xendit/$endpointKey'
   id:
     | '__root__'
@@ -315,6 +327,7 @@ export interface FileRouteTypes {
     | '/forms/embed/$formId'
     | '/forms/submit/$formId'
     | '/integrations/google/callback'
+    | '/api/forms/$formId/submissions-export'
     | '/api/webhooks/xendit/$endpointKey'
   fileRoutesById: FileRoutesById
 }
@@ -342,6 +355,7 @@ export interface RootRouteChildren {
   FormsEmbedFormIdRoute: typeof FormsEmbedFormIdRoute
   FormsSubmitFormIdRoute: typeof FormsSubmitFormIdRoute
   IntegrationsGoogleCallbackRoute: typeof IntegrationsGoogleCallbackRoute
+  ApiFormsFormIdSubmissionsExportRoute: typeof ApiFormsFormIdSubmissionsExportRoute
   ApiWebhooksXenditEndpointKeyRoute: typeof ApiWebhooksXenditEndpointKeyRoute
 }
 
@@ -515,6 +529,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebhooksXenditEndpointKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/forms/$formId/submissions-export': {
+      id: '/api/forms/$formId/submissions-export'
+      path: '/api/forms/$formId/submissions-export'
+      fullPath: '/api/forms/$formId/submissions-export'
+      preLoaderRoute: typeof ApiFormsFormIdSubmissionsExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -542,6 +563,7 @@ const rootRouteChildren: RootRouteChildren = {
   FormsEmbedFormIdRoute: FormsEmbedFormIdRoute,
   FormsSubmitFormIdRoute: FormsSubmitFormIdRoute,
   IntegrationsGoogleCallbackRoute: IntegrationsGoogleCallbackRoute,
+  ApiFormsFormIdSubmissionsExportRoute: ApiFormsFormIdSubmissionsExportRoute,
   ApiWebhooksXenditEndpointKeyRoute: ApiWebhooksXenditEndpointKeyRoute,
 }
 export const routeTree = rootRouteImport

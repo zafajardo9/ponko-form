@@ -360,6 +360,7 @@ export const formSubmissions = pgTable(
     formId: integer('form_id')
       .notNull()
       .references(() => forms.id, { onDelete: 'cascade' }),
+    clientToken: varchar('client_token', { length: 64 }),
     status: submissionStatusEnum('status').default('completed').notNull(),
     formData: jsonb('form_data').$type<Record<string, unknown>>().notNull(),
     submittedAt: timestamp('submitted_at').defaultNow().notNull(),
@@ -372,6 +373,10 @@ export const formSubmissions = pgTable(
       table.formId,
       table.archivedAt,
       table.submittedAt,
+    ),
+    uniqueIndex('form_submissions_form_client_token_idx').on(
+      table.formId,
+      table.clientToken,
     ),
   ],
 )
@@ -485,6 +490,7 @@ export const payments = pgTable(
       .default('one_time')
       .$type<'one_time' | 'subscription'>(),
     status: paymentStatusEnum('status').default('pending').notNull(),
+    checkoutKey: varchar('checkout_key', { length: 255 }),
     externalId: text('external_id'),
     paymentUrl: text('payment_url'),
     expiresAt: timestamp('expires_at'),
@@ -520,9 +526,11 @@ export const payments = pgTable(
   },
   (table) => [
     uniqueIndex('payments_gateway_payment_id_idx').on(table.gatewayPaymentId),
+    uniqueIndex('payments_checkout_key_idx').on(table.checkoutKey),
     uniqueIndex('payments_external_id_idx').on(table.externalId),
     index('payments_form_submission_id_idx').on(table.formSubmissionId),
     index('payments_page_session_id_idx').on(table.pageSessionId),
+    index('payments_flow_execution_id_idx').on(table.flowExecutionId),
     index('payments_created_at_idx').on(table.createdAt),
     index('payments_status_created_idx').on(table.status, table.createdAt),
     uniqueIndex('payments_subscription_plan_id_idx').on(table.subscriptionPlanId),
@@ -637,7 +645,7 @@ export const paymentEvents = pgTable(
     processingStatus: varchar('processing_status', { length: 20 })
       .notNull()
       .default('processed')
-      .$type<'processed' | 'ignored' | 'failed'>(),
+      .$type<'processing' | 'processed' | 'ignored' | 'failed'>(),
     error: text('error'),
     receivedAt: timestamp('received_at').defaultNow().notNull(),
     processedAt: timestamp('processed_at'),
@@ -808,6 +816,7 @@ export const flowExecutions = pgTable(
       () => formSubmissions.id,
       { onDelete: 'set null' },
     ),
+    clientToken: varchar('client_token', { length: 64 }),
     status: varchar('status', { length: 20 })
       .notNull()
       .default('in_progress')
@@ -833,7 +842,10 @@ export const flowExecutions = pgTable(
     completedAt: timestamp('completed_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
-  (table) => [index('flow_executions_flow_id_idx').on(table.flowId)],
+  (table) => [
+    index('flow_executions_flow_id_idx').on(table.flowId),
+    uniqueIndex('flow_executions_client_token_idx').on(table.clientToken),
+  ],
 )
 
 // ── Integrations (FT-002) ──

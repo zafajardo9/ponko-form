@@ -50,7 +50,7 @@ export const getGoogleAuthUrl = createServerFn({ method: 'GET' }).handler(
  * the user's existing config (clientId, clientSecret, etc.).
  */
 export const handleGoogleCallback = createServerFn({ method: 'POST' })
-  .inputValidator((data: { code: string }) => data)
+  .validator((data: { code: string }) => data)
   .handler(async ({ data }) => {
     const profile = await requireProfile()
     const existing = await getIntegrationConfig<GoogleSheetsConfig>(profile.id, 'google-sheets')

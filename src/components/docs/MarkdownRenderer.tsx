@@ -1,5 +1,14 @@
 import { useMemo, useEffect, useRef } from "react";
-import hljs from "highlight.js";
+
+const HIGHLIGHT_LANGUAGES = new Set([
+  "bash",
+  "javascript",
+  "json",
+  "python",
+  "ruby",
+  "typescript",
+  "xml",
+]);
 
 /**
  * MarkdownRenderer
@@ -20,14 +29,32 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
   const mermaidInitRef = useRef(false);
   const html = useMemo(() => renderMarkdown(content), [content]);
 
-  // Apply highlight.js to code blocks after render.
+  // Load highlighting only when the current page contains a supported grammar.
   useEffect(() => {
-    if (!rootRef.current) return;
-    rootRef.current
-      .querySelectorAll('pre code[class*="language-"]')
-      .forEach((el) => {
-        hljs.highlightElement(el as HTMLElement);
+    const root = rootRef.current;
+    if (!root) return;
+    const hasSupportedCode = [...root.querySelectorAll(
+      'pre code[class*="language-"]',
+    )].some((element) => {
+      const language = [...element.classList]
+        .find((className) => className.startsWith("language-"))
+        ?.slice("language-".length);
+      return language ? HIGHLIGHT_LANGUAGES.has(language) : false;
+    });
+    if (!hasSupportedCode) return;
+
+    let cancelled = false;
+    void import("./syntax-highlighter")
+      .then(async ({ highlightCodeBlocks }) => {
+        if (cancelled) return;
+        await highlightCodeBlocks(root);
+      })
+      .catch(() => {
+        // The escaped source remains readable if a highlighting chunk cannot load.
       });
+    return () => {
+      cancelled = true;
+    };
   }, [html]);
 
   // Load mermaid from CDN and render diagrams.

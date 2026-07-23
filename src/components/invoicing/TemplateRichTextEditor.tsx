@@ -1,10 +1,46 @@
-import { useEffect, useRef, useState } from 'react'
-import { EditorContent, useEditor } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import Underline from '@tiptap/extension-underline'
-import LinkExtension from '@tiptap/extension-link'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bold, Heading1, Italic, Link as LinkIcon, List, ListOrdered, Underline as UnderlineIcon } from 'lucide-react'
 import type { TemplateVariable } from '../../lib/invoicing/types'
+
+type ToolbarState = {
+  bold: boolean
+  italic: boolean
+  underline: boolean
+  heading: boolean
+  bulletList: boolean
+  orderedList: boolean
+  link: boolean
+}
+
+const EMPTY_TOOLBAR: ToolbarState = {
+  bold: false,
+  italic: false,
+  underline: false,
+  heading: false,
+  bulletList: false,
+  orderedList: false,
+  link: false,
+}
+
+function commandState(command: string) {
+  try {
+    return typeof document.queryCommandState === 'function'
+      ? document.queryCommandState(command)
+      : false
+  } catch {
+    return false
+  }
+}
+
+function commandValue(command: string) {
+  try {
+    return typeof document.queryCommandValue === 'function'
+      ? String(document.queryCommandValue(command)).toLowerCase()
+      : ''
+  } catch {
+    return ''
+  }
+}
 
 export function TemplateRichTextEditor({
   value,
@@ -15,44 +51,94 @@ export function TemplateRichTextEditor({
   onChange: (html: string) => void
   variables: TemplateVariable[]
 }) {
+  const editorRef = useRef<HTMLDivElement>(null)
   const lastHtml = useRef(value)
-  const [, refresh] = useState(0)
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({ link: false }),
-      Underline,
-      LinkExtension.configure({ openOnClick: false, protocols: ['https', 'mailto'] }),
-    ],
-    content: value || '<p></p>',
-    immediatelyRender: false,
-    editorProps: {
-      attributes: {
-        class: 'rich-text-content min-h-52 bg-white px-4 py-3 text-sm leading-6 text-[#141413] outline-none',
-      },
-    },
-    onUpdate: ({ editor: current }) => {
-      lastHtml.current = current.getHTML()
-      onChange(lastHtml.current)
-      refresh((version) => version + 1)
-    },
-    onSelectionUpdate: () => refresh((version) => version + 1),
-  })
+  const savedRange = useRef<Range | null>(null)
+  const [toolbar, setToolbar] = useState(EMPTY_TOOLBAR)
+
+  const updateToolbar = useCallback(() => {
+    const selection = window.getSelection()
+    const anchor = selection?.anchorNode
+    if (!anchor || !editorRef.current?.contains(anchor)) {
+      setToolbar(EMPTY_TOOLBAR)
+      return
+    }
+    const format = commandValue('formatBlock').replace(/[<>]/g, '')
+    setToolbar({
+      bold: commandState('bold'),
+      italic: commandState('italic'),
+      underline: commandState('underline'),
+      heading: format === 'h1',
+      bulletList: commandState('insertUnorderedList'),
+      orderedList: commandState('insertOrderedList'),
+      link: commandState('createLink'),
+    })
+  }, [])
+
+  const rememberSelection = useCallback(() => {
+    const selection = window.getSelection()
+    if (!selection?.rangeCount) return
+    const range = selection.getRangeAt(0)
+    if (!editorRef.current?.contains(range.commonAncestorContainer)) return
+    savedRange.current = range.cloneRange()
+    updateToolbar()
+  }, [updateToolbar])
+
+  const restoreSelection = useCallback(() => {
+    const editor = editorRef.current
+    if (!editor) return
+    editor.focus()
+    const selection = window.getSelection()
+    if (!selection || !savedRange.current) return
+    selection.removeAllRanges()
+    selection.addRange(savedRange.current)
+  }, [])
+
+  const emitChange = useCallback(() => {
+    const html = editorRef.current?.innerHTML || '<p></p>'
+    lastHtml.current = html
+    onChange(html)
+    rememberSelection()
+  }, [onChange, rememberSelection])
+
+  const runCommand = useCallback((command: string, commandValue?: string) => {
+    restoreSelection()
+    if (typeof document.execCommand === 'function') {
+      document.execCommand(command, false, commandValue)
+    }
+    emitChange()
+  }, [emitChange, restoreSelection])
 
   useEffect(() => {
+    const editor = editorRef.current
     if (!editor || value === lastHtml.current) return
     lastHtml.current = value
-    editor.commands.setContent(value || '<p></p>', { emitUpdate: false })
-  }, [editor, value])
+    editor.innerHTML = value || '<p></p>'
+  }, [value])
 
-  if (!editor) return <div className="h-64 animate-pulse rounded-lg bg-[#efe9de]" />
+  useEffect(() => {
+    if (typeof document.execCommand === 'function') {
+      document.execCommand('defaultParagraphSeparator', false, 'p')
+    }
+  }, [])
 
-  const toolbarButton = (label: string, active: boolean, action: () => void, icon: React.ReactNode) => (
+  const toolbarButton = (
+    label: string,
+    active: boolean,
+    action: () => void,
+    icon: React.ReactNode,
+  ) => (
     <button
       type="button"
       aria-label={label}
       aria-pressed={active}
-      onMouseDown={(event) => { event.preventDefault(); action() }}
-      className={`flex h-8 w-8 items-center justify-center rounded-md ${active ? 'bg-[#cc785c] text-white' : 'text-[#6c6a64] hover:bg-[#efe9de]'}`}
+      onMouseDown={(event) => {
+        event.preventDefault()
+        action()
+      }}
+      className={`flex h-8 w-8 items-center justify-center rounded-md ${
+        active ? 'bg-[#cc785c] text-white' : 'text-[#6c6a64] hover:bg-[#efe9de]'
+      }`}
     >
       {icon}
     </button>
@@ -61,23 +147,29 @@ export function TemplateRichTextEditor({
   return (
     <div className="overflow-hidden rounded-lg border border-[#e6dfd8] focus-within:ring-2 focus-within:ring-[#cc785c]/20">
       <div className="flex flex-wrap items-center gap-1 border-b border-[#e6dfd8] bg-[#faf9f5] p-2">
-        {toolbarButton('Bold', editor.isActive('bold'), () => editor.chain().focus().toggleBold().run(), <Bold size={15} />)}
-        {toolbarButton('Italic', editor.isActive('italic'), () => editor.chain().focus().toggleItalic().run(), <Italic size={15} />)}
-        {toolbarButton('Underline', editor.isActive('underline'), () => editor.chain().focus().toggleUnderline().run(), <UnderlineIcon size={15} />)}
-        {toolbarButton('Heading', editor.isActive('heading', { level: 1 }), () => editor.chain().focus().toggleHeading({ level: 1 }).run(), <Heading1 size={15} />)}
-        {toolbarButton('Bullet list', editor.isActive('bulletList'), () => editor.chain().focus().toggleBulletList().run(), <List size={15} />)}
-        {toolbarButton('Numbered list', editor.isActive('orderedList'), () => editor.chain().focus().toggleOrderedList().run(), <ListOrdered size={15} />)}
-        {toolbarButton('Add link', editor.isActive('link'), () => {
+        {toolbarButton('Bold', toolbar.bold, () => runCommand('bold'), <Bold size={15} />)}
+        {toolbarButton('Italic', toolbar.italic, () => runCommand('italic'), <Italic size={15} />)}
+        {toolbarButton('Underline', toolbar.underline, () => runCommand('underline'), <UnderlineIcon size={15} />)}
+        {toolbarButton(
+          'Heading',
+          toolbar.heading,
+          () => runCommand('formatBlock', toolbar.heading ? 'p' : 'h1'),
+          <Heading1 size={15} />,
+        )}
+        {toolbarButton('Bullet list', toolbar.bulletList, () => runCommand('insertUnorderedList'), <List size={15} />)}
+        {toolbarButton('Numbered list', toolbar.orderedList, () => runCommand('insertOrderedList'), <ListOrdered size={15} />)}
+        {toolbarButton('Add link', toolbar.link, () => {
           const href = window.prompt('HTTPS or mailto link')
-          if (!href) return
-          if (!/^(https:\/\/|mailto:)/i.test(href)) return
-          editor.chain().focus().extendMarkRange('link').setLink({ href }).run()
+          if (!href || !/^(https:\/\/|mailto:)/i.test(href)) return
+          runCommand('createLink', href)
         }, <LinkIcon size={15} />)}
         <select
           aria-label="Insert template variable"
           defaultValue=""
+          onMouseDown={rememberSelection}
           onChange={(event) => {
-            if (event.target.value) editor.chain().focus().insertContent(`{{${event.target.value}}}`).run()
+            const key = event.target.value
+            if (key) runCommand('insertText', `{{${key}}}`)
             event.target.value = ''
           }}
           className="ml-auto h-8 rounded-md border border-[#e6dfd8] bg-white px-2 text-xs text-[#6c6a64]"
@@ -92,8 +184,21 @@ export function TemplateRichTextEditor({
           ))}
         </select>
       </div>
-      <EditorContent editor={editor} />
+      <div
+        ref={editorRef}
+        role="textbox"
+        aria-label="Email body editor"
+        aria-multiline="true"
+        contentEditable
+        suppressContentEditableWarning
+        className="rich-text-content min-h-52 bg-white px-4 py-3 text-sm leading-6 text-[#141413] outline-none"
+        dangerouslySetInnerHTML={{ __html: value || '<p></p>' }}
+        onInput={emitChange}
+        onKeyUp={rememberSelection}
+        onMouseUp={rememberSelection}
+        onFocus={rememberSelection}
+        onBlur={rememberSelection}
+      />
     </div>
   )
 }
-

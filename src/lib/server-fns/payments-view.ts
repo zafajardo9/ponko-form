@@ -26,6 +26,7 @@ import type { GatewayCredentials } from "../../integrations/payments/types";
 import type { ResendConfig } from "../integrations/types";
 import { sendPaymentReminderEmail } from "../email/resend";
 import { publicRequestOrigin } from "./request-origin";
+import { loadPaymentListParts } from "../payments/payment-list-plan";
 
 /**
  * Payment view model returned to the form creator's Payments page.
@@ -212,7 +213,7 @@ function paymentOrderBy(sortKey?: string, sortDir?: "asc" | "desc") {
  * The form creator must own the form.
  */
 export const getFormPayments = createServerFn({ method: "GET", strict: false })
-  .inputValidator(
+  .validator(
     (data: {
       formId: number;
       page?: number;
@@ -227,19 +228,13 @@ export const getFormPayments = createServerFn({ method: "GET", strict: false })
     const { userId } = await auth();
     if (!userId) throw new Error("Unauthorized");
 
-    const [profile] = await db
-      .select()
-      .from(profiles)
-      .where(eq(profiles.clerkId, userId))
-      .limit(1);
-    if (!profile) throw new Error("Unauthorized");
-
     const [form] = await db
-      .select()
+      .select({ id: forms.id, title: forms.title })
       .from(forms)
-      .where(eq(forms.id, data.formId))
+      .innerJoin(profiles, eq(profiles.id, forms.profileId))
+      .where(and(eq(forms.id, data.formId), eq(profiles.clerkId, userId)))
       .limit(1);
-    if (!form || form.profileId !== profile.id) throw new Error("Not found");
+    if (!form) throw new Error("Not found");
 
     const page = Math.max(1, Math.floor(data.page ?? 1));
     const pageSize = normalizePaymentPageSize(data.pageSize);
@@ -326,7 +321,31 @@ export const getFormPayments = createServerFn({ method: "GET", strict: false })
       )
       .where(and(...conditions));
 
-    const [rows, [countResult]] = await Promise.all([rowsQuery, countQuery]);
+    const paymentNodeQuery = db
+      .select({ id: sql`1` })
+      .from(flows)
+      .innerJoin(
+        sql`flow_nodes`,
+        sql`flow_nodes.flow_id = flows.id AND flow_nodes.type = 'payment'`,
+      )
+      .where(eq(flows.formId, data.formId))
+      .limit(1);
+
+    const pagePaymentQuery = db
+      .select({ id: formPages.id })
+      .from(formPages)
+      .where(
+        and(eq(formPages.formId, data.formId), eq(formPages.hasPayment, true)),
+      )
+      .limit(1);
+
+    const [rows, [countResult], [paymentNode], [pagePayment]] =
+      await loadPaymentListParts({
+        rows: () => rowsQuery,
+        count: () => countQuery,
+        flowCapability: () => paymentNodeQuery,
+        pageCapability: () => pagePaymentQuery,
+      });
     const totalCount = countResult?.count ?? 0;
 
     const result: PaymentViewRow[] = rows.map((r) => ({
@@ -373,25 +392,6 @@ export const getFormPayments = createServerFn({ method: "GET", strict: false })
       cycles: [],
     }));
 
-    // Check if this form has any payment flow (to show/hide the tab).
-    const [paymentNode] = await db
-      .select({ id: sql`1` })
-      .from(flows)
-      .innerJoin(
-        sql`flow_nodes`,
-        sql`flow_nodes.flow_id = flows.id AND flow_nodes.type = 'payment'`,
-      )
-      .where(eq(flows.formId, data.formId))
-      .limit(1);
-
-    const [pagePayment] = await db
-      .select({ id: formPages.id })
-      .from(formPages)
-      .where(
-        and(eq(formPages.formId, data.formId), eq(formPages.hasPayment, true)),
-      )
-      .limit(1);
-
     return {
       payments: result,
       hasPaymentFlow: !!paymentNode || !!pagePayment,
@@ -403,46 +403,46 @@ export const getFormPayments = createServerFn({ method: "GET", strict: false })
   });
 
 export const verifyFormPayment = createServerFn({ method: "POST", strict: false })
-  .inputValidator((data: { formId: number; paymentId: number }) => data)
+  .validator((data: { formId: number; paymentId: number }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth();
     if (!userId) throw new Error("Unauthorized");
-    const [profile] = await db.select().from(profiles).where(eq(profiles.clerkId, userId)).limit(1);
-    const [form] = await db.select().from(forms).where(eq(forms.id, data.formId)).limit(1);
-    if (!profile || !form || form.profileId !== profile.id) throw new Error("Not found");
-    const [ownedPayment] = await db.select({ id: payments.id })
-      .from(payments)
-      .leftJoin(flowExecutions, eq(payments.flowExecutionId, flowExecutions.id))
-      .leftJoin(flows, eq(flowExecutions.flowId, flows.id))
-      .leftJoin(formSubmissionSessions, eq(payments.pageSessionId, formSubmissionSessions.id))
-      .where(or(
-        sql`${payments.id} = ${data.paymentId} AND ${flows.formId} = ${data.formId}`,
-        sql`${payments.id} = ${data.paymentId} AND ${formSubmissionSessions.formId} = ${data.formId}`,
-      )).limit(1);
-    if (!ownedPayment) throw new Error("Payment not found");
+    await ownedPayment(data.formId, data.paymentId, userId);
     return reconcilePayment({ paymentId: data.paymentId, source: "manual" });
   });
 
 async function ownedPayment(formId: number, paymentId: number, clerkId: string) {
-  const [profile] = await db.select().from(profiles).where(eq(profiles.clerkId, clerkId)).limit(1);
-  const [form] = await db.select().from(forms).where(eq(forms.id, formId)).limit(1);
-  if (!profile || !form || form.profileId !== profile.id) throw new Error("Not found");
-  const [row] = await db.select({ payment: payments, gatewaySlug: paymentGateways.slug })
+  const [row] = await db.select({
+    payment: payments,
+    gatewaySlug: paymentGateways.slug,
+    profileId: profiles.id,
+    formTitle: forms.title,
+  })
     .from(payments)
     .innerJoin(paymentGateways, eq(payments.paymentGatewayId, paymentGateways.id))
     .leftJoin(flowExecutions, eq(payments.flowExecutionId, flowExecutions.id))
     .leftJoin(flows, eq(flowExecutions.flowId, flows.id))
     .leftJoin(formSubmissionSessions, eq(payments.pageSessionId, formSubmissionSessions.id))
-    .where(or(
-      sql`${payments.id} = ${paymentId} AND ${flows.formId} = ${formId}`,
-      sql`${payments.id} = ${paymentId} AND ${formSubmissionSessions.formId} = ${formId}`,
-    )).limit(1);
+    .innerJoin(
+      forms,
+      or(
+        eq(forms.id, flows.formId),
+        eq(forms.id, formSubmissionSessions.formId),
+      ),
+    )
+    .innerJoin(profiles, eq(profiles.id, forms.profileId))
+    .where(and(
+      eq(payments.id, paymentId),
+      eq(forms.id, formId),
+      eq(profiles.clerkId, clerkId),
+    ))
+    .limit(1);
   if (!row) throw new Error("Payment not found");
-  return { ...row, profileId: profile.id, formTitle: form.title };
+  return row;
 }
 
 export const getPaymentActivity = createServerFn({ method: "GET", strict: false })
-  .inputValidator((data: { formId: number; paymentId: number }) => data)
+  .validator((data: { formId: number; paymentId: number }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth();
     if (!userId) throw new Error("Unauthorized");
@@ -497,7 +497,7 @@ export const getPaymentActivity = createServerFn({ method: "GET", strict: false 
   });
 
 export const getPaymentRecoveryLink = createServerFn({ method: "POST", strict: false })
-  .inputValidator((data: { formId: number; paymentId: number }) => data)
+  .validator((data: { formId: number; paymentId: number }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth();
     if (!userId) throw new Error("Unauthorized");
@@ -514,7 +514,7 @@ export const getPaymentRecoveryLink = createServerFn({ method: "POST", strict: f
   });
 
 export const replaceExpiredPaymentLink = createServerFn({ method: "POST", strict: false })
-  .inputValidator((data: { formId: number; paymentId: number }) => data)
+  .validator((data: { formId: number; paymentId: number }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth();
     if (!userId) throw new Error("Unauthorized");
@@ -589,7 +589,7 @@ export const replaceExpiredPaymentLink = createServerFn({ method: "POST", strict
   });
 
 export const emailPaymentRecoveryLink = createServerFn({ method: "POST", strict: false })
-  .inputValidator((data: { formId: number; paymentId: number; recipientEmail: string }) => data)
+  .validator((data: { formId: number; paymentId: number; recipientEmail: string }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth();
     if (!userId) throw new Error("Unauthorized");

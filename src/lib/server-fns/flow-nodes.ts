@@ -2,7 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { auth } from '@clerk/tanstack-react-start/server'
 import { db } from '../../db/index'
 import { flowNodes, flowEdges, flowVariables, flows } from '../../db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { assertFlowOwner, uniqueVarName, variableTypeForField } from './flow-helpers'
 import { primaryOutgoingEdge } from '../flow-engine/path-utils'
 import type { FlowNodeType, FlowEdge } from '../flow-engine/types'
@@ -12,12 +12,23 @@ async function touchFlow(flowId: number) {
   await db.update(flows).set({ updatedAt: new Date() }).where(eq(flows.id, flowId))
 }
 
+async function assertFlowNodeIds(flowId: number, nodeIds: number[]) {
+  const uniqueIds = [...new Set(nodeIds)]
+  if (uniqueIds.length !== nodeIds.length) throw new Error('Duplicate flow node')
+  if (uniqueIds.length === 0) return
+  const ownedNodes = await db
+    .select({ id: flowNodes.id })
+    .from(flowNodes)
+    .where(and(eq(flowNodes.flowId, flowId), inArray(flowNodes.id, uniqueIds)))
+  if (ownedNodes.length !== uniqueIds.length) throw new Error('Flow node not found')
+}
+
 /**
  * addFlowNode(flowId, type, positionX, positionY)
  * Insert a new node and return it.
  */
 export const addFlowNode = createServerFn({ method: 'POST', strict: false })
-  .inputValidator(
+  .validator(
     (data: {
       flowId: number
       type: FlowNodeType
@@ -49,7 +60,7 @@ export const addFlowNode = createServerFn({ method: 'POST', strict: false })
  * updateFlowNode(nodeId, config) — also label and/or position.
  */
 export const updateFlowNode = createServerFn({ method: 'POST', strict: false })
-  .inputValidator(
+  .validator(
     (data: {
       flowId: number
       nodeId: number
@@ -73,9 +84,9 @@ export const updateFlowNode = createServerFn({ method: 'POST', strict: false })
     const [node] = await db
       .update(flowNodes)
       .set(changes)
-      .where(eq(flowNodes.id, data.nodeId))
+      .where(and(eq(flowNodes.id, data.nodeId), eq(flowNodes.flowId, data.flowId)))
       .returning()
-    if (!node || node.flowId !== data.flowId) throw new Error('Not found')
+    if (!node) throw new Error('Not found')
     await touchFlow(data.flowId)
     return node
   })
@@ -85,22 +96,28 @@ export const updateFlowNode = createServerFn({ method: 'POST', strict: false })
  * are removed automatically by the FK cascade.
  */
 export const deleteFlowNode = createServerFn({ method: 'POST' })
-  .inputValidator((data: { flowId: number; nodeId: number }) => data)
+  .validator((data: { flowId: number; nodeId: number }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
     await assertFlowOwner(data.flowId, userId)
 
-    const [node] = await db.select().from(flowNodes).where(eq(flowNodes.id, data.nodeId)).limit(1)
-    if (!node || node.flowId !== data.flowId) throw new Error('Not found')
+    const [node] = await db
+      .select()
+      .from(flowNodes)
+      .where(and(eq(flowNodes.id, data.nodeId), eq(flowNodes.flowId, data.flowId)))
+      .limit(1)
+    if (!node) throw new Error('Not found')
 
     // Clear startNodeId if we're deleting the start node reference.
     await db
       .update(flows)
       .set({ startNodeId: null })
-      .where(eq(flows.startNodeId, data.nodeId))
+      .where(and(eq(flows.id, data.flowId), eq(flows.startNodeId, data.nodeId)))
 
-    await db.delete(flowNodes).where(eq(flowNodes.id, data.nodeId))
+    await db
+      .delete(flowNodes)
+      .where(and(eq(flowNodes.id, data.nodeId), eq(flowNodes.flowId, data.flowId)))
     await touchFlow(data.flowId)
     return { success: true }
   })
@@ -109,7 +126,7 @@ export const deleteFlowNode = createServerFn({ method: 'POST' })
  * addFlowEdge(flowId, sourceNodeId, targetNodeId, metadata) — connect two nodes.
  */
 export const addFlowEdge = createServerFn({ method: 'POST', strict: false })
-  .inputValidator(
+  .validator(
     (data: {
       flowId: number
       sourceNodeId: number
@@ -121,6 +138,10 @@ export const addFlowEdge = createServerFn({ method: 'POST', strict: false })
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
     await assertFlowOwner(data.flowId, userId)
+    if (data.sourceNodeId === data.targetNodeId) {
+      throw new Error('A flow node cannot connect to itself')
+    }
+    await assertFlowNodeIds(data.flowId, [data.sourceNodeId, data.targetNodeId])
 
     const [edge] = await db
       .insert(flowEdges)
@@ -139,7 +160,7 @@ export const addFlowEdge = createServerFn({ method: 'POST', strict: false })
  * updateFlowEdge(edgeId, metadata) — e.g. set matchValue for decision branches.
  */
 export const updateFlowEdge = createServerFn({ method: 'POST', strict: false })
-  .inputValidator(
+  .validator(
     (data: {
       flowId: number
       edgeId: number
@@ -154,9 +175,9 @@ export const updateFlowEdge = createServerFn({ method: 'POST', strict: false })
     const [edge] = await db
       .update(flowEdges)
       .set({ metadata: data.metadata })
-      .where(eq(flowEdges.id, data.edgeId))
+      .where(and(eq(flowEdges.id, data.edgeId), eq(flowEdges.flowId, data.flowId)))
       .returning()
-    if (!edge || edge.flowId !== data.flowId) throw new Error('Not found')
+    if (!edge) throw new Error('Not found')
     await touchFlow(data.flowId)
     return edge
   })
@@ -165,16 +186,22 @@ export const updateFlowEdge = createServerFn({ method: 'POST', strict: false })
  * deleteFlowEdge(edgeId) — remove an edge.
  */
 export const deleteFlowEdge = createServerFn({ method: 'POST' })
-  .inputValidator((data: { flowId: number; edgeId: number }) => data)
+  .validator((data: { flowId: number; edgeId: number }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
     await assertFlowOwner(data.flowId, userId)
 
-    const [edge] = await db.select().from(flowEdges).where(eq(flowEdges.id, data.edgeId)).limit(1)
-    if (!edge || edge.flowId !== data.flowId) throw new Error('Not found')
+    const [edge] = await db
+      .select()
+      .from(flowEdges)
+      .where(and(eq(flowEdges.id, data.edgeId), eq(flowEdges.flowId, data.flowId)))
+      .limit(1)
+    if (!edge) throw new Error('Not found')
 
-    await db.delete(flowEdges).where(eq(flowEdges.id, data.edgeId))
+    await db
+      .delete(flowEdges)
+      .where(and(eq(flowEdges.id, data.edgeId), eq(flowEdges.flowId, data.flowId)))
     await touchFlow(data.flowId)
     return { success: true }
   })
@@ -193,7 +220,7 @@ export const deleteFlowEdge = createServerFn({ method: 'POST' })
  * captured by name with no manual variable setup.
  */
 export const insertNodeInPath = createServerFn({ method: 'POST', strict: false })
-  .inputValidator(
+  .validator(
     (data: {
       flowId: number
       type: FlowNodeType
@@ -211,9 +238,9 @@ export const insertNodeInPath = createServerFn({ method: 'POST', strict: false }
     const [afterNode] = await db
       .select()
       .from(flowNodes)
-      .where(eq(flowNodes.id, data.afterNodeId))
+      .where(and(eq(flowNodes.id, data.afterNodeId), eq(flowNodes.flowId, data.flowId)))
       .limit(1)
-    if (!afterNode || afterNode.flowId !== data.flowId) throw new Error('Not found')
+    if (!afterNode) throw new Error('Not found')
 
     // Build the new node's config (and auto-bound variable for form fields).
     let config: Record<string, unknown> = data.config ?? {}
@@ -263,7 +290,9 @@ export const insertNodeInPath = createServerFn({ method: 'POST', strict: false }
       .insert(flowEdges)
       .values({ flowId: data.flowId, sourceNodeId: data.afterNodeId, targetNodeId: node.id })
     if (nextEdge) {
-      await db.delete(flowEdges).where(eq(flowEdges.id, nextEdge.id))
+      await db
+        .delete(flowEdges)
+        .where(and(eq(flowEdges.id, nextEdge.id), eq(flowEdges.flowId, data.flowId)))
       await db
         .insert(flowEdges)
         .values({ flowId: data.flowId, sourceNodeId: node.id, targetNodeId: nextEdge.targetNodeId })
@@ -279,14 +308,18 @@ export const insertNodeInPath = createServerFn({ method: 'POST', strict: false }
  * variable, if any, is left in place (it may be referenced elsewhere).
  */
 export const removeNodeFromPath = createServerFn({ method: 'POST' })
-  .inputValidator((data: { flowId: number; nodeId: number }) => data)
+  .validator((data: { flowId: number; nodeId: number }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
     await assertFlowOwner(data.flowId, userId)
 
-    const [node] = await db.select().from(flowNodes).where(eq(flowNodes.id, data.nodeId)).limit(1)
-    if (!node || node.flowId !== data.flowId) throw new Error('Not found')
+    const [node] = await db
+      .select()
+      .from(flowNodes)
+      .where(and(eq(flowNodes.id, data.nodeId), eq(flowNodes.flowId, data.flowId)))
+      .limit(1)
+    if (!node) throw new Error('Not found')
     if (node.type === 'start') throw new Error('The Start node cannot be deleted.')
 
     const edges = (await db
@@ -299,7 +332,9 @@ export const removeNodeFromPath = createServerFn({ method: 'POST' })
     const outgoing = primaryOutgoingEdge(edges, data.nodeId)
 
     // Deleting the node cascades its edges away.
-    await db.delete(flowNodes).where(eq(flowNodes.id, data.nodeId))
+    await db
+      .delete(flowNodes)
+      .where(and(eq(flowNodes.id, data.nodeId), eq(flowNodes.flowId, data.flowId)))
 
     // Re-stitch prev → next when both exist.
     if (incoming && outgoing && incoming.sourceNodeId !== outgoing.targetNodeId) {
@@ -326,18 +361,26 @@ export const removeNodeFromPath = createServerFn({ method: 'POST' })
  * group's page.
  */
 export const moveFieldIntoGroup = createServerFn({ method: 'POST' })
-  .inputValidator((data: { flowId: number; nodeId: number; groupId: number }) => data)
+  .validator((data: { flowId: number; nodeId: number; groupId: number }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
     await assertFlowOwner(data.flowId, userId)
 
-    const [node] = await db.select().from(flowNodes).where(eq(flowNodes.id, data.nodeId)).limit(1)
-    if (!node || node.flowId !== data.flowId) throw new Error('Field not found')
+    const [node] = await db
+      .select()
+      .from(flowNodes)
+      .where(and(eq(flowNodes.id, data.nodeId), eq(flowNodes.flowId, data.flowId)))
+      .limit(1)
+    if (!node) throw new Error('Field not found')
     if (node.type !== 'form_field') throw new Error('Only form fields can be moved into a group')
 
-    const [group] = await db.select().from(flowNodes).where(eq(flowNodes.id, data.groupId)).limit(1)
-    if (!group || group.flowId !== data.flowId) throw new Error('Group not found')
+    const [group] = await db
+      .select()
+      .from(flowNodes)
+      .where(and(eq(flowNodes.id, data.groupId), eq(flowNodes.flowId, data.flowId)))
+      .limit(1)
+    if (!group) throw new Error('Group not found')
     if (group.type !== 'group') throw new Error('Target is not a Field Group')
 
     // Convert the node's config into a grouped field entry.
@@ -360,7 +403,7 @@ export const moveFieldIntoGroup = createServerFn({ method: 'POST' })
     await db
       .update(flowNodes)
       .set({ config: { ...groupCfg, fields: [...existingFields, groupedField] } })
-      .where(eq(flowNodes.id, data.groupId))
+      .where(and(eq(flowNodes.id, data.groupId), eq(flowNodes.flowId, data.flowId)))
 
     // Re-stitch the primary path around the removed node (prev → next).
     const edges = (await db
@@ -372,7 +415,9 @@ export const moveFieldIntoGroup = createServerFn({ method: 'POST' })
       .sort((a, b) => a.id - b.id)[0]
     const outgoing = primaryOutgoingEdge(edges, data.nodeId)
 
-    await db.delete(flowNodes).where(eq(flowNodes.id, data.nodeId))
+    await db
+      .delete(flowNodes)
+      .where(and(eq(flowNodes.id, data.nodeId), eq(flowNodes.flowId, data.flowId)))
 
     if (incoming && outgoing && incoming.sourceNodeId !== outgoing.targetNodeId) {
       await db.insert(flowEdges).values({
@@ -393,11 +438,12 @@ export const moveFieldIntoGroup = createServerFn({ method: 'POST' })
  * both in the set are dropped and recreated as a consecutive chain.
  */
 export const reorderPath = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: { flowId: number; orderedNodeIds: number[] }) => data)
+  .validator((data: { flowId: number; orderedNodeIds: number[] }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
     await assertFlowOwner(data.flowId, userId)
+    await assertFlowNodeIds(data.flowId, data.orderedNodeIds)
 
     const edges = (await db
       .select()
@@ -407,17 +453,27 @@ export const reorderPath = createServerFn({ method: 'POST', strict: false })
 
     // Drop existing edges internal to the reordered set.
     const toDelete = edges.filter((e) => idSet.has(e.sourceNodeId) && idSet.has(e.targetNodeId))
-    await Promise.all(
-      toDelete.map((e) => db.delete(flowEdges).where(eq(flowEdges.id, e.id))),
-    )
+    if (toDelete.length > 0) {
+      await db
+        .delete(flowEdges)
+        .where(
+          and(
+            eq(flowEdges.flowId, data.flowId),
+            inArray(flowEdges.id, toDelete.map((edge) => edge.id)),
+          ),
+        )
+    }
 
     // Recreate the consecutive chain.
-    for (let i = 0; i < data.orderedNodeIds.length - 1; i++) {
-      await db.insert(flowEdges).values({
+    const edgeValues = data.orderedNodeIds
+      .slice(0, -1)
+      .map((sourceNodeId, index) => ({
         flowId: data.flowId,
-        sourceNodeId: data.orderedNodeIds[i],
-        targetNodeId: data.orderedNodeIds[i + 1],
-      })
+        sourceNodeId,
+        targetNodeId: data.orderedNodeIds[index + 1],
+      }))
+    if (edgeValues.length > 0) {
+      await db.insert(flowEdges).values(edgeValues)
     }
 
     await touchFlow(data.flowId)
@@ -428,7 +484,7 @@ export const reorderPath = createServerFn({ method: 'POST', strict: false })
  * saveFlowLayout(flowId, nodes) — bulk-update node positions after a drag.
  */
 export const saveFlowLayout = createServerFn({ method: 'POST', strict: false })
-  .inputValidator(
+  .validator(
     (data: {
       flowId: number
       nodes: { id: number; positionX: number; positionY: number }[]
@@ -439,14 +495,34 @@ export const saveFlowLayout = createServerFn({ method: 'POST', strict: false })
     if (!userId) throw new Error('Unauthorized')
     await assertFlowOwner(data.flowId, userId)
 
-    await Promise.all(
-      data.nodes.map((n) =>
-        db
-          .update(flowNodes)
-          .set({ positionX: Math.round(n.positionX), positionY: Math.round(n.positionY) })
-          .where(eq(flowNodes.id, n.id)),
-      ),
-    )
+    if (data.nodes.length > 0) {
+      const positionX = sql<number>`case ${sql.join(
+        data.nodes.map(
+          (node) =>
+            sql`when ${flowNodes.id} = ${node.id} then ${Math.round(node.positionX)}`,
+        ),
+        sql.raw(' '),
+      )} else ${flowNodes.positionX} end`
+      const positionY = sql<number>`case ${sql.join(
+        data.nodes.map(
+          (node) =>
+            sql`when ${flowNodes.id} = ${node.id} then ${Math.round(node.positionY)}`,
+        ),
+        sql.raw(' '),
+      )} else ${flowNodes.positionY} end`
+      await db
+        .update(flowNodes)
+        .set({ positionX, positionY })
+        .where(
+          and(
+            eq(flowNodes.flowId, data.flowId),
+            inArray(
+              flowNodes.id,
+              data.nodes.map((node) => node.id),
+            ),
+          ),
+        )
+    }
     await touchFlow(data.flowId)
     return { success: true }
   })

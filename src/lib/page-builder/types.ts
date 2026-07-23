@@ -35,7 +35,7 @@ export type ReferenceValue = string | number | boolean
 export type ReferenceMap = Record<string, ReferenceValue>
 export type OptionPriceSource = 'direct' | 'reference'
 export type PaymentAdjustmentType = 'add' | 'subtract' | 'multiply'
-export type FormulaOperator = 'set' | 'add' | 'subtract' | 'multiply' | 'divide' | 'percent'
+export type FormulaOperator = 'set' | 'add' | 'subtract' | 'multiply' | 'divide' | 'percent' | 'concat'
 export type FormulaTermSource = 'field' | 'reference' | 'fixed'
 export type FieldComputationMode = 'sum_priced_options' | 'sum_number_fields' | 'formula' | 'expression'
 
@@ -66,6 +66,10 @@ export interface FieldComputation {
     fixedValue?: number | null
   }[]
   showBreakdown?: boolean
+  /** When false, the computation still runs but the field is hidden from the respondent. */
+  visible?: boolean
+  /** Output type for the computed value. 'text' enables string concatenation via the `concat` operator. */
+  outputMode?: 'number' | 'text'
 }
 
 export interface FieldValidationRules {

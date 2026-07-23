@@ -1,5 +1,3 @@
-import starSvg from '#/lib/icons/star.svg'
-
 interface StarIconProps {
   /** Icon size in pixels. Defaults to 24 (matches Lucide standard sizing). */
   size?: number
@@ -30,13 +28,22 @@ interface StarIconProps {
  */
 export function StarIcon({ size = 24, className, filled = true }: StarIconProps) {
   return (
-    <img
-      src={starSvg}
-      alt=""
+    <svg
       width={size}
       height={size}
+      viewBox="0 0 24 24"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth={filled ? 0.4 : 1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
       className={className}
       aria-hidden="true"
-    />
+      focusable="false"
+      data-star-icon=""
+      data-filled={filled ? 'true' : 'false'}
+    >
+      <path d="M12 2 Q14 8.5 21.5 9 Q15.5 14 18 21 Q12 16.5 6 21 Q8.5 14 2.5 9 Q10 8.5 12 2 Z" />
+    </svg>
   )
 }

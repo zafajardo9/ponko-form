@@ -7,21 +7,22 @@ import { PublicFormView } from './PublicFormView'
 
 const serverFns = vi.hoisted(() => ({
   getPublicForm: vi.fn(),
-  getFields: vi.fn(),
-  getFlow: vi.fn(),
-  getPageForm: vi.fn(),
+  getPublicFormRuntime: vi.fn(),
   submitFormResponse: vi.fn(),
   getEmailSurveyPrefill: vi.fn(),
   pageFormView: vi.fn((_props: Record<string, unknown>) => null),
+  flowExecutionView: vi.fn((_props: Record<string, unknown>) => null),
 }))
 
-vi.mock('../../lib/server-fns/forms', () => ({ getPublicForm: serverFns.getPublicForm }))
-vi.mock('../../lib/server-fns/fields', () => ({ getFields: serverFns.getFields }))
-vi.mock('../../lib/server-fns/flows', () => ({ getFlow: serverFns.getFlow }))
-vi.mock('../../lib/server-fns/page-forms', () => ({ getPageForm: serverFns.getPageForm }))
+vi.mock('../../lib/server-fns/forms', () => ({
+  getPublicForm: serverFns.getPublicForm,
+  getPublicFormRuntime: serverFns.getPublicFormRuntime,
+}))
 vi.mock('../../lib/server-fns/submissions', () => ({ submitFormResponse: serverFns.submitFormResponse }))
 vi.mock('../../lib/server-fns/email-surveys', () => ({ getEmailSurveyPrefill: serverFns.getEmailSurveyPrefill }))
-vi.mock('../flow-execution/FlowExecutionContainer', () => ({ FlowExecutionContainer: () => null }))
+vi.mock('../flow-execution/FlowExecutionContainer', () => ({
+  FlowExecutionContainer: serverFns.flowExecutionView,
+}))
 vi.mock('../page-form/PageFormView', () => ({ PageFormView: serverFns.pageFormView }))
 
 function renderPublicForm(props: { emailSurveyToken?: string; emailSurveyRating?: string } = {}) {
@@ -58,9 +59,7 @@ describe('PublicFormView recovery', () => {
       description: null,
       theme: { primaryColor: '#2563eb', backgroundColor: '#f5f3ff', radius: 'pill' },
     })
-    serverFns.getFields.mockReturnValue(new Promise(() => undefined))
-    serverFns.getFlow.mockReturnValue(new Promise(() => undefined))
-    serverFns.getPageForm.mockReturnValue(new Promise(() => undefined))
+    serverFns.getPublicFormRuntime.mockReturnValue(new Promise(() => undefined))
     renderPublicForm()
 
     expect(await screen.findByRole('heading', { name: 'Background Check' })).toBeTruthy()
@@ -90,9 +89,12 @@ describe('PublicFormView recovery', () => {
 
   it('validates an email survey token and passes the preselected rating to the page form', async () => {
     serverFns.getPublicForm.mockResolvedValue({ id: 7, title: 'Survey', description: null, theme: null })
-    serverFns.getFields.mockResolvedValue([])
-    serverFns.getFlow.mockResolvedValue(null)
-    serverFns.getPageForm.mockResolvedValue({ pages: [{ id: 1 }], references: [] })
+    serverFns.getPublicFormRuntime.mockResolvedValue({
+      kind: 'page',
+      pages: [{ id: 1 }],
+      references: [],
+      recaptchaSiteKey: null,
+    })
     serverFns.getEmailSurveyPrefill.mockResolvedValue({
       valid: true,
       completed: false,
@@ -105,6 +107,8 @@ describe('PublicFormView recovery', () => {
     renderPublicForm({ emailSurveyToken: 'a'.repeat(43), emailSurveyRating: '5' })
 
     await waitFor(() => expect(serverFns.pageFormView).toHaveBeenCalled())
+    expect(serverFns.getPublicFormRuntime).toHaveBeenCalledTimes(1)
+    expect(serverFns.getPublicFormRuntime).toHaveBeenCalledWith({ data: { formId: 7 } })
     expect(serverFns.pageFormView.mock.calls.at(-1)?.[0].emailSurvey).toEqual({
       token: 'a'.repeat(43),
       rating: '5',
@@ -114,14 +118,102 @@ describe('PublicFormView recovery', () => {
 
   it('shows an expired-link message instead of opening the form', async () => {
     serverFns.getPublicForm.mockResolvedValue({ id: 7, title: 'Survey', description: null, theme: null })
-    serverFns.getFields.mockResolvedValue([])
-    serverFns.getFlow.mockResolvedValue(null)
-    serverFns.getPageForm.mockResolvedValue({ pages: [{ id: 1 }], references: [] })
+    serverFns.getPublicFormRuntime.mockResolvedValue({
+      kind: 'page',
+      pages: [{ id: 1 }],
+      references: [],
+      recaptchaSiteKey: null,
+    })
     serverFns.getEmailSurveyPrefill.mockResolvedValue({ valid: false, reason: 'expired' })
 
     renderPublicForm({ emailSurveyToken: 'a'.repeat(43), emailSurveyRating: '5' })
 
     expect(await screen.findByRole('heading', { name: /feedback link has expired/i })).toBeTruthy()
     expect(serverFns.pageFormView).not.toHaveBeenCalled()
+  })
+
+  it('renders a flow runtime from the consolidated definition request', async () => {
+    serverFns.getPublicForm.mockResolvedValue({
+      id: 7,
+      title: 'Application flow',
+      description: null,
+      theme: null,
+    })
+    serverFns.getPublicFormRuntime.mockResolvedValue({
+      kind: 'flow',
+      flow: { flow: { id: 12 }, nodes: [], edges: [], variables: [] },
+    })
+
+    renderPublicForm()
+
+    await waitFor(() => expect(serverFns.flowExecutionView).toHaveBeenCalled())
+    expect(serverFns.flowExecutionView.mock.calls.at(-1)?.[0].flowId).toBe(12)
+    expect(serverFns.getPublicFormRuntime).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders legacy fields from the consolidated definition request', async () => {
+    serverFns.getPublicForm.mockResolvedValue({
+      id: 7,
+      title: 'Legacy contact form',
+      description: null,
+      theme: null,
+    })
+    serverFns.getPublicFormRuntime.mockResolvedValue({
+      kind: 'legacy',
+      fields: [{
+        id: 21,
+        formId: 7,
+        type: 'text',
+        label: 'Full name',
+        placeholder: null,
+        required: true,
+        options: null,
+        order: 0,
+      }],
+    })
+
+    renderPublicForm()
+
+    expect(await screen.findByRole('textbox', { name: 'Full name' })).toBeTruthy()
+    expect(serverFns.getPublicFormRuntime).toHaveBeenCalledTimes(1)
+  })
+
+  it('reuses a random idempotency token for a legacy submission', async () => {
+    serverFns.getPublicForm.mockResolvedValue({
+      id: 7,
+      title: 'Legacy contact form',
+      description: null,
+      theme: null,
+    })
+    serverFns.getPublicFormRuntime.mockResolvedValue({
+      kind: 'legacy',
+      fields: [{
+        id: 21,
+        formId: 7,
+        type: 'text',
+        label: 'Full name',
+        placeholder: null,
+        required: true,
+        options: null,
+        order: 0,
+      }],
+    })
+    serverFns.submitFormResponse.mockResolvedValue({ success: true })
+
+    renderPublicForm()
+
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Full name' }), {
+      target: { value: 'Ada' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+
+    await waitFor(() => expect(serverFns.submitFormResponse).toHaveBeenCalledOnce())
+    expect(serverFns.submitFormResponse).toHaveBeenCalledWith({
+      data: {
+        formId: 7,
+        clientToken: expect.stringMatching(/^[a-zA-Z0-9_-]{16,64}$/),
+        formData: { 21: 'Ada' },
+      },
+    })
   })
 })

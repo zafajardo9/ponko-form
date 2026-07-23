@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FormSectionNav } from './FormSectionNav'
 
@@ -24,5 +24,31 @@ describe('FormSectionNav', () => {
     expect(screen.getByRole('link', { name: 'Payments' }).getAttribute('href')).toBe('/forms/17/payments')
     expect(screen.getByRole('link', { name: 'Invoicing' }).getAttribute('aria-current')).toBe('page')
     expect(screen.getAllByRole('link').filter((link) => link.getAttribute('aria-current') === 'page')).toHaveLength(1)
+  })
+
+  it('opens a compact section menu and closes it after a selection', () => {
+    render(<FormSectionNav formId="17" active="build" />)
+
+    const trigger = screen.getByRole('button', { name: 'Build' })
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+
+    fireEvent.click(trigger)
+    expect(trigger.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getAllByRole('link', { name: 'Payments' })).toHaveLength(2)
+
+    fireEvent.click(screen.getAllByRole('link', { name: 'Payments' })[0])
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getAllByRole('link', { name: 'Payments' })).toHaveLength(1)
+  })
+
+  it('closes the compact section menu with Escape', () => {
+    render(<FormSectionNav formId="17" active="responses" />)
+
+    const trigger = screen.getByRole('button', { name: 'Responses' })
+    fireEvent.click(trigger)
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    expect(document.activeElement).toBe(trigger)
   })
 })

@@ -2,21 +2,71 @@ import { createServerFn } from '@tanstack/react-start'
 import { auth } from '@clerk/tanstack-react-start/server'
 import { randomBytes } from 'node:crypto'
 import { db } from '../../db/index'
-import { formPageFields, formPages, formTemplates, forms, profiles } from '../../db/schema'
-import { and, asc, desc, eq, isNull, or, sql } from 'drizzle-orm'
+import { formFields, formPageFields, formPages, formTemplates, forms, profiles } from '../../db/schema'
+import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import type { FormTheme } from '../theme'
 import type { TemplatePageData } from '../form-templates/types'
+import {
+  templateFieldInsertValues,
+  templatePageInsertValues,
+} from '../form-templates/create-plan'
+import { getRecaptchaConfigForForm } from '../integrations/recaptcha'
+import { hydratePages, loadFormReferences } from '../page-builder/server-data'
+import { loadFlow } from '../flow-engine/server-data'
+import { assertFormOwner } from './flow-helpers'
+
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue }
+
+function jsonObject(value: unknown): Record<string, JsonValue> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([key, item]) => {
+      if (item === undefined || typeof item === 'function' || typeof item === 'symbol') {
+        return []
+      }
+      return [[key, jsonValue(item)]]
+    }),
+  )
+}
+
+function jsonValue(value: unknown): JsonValue {
+  if (
+    value === null ||
+    typeof value === 'string' ||
+    typeof value === 'boolean'
+  ) {
+    return value
+  }
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (Array.isArray(value)) return value.map(jsonValue)
+  return jsonObject(value)
+}
 
 async function ensureProfile(clerkId: string) {
-  const existing = await db
-    .select()
+  const [profile] = await db
+    .insert(profiles)
+    .values({ clerkId })
+    .onConflictDoUpdate({
+      target: profiles.clerkId,
+      set: { clerkId },
+    })
+    .returning()
+  if (!profile) throw new Error('Unable to initialize user profile')
+  return profile
+}
+
+function ownedProfileIds(clerkId: string) {
+  return db
+    .select({ id: profiles.id })
     .from(profiles)
     .where(eq(profiles.clerkId, clerkId))
-    .limit(1)
-  if (existing.length > 0) return existing[0]
-
-  const [created] = await db.insert(profiles).values({ clerkId }).returning()
-  return created
 }
 
 function createPublicId() {
@@ -40,13 +90,59 @@ export const getForms = createServerFn({ method: 'GET' }).handler(async () => {
   const { userId } = await auth()
   if (!userId) throw new Error('Unauthorized')
 
-  const profile = await ensureProfile(userId)
   return db
     .select()
     .from(forms)
-    .where(eq(forms.profileId, profile.id))
+    .where(inArray(forms.profileId, ownedProfileIds(userId)))
     .orderBy(desc(forms.updatedAt))
 })
+
+/**
+ * Load the authenticated editor's metadata and active builder definition in a
+ * single request. Page forms take precedence, so their accounts avoid loading
+ * an unused legacy flow; flow forms avoid the page-reference queries.
+ */
+export const getEditorForm = createServerFn({ method: 'GET', strict: false })
+  .validator((data: { formId: number }) => {
+    if (!Number.isInteger(data.formId) || data.formId <= 0) {
+      throw new Error('Invalid form identifier')
+    }
+    return data
+  })
+  .handler(async ({ data }) => {
+    const { userId } = await auth()
+    if (!userId) throw new Error('Unauthorized')
+
+    const form = await assertFormOwner(data.formId, userId)
+    const pages = await hydratePages(data.formId)
+    if (pages.length > 0) {
+      const needsRecaptcha = pages.some((page) =>
+        page.fields.some((field) => field.fieldType === 'recaptcha'),
+      )
+      const [references, recaptcha] = await Promise.all([
+        loadFormReferences(data.formId),
+        needsRecaptcha
+          ? getRecaptchaConfigForForm(data.formId)
+          : Promise.resolve(null),
+      ])
+      return {
+        form,
+        pageForm: {
+          form,
+          pages,
+          references,
+          recaptchaSiteKey: recaptcha?.siteKey ?? null,
+        },
+        flow: null,
+      }
+    }
+
+    return {
+      form,
+      pageForm: null,
+      flow: await loadFlow(data.formId),
+    }
+  })
 
 /**
  * getPublicForm({ publicId })
@@ -58,7 +154,7 @@ export const getForms = createServerFn({ method: 'GET' }).handler(async () => {
  * anonymous visitors have no Clerk session, so it would throw "Unauthorized".
  */
 export const getPublicForm = createServerFn({ method: 'GET' })
-  .inputValidator((data: { publicId: string }) => data)
+  .validator((data: { publicId: string }) => data)
   .handler(async ({ data }) => {
     if (!data.publicId) {
       throw new Error('Missing form identifier')
@@ -81,8 +177,65 @@ export const getPublicForm = createServerFn({ method: 'GET' })
     return form
   })
 
+/**
+ * Resolve exactly one published form runtime after metadata has loaded.
+ * Page-builder forms take precedence, followed by flow forms and legacy fields.
+ */
+export const getPublicFormRuntime = createServerFn({ method: 'GET' })
+  .validator((data: { formId: number }) => data)
+  .handler(async ({ data }) => {
+    const [publishedForm] = await db
+      .select({ id: forms.id })
+      .from(forms)
+      .where(and(eq(forms.id, data.formId), eq(forms.status, 'published')))
+      .limit(1)
+    if (!publishedForm) return null
+
+    const pages = await hydratePages(data.formId)
+    if (pages.length > 0) {
+      const needsRecaptcha = pages.some((page) =>
+        page.fields.some((field) => field.fieldType === 'recaptcha'),
+      )
+      const [references, recaptcha] = await Promise.all([
+        loadFormReferences(data.formId),
+        needsRecaptcha ? getRecaptchaConfigForForm(data.formId) : Promise.resolve(null),
+      ])
+      return {
+        kind: 'page' as const,
+        pages,
+        references,
+        recaptchaSiteKey: recaptcha?.siteKey ?? null,
+      }
+    }
+
+    const flow = await loadFlow(data.formId)
+    if (flow) {
+      return {
+        kind: 'flow' as const,
+        flow: {
+          ...flow,
+          // Database JSON is already serializable at runtime. Giving the
+          // public boundary a concrete JSON type also lets TanStack verify the
+          // server-function contract instead of widening config values to
+          // `unknown`.
+          nodes: flow.nodes.map((node) => ({
+            ...node,
+            config: jsonObject(node.config),
+          })),
+        },
+      }
+    }
+
+    const fields = await db
+      .select()
+      .from(formFields)
+      .where(eq(formFields.formId, data.formId))
+      .orderBy(formFields.order)
+    return { kind: 'legacy' as const, fields }
+  })
+
 export const createForm = createServerFn({ method: 'POST' })
-  .inputValidator((data: { title: string; description?: string }) => data)
+  .validator((data: { title: string; description?: string }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
@@ -114,9 +267,13 @@ export const createForm = createServerFn({ method: 'POST' })
 export const getFormTemplates = createServerFn({ method: 'GET' }).handler(async () => {
   const { userId } = await auth()
   if (!userId) throw new Error('Unauthorized')
-  const profile = await ensureProfile(userId)
   return db.select().from(formTemplates)
-    .where(or(isNull(formTemplates.profileId), eq(formTemplates.profileId, profile.id)))
+    .where(
+      or(
+        isNull(formTemplates.profileId),
+        inArray(formTemplates.profileId, ownedProfileIds(userId)),
+      ),
+    )
     .orderBy(asc(formTemplates.category), desc(formTemplates.usageCount), asc(formTemplates.name))
 })
 
@@ -131,7 +288,7 @@ function validTemplatePages(value: unknown): value is TemplatePageData[] {
 }
 
 export const createFormFromTemplate = createServerFn({ method: 'POST' })
-  .inputValidator((data: { templateId: number; title?: string }) => data)
+  .validator((data: { templateId: number; title?: string }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
@@ -153,29 +310,16 @@ export const createFormFromTemplate = createServerFn({ method: 'POST' })
     }).returning()
 
     try {
-      for (const pageData of [...template.pagesData].sort((a, b) => a.position - b.position)) {
-        const [page] = await db.insert(formPages).values({
-          formId: form.id,
-          title: pageData.title.slice(0, 255),
-          description: pageData.description ?? null,
-          position: pageData.position,
-          isFinal: pageData.isFinal,
-          finalTemplate: pageData.isFinal ? pageData.finalTemplate ?? 'Your response has been recorded.' : null,
-        }).returning({ id: formPages.id })
-        if (!pageData.isFinal && pageData.fields.length > 0) {
-          await db.insert(formPageFields).values(pageData.fields.map((field, index) => ({
-            pageId: page.id,
-            fieldType: field.fieldType,
-            label: field.label.slice(0, 255),
-            placeholder: field.placeholder?.slice(0, 255) ?? null,
-            required: Boolean(field.required),
-            options: field.options ?? null,
-            bindVariable: field.bindVariable,
-            position: Number.isFinite(field.position) ? field.position : index,
-            width: field.width ?? 'full',
-            validationRules: null,
-          })))
-        }
+      const createdPages = await db
+        .insert(formPages)
+        .values(templatePageInsertValues(form.id, template.pagesData))
+        .returning({ id: formPages.id, position: formPages.position })
+      const fieldValues = templateFieldInsertValues(
+        createdPages,
+        template.pagesData,
+      )
+      if (fieldValues.length > 0) {
+        await db.insert(formPageFields).values(fieldValues)
       }
       await db.update(formTemplates).set({
         usageCount: sql`${formTemplates.usageCount} + 1`,
@@ -189,7 +333,7 @@ export const createFormFromTemplate = createServerFn({ method: 'POST' })
   })
 
 export const updateForm = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     (data: {
       id: number
       title?: string
@@ -202,12 +346,16 @@ export const updateForm = createServerFn({ method: 'POST' })
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
 
-    const profile = await ensureProfile(userId)
     const { id, ...fields } = data
     const [form] = await db
       .update(forms)
       .set({ ...fields, updatedAt: new Date() })
-      .where(and(eq(forms.id, id), eq(forms.profileId, profile.id)))
+      .where(
+        and(
+          eq(forms.id, id),
+          inArray(forms.profileId, ownedProfileIds(userId)),
+        ),
+      )
       .returning()
 
     if (!form) throw new Error('Not found')
@@ -215,15 +363,20 @@ export const updateForm = createServerFn({ method: 'POST' })
   })
 
 export const deleteForm = createServerFn({ method: 'POST' })
-  .inputValidator((data: { id: number }) => data)
+  .validator((data: { id: number }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
 
-    const profile = await ensureProfile(userId)
-    const [form] = await db.select().from(forms).where(eq(forms.id, data.id)).limit(1)
-    if (!form || form.profileId !== profile.id) throw new Error('Not found')
-
-    await db.delete(forms).where(eq(forms.id, data.id))
+    const [form] = await db
+      .delete(forms)
+      .where(
+        and(
+          eq(forms.id, data.id),
+          inArray(forms.profileId, ownedProfileIds(userId)),
+        ),
+      )
+      .returning({ id: forms.id })
+    if (!form) throw new Error('Not found')
     return { success: true }
   })

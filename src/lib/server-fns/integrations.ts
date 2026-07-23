@@ -91,7 +91,7 @@ export const getIntegrationSettings = createServerFn({ method: 'GET' }).handler(
  * (lets the user update only the webhook token without re-entering the key).
  */
 export const saveXenditSettings = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     (data: { secretKey?: string; publicKey?: string; webhookToken?: string; mode?: 'sandbox' | 'live' }) =>
       data,
   )
@@ -123,7 +123,7 @@ export const saveXenditSettings = createServerFn({ method: 'POST' })
  * Saves PayPal credentials. Leave `clientSecret` blank to keep the existing one.
  */
 export const savePaypalSettings = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     (data: {
       clientId: string
       clientSecret?: string
@@ -156,7 +156,7 @@ export const savePaypalSettings = createServerFn({ method: 'POST' })
  * Saves SMTP credentials. Leave `password` blank to keep the existing one.
  */
 export const saveSmtpSettings = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     (data: {
       host: string
       port: number
@@ -191,7 +191,7 @@ export const saveSmtpSettings = createServerFn({ method: 'POST' })
 
 /** Clears a single integration's credentials. */
 export const deleteIntegration = createServerFn({ method: 'POST' })
-  .inputValidator((data: { provider: 'xendit' | 'paypal' | 'smtp' }) => data)
+  .validator((data: { provider: 'xendit' | 'paypal' | 'smtp' }) => data)
   .handler(async ({ data }) => {
     const profile = await requireProfile()
     const column =
@@ -225,7 +225,7 @@ export const getIntegrations = createServerFn({ method: 'GET' }).handler(
 
 /** Save (upsert) a single integration's config. */
 export const saveIntegration = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     (data: { provider: ProviderSlug; config: Record<string, unknown> }) =>
       data,
   )
@@ -307,7 +307,7 @@ export const saveIntegration = createServerFn({ method: 'POST' })
 
 /** Delete a single integration's config. */
 export const deleteIntegrationByProvider = createServerFn({ method: 'POST' })
-  .inputValidator((data: { provider: ProviderSlug }) => data)
+  .validator((data: { provider: ProviderSlug }) => data)
   .handler(async ({ data }) => {
     const profile = await requireProfile()
     await removeIntegrationConfig(profile.id, data.provider)

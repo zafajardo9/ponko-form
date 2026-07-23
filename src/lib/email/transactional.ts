@@ -9,6 +9,7 @@ export interface TransactionalEmailMessage {
   html: string
   text: string
   fromName?: string | null
+  idempotencyKey?: string
 }
 
 export async function getTransactionalEmailAvailability(profileId: number) {

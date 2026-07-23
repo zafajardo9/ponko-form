@@ -5,6 +5,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PagePaymentStep } from './PagePaymentStep'
 
+const sessionClientToken = 'session-client-token-1234'
+
 const serverFns = vi.hoisted(() => ({
   getPagePaymentOptions: vi.fn(),
   initiatePagePayment: vi.fn(),
@@ -17,7 +19,11 @@ function renderPaymentStep() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <PagePaymentStep sessionId={10} pageId={20} />
+      <PagePaymentStep
+        sessionId={10}
+        clientToken={sessionClientToken}
+        pageId={20}
+      />
     </QueryClientProvider>,
   )
 }
@@ -115,6 +121,7 @@ describe('PagePaymentStep recovery', () => {
       <QueryClientProvider client={client}>
         <PagePaymentStep
           sessionId={10}
+          clientToken={sessionClientToken}
           pageId={20}
           onPaymentStatusChange={firstCallback}
         />
@@ -126,6 +133,7 @@ describe('PagePaymentStep recovery', () => {
       <QueryClientProvider client={client}>
         <PagePaymentStep
           sessionId={10}
+          clientToken={sessionClientToken}
           pageId={20}
           onPaymentStatusChange={secondCallback}
         />

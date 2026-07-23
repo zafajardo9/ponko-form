@@ -6,7 +6,7 @@ export const listDocs = createServerFn({ method: 'GET' }).handler(async () => {
 })
 
 export const loadDoc = createServerFn({ method: 'GET' })
-  .inputValidator((data: { slug: string }) => data)
+  .validator((data: { slug: string }) => data)
   .handler(async ({ data }) => {
     return getDoc(data.slug)
   })

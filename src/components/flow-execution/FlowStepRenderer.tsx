@@ -25,6 +25,7 @@ interface FlowStepRendererProps {
   complete: boolean
   /** The in-progress execution id — required by the payment step to charge. */
   executionId: number | null
+  executionClientToken: string
   stepNumber: number
   totalSteps: number
   canGoBack: boolean
@@ -37,6 +38,7 @@ export function FlowStepRenderer({
   values,
   complete,
   executionId,
+  executionClientToken,
   stepNumber,
   totalSteps,
   canGoBack,
@@ -93,7 +95,12 @@ export function FlowStepRenderer({
     return (
       <div className="flex flex-col gap-6">
         {progress}
-        <PaymentStep executionId={executionId} amount={amount} currency={(config.currency as string) ?? 'USD'} />
+        <PaymentStep
+          executionId={executionId}
+          clientToken={executionClientToken}
+          amount={amount}
+          currency={(config.currency as string) ?? 'USD'}
+        />
         {canGoBack && (
           <Button variant="text-link" size="sm" onClick={onBack}>
             ← Back

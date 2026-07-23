@@ -28,14 +28,16 @@ import type {
  */
 
 export async function ensureProfile(clerkId: string) {
-  const existing = await db
-    .select()
-    .from(profiles)
-    .where(eq(profiles.clerkId, clerkId))
-    .limit(1)
-  if (existing.length > 0) return existing[0]
-  const [created] = await db.insert(profiles).values({ clerkId }).returning()
-  return created
+  const [profile] = await db
+    .insert(profiles)
+    .values({ clerkId })
+    .onConflictDoUpdate({
+      target: profiles.clerkId,
+      set: { clerkId },
+    })
+    .returning()
+  if (!profile) throw new Error('Unable to initialize user profile')
+  return profile
 }
 
 export async function requireProfile() {

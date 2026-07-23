@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { auth } from '@clerk/tanstack-react-start/server'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm'
 import { db } from '../../db/index'
 import { withTimeout } from '../../db/with-timeout'
 import {
@@ -37,6 +37,10 @@ import {
 } from '../page-builder/references'
 import { completePageSubmissionRecord, completePaidPageSubmission } from '../page-builder/complete-submission'
 import { isFieldVisible } from '../page-builder/conditions'
+import {
+  isValidPublicSessionToken,
+  pagePaymentReturnUrl,
+} from '../public-session-access'
 import { hydratePages, loadFormReferences } from '../page-builder/server-data'
 import type {
   ConditionAction,
@@ -60,8 +64,24 @@ import {
 import { assertFormOwner, uniqueVarName } from './flow-helpers'
 import { emailSurveyTokenHash, validEmailSurveyToken } from './email-survey-token'
 import { publicRequestOrigin } from './request-origin'
+import { ensurePageSubmissionDraft } from '../page-builder/submission-draft'
+import { claimPaymentCheckout } from '../payments/checkout-claim'
 
 type GatewaySlug = 'paypal' | 'xendit'
+
+function assertSessionClientToken(clientToken: string) {
+  if (!isValidPublicSessionToken(clientToken)) {
+    throw new Error('Invalid session token')
+  }
+}
+
+function sessionAccessWhere(sessionId: number, clientToken: string) {
+  assertSessionClientToken(clientToken)
+  return and(
+    eq(formSubmissionSessions.id, sessionId),
+    eq(formSubmissionSessions.clientToken, clientToken),
+  )
+}
 
 function paymentStartIssue(gatewaySlug: GatewaySlug, gatewayName: string, detail?: string | null) {
   const normalized = (detail ?? '').toLowerCase()
@@ -102,15 +122,13 @@ function credentialsForSlug(
 }
 
 async function gatewayRowId(slug: GatewaySlug, name: string): Promise<number> {
-  const [existing] = await db
-    .select({ id: paymentGateways.id })
-    .from(paymentGateways)
-    .where(eq(paymentGateways.slug, slug))
-    .limit(1)
-  if (existing) return existing.id
   const [created] = await db
     .insert(paymentGateways)
     .values({ name, slug, isActive: true })
+    .onConflictDoUpdate({
+      target: paymentGateways.slug,
+      set: { name, isActive: true },
+    })
     .returning({ id: paymentGateways.id })
   return created.id
 }
@@ -130,95 +148,55 @@ async function assertFieldBindingAvailable(formId: number, bindVariable: string,
   if (duplicate) throw new Error(`"${bindVariable}" is already used as a field binding`)
 }
 
+function ownedPageFieldWhere(formId: number, fieldId: number) {
+  return and(
+    eq(formPageFields.id, fieldId),
+    inArray(
+      formPageFields.pageId,
+      db
+        .select({ id: formPages.id })
+        .from(formPages)
+        .where(eq(formPages.formId, formId)),
+    ),
+  )
+}
+
 async function normalizePagePositions(formId: number) {
   const pages = await db
     .select()
     .from(formPages)
     .where(eq(formPages.formId, formId))
     .orderBy(formPages.position, formPages.id)
-  for (let i = 0; i < pages.length; i++) {
+  if (pages.length > 0) {
+    const position = sql<number>`case ${sql.join(
+      pages.map(
+        (page, index) => sql`when ${formPages.id} = ${page.id} then ${index}`,
+      ),
+      sql.raw(' '),
+    )} else ${formPages.position} end`
+    const finalPageId = pages[pages.length - 1].id
     await db
       .update(formPages)
-      .set({ position: i, isFinal: i === pages.length - 1, updatedAt: new Date() })
-      .where(eq(formPages.id, pages[i].id))
+      .set({
+        position,
+        isFinal: sql<boolean>`${formPages.id} = ${finalPageId}`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(formPages.formId, formId),
+          inArray(formPages.id, pages.map((page) => page.id)),
+        ),
+      )
   }
 }
 
-async function ensurePageBuilderFieldTypes() {
-  await db.execute(sql`
-    DO $$
-    BEGIN
-      IF NOT EXISTS (
-        SELECT 1
-        FROM pg_enum e
-        JOIN pg_type t ON t.oid = e.enumtypid
-        WHERE t.typname = 'field_type' AND e.enumlabel = 'content'
-      ) THEN
-        ALTER TYPE "public"."field_type" ADD VALUE 'content';
-      END IF;
-
-      IF NOT EXISTS (
-        SELECT 1
-        FROM pg_enum e
-        JOIN pg_type t ON t.oid = e.enumtypid
-        WHERE t.typname = 'field_type' AND e.enumlabel = 'media'
-      ) THEN
-        ALTER TYPE "public"."field_type" ADD VALUE 'media';
-      END IF;
-
-      IF NOT EXISTS (
-        SELECT 1
-        FROM pg_enum e
-        JOIN pg_type t ON t.oid = e.enumtypid
-        WHERE t.typname = 'field_type' AND e.enumlabel = 'address'
-      ) THEN
-        ALTER TYPE "public"."field_type" ADD VALUE 'address';
-      END IF;
-
-      IF NOT EXISTS (
-        SELECT 1
-        FROM pg_enum e
-        JOIN pg_type t ON t.oid = e.enumtypid
-        WHERE t.typname = 'field_type' AND e.enumlabel = 'computation'
-      ) THEN
-        ALTER TYPE "public"."field_type" ADD VALUE 'computation';
-      END IF;
-
-      IF NOT EXISTS (
-        SELECT 1
-        FROM pg_enum e
-        JOIN pg_type t ON t.oid = e.enumtypid
-        WHERE t.typname = 'field_type' AND e.enumlabel = 'file_upload'
-      ) THEN
-        ALTER TYPE "public"."field_type" ADD VALUE 'file_upload';
-      END IF;
-
-      IF NOT EXISTS (
-        SELECT 1
-        FROM pg_enum e
-        JOIN pg_type t ON t.oid = e.enumtypid
-        WHERE t.typname = 'field_type' AND e.enumlabel = 'satisfaction'
-      ) THEN
-        ALTER TYPE "public"."field_type" ADD VALUE 'satisfaction';
-      END IF;
-
-      IF NOT EXISTS (
-        SELECT 1
-        FROM pg_enum e
-        JOIN pg_type t ON t.oid = e.enumtypid
-        WHERE t.typname = 'field_type' AND e.enumlabel = 'recaptcha'
-      ) THEN
-        ALTER TYPE "public"."field_type" ADD VALUE 'recaptcha';
-      END IF;
-    END $$;
-  `)
-}
-
 export const getPageForm = createServerFn({ method: 'GET', strict: false })
-  .inputValidator((data: { formId: number }) => data)
+  .validator((data: { formId: number }) => data)
   .handler(async ({ data }): Promise<PageForm | null> => {
-    const [form] = await db.select().from(forms).where(eq(forms.id, data.formId)).limit(1)
-    if (!form) return null
+    const { userId } = await auth()
+    if (!userId) throw new Error('Unauthorized')
+    const form = await assertFormOwner(data.formId, userId)
     const pages = await hydratePages(data.formId)
     if (pages.length === 0) return null
     const recaptcha = pages.some((page) => page.fields.some((field) => field.fieldType === 'recaptcha'))
@@ -233,34 +211,39 @@ export const getPageForm = createServerFn({ method: 'GET', strict: false })
   })
 
 export const getPageSessionData = createServerFn({ method: 'GET', strict: false })
-  .inputValidator((data: { sessionId: number }) => data)
+  .validator((data: { sessionId: number; clientToken: string }) => data)
   .handler(async ({ data }) => {
     const [session] = await db
       .select()
       .from(formSubmissionSessions)
-      .where(eq(formSubmissionSessions.id, data.sessionId))
+      .where(sessionAccessWhere(data.sessionId, data.clientToken))
       .limit(1)
     if (!session) throw new Error('Session not found')
-    const [form] = await db.select().from(forms).where(eq(forms.id, session.formId)).limit(1)
+    const [[form], pages, references] = await Promise.all([
+      db.select().from(forms).where(eq(forms.id, session.formId)).limit(1),
+      hydratePages(session.formId),
+      loadFormReferences(session.formId),
+    ])
     if (!form) throw new Error('Form not found')
-    const pages = await hydratePages(session.formId)
     const recaptcha = pages.some((page) => page.fields.some((field) => field.fieldType === 'recaptcha'))
       ? await getRecaptchaConfigForForm(session.formId)
       : null
     return {
       session: {
-        ...session,
+        id: session.id,
+        currentPageIndex: session.currentPageIndex,
+        status: session.status,
         collectedData: publicSubmissionData((session.collectedData ?? {}) as Record<string, unknown>),
       },
       form,
       pages,
-      references: await loadFormReferences(session.formId),
+      references,
       recaptchaSiteKey: recaptcha?.siteKey ?? null,
     }
   })
 
 export const ensurePageForm = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: { formId: number }) => data)
+  .validator((data: { formId: number }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
@@ -269,31 +252,30 @@ export const ensurePageForm = createServerFn({ method: 'POST', strict: false })
     const existing = await hydratePages(data.formId)
     if (existing.length > 0) return { created: false, pages: existing }
 
-    const [first] = await db
+    const [first, finalPage] = await db
       .insert(formPages)
-      .values({
-        formId: data.formId,
-        title: 'Page 1',
-        description: null,
-        position: 0,
-        isFinal: false,
-      })
-      .returning()
-    const [finalPage] = await db
-      .insert(formPages)
-      .values({
-        formId: data.formId,
-        title: 'Thank You',
-        position: 1,
-        isFinal: true,
-        finalTemplate: 'Your response has been recorded.',
-      })
+      .values([
+        {
+          formId: data.formId,
+          title: 'Page 1',
+          description: null,
+          position: 0,
+          isFinal: false,
+        },
+        {
+          formId: data.formId,
+          title: 'Thank You',
+          position: 1,
+          isFinal: true,
+          finalTemplate: 'Your response has been recorded.',
+        },
+      ])
       .returning()
     return { created: true, pages: [first, finalPage] }
   })
 
 export const createPage = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: { formId: number; title?: string }) => data)
+  .validator((data: { formId: number; title?: string }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
@@ -305,7 +287,7 @@ export const createPage = createServerFn({ method: 'POST', strict: false })
     await db
       .update(formPages)
       .set({ position: insertAt + 1, updatedAt: new Date() })
-      .where(eq(formPages.id, finalPage.id))
+      .where(and(eq(formPages.id, finalPage.id), eq(formPages.formId, data.formId)))
     const [page] = await db
       .insert(formPages)
       .values({
@@ -320,7 +302,7 @@ export const createPage = createServerFn({ method: 'POST', strict: false })
   })
 
 export const updatePage = createServerFn({ method: 'POST', strict: false })
-  .inputValidator(
+  .validator(
     (data: {
       formId: number
       pageId: number
@@ -344,12 +326,16 @@ export const updatePage = createServerFn({ method: 'POST', strict: false })
 
     const { formId: _formId, pageId, ...patch } = data
     if (patch.hasPayment) {
-      const pages = await hydratePages(data.formId)
-      for (const page of pages) {
-        if (page.id !== pageId && page.hasPayment) {
-          await db.update(formPages).set({ hasPayment: false }).where(eq(formPages.id, page.id))
-        }
-      }
+      await db
+        .update(formPages)
+        .set({ hasPayment: false })
+        .where(
+          and(
+            eq(formPages.formId, data.formId),
+            ne(formPages.id, pageId),
+            eq(formPages.hasPayment, true),
+          ),
+        )
     }
     const [page] = await db
       .update(formPages)
@@ -361,7 +347,7 @@ export const updatePage = createServerFn({ method: 'POST', strict: false })
   })
 
 export const deletePage = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: { formId: number; pageId: number }) => data)
+  .validator((data: { formId: number; pageId: number }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
@@ -373,13 +359,15 @@ export const deletePage = createServerFn({ method: 'POST', strict: false })
     if (pages.filter((item) => !item.isFinal).length <= 1) {
       throw new Error('A form needs at least one editable page')
     }
-    await db.delete(formPages).where(eq(formPages.id, data.pageId))
+    await db
+      .delete(formPages)
+      .where(and(eq(formPages.id, data.pageId), eq(formPages.formId, data.formId)))
     await normalizePagePositions(data.formId)
     return { success: true }
   })
 
 export const reorderPages = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: { formId: number; pageIds: number[] }) => data)
+  .validator((data: { formId: number; pageIds: number[] }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
@@ -388,14 +376,34 @@ export const reorderPages = createServerFn({ method: 'POST', strict: false })
     const finalPage = pages.find((page) => page.isFinal)
     const ordered = data.pageIds.filter((id) => id !== finalPage?.id)
     if (finalPage) ordered.push(finalPage.id)
-    for (let i = 0; i < ordered.length; i++) {
-      await db.update(formPages).set({ position: i, isFinal: ordered[i] === finalPage?.id }).where(eq(formPages.id, ordered[i]))
+    if (ordered.length > 0) {
+      const position = sql<number>`case ${sql.join(
+        ordered.map(
+          (id, index) => sql`when ${formPages.id} = ${id} then ${index}`,
+        ),
+        sql.raw(' '),
+      )} else ${formPages.position} end`
+      await db
+        .update(formPages)
+        .set({
+          position,
+          isFinal: finalPage
+            ? sql<boolean>`${formPages.id} = ${finalPage.id}`
+            : false,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(formPages.formId, data.formId),
+            inArray(formPages.id, ordered),
+          ),
+        )
     }
     return { success: true }
   })
 
 export const createPageField = createServerFn({ method: 'POST', strict: false })
-  .inputValidator(
+  .validator(
     (data: { formId: number; pageId: number; fieldType: PageFieldType; label?: string }) => data,
   )
   .handler(async ({ data }) => {
@@ -426,7 +434,7 @@ export const createPageField = createServerFn({ method: 'POST', strict: false })
   })
 
 export const updatePageField = createServerFn({ method: 'POST', strict: false })
-  .inputValidator(
+  .validator(
     (data: {
       formId: number
       fieldId: number
@@ -451,37 +459,51 @@ export const updatePageField = createServerFn({ method: 'POST', strict: false })
     const [field] = await db
       .update(formPageFields)
       .set({ ...patch, updatedAt: new Date() })
-      .where(eq(formPageFields.id, fieldId))
+      .where(ownedPageFieldWhere(data.formId, fieldId))
       .returning()
     if (!field) throw new Error('Field not found')
     return field
   })
 
 export const deletePageField = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: { formId: number; fieldId: number }) => data)
+  .validator((data: { formId: number; fieldId: number }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
     await assertFormOwner(data.formId, userId)
-    await db.delete(formPageFields).where(eq(formPageFields.id, data.fieldId))
+    const [field] = await db
+      .delete(formPageFields)
+      .where(ownedPageFieldWhere(data.formId, data.fieldId))
+      .returning({ id: formPageFields.id })
+    if (!field) throw new Error('Field not found')
     return { success: true }
   })
 
 export const movePageField = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: { formId: number; fieldId: number; pageId: number; position: number }) => data)
+  .validator((data: { formId: number; fieldId: number; pageId: number; position: number }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
     await assertFormOwner(data.formId, userId)
-    await db
+    const [destinationPage] = await db
+      .select({ id: formPages.id, isFinal: formPages.isFinal })
+      .from(formPages)
+      .where(and(eq(formPages.id, data.pageId), eq(formPages.formId, data.formId)))
+      .limit(1)
+    if (!destinationPage || destinationPage.isFinal) {
+      throw new Error('Editable page not found')
+    }
+    const [field] = await db
       .update(formPageFields)
       .set({ pageId: data.pageId, position: data.position, updatedAt: new Date() })
-      .where(eq(formPageFields.id, data.fieldId))
+      .where(ownedPageFieldWhere(data.formId, data.fieldId))
+      .returning({ id: formPageFields.id })
+    if (!field) throw new Error('Field not found')
     return { success: true }
   })
 
 export const saveFieldConditions = createServerFn({ method: 'POST', strict: false })
-  .inputValidator(
+  .validator(
     (data: {
       formId: number
       fieldId: number
@@ -497,6 +519,12 @@ export const saveFieldConditions = createServerFn({ method: 'POST', strict: fals
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
     await assertFormOwner(data.formId, userId)
+    const [field] = await db
+      .select({ id: formPageFields.id })
+      .from(formPageFields)
+      .where(ownedPageFieldWhere(data.formId, data.fieldId))
+      .limit(1)
+    if (!field) throw new Error('Field not found')
     await db.delete(fieldConditions).where(eq(fieldConditions.fieldId, data.fieldId))
     if (data.conditions.length > 0) {
       await db.insert(fieldConditions).values(
@@ -513,7 +541,7 @@ export const saveFieldConditions = createServerFn({ method: 'POST', strict: fals
   })
 
 export const savePageForm = createServerFn({ method: 'POST', strict: false })
-  .inputValidator(
+  .validator(
     (data: {
       formId: number
       pages: {
@@ -560,14 +588,10 @@ export const savePageForm = createServerFn({ method: 'POST', strict: false })
       }[]
     }) => data,
   )
-  .handler(async ({ data }): Promise<PageForm> => {
+  .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
-    await assertFormOwner(data.formId, userId)
-    await ensurePageBuilderFieldTypes()
-
-    const [form] = await db.select().from(forms).where(eq(forms.id, data.formId)).limit(1)
-    if (!form) throw new Error('Form not found')
+    const form = await assertFormOwner(data.formId, userId)
 
     const orderedPages = [...data.pages].sort((a, b) => a.position - b.position)
     if (orderedPages.length < 2) throw new Error('A form needs at least one page and a final page')
@@ -699,11 +723,17 @@ export const savePageForm = createServerFn({ method: 'POST', strict: false })
       ${JSON.stringify(pagesPayload)}::jsonb
     )`)
 
-    return { form, pages: await hydratePages(data.formId), references: await loadFormReferences(data.formId) }
+    const [pages, references] = await Promise.all([
+      hydratePages(data.formId),
+      loadFormReferences(data.formId),
+    ])
+    return { form, pages, references }
   })
 
+export type SavedPageForm = Awaited<ReturnType<typeof savePageForm>>
+
 export const startPageSession = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: {
+  .validator((data: {
     formId: number
     clientToken: string
     emailSurveyToken?: string
@@ -766,6 +796,7 @@ export const startPageSession = createServerFn({ method: 'POST', strict: false }
         .onConflictDoUpdate({
           target: formSubmissionSessions.emailSurveyInvitationId,
           set: {
+            clientToken: data.clientToken,
             collectedData: sql`CASE
               WHEN ${formSubmissionSessions.status} = 'completed' THEN ${formSubmissionSessions.collectedData}
               ELSE ${formSubmissionSessions.collectedData} || ${JSON.stringify(initialData)}::jsonb
@@ -775,7 +806,14 @@ export const startPageSession = createServerFn({ method: 'POST', strict: false }
         })
         .returning()
       if (!session) throw new Error('Unable to start email survey response')
-      return session
+      return {
+        id: session.id,
+        currentPageIndex: session.currentPageIndex,
+        collectedData: publicSubmissionData(
+          (session.collectedData ?? {}) as Record<string, unknown>,
+        ),
+        status: session.status,
+      }
     }
 
     const result = await withTimeout(
@@ -826,13 +864,19 @@ export const startPageSession = createServerFn({ method: 'POST', strict: false }
       correlationId,
       vercelRegion: process.env.VERCEL_REGION ?? process.env.VERCEL_REGION_ID ?? 'local',
     })
-    return session
+    return {
+      id: session.id,
+      currentPageIndex: session.currentPageIndex,
+      collectedData: publicSubmissionData(session.collectedData),
+      status: session.status,
+    }
   })
 
 export const advancePageSession = createServerFn({ method: 'POST', strict: false })
-  .inputValidator(
+  .validator(
     (data: {
       sessionId: number
+      clientToken: string
       currentPageIndex: number
       collectedData: Record<string, unknown>
       status?: 'in_progress' | 'payment_pending' | 'payment_failed'
@@ -842,7 +886,7 @@ export const advancePageSession = createServerFn({ method: 'POST', strict: false
     const [existing] = await db
       .select()
       .from(formSubmissionSessions)
-      .where(eq(formSubmissionSessions.id, data.sessionId))
+      .where(sessionAccessWhere(data.sessionId, data.clientToken))
       .limit(1)
     if (!existing) throw new Error('Session not found')
 
@@ -879,7 +923,7 @@ export const advancePageSession = createServerFn({ method: 'POST', strict: false
           status: data.status ?? 'in_progress',
           updatedAt: new Date(),
         })
-        .where(eq(formSubmissionSessions.id, data.sessionId))
+        .where(sessionAccessWhere(data.sessionId, data.clientToken))
         .returning(),
       10_000,
       'advancePageSession.updateSession',
@@ -891,37 +935,61 @@ export const advancePageSession = createServerFn({ method: 'POST', strict: false
         .set({ formData: publicSubmissionData(collectedData) })
         .where(eq(formSubmissions.id, session.formSubmissionId))
     }
-    return session
+    return {
+      id: session.id,
+      currentPageIndex: session.currentPageIndex,
+      collectedData: publicSubmissionData(collectedData),
+      status: session.status,
+    }
   })
 
 export const completePageSubmission = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: { sessionId: number; collectedData: Record<string, unknown> }) => data)
+  .validator(
+    (data: {
+      sessionId: number
+      clientToken: string
+      collectedData: Record<string, unknown>
+    }) => data,
+  )
   .handler(async ({ data }) => {
-    return withTimeout(
+    const [session] = await db
+      .select({ id: formSubmissionSessions.id })
+      .from(formSubmissionSessions)
+      .where(sessionAccessWhere(data.sessionId, data.clientToken))
+      .limit(1)
+    if (!session) throw new Error('Session not found')
+    await withTimeout(
       completePageSubmissionRecord(data.sessionId, data.collectedData),
       15_000,
       'completePageSubmission',
       { sessionId: data.sessionId },
     )
+    return { success: true }
   })
 
 export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: false })
-  .inputValidator((data: { sessionId: number; pageId: number }) => data)
+  .validator((data: { sessionId: number; clientToken: string; pageId: number }) => data)
   .handler(async ({ data }) => {
     return withTimeout((async () => {
     const [session] = await db
       .select()
       .from(formSubmissionSessions)
-      .where(eq(formSubmissionSessions.id, data.sessionId))
+      .where(sessionAccessWhere(data.sessionId, data.clientToken))
       .limit(1)
     if (!session) throw new Error('Session not found')
-    const [page] = await db.select().from(formPages).where(eq(formPages.id, data.pageId)).limit(1)
+    const [[page], [form], pages, references] = await Promise.all([
+      db
+        .select()
+        .from(formPages)
+        .where(and(eq(formPages.id, data.pageId), eq(formPages.formId, session.formId)))
+        .limit(1),
+      db.select().from(forms).where(eq(forms.id, session.formId)).limit(1),
+      hydratePages(session.formId),
+      loadFormReferences(session.formId),
+    ])
     if (!page || !page.hasPayment) throw new Error('Payment page not found')
-    const [form] = await db.select().from(forms).where(eq(forms.id, session.formId)).limit(1)
     if (!form) throw new Error('Form not found')
-    const pages = await hydratePages(session.formId)
     const allFields = pages.flatMap((item) => item.fields)
-    const references = await loadFormReferences(session.formId)
     const sessionData = applyComputedFieldValues(allFields, (session.collectedData ?? {}) as Record<string, unknown>, references)
     const dataScope = { ...buildReferenceMap(references), ...sessionData }
     const calculation = calculatePagePayment(page as unknown as FormPage, allFields, dataScope, references)
@@ -935,7 +1003,12 @@ export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: fal
             subscriptionStatus: payments.subscriptionStatus,
           })
           .from(payments)
-          .where(eq(payments.id, paymentId))
+          .where(
+            and(
+              eq(payments.id, paymentId),
+              eq(payments.pageSessionId, session.id),
+            ),
+          )
           .limit(1)
       : []
     const currency = page.paymentCurrency ?? 'USD'
@@ -989,54 +1062,55 @@ export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: fal
   })
 
 async function ensurePaymentDraft(session: typeof formSubmissionSessions.$inferSelect) {
-  if (session.formSubmissionId) return session.formSubmissionId
-  const [draft] = await db.insert(formSubmissions).values({
-    formId: session.formId,
-    formData: session.collectedData as Record<string, unknown>,
-    status: 'pending_payment',
-  }).returning({ id: formSubmissions.id })
-  const [updated] = await db.update(formSubmissionSessions)
-    .set({ formSubmissionId: draft.id, updatedAt: new Date() })
-    .where(and(eq(formSubmissionSessions.id, session.id), sql`${formSubmissionSessions.formSubmissionId} IS NULL`))
-    .returning({ id: formSubmissionSessions.id })
-  if (updated) return draft.id
-  await db.delete(formSubmissions).where(eq(formSubmissions.id, draft.id))
-  const [current] = await db.select({ submissionId: formSubmissionSessions.formSubmissionId })
-    .from(formSubmissionSessions).where(eq(formSubmissionSessions.id, session.id)).limit(1)
-  if (!current?.submissionId) throw new Error('Could not initialize payment response')
-  return current.submissionId
+  return ensurePageSubmissionDraft(session, 'pending_payment')
 }
 
 export const ensurePagePaymentDraft = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: { sessionId: number; pageId: number }) => data)
+  .validator((data: { sessionId: number; clientToken: string; pageId: number }) => data)
   .handler(async ({ data }) => {
     const [session] = await db.select().from(formSubmissionSessions)
-      .where(eq(formSubmissionSessions.id, data.sessionId)).limit(1)
+      .where(sessionAccessWhere(data.sessionId, data.clientToken)).limit(1)
     if (!session) throw new Error('Session not found')
     const [page] = await db.select({ id: formPages.id, hasPayment: formPages.hasPayment })
-      .from(formPages).where(eq(formPages.id, data.pageId)).limit(1)
+      .from(formPages)
+      .where(and(eq(formPages.id, data.pageId), eq(formPages.formId, session.formId)))
+      .limit(1)
     if (!page?.hasPayment) throw new Error('Payment page not found')
-    return { submissionId: await ensurePaymentDraft(session) }
+    await ensurePaymentDraft(session)
+    return { success: true }
   })
 
 export const initiatePagePayment = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: { sessionId: number; pageId: number; gatewaySlug: GatewaySlug }) => data)
+  .validator(
+    (data: {
+      sessionId: number
+      clientToken: string
+      pageId: number
+      gatewaySlug: GatewaySlug
+    }) => data,
+  )
   .handler(async ({ data }) => {
     return withTimeout((async () => {
     const [session] = await db
       .select()
       .from(formSubmissionSessions)
-      .where(eq(formSubmissionSessions.id, data.sessionId))
+      .where(sessionAccessWhere(data.sessionId, data.clientToken))
       .limit(1)
     if (!session) throw new Error('Session not found')
-    const [page] = await db.select().from(formPages).where(eq(formPages.id, data.pageId)).limit(1)
+    const [[page], [form], pages, references] = await Promise.all([
+      db
+        .select()
+        .from(formPages)
+        .where(and(eq(formPages.id, data.pageId), eq(formPages.formId, session.formId)))
+        .limit(1),
+      db.select().from(forms).where(eq(forms.id, session.formId)).limit(1),
+      hydratePages(session.formId),
+      loadFormReferences(session.formId),
+    ])
     if (!page || !page.hasPayment) throw new Error('Payment page not found')
-    const [form] = await db.select().from(forms).where(eq(forms.id, session.formId)).limit(1)
     if (!form) throw new Error('Form not found')
 
-    const pages = await hydratePages(session.formId)
     const allFields = pages.flatMap((item) => item.fields)
-    const references = await loadFormReferences(session.formId)
     const computedSessionData = applyComputedFieldValues(
       allFields,
       (session.collectedData ?? {}) as Record<string, unknown>,
@@ -1073,7 +1147,12 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
     const customer = subscriptionConfig ? subscriptionCustomer(subscriptionConfig, computedSessionData) : null
 
     const origin = publicRequestOrigin()
-    const base = `${origin}/forms/payment-return?pageSessionId=${session.id}&pageId=${page.id}`
+    const base = pagePaymentReturnUrl(
+      origin,
+      session.id,
+      page.id,
+      data.clientToken,
+    )
     const gwId = await gatewayRowId(data.gatewaySlug, gateway.getGatewayName())
     const submissionId = await ensurePaymentDraft(session)
     await db.update(formSubmissions).set({
@@ -1095,14 +1174,20 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
     ) {
       return { paymentUrl: reusablePayment.paymentUrl, issue: null }
     }
-    const newPaymentValues: typeof payments.$inferInsert = {
+    const amountMinor = Math.round(amountMajor * 100)
+    const paymentKind = subscriptionConfig ? 'subscription' as const : 'one_time' as const
+    const subscriptionExternalId = subscriptionConfig
+      ? `ponkoform-subscription-session-${session.id}`
+      : null
+    const newPaymentValues: Omit<typeof payments.$inferInsert, 'checkoutKey'> = {
           paymentGatewayId: gwId,
           pageSessionId: session.id,
           formSubmissionId: submissionId,
-          amount: Math.round(amountMajor * 100),
+          amount: amountMinor,
           currency: page.paymentCurrency,
-          paymentKind: subscriptionConfig ? 'subscription' : 'one_time',
+          paymentKind,
           status: 'pending',
+          externalId: subscriptionExternalId,
           respondentName: customer?.name,
           respondentEmail: customer?.email,
           subscriptionStatus: subscriptionConfig ? 'pending' : null,
@@ -1116,29 +1201,57 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
             : null,
           gatewayResponse: { environment: credentials.mode ?? 'sandbox' },
         }
-    const subscriptionExternalId = subscriptionConfig
-      ? `ponkoform-subscription-session-${session.id}`
-      : null
-    let payment = reusablePayment
-    if (!payment && subscriptionExternalId) {
-      const [inserted] = await db.insert(payments)
-        .values({ ...newPaymentValues, externalId: subscriptionExternalId })
-        .onConflictDoNothing({ target: payments.externalId })
-        .returning()
-      if (inserted) {
-        payment = inserted
-      } else {
-        const [existing] = await db.select().from(payments)
-          .where(eq(payments.externalId, subscriptionExternalId))
-          .limit(1)
-        payment = existing
+    const checkoutKey = [
+      'page',
+      session.id,
+      page.id,
+      data.gatewaySlug,
+      paymentKind,
+      amountMinor,
+      page.paymentCurrency.toUpperCase(),
+    ].join(':')
+    if (reusablePayment && !reusablePayment.checkoutKey) {
+      await db
+        .update(payments)
+        .set({ checkoutKey, updatedAt: new Date() })
+        .where(
+          and(
+            eq(payments.id, reusablePayment.id),
+            sql`${payments.checkoutKey} IS NULL`,
+          ),
+        )
+    }
+    const checkout = await claimPaymentCheckout(checkoutKey, newPaymentValues)
+    if (checkout.disposition === 'reuse' && checkout.payment.paymentUrl) {
+      return { paymentUrl: checkout.payment.paymentUrl, issue: null }
+    }
+    if (checkout.disposition === 'wait') {
+      return {
+        paymentUrl: null,
+        issue: {
+          code: 'checkout_in_progress',
+          title: 'Checkout is being prepared',
+          message: 'Another checkout request is already in progress. Try again in a moment.',
+          gatewaySlug: data.gatewaySlug,
+          retryable: true,
+          reference: `PAY-${String(checkout.payment.id).padStart(6, '0')}`,
+        },
       }
     }
-    if (!payment) {
-      const [inserted] = await db.insert(payments).values(newPaymentValues).returning()
-      payment = inserted
+    if (checkout.disposition === 'completed') {
+      return {
+        paymentUrl: null,
+        issue: {
+          code: 'payment_completed',
+          title: 'Payment already completed',
+          message: 'This response has already been paid.',
+          gatewaySlug: data.gatewaySlug,
+          retryable: false,
+          reference: `PAY-${String(checkout.payment.id).padStart(6, '0')}`,
+        },
+      }
     }
-    if (!payment) throw new Error('Could not initialize payment')
+    const payment = checkout.payment
     const externalId = subscriptionExternalId ?? `ponkoform-payment-${payment.id}`
     await db.update(payments).set({
       externalId,
@@ -1250,13 +1363,13 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
   })
 
 export const finalizePagePayment = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: { sessionId: number }) => data)
+  .validator((data: { sessionId: number; clientToken: string }) => data)
   .handler(async ({ data }) => {
     return withTimeout((async () => {
     const [session] = await db
       .select()
       .from(formSubmissionSessions)
-      .where(eq(formSubmissionSessions.id, data.sessionId))
+      .where(sessionAccessWhere(data.sessionId, data.clientToken))
       .limit(1)
     if (!session) throw new Error('Session not found')
     const paymentId = Number((session.collectedData as Record<string, unknown>).__paymentId)
@@ -1270,7 +1383,12 @@ export const finalizePagePayment = createServerFn({ method: 'POST', strict: fals
       })
       .from(payments)
       .innerJoin(paymentGateways, eq(payments.paymentGatewayId, paymentGateways.id))
-      .where(eq(payments.id, paymentId))
+      .where(
+        and(
+          eq(payments.id, paymentId),
+          eq(payments.pageSessionId, session.id),
+        ),
+      )
       .orderBy(desc(payments.id))
       .limit(1)
     if (!payment?.gatewayPaymentId) {

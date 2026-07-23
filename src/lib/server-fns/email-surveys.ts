@@ -14,7 +14,7 @@ import { assertFormOwner } from './flow-helpers'
 import { emailSurveyTokenHash, validEmailSurveyToken } from './email-survey-token'
 
 export const getEmailSurveyFields = createServerFn({ method: 'GET', strict: false })
-  .inputValidator((data: { publicId: string }) => data)
+  .validator((data: { publicId: string }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
@@ -44,7 +44,7 @@ export const getEmailSurveyFields = createServerFn({ method: 'GET', strict: fals
   })
 
 export const createEmailSurveyInvitation = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: {
+  .validator((data: {
     publicId: string
     fieldId: number
     recipientReference?: string | null
@@ -102,7 +102,7 @@ export const createEmailSurveyInvitation = createServerFn({ method: 'POST', stri
   })
 
 export const getEmailSurveyPrefill = createServerFn({ method: 'GET', strict: false })
-  .inputValidator((data: { publicId: string; token: string; rating: string }) => data)
+  .validator((data: { publicId: string; token: string; rating: string }) => data)
   .handler(async ({ data }) => {
     if (!validEmailSurveyToken(data.token)) return { valid: false as const, reason: 'invalid' as const }
 

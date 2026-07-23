@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { auth } from '@clerk/tanstack-react-start/server'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '../../db/index'
 import { formPageFields, formPages, formReferences } from '../../db/schema'
 import { isReferenceKey } from '../page-builder/references'
@@ -57,7 +57,7 @@ async function assertReferenceKeyAvailable(
 }
 
 export const getFormReferences = createServerFn({ method: 'GET', strict: false })
-  .inputValidator((data: { formId: number }) => data)
+  .validator((data: { formId: number }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
@@ -70,7 +70,7 @@ export const getFormReferences = createServerFn({ method: 'GET', strict: false }
   })
 
 export const createFormReference = createServerFn({ method: 'POST', strict: false })
-  .inputValidator(
+  .validator(
     (data: {
       formId: number
       key: string
@@ -107,7 +107,7 @@ export const createFormReference = createServerFn({ method: 'POST', strict: fals
   })
 
 export const updateFormReference = createServerFn({ method: 'POST', strict: false })
-  .inputValidator(
+  .validator(
     (data: {
       formId: number
       referenceId: number
@@ -153,7 +153,7 @@ export const updateFormReference = createServerFn({ method: 'POST', strict: fals
   })
 
 export const deleteFormReference = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: { formId: number; referenceId: number }) => data)
+  .validator((data: { formId: number; referenceId: number }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
@@ -165,16 +165,27 @@ export const deleteFormReference = createServerFn({ method: 'POST', strict: fals
   })
 
 export const reorderFormReferences = createServerFn({ method: 'POST', strict: false })
-  .inputValidator((data: { formId: number; referenceIds: number[] }) => data)
+  .validator((data: { formId: number; referenceIds: number[] }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
     await assertFormOwner(data.formId, userId)
-    for (let i = 0; i < data.referenceIds.length; i++) {
+    if (data.referenceIds.length > 0) {
+      const position = sql<number>`case ${sql.join(
+        data.referenceIds.map(
+          (id, index) => sql`when ${formReferences.id} = ${id} then ${index}`,
+        ),
+        sql.raw(' '),
+      )} else ${formReferences.position} end`
       await db
         .update(formReferences)
-        .set({ position: i, updatedAt: new Date() })
-        .where(and(eq(formReferences.id, data.referenceIds[i]), eq(formReferences.formId, data.formId)))
+        .set({ position, updatedAt: new Date() })
+        .where(
+          and(
+            eq(formReferences.formId, data.formId),
+            inArray(formReferences.id, data.referenceIds),
+          ),
+        )
     }
     return { success: true }
   })

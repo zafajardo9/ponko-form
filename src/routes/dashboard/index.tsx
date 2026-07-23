@@ -1,12 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireAuth } from "../../lib/server-fns/auth";
 import { useQuery } from "@tanstack/react-query";
-import {
-  getDashboardStats,
-  getSubmissionsOverTime,
-  getRevenueOverTime,
-  getFormAnalytics,
-} from "../../lib/server-fns/dashboard";
+import { getDashboardOverview } from "../../lib/server-fns/dashboard";
 import {
   FileText,
   DollarSign,
@@ -14,25 +9,12 @@ import {
   CheckCircle2,
   BarChart3,
 } from "lucide-react";
-import { format, subDays } from "date-fns";
-import { useState, useEffect, type ReactNode } from "react";
-
-// ── Client-only wrapper ──
-
-function ClientOnly({
-  children,
-  fallback,
-}: {
-  children: ReactNode;
-  fallback?: ReactNode;
-}) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-  if (!mounted) return fallback ?? null;
-  return children;
-}
+import { TimeSeriesChart } from "../../components/dashboard/TimeSeriesChart";
+import { Button } from "../../components/ui/Button";
+import {
+  fillDashboardDateGaps,
+  formatDashboardDate,
+} from "../../lib/dashboard-analytics";
 
 // ── Sub-components ──
 
@@ -85,163 +67,6 @@ function formatCents(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-function ChartSkeleton() {
-  return <div className="h-64 animate-pulse rounded-lg bg-[#efe9de]" />;
-}
-
-function fillDateGaps<T extends Record<string, unknown>>(
-  data: (T & { date: string })[],
-  days: number,
-  defaultValue: T,
-): (T & { date: string })[] {
-  const map = new Map(data.map((d) => [d.date, d]));
-  const result: (T & { date: string })[] = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const date = format(subDays(new Date(), i), "yyyy-MM-dd");
-    result.push(
-      map.get(date) ?? ({ date, ...defaultValue } as T & { date: string }),
-    );
-  }
-  return result;
-}
-
-// ── Lazy chart component to avoid SSR issues ──
-
-function SubmissionsChart({
-  data,
-}: {
-  data: { date: string; count: number }[];
-}) {
-  const [mod, setMod] = useState<any>(null);
-  useEffect(() => {
-    import("recharts").then((m) => setMod(m));
-  }, []);
-  if (!mod) return <ChartSkeleton />;
-  const {
-    AreaChart,
-    Area,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-  } = mod;
-  return (
-    <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={data}>
-        <defs>
-          <linearGradient id="subGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#6b8f71" stopOpacity={0.2} />
-            <stop offset="95%" stopColor="#6b8f71" stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <CartesianGrid stroke="#e6dfd8" strokeDasharray="3 3" />
-        <XAxis
-          dataKey="date"
-          tick={{ fontSize: 11, fill: "#6c6a64" }}
-          tickFormatter={(d: string) => format(new Date(d), "MMM d")}
-          interval="preserveStartEnd"
-        />
-        <YAxis
-          tick={{ fontSize: 11, fill: "#6c6a64" }}
-          allowDecimals={false}
-          width={32}
-        />
-        <Tooltip
-          content={
-            <ChartTooltip
-              valueFormatter={(v) => `${v} submissions`}
-              labelFormatter={(l) => format(new Date(l), "MMM d, yyyy")}
-            />
-          }
-        />
-        <Area
-          type="monotone"
-          dataKey="count"
-          stroke="#6b8f71"
-          strokeWidth={2}
-          fill="url(#subGrad)"
-        />
-      </AreaChart>
-    </ResponsiveContainer>
-  );
-}
-
-function RevenueChart({ data }: { data: { date: string; amount: number }[] }) {
-  const [mod, setMod] = useState<any>(null);
-  useEffect(() => {
-    import("recharts").then((m) => setMod(m));
-  }, []);
-  if (!mod) return <ChartSkeleton />;
-  const {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-  } = mod;
-  return (
-    <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data}>
-        <CartesianGrid stroke="#e6dfd8" strokeDasharray="3 3" />
-        <XAxis
-          dataKey="date"
-          tick={{ fontSize: 11, fill: "#6c6a64" }}
-          tickFormatter={(d: string) => format(new Date(d), "MMM d")}
-          interval="preserveStartEnd"
-        />
-        <YAxis
-          tick={{ fontSize: 11, fill: "#6c6a64" }}
-          tickFormatter={(v: number) => `$${v}`}
-          width={40}
-        />
-        <Tooltip
-          content={
-            <ChartTooltip
-              valueFormatter={(v) => formatCents(v * 100)}
-              labelFormatter={(l) => format(new Date(l), "MMM d, yyyy")}
-            />
-          }
-        />
-        <Bar
-          dataKey="amount"
-          fill="#cc785c"
-          radius={[4, 4, 0, 0]}
-          maxBarSize={24}
-        />
-      </BarChart>
-    </ResponsiveContainer>
-  );
-}
-
-interface ChartTooltipProps {
-  active?: boolean;
-  payload?: { value: number }[];
-  label?: string;
-  valueFormatter?: (v: number) => string;
-  labelFormatter?: (l: string) => string;
-}
-
-function ChartTooltip({
-  active,
-  payload,
-  label,
-  valueFormatter = (v) => String(v),
-  labelFormatter = (l) => l,
-}: ChartTooltipProps) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-lg border border-[#e6dfd8] bg-white px-3 py-2 shadow-sm">
-      <p className="text-xs text-[#6c6a64]">{labelFormatter(label ?? "")}</p>
-      <p className="text-sm font-semibold text-[#141413]">
-        {valueFormatter(payload[0].value)}
-      </p>
-    </div>
-  );
-}
-
 // ── Route ──
 
 export const Route = createFileRoute("/dashboard/")({
@@ -252,36 +77,32 @@ export const Route = createFileRoute("/dashboard/")({
 // ── Main Dashboard ──
 
 function DashboardPage() {
-  const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ["dashboard-stats"],
-    queryFn: () => getDashboardStats(),
+  const {
+    data: dashboard,
+    isLoading: statsLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["dashboard-overview"],
+    queryFn: () => getDashboardOverview(),
+    staleTime: 30_000,
   });
-
-  const { data: submissionsTimeSeries } = useQuery({
-    queryKey: ["dashboard-submissions-time"],
-    queryFn: () => getSubmissionsOverTime(),
-  });
-
-  const { data: revenueTimeSeries } = useQuery({
-    queryKey: ["dashboard-revenue-time"],
-    queryFn: () => getRevenueOverTime(),
-  });
-
-  const { data: formAnalytics } = useQuery({
-    queryKey: ["dashboard-form-analytics"],
-    queryFn: () => getFormAnalytics(),
-  });
+  const stats = dashboard?.stats;
+  const submissionsTimeSeries = dashboard?.submissions;
+  const revenueTimeSeries = dashboard?.revenue;
+  const formAnalytics = dashboard?.forms;
 
   const hasData =
     stats && (stats.totalSubmissions > 0 || stats.totalPayments > 0);
 
-  const subChartData = fillDateGaps(
+  const subChartData = fillDashboardDateGaps(
     (submissionsTimeSeries ?? []).map((p) => ({ ...p })),
     30,
     { count: 0 },
   );
 
-  const revChartData = fillDateGaps(
+  const revChartData = fillDashboardDateGaps(
     (revenueTimeSeries ?? []).map((p) => ({
       date: p.date,
       amount: p.amount / 100,
@@ -307,6 +128,27 @@ function DashboardPage() {
               className="h-28 animate-pulse rounded-xl bg-[#efe9de]"
             />
           ))}
+        </div>
+      ) : isError ? (
+        <div
+          role="alert"
+          className="rounded-xl border border-[#d7a84c] bg-[#fff8e7] p-6 text-[#6b4f16]"
+        >
+          <h2 className="font-medium text-[#141413]">
+            Dashboard data could not be loaded
+          </h2>
+          <p className="mt-1 text-sm">
+            {(error as Error)?.message ||
+              "Your connection may still be recovering. Try again in a moment."}
+          </p>
+          <Button
+            type="button"
+            variant="secondary"
+            className="mt-4"
+            onClick={() => void refetch()}
+          >
+            Try again
+          </Button>
         </div>
       ) : !hasData ? (
         <EmptyDashboard />
@@ -352,10 +194,21 @@ function DashboardPage() {
               <h3 className="mb-4 text-sm font-semibold text-[#141413]">
                 Submissions (Last 30 Days)
               </h3>
-              <div className="h-64">
-                <ClientOnly fallback={<ChartSkeleton />}>
-                  <SubmissionsChart data={subChartData} />
-                </ClientOnly>
+              <div className="h-48 sm:h-64">
+                <TimeSeriesChart
+                  data={subChartData.map((point) => ({
+                    date: point.date,
+                    value: point.count,
+                  }))}
+                  kind="area"
+                  color="#6b8f71"
+                  label="Submissions during the last 30 days"
+                  valueLabel={(value) =>
+                    `${value} ${value === 1 ? "submission" : "submissions"}`
+                  }
+                  axisLabel={(value) => String(Math.round(value))}
+                  integerValues
+                />
               </div>
             </div>
 
@@ -363,10 +216,18 @@ function DashboardPage() {
               <h3 className="mb-4 text-sm font-semibold text-[#141413]">
                 Revenue (Last 30 Days)
               </h3>
-              <div className="h-64">
-                <ClientOnly fallback={<ChartSkeleton />}>
-                  <RevenueChart data={revChartData} />
-                </ClientOnly>
+              <div className="h-48 sm:h-64">
+                <TimeSeriesChart
+                  data={revChartData.map((point) => ({
+                    date: point.date,
+                    value: point.amount,
+                  }))}
+                  kind="bar"
+                  color="#cc785c"
+                  label="Revenue during the last 30 days"
+                  valueLabel={(value) => formatCents(value * 100)}
+                  axisLabel={(value) => `$${Math.round(value)}`}
+                />
               </div>
             </div>
           </div>
@@ -430,10 +291,7 @@ function DashboardPage() {
                         </td>
                         <td className="px-5 py-3 text-right text-[#6c6a64]">
                           {form.lastSubmissionAt
-                            ? format(
-                                new Date(form.lastSubmissionAt),
-                                "MMM d, yyyy",
-                              )
+                            ? formatDashboardDate(form.lastSubmissionAt)
                             : "—"}
                         </td>
                       </tr>

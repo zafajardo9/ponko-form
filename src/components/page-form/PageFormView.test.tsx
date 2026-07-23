@@ -16,6 +16,8 @@ const serverFns = vi.hoisted(() => ({
   initiatePagePayment: vi.fn(),
 }))
 
+const sessionClientToken = 'session-client-token-1234'
+
 vi.mock('../../lib/server-fns/page-forms', () => serverFns)
 
 vi.mock('../form-builder/fields/FieldRenderer', () => ({
@@ -119,7 +121,10 @@ function renderResumedPageForm(sessionStatus: 'in_progress' | 'completed') {
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <PageFormView resumeSessionId={10} />
+      <PageFormView
+        resumeSessionId={10}
+        resumeClientToken={sessionClientToken}
+      />
     </QueryClientProvider>,
   )
 }
@@ -207,7 +212,11 @@ describe('PageFormView session resilience', () => {
 
     await waitFor(() => expect(serverFns.completePageSubmission).toHaveBeenCalledTimes(1))
     expect(serverFns.completePageSubmission).toHaveBeenCalledWith({
-      data: { sessionId: 10, collectedData: { name: 'Ada' } },
+      data: {
+        sessionId: 10,
+        clientToken: expect.any(String),
+        collectedData: { name: 'Ada' },
+      },
     })
   })
 
@@ -221,7 +230,11 @@ describe('PageFormView session resilience', () => {
 
     expect(await screen.findByRole('heading', { name: 'Thank you!' })).toBeTruthy()
     expect(serverFns.completePageSubmission).toHaveBeenCalledWith({
-      data: { sessionId: 10, collectedData: { name: 'Ada' } },
+      data: {
+        sessionId: 10,
+        clientToken: expect.any(String),
+        collectedData: { name: 'Ada' },
+      },
     })
     expect(screen.queryByRole('button', { name: 'Submit' })).toBeNull()
   })
@@ -262,6 +275,19 @@ describe('PageFormView session resilience', () => {
         emailSurveyRating: '5',
       },
     }))
+  })
+
+  it('uses the payment-return token when resuming a session', async () => {
+    renderResumedPageForm('completed')
+
+    await waitFor(() =>
+      expect(serverFns.getPageSessionData).toHaveBeenCalledWith({
+        data: {
+          sessionId: 10,
+          clientToken: sessionClientToken,
+        },
+      }),
+    )
   })
 
   it('shows a payment preparation state until a session exists', () => {

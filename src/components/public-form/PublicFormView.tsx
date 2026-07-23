@@ -1,19 +1,27 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState, type CSSProperties } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { getFields } from '../../lib/server-fns/fields'
-import { getPublicForm } from '../../lib/server-fns/forms'
-import { getFlow } from '../../lib/server-fns/flows'
-import { getPageForm } from '../../lib/server-fns/page-forms'
+import { getPublicForm, getPublicFormRuntime } from '../../lib/server-fns/forms'
 import { submitFormResponse } from '../../lib/server-fns/submissions'
 import { getEmailSurveyPrefill } from '../../lib/server-fns/email-surveys'
 import { FieldRenderer } from '../form-builder/fields/FieldRenderer'
-import { FlowExecutionContainer } from '../flow-execution/FlowExecutionContainer'
-import { PageFormView } from '../page-form/PageFormView'
 import { validateForm } from '../../lib/form-utils'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { themeVars, type FormTheme } from '../../lib/theme'
 import type { FieldConfig, FieldValue } from '../form-builder/fields/FieldRenderer'
+import { createPublicSessionToken } from '../../lib/public-session-access'
+
+const FlowExecutionContainer = lazy(() =>
+  import('../flow-execution/FlowExecutionContainer').then((module) => ({
+    default: module.FlowExecutionContainer,
+  })),
+)
+
+const PageFormView = lazy(() =>
+  import('../page-form/PageFormView').then((module) => ({
+    default: module.PageFormView,
+  })),
+)
 
 interface PublicFormViewProps {
   publicId: string
@@ -45,6 +53,7 @@ export function PublicFormView({
   const [errors, setErrors] = useState<Record<number, string>>({})
   const [submitted, setSubmitted] = useState(false)
   const [loadingSlow, setLoadingSlow] = useState(false)
+  const [submissionClientToken] = useState(createPublicSessionToken)
 
   const formQuery = useQuery({
     queryKey: ['public-form', publicId],
@@ -78,36 +87,27 @@ export function PublicFormView({
   const resolvedFormId = form?.id
   const hasResolvedFormId = typeof resolvedFormId === 'number' && Number.isFinite(resolvedFormId)
 
-  const fieldsQuery = useQuery({
-    queryKey: ['fields', String(resolvedFormId ?? publicId)],
-    queryFn: () => getFields({ data: { formId: resolvedFormId! } }),
+  const runtimeQuery = useQuery({
+    queryKey: ['public-form-runtime', String(resolvedFormId ?? publicId)],
+    queryFn: () => getPublicFormRuntime({ data: { formId: resolvedFormId! } }),
     enabled: hasResolvedFormId,
     retry: 2,
     retryDelay: (attempt) => Math.min(750 * 2 ** attempt, 3_000),
   })
-  const { data: fields = [], isLoading: fieldsLoading } = fieldsQuery
-
-  const flowQuery = useQuery({
-    queryKey: ['flow', String(resolvedFormId ?? publicId)],
-    queryFn: () => getFlow({ data: { formId: resolvedFormId! } }),
-    enabled: hasResolvedFormId,
-    retry: 2,
-    retryDelay: (attempt) => Math.min(750 * 2 ** attempt, 3_000),
-  })
-  const { data: flow, isLoading: flowLoading } = flowQuery
-
-  const pageFormQuery = useQuery({
-    queryKey: ['page-form', String(resolvedFormId ?? publicId)],
-    queryFn: () => getPageForm({ data: { formId: resolvedFormId! } }),
-    enabled: hasResolvedFormId,
-    retry: 2,
-    retryDelay: (attempt) => Math.min(750 * 2 ** attempt, 3_000),
-  })
-  const { data: pageForm, isLoading: pagesLoading } = pageFormQuery
+  const runtime = runtimeQuery.data
+  const fields = runtime?.kind === 'legacy' ? runtime.fields : []
+  const flow = runtime?.kind === 'flow' ? runtime.flow : null
+  const pageForm = runtime?.kind === 'page' ? runtime : null
 
   const submitMutation = useMutation({
     mutationFn: (formData: Record<string, unknown>) =>
-      submitFormResponse({ data: { formId: resolvedFormId!, formData } }),
+      submitFormResponse({
+        data: {
+          formId: resolvedFormId!,
+          clientToken: submissionClientToken,
+          formData,
+        },
+      }),
     onSuccess: () => setSubmitted(true),
   })
 
@@ -124,9 +124,9 @@ export function PublicFormView({
     ? 'w-full'
     : 'flex min-h-screen items-center bg-[var(--ponko-bg,#faf9f5)]'
 
-  const detailsLoading = !!form && (fieldsLoading || flowLoading || pagesLoading)
+  const detailsLoading = !!form && runtimeQuery.isLoading
   const loading = formsLoading || detailsLoading || (hasEmailSurveyLink && emailSurveyQuery.isLoading)
-  const loadError = formQuery.error ?? fieldsQuery.error ?? flowQuery.error ?? pageFormQuery.error ?? emailSurveyQuery.error
+  const loadError = formQuery.error ?? runtimeQuery.error ?? emailSurveyQuery.error
 
   useEffect(() => {
     if (!loading) {
@@ -139,9 +139,7 @@ export function PublicFormView({
 
   function retryFailedQueries() {
     if (formQuery.isError) void formQuery.refetch()
-    if (fieldsQuery.isError) void fieldsQuery.refetch()
-    if (flowQuery.isError) void flowQuery.refetch()
-    if (pageFormQuery.isError) void pageFormQuery.refetch()
+    if (runtimeQuery.isError) void runtimeQuery.refetch()
     if (emailSurveyQuery.isError) void emailSurveyQuery.refetch()
   }
 
@@ -204,39 +202,43 @@ export function PublicFormView({
     )
   }
 
-  if (pageForm?.pages.length) {
+  if (pageForm?.pages?.length) {
     return (
-      <PageFormView
-        formId={resolvedFormId!}
-        title={form.title}
-        description={form.description}
-        pages={pageForm.pages}
-        references={pageForm.references ?? []}
-        recaptchaSiteKey={pageForm.recaptchaSiteKey}
-        theme={theme}
-        embed={embed}
-        emailSurvey={emailSurveyQuery.data?.valid ? {
-          token: emailSurveyToken!,
-          rating: emailSurveyQuery.data.rating,
-          bindVariable: emailSurveyQuery.data.bindVariable,
-        } : undefined}
-      />
+      <Suspense fallback={<RuntimeLoadingScreen outerClass={outerClass} wrapperClass={wrapperClass} themed={themed} title={form.title} />}>
+        <PageFormView
+          formId={resolvedFormId!}
+          title={form.title}
+          description={form.description}
+          pages={pageForm.pages}
+          references={pageForm.references ?? []}
+          recaptchaSiteKey={pageForm.recaptchaSiteKey}
+          theme={theme}
+          embed={embed}
+          emailSurvey={emailSurveyQuery.data?.valid ? {
+            token: emailSurveyToken!,
+            rating: emailSurveyQuery.data.rating,
+            bindVariable: emailSurveyQuery.data.bindVariable,
+          } : undefined}
+        />
+      </Suspense>
     )
   }
 
   // Flow-powered legacy forms render the step-by-step runtime instead of the linear form.
   if (flow) {
     return (
-      <FlowExecutionContainer
-        flowId={flow.flow.id}
-        title={form.title}
-        description={form.description}
-        nodes={flow.nodes}
-        edges={flow.edges}
-        variables={flow.variables}
-        theme={theme}
-        embed={embed}
-      />
+      <Suspense fallback={<RuntimeLoadingScreen outerClass={outerClass} wrapperClass={wrapperClass} themed={themed} title={form.title} />}>
+        <FlowExecutionContainer
+          flowId={flow.flow.id}
+          title={form.title}
+          description={form.description}
+          nodes={flow.nodes}
+          edges={flow.edges}
+          variables={flow.variables}
+          theme={theme}
+          embed={embed}
+        />
+      </Suspense>
     )
   }
 
@@ -308,6 +310,26 @@ export function PublicFormView({
             </Button>
           </form>
         </Card>
+      </div>
+    </div>
+  )
+}
+
+function RuntimeLoadingScreen({
+  outerClass,
+  wrapperClass,
+  themed,
+  title,
+}: {
+  outerClass: string
+  wrapperClass: string
+  themed: CSSProperties
+  title: string
+}) {
+  return (
+    <div className={outerClass} style={themed}>
+      <div className={wrapperClass}>
+        <FormLoadingScreen title={title} loadingSlow={false} />
       </div>
     </div>
   )

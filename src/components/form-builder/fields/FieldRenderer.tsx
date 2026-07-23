@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { StarIcon } from '../../ui/StarIcon'
 import { SVG_STAR_MARKER } from '../../../lib/page-builder/satisfaction'
+import type { FieldValidationRules } from '../../../lib/page-builder/types'
 
 export interface AddressValue {
   currentAddress?: string
@@ -38,6 +39,7 @@ export interface FieldConfig {
   placeholder?: string | null
   required: boolean
   options?: FieldOption[] | null | undefined
+  validationRules?: FieldValidationRules | null
 }
 
 interface FieldRendererProps {
@@ -88,6 +90,26 @@ function isImageUrl(value: string): boolean {
 
 export function FieldRenderer({ field, value, onChange, error, readOnly }: FieldRendererProps) {
   const [hoveredRating, setHoveredRating] = useState<number | null>(null)
+  const inputId = `field-input-${field.id}`
+  const labelId = `field-label-${field.id}`
+  const errorId = `field-error-${field.id}`
+  const hasSingleInput = [
+    'text',
+    'email',
+    'number',
+    'textarea',
+    'select',
+    'date',
+    'time',
+    'datetime',
+    'file_upload',
+  ].includes(field.type)
+  const inputAccessibility = {
+    id: inputId,
+    required: field.required,
+    'aria-invalid': error ? true : undefined,
+    'aria-describedby': error ? errorId : undefined,
+  }
   const inputBase =
     'w-full rounded-[var(--ponko-radius,6px)] border border-[#e6dfd8] bg-[#faf9f5] px-3.5 py-2.5 text-sm text-[#141413] placeholder:text-[#8e8b82] outline-none focus:border-[var(--ponko-primary,#cc785c)] focus:ring-2 focus:ring-[var(--ponko-primary-soft,#cc785c29)] transition-colors disabled:opacity-60'
 
@@ -202,438 +224,459 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
   }
 
   if (field.type === 'computation') {
+    const comp = field.validationRules?.computation
+    // Hidden computation — still runs server-side but not shown to respondent
+    if (comp?.visible === false) return null
+
+    const isText = comp?.outputMode === 'text'
+    const strVal = String(value ?? '')
     const amount = Number(value ?? 0)
-    const display = Number.isFinite(amount)
-      ? new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)
-      : '0.00'
+    const display = isText
+      ? strVal || '—'
+      : Number.isFinite(amount)
+        ? new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)
+        : '0.00'
+
     return (
       <div className="rounded-[var(--ponko-radius,6px)] border border-[#e6dfd8] bg-[#faf9f5] p-4">
-        <p className="text-sm font-medium text-[#141413]">{field.label || 'Total'}</p>
+        <p className="text-sm font-medium text-[#141413]">{field.label || (isText ? 'Combined' : 'Total')}</p>
         {field.placeholder && <p className="mt-1 text-xs text-[#8e8b82]">{field.placeholder}</p>}
-        <p className="mt-3 text-3xl font-medium text-[#141413]">{display}</p>
+        <p className={isText ? 'mt-2 text-lg font-medium text-[#141413]' : 'mt-3 text-3xl font-medium text-[#141413]'}>
+          {display}
+        </p>
       </div>
     )
   }
 
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
-      <label className="break-words text-sm font-medium text-[#141413]">
-        {field.label}
-        {field.required && <span className="ml-0.5 text-[#c64545]">*</span>}
-      </label>
+      {hasSingleInput ? (
+        <>
+          <label htmlFor={inputId} id={labelId} className="text-sm font-medium text-[#141413]">
+            {field.label || 'Untitled field'}
+            {field.required && <span aria-hidden="true" className="ml-1 text-[#c64545]">*</span>}
+          </label>
+          {error && (
+            <p id={errorId} role="alert" className="text-sm text-[#c64545]">
+              {error}
+            </p>
+          )}
+          {field.type === 'text' && (
+            <input
+              type="text"
+              placeholder={field.placeholder ?? ''}
+              value={strValue}
+              onChange={(e) => onChange(e.target.value)}
+              disabled={readOnly}
+              className={`${inputBase} ${errorClass} h-10`}
+              {...inputAccessibility}
+            />
+          )}
 
-      {field.type === 'text' && (
-        <input
-          type="text"
-          placeholder={field.placeholder ?? ''}
-          value={strValue}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={readOnly}
-          className={`${inputBase} ${errorClass} h-10`}
-        />
-      )}
+          {field.type === 'email' && (
+            <input
+              type="email"
+              placeholder={field.placeholder ?? 'email@example.com'}
+              value={strValue}
+              onChange={(e) => onChange(e.target.value)}
+              disabled={readOnly}
+              className={`${inputBase} ${errorClass} h-10`}
+              {...inputAccessibility}
+            />
+          )}
 
-      {field.type === 'email' && (
-        <input
-          type="email"
-          placeholder={field.placeholder ?? 'email@example.com'}
-          value={strValue}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={readOnly}
-          className={`${inputBase} ${errorClass} h-10`}
-        />
-      )}
+          {field.type === 'number' && (
+            <input
+              type="number"
+              placeholder={field.placeholder ?? ''}
+              value={strValue}
+              onChange={(e) => onChange(e.target.value)}
+              disabled={readOnly}
+              className={`${inputBase} ${errorClass} h-10`}
+              {...inputAccessibility}
+            />
+          )}
 
-      {field.type === 'number' && (
-        <input
-          type="number"
-          placeholder={field.placeholder ?? ''}
-          value={strValue}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={readOnly}
-          className={`${inputBase} ${errorClass} h-10`}
-        />
-      )}
+          {field.type === 'textarea' && (
+            <textarea
+              placeholder={field.placeholder ?? ''}
+              value={strValue}
+              onChange={(e) => onChange(e.target.value)}
+              disabled={readOnly}
+              rows={4}
+              className={`${inputBase} ${errorClass} resize-none`}
+              {...inputAccessibility}
+            />
+          )}
 
-      {field.type === 'textarea' && (
-        <textarea
-          placeholder={field.placeholder ?? ''}
-          value={strValue}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={readOnly}
-          rows={4}
-          className={`${inputBase} ${errorClass} resize-none`}
-        />
-      )}
-
-      {field.type === 'select' && (
-        <select
-          value={strValue}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={readOnly}
-          className={`${inputBase} ${errorClass} h-10`}
-        >
-          <option value="">Select an option…</option>
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      )}
-
-      {field.type === 'checkbox' && (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="group" aria-label={field.label}>
-          {options.map((opt) => {
-            const selected = arrValue.includes(opt.value)
-            return (
-            <label
-              key={opt.value}
-              className={`group flex min-h-12 cursor-pointer items-center gap-3 rounded-[var(--ponko-radius,8px)] border px-3.5 py-3 transition-all focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] ${
-                selected
-                  ? 'border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary-soft,#cc785c29)] shadow-sm'
-                  : 'border-[#e6dfd8] bg-[#faf9f5] hover:border-[#cfc4b8] hover:bg-white'
-              } ${readOnly ? 'cursor-not-allowed opacity-60' : ''}`}
+          {field.type === 'select' && (
+            <select
+              value={strValue}
+              onChange={(e) => onChange(e.target.value)}
+              disabled={readOnly}
+              className={`${inputBase} ${errorClass} h-10`}
+              {...inputAccessibility}
             >
-              <input
-                type="checkbox"
-                value={opt.value}
-                checked={selected}
-                disabled={readOnly}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    onChange([...arrValue, opt.value])
-                  } else {
-                    onChange(arrValue.filter((v) => v !== opt.value))
-                  }
-                }}
-                className="peer sr-only"
-              />
-              <span
-                aria-hidden="true"
-                className={`flex h-5 w-5 flex-none items-center justify-center rounded-md border transition-colors ${
-                  selected
-                    ? 'border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary,#cc785c)] text-white'
-                    : 'border-[#cfc4b8] bg-white text-transparent group-hover:border-[var(--ponko-primary,#cc785c)]'
-                }`}
-              >
-                <Check size={14} strokeWidth={3} />
-              </span>
-              <span className="text-sm font-medium leading-5 text-[#3d3d3a]">{opt.label}</span>
-            </label>
-          )})}
-        </div>
-      )}
+              {!field.required && <option value="">{field.placeholder || 'Select…'}</option>}
+              {options.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label} {opt.price != null ? formatMoney(opt.price, 'PHP') : ''}
+                </option>
+              ))}
+            </select>
+          )}
 
-      {field.type === 'radio' && (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup" aria-label={field.label}>
-          {options.map((opt) => {
-            const selected = strValue === opt.value
-            return (
-            <label
-              key={opt.value}
-              className={`group flex min-h-12 cursor-pointer items-center gap-3 rounded-[var(--ponko-radius,8px)] border px-3.5 py-3 transition-all focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] ${
-                selected
-                  ? 'border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary-soft,#cc785c29)] shadow-sm'
-                  : 'border-[#e6dfd8] bg-[#faf9f5] hover:border-[#cfc4b8] hover:bg-white'
-              } ${readOnly ? 'cursor-not-allowed opacity-60' : ''}`}
-            >
-              <input
-                type="radio"
-                name={`field-${field.id}`}
-                value={opt.value}
-                checked={selected}
-                disabled={readOnly}
-                onChange={() => onChange(opt.value)}
-                className="peer sr-only"
-              />
-              <span
-                aria-hidden="true"
-                className={`flex h-5 w-5 flex-none items-center justify-center rounded-full border transition-colors ${
-                  selected
-                    ? 'border-[var(--ponko-primary,#cc785c)] bg-white'
-                    : 'border-[#cfc4b8] bg-white group-hover:border-[var(--ponko-primary,#cc785c)]'
-                }`}
-              >
-                <span className={`h-2.5 w-2.5 rounded-full bg-[var(--ponko-primary,#cc785c)] transition-transform ${selected ? 'scale-100' : 'scale-0'}`} />
-              </span>
-              <span className="text-sm font-medium leading-5 text-[#3d3d3a]">{opt.label}</span>
-            </label>
-          )})}
-        </div>
-      )}
-
-      {field.type === 'satisfaction' && (
-        usesSvgStars ? (
-          <div
-            className={`flex w-full max-w-full items-center justify-center gap-1 py-1 sm:gap-2 ${readOnly ? 'opacity-60' : ''}`}
-            role="radiogroup"
-            aria-label={field.label}
-            aria-invalid={Boolean(error)}
-            onMouseLeave={() => setHoveredRating(null)}
-          >
-            {options.map((opt) => {
-              const ratingValue = Number(opt.value)
-              const activeRating = hoveredRating ?? Number(strValue)
-              const active = Number.isFinite(ratingValue) && ratingValue <= activeRating
-              return (
+          {field.type === 'date' && (
+            <div className={readOnly ? 'opacity-60' : ''}>
+              <div className="flex items-stretch gap-2">
                 <label
-                  key={opt.value}
-                  title={opt.label}
-                  onMouseEnter={() => setHoveredRating(ratingValue)}
-                  onFocus={() => setHoveredRating(ratingValue)}
-                  onBlur={() => setHoveredRating(null)}
-                  className={`group flex h-10 w-10 cursor-pointer items-center justify-center transition-[color,transform] duration-150 motion-reduce:transition-none sm:h-11 sm:w-11 ${
-                    active
-                      ? 'text-[var(--ponko-primary,#cc785c)]'
-                      : 'text-[#c8beb3] hover:text-[var(--ponko-primary,#cc785c)]'
+                  className={`flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-[var(--ponko-radius,8px)] border bg-[#faf9f5] px-3 transition-all hover:border-[#cfc4b8] focus-within:border-[var(--ponko-primary,#cc785c)] focus-within:bg-white focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] ${
+                    error ? 'border-[#c64545]' : 'border-[#e6dfd8]'
                   } ${readOnly ? 'cursor-not-allowed' : ''}`}
                 >
                   <input
-                    type="radio"
-                    name={`field-${field.id}`}
-                    value={opt.value}
-                    checked={strValue === opt.value}
+                    type="date"
+                    value={strValue}
+                    aria-label={field.label}
+                    onChange={(e) => onChange(e.target.value)}
                     disabled={readOnly}
-                    onChange={() => onChange(opt.value)}
-                    aria-label={opt.label}
-                    className="sr-only"
-                  />
-                  <StarIcon
-                    size={28}
-                    filled={active}
-                    className="h-7 w-7 rounded-sm transition-transform duration-150 group-active:scale-90 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4 peer-focus-visible:outline-[var(--ponko-primary,#cc785c)] motion-reduce:transition-none sm:h-8 sm:w-8"
+                    className="min-w-0 flex-1 cursor-pointer bg-transparent py-3 text-sm font-medium text-[#141413] outline-none [color-scheme:light] disabled:cursor-not-allowed"
+                    {...inputAccessibility}
                   />
                 </label>
-              )
-            })}
-          </div>
-        ) : (
-          <div
-            className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(2.5rem,1fr))] gap-1 sm:gap-2"
-            role="radiogroup"
-            aria-label={field.label}
-          >
-            {options.map((opt) => {
-            const selected = strValue === opt.value
-            const visual = opt.emoji?.trim() || opt.value
-            return (
-              <label
-                key={opt.value}
-                title={opt.label}
-                className={`group flex min-h-11 min-w-0 cursor-pointer items-center justify-center rounded-full p-1 text-center transition-all focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] sm:min-h-14 sm:p-2 ${
-                  selected
-                    ? 'scale-110 opacity-100 drop-shadow-sm'
-                    : 'opacity-65 hover:scale-105 hover:opacity-100'
-                } ${readOnly ? 'cursor-not-allowed opacity-60' : ''}`}
-              >
-                <input
-                  type="radio"
-                  name={`field-${field.id}`}
-                  value={opt.value}
-                  checked={selected}
-                  disabled={readOnly}
-                  onChange={() => onChange(opt.value)}
-                  className="peer sr-only"
-                />
-                {isImageUrl(visual) ? (
-                  <img src={visual} alt="" className="h-7 w-7 object-contain sm:h-9 sm:w-9" />
-                ) : (
-                  <span aria-hidden="true" className="whitespace-nowrap text-xl leading-none text-[#d59b25] sm:text-2xl">
-                    {visual}
-                  </span>
+                {strValue && !readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => onChange('')}
+                    className="flex h-12 w-10 items-center justify-center rounded-[var(--ponko-radius,8px)] text-[#8e8b82] transition-colors hover:text-[#141413] focus:ring-2 focus:ring-[var(--ponko-primary-soft,#cc785c29)]"
+                    aria-label={`Clear ${field.label || 'date'}`}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
                 )}
-                <span className="sr-only">{opt.label}</span>
-              </label>
-            )
-            })}
-          </div>
-        )
-      )}
-
-      {field.type === 'date' && (
-        <div className={readOnly ? 'opacity-60' : ''}>
-          <div className="flex items-stretch gap-2">
-            <label
-              className={`flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-[var(--ponko-radius,8px)] border bg-[#faf9f5] px-3 transition-all hover:border-[#cfc4b8] focus-within:border-[var(--ponko-primary,#cc785c)] focus-within:bg-white focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] ${
-                error ? 'border-[#c64545]' : 'border-[#e6dfd8]'
-              } ${readOnly ? 'cursor-not-allowed' : ''}`}
-            >
-              <span className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-[var(--ponko-primary-soft,#cc785c29)] text-[var(--ponko-primary,#cc785c)]">
-                <CalendarDays size={18} />
-              </span>
-              <input
-                type="date"
-                value={strValue}
-                aria-label={field.label}
-                onChange={(e) => onChange(e.target.value)}
-                disabled={readOnly}
-                className="min-w-0 flex-1 cursor-pointer bg-transparent py-3 text-sm font-medium text-[#141413] outline-none [color-scheme:light] disabled:cursor-not-allowed"
-              />
-            </label>
-            {strValue && !readOnly && (
-              <button
-                type="button"
-                onClick={() => onChange('')}
-                className="flex w-12 flex-none items-center justify-center rounded-[var(--ponko-radius,8px)] border border-[#e6dfd8] bg-[#faf9f5] text-[#8e8b82] transition-colors hover:border-[#cfc4b8] hover:bg-white hover:text-[#141413] focus:outline-none focus:ring-2 focus:ring-[var(--ponko-primary-soft,#cc785c29)]"
-                aria-label={`Clear ${field.label}`}
-              >
-                <X size={16} />
-              </button>
-            )}
-          </div>
-          {strValue && (
-            <p className="mt-1.5 text-xs text-[#6c6a64]">Selected: {formatDateValue(strValue)}</p>
-          )}
-        </div>
-      )}
-
-      {field.type === 'time' && (
-        <input
-          type="time"
-          value={strValue}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={readOnly}
-          className={`${inputBase} ${errorClass} h-10`}
-        />
-      )}
-
-      {field.type === 'datetime' && (
-        <input
-          type="datetime-local"
-          value={strValue}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={readOnly}
-          className={`${inputBase} ${errorClass} h-10`}
-        />
-      )}
-
-      {field.type === 'address' && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="flex flex-col gap-1.5 sm:col-span-2">
-            <span className="text-xs font-medium text-[#6c6a64]">Current Address</span>
-            <input
-              type="text"
-              value={addressValue.currentAddress ?? ''}
-              onChange={(e) => onChange({ ...addressValue, currentAddress: e.target.value })}
-              disabled={readOnly}
-              className={`${inputBase} ${errorClass} h-10`}
-            />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-[#6c6a64]">Apartment</span>
-            <input
-              type="text"
-              value={addressValue.apartment ?? ''}
-              onChange={(e) => onChange({ ...addressValue, apartment: e.target.value })}
-              disabled={readOnly}
-              className={`${inputBase} ${errorClass} h-10`}
-            />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-[#6c6a64]">City</span>
-            <input
-              type="text"
-              value={addressValue.city ?? ''}
-              onChange={(e) => onChange({ ...addressValue, city: e.target.value })}
-              disabled={readOnly}
-              className={`${inputBase} ${errorClass} h-10`}
-            />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-[#6c6a64]">State/Province</span>
-            <input
-              type="text"
-              value={addressValue.stateProvince ?? ''}
-              onChange={(e) => onChange({ ...addressValue, stateProvince: e.target.value })}
-              disabled={readOnly}
-              className={`${inputBase} ${errorClass} h-10`}
-            />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-[#6c6a64]">ZIP/Postal Code</span>
-            <input
-              type="text"
-              value={addressValue.zipPostalCode ?? ''}
-              onChange={(e) => onChange({ ...addressValue, zipPostalCode: e.target.value })}
-              disabled={readOnly}
-              className={`${inputBase} ${errorClass} h-10`}
-            />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-[#6c6a64]">Country</span>
-            <input
-              type="text"
-              value={addressValue.country ?? 'Philippines'}
-              onChange={(e) => onChange({ ...addressValue, country: e.target.value })}
-              disabled={readOnly}
-              className={`${inputBase} ${errorClass} h-10`}
-            />
-          </label>
-        </div>
-      )}
-
-      {field.type === 'file_upload' && (
-        <div className="flex flex-col gap-3">
-          <label
-            onDragOver={(event) => {
-              event.preventDefault()
-            }}
-            onDrop={(event) => {
-              event.preventDefault()
-              if (!readOnly) handleFiles(event.dataTransfer.files)
-            }}
-            className={`flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-[var(--ponko-radius,8px)] border border-dashed bg-[#faf9f5] px-4 py-6 text-center transition-colors ${
-              error
-                ? 'border-[#c64545] ring-2 ring-[#c64545]/10'
-                : 'border-[#d8cec3] hover:border-[var(--ponko-primary,#cc785c)] hover:bg-white'
-            } ${readOnly ? 'cursor-not-allowed opacity-60' : ''}`}
-          >
-            <input
-              type="file"
-              accept={uploadAccept}
-              multiple={uploadMultiple}
-              disabled={readOnly}
-              onChange={(event) => event.target.files && handleFiles(event.target.files)}
-              className="sr-only"
-            />
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--ponko-primary-soft,#cc785c29)] text-lg text-[var(--ponko-primary,#cc785c)]">
-              ↑
-            </span>
-            <span className="mt-3 text-sm font-medium text-[#141413]">
-              Drop files here or click to browse
-            </span>
-            <span className="mt-1 text-xs text-[#8e8b82]">
-              {uploadMultiple ? 'Multiple files allowed' : 'One file allowed'}
-              {uploadAccept ? ` · ${uploadAccept}` : ''}
-            </span>
-          </label>
-          {uploadFiles.length > 0 && (
-            <div className="rounded-[var(--ponko-radius,8px)] border border-[#e6dfd8] bg-white">
-              {uploadFiles.map((file, index) => (
-                <div key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center justify-between gap-3 border-b border-[#efe9de] px-3 py-2 last:border-b-0">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-[#141413]">{file.name}</p>
-                    <p className="text-xs text-[#8e8b82]">{formatFileSize(file.size)}{file.type ? ` · ${file.type}` : ''}</p>
-                  </div>
-                  {!readOnly && (
-                    <button
-                      type="button"
-                      onClick={() => onChange(uploadFiles.filter((_, itemIndex) => itemIndex !== index))}
-                      className="rounded-md px-2 py-1 text-xs text-[#c64545] hover:bg-[#fbeaea]"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              ))}
+              </div>
+              {strValue && <p className="mt-1.5 text-xs text-[#6c6a64]">{formatDateValue(strValue)}</p>}
             </div>
           )}
-        </div>
-      )}
 
-      {error && <p className="text-xs text-[#c64545]">{error}</p>}
+          {field.type === 'time' && (
+            <input
+              type="time"
+              value={strValue}
+              onChange={(e) => onChange(e.target.value)}
+              disabled={readOnly}
+              className={`${inputBase} ${errorClass} h-10`}
+              {...inputAccessibility}
+            />
+          )}
+
+          {field.type === 'datetime' && (
+            <input
+              type="datetime-local"
+              value={strValue}
+              onChange={(e) => onChange(e.target.value)}
+              disabled={readOnly}
+              className={`${inputBase} ${errorClass} h-10`}
+              {...inputAccessibility}
+            />
+          )}
+
+          {field.type === 'file_upload' && (
+            <div className="flex flex-col gap-2">
+              <label
+                className={`flex min-h-[52px] cursor-pointer items-center justify-center gap-2 rounded-[var(--ponko-radius,8px)] border-2 border-dashed px-4 py-3 text-sm text-[#6c6a64] transition-colors hover:border-[var(--ponko-primary,#cc785c)] hover:text-[var(--ponko-primary,#cc785c)] ${
+                  error ? 'border-[#c64545]' : 'border-[#e6dfd8]'
+                } ${readOnly ? 'cursor-not-allowed opacity-60' : ''}`}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                {uploadMultiple ? 'Upload files' : 'Upload a file'}
+                <input
+                  type="file"
+                  accept={uploadAccept || undefined}
+                  onChange={(e) => e.target.files && handleFiles(e.target.files)}
+                  multiple={uploadMultiple}
+                  disabled={readOnly}
+                  className="sr-only"
+                />
+              </label>
+              {uploadAccept && <p className="text-xs text-[#8e8b82]">Accepted: {uploadAccept}</p>}
+              {uploadFiles.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  {uploadFiles.map((file, i) => (
+                    <div
+                      key={`${file.name}-${file.lastModified}`}
+                      className="flex items-center gap-3 rounded-[var(--ponko-radius,8px)] border border-[#e6dfd8] bg-[#faf9f5] px-3 py-2.5"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate text-sm font-medium text-[#141413]">{file.name}</p>
+                        <p className="text-xs text-[#8e8b82]">{formatFileSize(file.size)}</p>
+                      </div>
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onChange(
+                              uploadMultiple
+                                ? uploadFiles.filter((_, fi) => fi !== i)
+                                : '',
+                            )
+                          }
+                          className="shrink-0 text-[#c64545]"
+                          aria-label={`Remove ${file.name}`}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <fieldset className="flex min-w-0 flex-col gap-1.5">
+            <legend className="text-sm font-medium text-[#141413]">
+              {field.label || 'Untitled field'}
+              {field.required && <span aria-hidden="true" className="ml-1 text-[#c64545]">*</span>}
+            </legend>
+
+            {field.type === 'checkbox' && (
+              <div
+                className="flex min-w-0 flex-col gap-3"
+                role="group"
+                aria-labelledby={labelId}
+              >
+                {options.map((opt) => {
+                  const selected = arrValue.includes(opt.value)
+                  return (
+                    <label
+                      key={opt.value}
+                      className={`group flex min-h-12 cursor-pointer items-center gap-3 rounded-[var(--ponko-radius,8px)] border px-3.5 py-3 transition-all focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] ${
+                        selected
+                          ? 'border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary-soft,#cc785c29)] shadow-sm'
+                          : 'border-[#e6dfd8] bg-[#faf9f5] hover:border-[#cfc4b8] hover:bg-white'
+                      } ${readOnly ? 'cursor-not-allowed opacity-60' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        value={opt.value}
+                        checked={selected}
+                        disabled={readOnly}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            onChange([...arrValue, opt.value])
+                          } else {
+                            onChange(arrValue.filter((v) => v !== opt.value))
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-[#cfc4b8] text-[var(--ponko-primary,#cc785c)] focus:ring-[var(--ponko-primary-soft,#cc785c29)]"
+                        {...inputAccessibility}
+                      />
+                      <span className={`text-sm ${selected ? 'font-medium text-[#141413]' : 'text-[#6c6a64]'}`}>{opt.label}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+
+            {field.type === 'radio' && (
+              <div
+                className="flex min-w-0 flex-col gap-3"
+                role="radiogroup"
+                aria-labelledby={labelId}
+              >
+                {options.map((opt) => {
+                  const selected = strValue === opt.value
+                  return (
+                    <label
+                      key={opt.value}
+                      className={`group flex min-h-12 cursor-pointer items-center gap-3 rounded-[var(--ponko-radius,8px)] border px-3.5 py-3 transition-all focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] ${
+                        selected
+                          ? 'border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary-soft,#cc785c29)] shadow-sm'
+                          : 'border-[#e6dfd8] bg-[#faf9f5] hover:border-[#cfc4b8] hover:bg-white'
+                      } ${readOnly ? 'cursor-not-allowed opacity-60' : ''}`}
+                    >
+                      <input
+                        type="radio"
+                        name={`field-${field.id}`}
+                        value={opt.value}
+                        checked={selected}
+                        disabled={readOnly}
+                        onChange={() => onChange(opt.value)}
+                        className="peer sr-only"
+                        {...inputAccessibility}
+                      />
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors peer-checked:border-[var(--ponko-primary,#cc785c)] peer-checked:bg-[var(--ponko-primary,#cc785c)] group-hover:border-[var(--ponko-primary,#cc785c)]">
+                        <span className={`h-2 w-2 rounded-full bg-white transition-transform ${selected ? 'scale-100' : 'scale-0'}`} />
+                      </span>
+                      <span className={`text-sm ${selected ? 'font-medium text-[#3d3d3a]' : 'text-[#141413]'}`}>{opt.label}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+
+            {field.type === 'satisfaction' && (
+              <div
+                className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(2.5rem,1fr))] gap-1 sm:gap-2"
+                role="radiogroup"
+                aria-label={field.label}
+              >
+                {options.map((opt) => {
+                  const actualRating = hoveredRating ?? Number(strValue)
+                  const isCurrent = strValue === opt.value
+                  const isHovering = hoveredRating !== null
+                  const visual = opt.emoji?.trim() || opt.value
+                  const ratingValue = Number(opt.value)
+                  return (
+                    <label
+                      key={opt.value}
+                      title={opt.label}
+                      className={`group flex min-h-11 min-w-0 cursor-pointer items-center justify-center rounded-full p-1 text-center transition-all focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] sm:min-h-14 sm:p-2 ${
+                        isHovering
+                          ? strValue === opt.value
+                            ? 'scale-110 opacity-100 drop-shadow-sm'
+                            : Number(opt.value) <= actualRating
+                              ? 'scale-105 opacity-85'
+                              : 'opacity-65'
+                          : isCurrent
+                            ? 'scale-110 opacity-100 drop-shadow-sm'
+                            : 'opacity-65 hover:scale-105 hover:opacity-100'
+                      } ${readOnly ? 'cursor-not-allowed opacity-60' : ''}`}
+                      onMouseEnter={readOnly ? undefined : () => setHoveredRating(ratingValue)}
+                      onMouseLeave={readOnly ? undefined : () => setHoveredRating(null)}
+                    >
+                      <input
+                        type="radio"
+                        name={`field-${field.id}`}
+                        value={opt.value}
+                        checked={isCurrent}
+                        disabled={readOnly}
+                        onChange={() => onChange(opt.value)}
+                        className="peer sr-only"
+                      />
+                      {usesSvgStars ? (
+                        <StarIcon
+                          size={28}
+                          filled={ratingValue <= actualRating}
+                          className={`h-7 w-7 sm:h-8 sm:w-8 ${
+                            ratingValue <= actualRating
+                              ? 'text-[var(--ponko-primary,#cc785c)]'
+                              : 'text-[#c8beb3]'
+                          }`}
+                        />
+                      ) : isImageUrl(visual) ? (
+                        <img src={visual} alt="" className="h-7 w-7 object-contain sm:h-9 sm:w-9" />
+                      ) : (
+                        <span aria-hidden="true" className="whitespace-nowrap text-xl leading-none text-[#d59b25] sm:text-2xl">
+                          {visual}
+                        </span>
+                      )}
+                      <span className="sr-only">{opt.label}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+
+            {field.type === 'address' && (
+              <div className="flex flex-col gap-3" role="group" aria-labelledby={labelId}>
+                {(!readOnly || addressValue.currentAddress) && (
+                  <input
+                    type="text"
+                    value={addressValue.currentAddress ?? ''}
+                    onChange={(e) => onChange({ ...addressValue, currentAddress: e.target.value })}
+                    disabled={readOnly}
+                    className={`${inputBase} ${errorClass} h-10`}
+                    placeholder="Current Address"
+                    aria-label="Current Address"
+                  />
+                )}
+                {(!readOnly || addressValue.apartment) && (
+                  <input
+                    type="text"
+                    value={addressValue.apartment ?? ''}
+                    onChange={(e) => onChange({ ...addressValue, apartment: e.target.value })}
+                    disabled={readOnly}
+                    className={`${inputBase} ${errorClass} h-10`}
+                    placeholder="Apartment, suite, etc."
+                    aria-label="Apartment"
+                  />
+                )}
+                {(!readOnly || addressValue.country) && (
+                  <input
+                    type="text"
+                    value={addressValue.country ?? ''}
+                    onChange={(e) => onChange({ ...addressValue, country: e.target.value })}
+                    disabled={readOnly}
+                    className={`${inputBase} ${errorClass} h-10`}
+                    placeholder="Country"
+                    aria-label="Country"
+                  />
+                )}
+                {(!readOnly || addressValue.city) && (
+                  <input
+                    type="text"
+                    value={addressValue.city ?? ''}
+                    onChange={(e) => onChange({ ...addressValue, city: e.target.value })}
+                    disabled={readOnly}
+                    className={`${inputBase} ${errorClass} h-10`}
+                    placeholder="City"
+                    aria-label="City"
+                  />
+                )}
+                {(!readOnly || addressValue.stateProvince) && (
+                  <input
+                    type="text"
+                    value={addressValue.stateProvince ?? ''}
+                    onChange={(e) => onChange({ ...addressValue, stateProvince: e.target.value })}
+                    disabled={readOnly}
+                    className={`${inputBase} ${errorClass} h-10`}
+                    placeholder="State/Province"
+                    aria-label="State/Province"
+                  />
+                )}
+                {(!readOnly || addressValue.zipPostalCode) && (
+                  <input
+                    type="text"
+                    value={addressValue.zipPostalCode ?? ''}
+                    onChange={(e) => onChange({ ...addressValue, zipPostalCode: e.target.value })}
+                    disabled={readOnly}
+                    className={`${inputBase} ${errorClass} h-10`}
+                    placeholder="ZIP/Postal Code"
+                    aria-label="ZIP/Postal Code"
+                  />
+                )}
+              </div>
+            )}
+
+            {field.type === 'recaptcha' && (
+              <div className="rounded-[var(--ponko-radius,6px)] border border-[#e6dfd8] bg-[#faf9f5] px-3.5 py-2.5 text-sm text-[#6c6a64]">
+                reCAPTCHA verification is required to continue.
+              </div>
+            )}
+          </fieldset>
+        </>
+      )}
     </div>
   )
 }
-import { CalendarDays, Check, X } from 'lucide-react'
+
+function formatMoney(amount: number, currency: string) {
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency,
+  }).format(amount)
+}

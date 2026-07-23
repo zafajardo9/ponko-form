@@ -12,6 +12,7 @@ import { getResumeData } from '../../lib/server-fns/payments'
 import { themeVars, type FormTheme } from '../../lib/theme'
 import { Card } from '../ui/Card'
 import { FlowStepRenderer } from './FlowStepRenderer'
+import { createPublicSessionToken } from '../../lib/public-session-access'
 
 /**
  * FlowExecutionContainer
@@ -38,6 +39,7 @@ interface FlowExecutionContainerProps {
   /** Resume mode: continue an existing execution with a known payment result. */
   resume?: {
     executionId: number
+    clientToken: string
     paymentResult: { success: boolean; gatewayPaymentId?: string }
   }
   /** Per-form theme (accent/background/corners). */
@@ -62,6 +64,9 @@ export function FlowExecutionContainer({
   const executionIdRef = useRef<number | null>(null)
   const startedRef = useRef(false)
   const completedRef = useRef(false)
+  const [executionClientToken] = useState(
+    () => resume?.clientToken ?? createPublicSessionToken(),
+  )
   const [ready, setReady] = useState(false)
   // Bumps on every navigation; `tick` re-keys the step wrapper (replaying the
   // transition) and `dir` picks the forward/back animation.
@@ -81,7 +86,12 @@ export function FlowExecutionContainer({
     ? 'w-full'
     : 'flex min-h-screen items-center bg-[var(--ponko-bg,#faf9f5)]'
 
-  const startMut = useMutation({ mutationFn: (id: number) => startFlowExecution({ data: { flowId: id } }) })
+  const startMut = useMutation({
+    mutationFn: (id: number) =>
+      startFlowExecution({
+        data: { flowId: id, clientToken: executionClientToken },
+      }),
+  })
   const advanceMut = useMutation({
     mutationFn: (vars: {
       executionId: number
@@ -89,11 +99,16 @@ export function FlowExecutionContainer({
       variables: Record<string, unknown>
       history: any[]
       status?: any
-    }) => advanceExecution({ data: vars }),
+    }) =>
+      advanceExecution({
+        data: { ...vars, clientToken: executionClientToken },
+      }),
   })
   const completeMut = useMutation({
     mutationFn: (vars: { executionId: number; variables: Record<string, unknown>; history: any[] }) =>
-      completeExecution({ data: vars }),
+      completeExecution({
+        data: { ...vars, clientToken: executionClientToken },
+      }),
   })
 
   // Initialise once: either start a new run or resume an existing one.
@@ -103,7 +118,12 @@ export function FlowExecutionContainer({
     ;(async () => {
       try {
         if (resume) {
-          const data = await getResumeData({ data: { executionId: resume.executionId } })
+          const data = await getResumeData({
+            data: {
+              executionId: resume.executionId,
+              clientToken: executionClientToken,
+            },
+          })
           executionIdRef.current = data.execution.id
           setMeta({ title: data.title, description: data.description })
           setThemeState((data.theme ?? null) as FormTheme | null)
@@ -168,7 +188,11 @@ export function FlowExecutionContainer({
           }, 1500)
         } else {
           // Otherwise show the dedicated completion / receipt page.
-          navigate({ to: '/flow/$executionId/complete', params: { executionId: String(id) } })
+          navigate({
+            to: '/flow/$executionId/complete',
+            params: { executionId: String(id) },
+            search: { executionClientToken },
+          })
         }
       },
     )
@@ -233,6 +257,7 @@ export function FlowExecutionContainer({
             values={engine.getVariableValues()}
             complete={engine.isComplete()}
             executionId={executionIdRef.current}
+            executionClientToken={executionClientToken}
             stepNumber={engine.getCurrentStepNumber()}
             totalSteps={engine.getTotalSteps()}
             canGoBack={engine.getCurrentStepNumber() > 1 && !engine.isComplete()}

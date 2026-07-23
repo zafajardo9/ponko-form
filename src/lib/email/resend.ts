@@ -7,6 +7,7 @@ export async function sendResendEmail(input: {
   html: string
   text: string
   fromName?: string | null
+  idempotencyKey?: string
 }) {
   if (!input.config.fromEmail) throw new Error('Resend verified sender email is not configured')
   const senderName = input.fromName?.trim() || input.config.fromName?.trim() || 'PonkoForm'
@@ -15,6 +16,7 @@ export async function sendResendEmail(input: {
     headers: {
       Authorization: `Bearer ${input.config.apiKey}`,
       'Content-Type': 'application/json',
+      ...(input.idempotencyKey ? { 'Idempotency-Key': input.idempotencyKey } : {}),
     },
     body: JSON.stringify({
       from: `${senderName} <${input.config.fromEmail}>`,

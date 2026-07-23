@@ -3,6 +3,10 @@ import { auth } from "@clerk/tanstack-react-start/server";
 import { db } from "../../db/index";
 import { forms, formSubmissions, payments, profiles } from "../../db/schema";
 import { eq, desc, sql, and, gte, count } from "drizzle-orm";
+import {
+  mergeFormAnalytics,
+  type FormAnalyticsRecord,
+} from "../dashboard-analytics";
 
 async function getProfileId() {
   const { userId } = await auth();
@@ -42,28 +46,18 @@ export interface RevenuePoint {
   amount: number; // in cents
 }
 
-export interface FormAnalytics {
-  id: number;
-  title: string;
-  status: string;
-  submissionCount: number;
-  completedCount: number;
-  paymentCount: number;
-  completedPaymentCount: number;
-  revenue: number; // in cents
-  lastSubmissionAt: string | null;
+export type FormAnalytics = FormAnalyticsRecord;
+
+export interface DashboardOverview {
+  stats: DashboardStats;
+  submissions: TimeSeriesPoint[];
+  revenue: RevenuePoint[];
+  forms: FormAnalytics[];
 }
 
-// ── Server Functions ──
-
-/** High-level summary stats across all of a user's forms. */
-export const getDashboardStats = createServerFn({ method: "GET" }).handler(
-  async (): Promise<DashboardStats> => {
-    const profileId = await getProfileId();
-
-
-    // Form counts
-    const [formCounts] = await db
+async function loadDashboardStats(profileId: number): Promise<DashboardStats> {
+  const [formCounts, subCounts, payCounts] = await Promise.all([
+    db
       .select({
         total: count(),
         published:
@@ -72,10 +66,9 @@ export const getDashboardStats = createServerFn({ method: "GET" }).handler(
           ),
       })
       .from(forms)
-      .where(eq(forms.profileId, profileId));
-
-    // Submission counts
-    const [subCounts] = await db
+      .where(eq(forms.profileId, profileId))
+      .then((rows) => rows[0]),
+    db
       .select({
         total: count(),
         completed:
@@ -93,10 +86,9 @@ export const getDashboardStats = createServerFn({ method: "GET" }).handler(
       })
       .from(formSubmissions)
       .innerJoin(forms, eq(formSubmissions.formId, forms.id))
-      .where(eq(forms.profileId, profileId));
-
-    // Payment counts & revenue
-    const [payCounts] = await db
+      .where(eq(forms.profileId, profileId))
+      .then((rows) => rows[0]),
+    db
       .select({
         total: count(),
         completed:
@@ -118,87 +110,77 @@ export const getDashboardStats = createServerFn({ method: "GET" }).handler(
         eq(payments.formSubmissionId, formSubmissions.id),
       )
       .innerJoin(forms, eq(formSubmissions.formId, forms.id))
-      .where(eq(forms.profileId, profileId));
+      .where(eq(forms.profileId, profileId))
+      .then((rows) => rows[0]),
+  ]);
 
-    return {
-      totalForms: formCounts.total,
-      publishedForms: formCounts.published,
-      totalSubmissions: subCounts.total,
-      completedSubmissions: subCounts.completed,
-      pendingPaymentSubmissions: subCounts.pendingPayment,
-      paymentFailedSubmissions: subCounts.paymentFailed,
-      totalPayments: payCounts.total,
-      completedPayments: payCounts.completed,
-      failedPayments: payCounts.failed,
-      totalRevenue: payCounts.totalRevenue,
-      revenueCurrency: "USD",
-    };
-  },
-);
+  return {
+    totalForms: formCounts.total,
+    publishedForms: formCounts.published,
+    totalSubmissions: subCounts.total,
+    completedSubmissions: subCounts.completed,
+    pendingPaymentSubmissions: subCounts.pendingPayment,
+    paymentFailedSubmissions: subCounts.paymentFailed,
+    totalPayments: payCounts.total,
+    completedPayments: payCounts.completed,
+    failedPayments: payCounts.failed,
+    totalRevenue: payCounts.totalRevenue,
+    revenueCurrency: "USD",
+  };
+}
 
-/** Daily submission counts for the last 30 days. */
-export const getSubmissionsOverTime = createServerFn({ method: "GET" }).handler(
-  async (): Promise<TimeSeriesPoint[]> => {
-    const profileId = await getProfileId();
+async function loadSubmissionsOverTime(
+  profileId: number,
+): Promise<TimeSeriesPoint[]> {
+  const rows = await db
+    .select({
+      date: sql<string>`DATE(${formSubmissions.submittedAt})`.mapWith(String),
+      count: count(),
+    })
+    .from(formSubmissions)
+    .innerJoin(forms, eq(formSubmissions.formId, forms.id))
+    .where(
+      and(
+        eq(forms.profileId, profileId),
+        gte(formSubmissions.submittedAt, sql`NOW() - INTERVAL '30 days'`),
+      ),
+    )
+    .groupBy(sql`DATE(${formSubmissions.submittedAt})`)
+    .orderBy(sql`DATE(${formSubmissions.submittedAt})`);
 
-    const rows = await db
-      .select({
-        date: sql<string>`DATE(${formSubmissions.submittedAt})`.mapWith(String),
-        count: count(),
-      })
-      .from(formSubmissions)
-      .innerJoin(forms, eq(formSubmissions.formId, forms.id))
-      .where(
-        and(
-          eq(forms.profileId, profileId),
-          gte(formSubmissions.submittedAt, sql`NOW() - INTERVAL '30 days'`),
-        ),
-      )
-      .groupBy(sql`DATE(${formSubmissions.submittedAt})`)
-      .orderBy(sql`DATE(${formSubmissions.submittedAt})`);
+  return rows.map((row) => ({ date: row.date, count: row.count }));
+}
 
-    return rows.map((r) => ({ date: r.date, count: r.count }));
-  },
-);
+async function loadRevenueOverTime(
+  profileId: number,
+): Promise<RevenuePoint[]> {
+  const rows = await db
+    .select({
+      date: sql<string>`DATE(${payments.createdAt})`.mapWith(String),
+      amount: sql<number>`COALESCE(SUM(${payments.amount}), 0)`.mapWith(Number),
+    })
+    .from(payments)
+    .innerJoin(
+      formSubmissions,
+      eq(payments.formSubmissionId, formSubmissions.id),
+    )
+    .innerJoin(forms, eq(formSubmissions.formId, forms.id))
+    .where(
+      and(
+        eq(forms.profileId, profileId),
+        eq(payments.status, "completed"),
+        gte(payments.createdAt, sql`NOW() - INTERVAL '30 days'`),
+      ),
+    )
+    .groupBy(sql`DATE(${payments.createdAt})`)
+    .orderBy(sql`DATE(${payments.createdAt})`);
 
-/** Daily revenue (completed payments only) for the last 30 days. */
-export const getRevenueOverTime = createServerFn({ method: "GET" }).handler(
-  async (): Promise<RevenuePoint[]> => {
-    const profileId = await getProfileId();
+  return rows.map((row) => ({ date: row.date, amount: row.amount }));
+}
 
-    const rows = await db
-      .select({
-        date: sql<string>`DATE(${payments.createdAt})`.mapWith(String),
-        amount: sql<number>`COALESCE(SUM(${payments.amount}), 0)`.mapWith(
-          Number,
-        ),
-      })
-      .from(payments)
-      .innerJoin(
-        formSubmissions,
-        eq(payments.formSubmissionId, formSubmissions.id),
-      )
-      .innerJoin(forms, eq(formSubmissions.formId, forms.id))
-      .where(
-        and(
-          eq(forms.profileId, profileId),
-          eq(payments.status, "completed"),
-          gte(payments.createdAt, sql`NOW() - INTERVAL '30 days'`),
-        ),
-      )
-      .groupBy(sql`DATE(${payments.createdAt})`)
-      .orderBy(sql`DATE(${payments.createdAt})`);
-
-    return rows.map((r) => ({ date: r.date, amount: r.amount }));
-  },
-);
-
-/** Per-form analytics for the forms table. */
-export const getFormAnalytics = createServerFn({ method: "GET" }).handler(
-  async (): Promise<FormAnalytics[]> => {
-    const profileId = await getProfileId();
-
-    const userForms = await db
+async function loadFormAnalytics(profileId: number): Promise<FormAnalytics[]> {
+  const [userForms, submissionRows, paymentRows] = await Promise.all([
+    db
       .select({
         id: forms.id,
         title: forms.title,
@@ -206,58 +188,82 @@ export const getFormAnalytics = createServerFn({ method: "GET" }).handler(
       })
       .from(forms)
       .where(eq(forms.profileId, profileId))
-      .orderBy(desc(forms.updatedAt));
+      .orderBy(desc(forms.updatedAt)),
+    db
+      .select({
+        formId: formSubmissions.formId,
+        total: count(),
+        completed:
+          sql<number>`COUNT(CASE WHEN ${formSubmissions.status} = 'completed' THEN 1 END)`.mapWith(
+            Number,
+          ),
+        lastAt: sql<
+          string | null
+        >`MAX(${formSubmissions.submittedAt}::text)`.mapWith(String),
+      })
+      .from(formSubmissions)
+      .innerJoin(forms, eq(formSubmissions.formId, forms.id))
+      .where(eq(forms.profileId, profileId))
+      .groupBy(formSubmissions.formId),
+    db
+      .select({
+        formId: formSubmissions.formId,
+        total: count(),
+        completed:
+          sql<number>`COUNT(CASE WHEN ${payments.status} = 'completed' THEN 1 END)`.mapWith(
+            Number,
+          ),
+        revenue:
+          sql<number>`COALESCE(SUM(CASE WHEN ${payments.status} = 'completed' THEN ${payments.amount} ELSE 0 END), 0)`.mapWith(
+            Number,
+          ),
+      })
+      .from(payments)
+      .innerJoin(
+        formSubmissions,
+        eq(payments.formSubmissionId, formSubmissions.id),
+      )
+      .innerJoin(forms, eq(formSubmissions.formId, forms.id))
+      .where(eq(forms.profileId, profileId))
+      .groupBy(formSubmissions.formId),
+  ]);
 
-    // For each form, fetch analytics
-    const analytics: FormAnalytics[] = await Promise.all(
-      userForms.map(async (form) => {
-        const [subCounts] = await db
-          .select({
-            total: count(),
-            completed:
-              sql<number>`COUNT(CASE WHEN ${formSubmissions.status} = 'completed' THEN 1 END)`.mapWith(
-                Number,
-              ),
-            lastAt: sql<
-              string | null
-            >`MAX(${formSubmissions.submittedAt}::text)`.mapWith(String),
-          })
-          .from(formSubmissions)
-          .where(eq(formSubmissions.formId, form.id));
+  return mergeFormAnalytics(userForms, submissionRows, paymentRows);
+}
 
-        const [payCounts] = await db
-          .select({
-            total: count(),
-            completed:
-              sql<number>`COUNT(CASE WHEN ${payments.status} = 'completed' THEN 1 END)`.mapWith(
-                Number,
-              ),
-            revenue:
-              sql<number>`COALESCE(SUM(CASE WHEN ${payments.status} = 'completed' THEN ${payments.amount} ELSE 0 END), 0)`.mapWith(
-                Number,
-              ),
-          })
-          .from(payments)
-          .innerJoin(
-            formSubmissions,
-            eq(payments.formSubmissionId, formSubmissions.id),
-          )
-          .where(eq(formSubmissions.formId, form.id));
+// ── Server Functions ──
 
-        return {
-          id: form.id,
-          title: form.title,
-          status: form.status,
-          submissionCount: subCounts.total,
-          completedCount: subCounts.completed,
-          paymentCount: payCounts.total,
-          completedPaymentCount: payCounts.completed,
-          revenue: payCounts.revenue,
-          lastSubmissionAt: subCounts.lastAt,
-        };
-      }),
-    );
-
-    return analytics;
+/**
+ * One authenticated dashboard request. The independent aggregates execute in
+ * parallel and per-form analytics stays constant-query instead of issuing two
+ * extra database requests for every form.
+ */
+export const getDashboardOverview = createServerFn({ method: "GET" }).handler(
+  async (): Promise<DashboardOverview> => {
+    const profileId = await getProfileId();
+    const [stats, submissions, revenue, formAnalytics] = await Promise.all([
+      loadDashboardStats(profileId),
+      loadSubmissionsOverTime(profileId),
+      loadRevenueOverTime(profileId),
+      loadFormAnalytics(profileId),
+    ]);
+    return { stats, submissions, revenue, forms: formAnalytics };
   },
+);
+
+/** Compatibility endpoints retained for existing consumers. */
+export const getDashboardStats = createServerFn({ method: "GET" }).handler(
+  async () => loadDashboardStats(await getProfileId()),
+);
+
+export const getSubmissionsOverTime = createServerFn({ method: "GET" }).handler(
+  async () => loadSubmissionsOverTime(await getProfileId()),
+);
+
+export const getRevenueOverTime = createServerFn({ method: "GET" }).handler(
+  async () => loadRevenueOverTime(await getProfileId()),
+);
+
+export const getFormAnalytics = createServerFn({ method: "GET" }).handler(
+  async () => loadFormAnalytics(await getProfileId()),
 );

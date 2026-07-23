@@ -15,22 +15,33 @@ import { Button } from '../ui/Button'
  */
 interface PaymentStepProps {
   executionId: number | null
+  clientToken: string
   amount: number | string
   currency: string
 }
 
-export function PaymentStep({ executionId, amount, currency }: PaymentStepProps) {
+export function PaymentStep({
+  executionId,
+  clientToken,
+  amount,
+  currency,
+}: PaymentStepProps) {
   const [redirecting, setRedirecting] = useState(false)
 
   const { data: options, isLoading } = useQuery({
     queryKey: ['payment-options', String(executionId)],
-    queryFn: () => getPaymentOptions({ data: { executionId: executionId! } }),
+    queryFn: () =>
+      getPaymentOptions({
+        data: { executionId: executionId!, clientToken },
+      }),
     enabled: executionId != null,
   })
 
   const initiate = useMutation({
     mutationFn: (gatewaySlug: 'paypal' | 'xendit') =>
-      initiatePayment({ data: { executionId: executionId!, gatewaySlug } }),
+      initiatePayment({
+        data: { executionId: executionId!, clientToken, gatewaySlug },
+      }),
     onSuccess: ({ paymentUrl }) => {
       setRedirecting(true)
       window.location.href = paymentUrl

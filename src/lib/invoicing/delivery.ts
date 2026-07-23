@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, lt, lte, or, sql } from 'drizzle-orm'
 import { db } from '../../db/index'
 import {
   emailDeliveryLogs,
@@ -12,6 +12,11 @@ import {
   type EmailTemplateSnapshot,
 } from '../../db/schema'
 import { sendTransactionalEmail } from '../email/transactional'
+import {
+  EMAIL_DELIVERY_LEASE_MS,
+  EMAIL_DELIVERY_RETRY_COOLDOWN_MS,
+  MAX_EMAIL_DELIVERY_ATTEMPTS,
+} from './delivery-state'
 import { formatDate, formatMoney, renderTemplateMessage } from './template'
 import type { InvoiceTemplateContext } from './types'
 
@@ -92,23 +97,60 @@ async function deliveryContext(deliveryId: number) {
 }
 
 export async function attemptEmailDelivery(deliveryId: number) {
+  const now = new Date()
+  const retryBefore = new Date(now.getTime() - EMAIL_DELIVERY_RETRY_COOLDOWN_MS)
+  const staleLeaseBefore = new Date(now.getTime() - EMAIL_DELIVERY_LEASE_MS)
   const [claimed] = await db
     .update(emailDeliveryLogs)
     .set({
       status: 'sending',
       attemptCount: sql`${emailDeliveryLogs.attemptCount} + 1`,
-      lastAttemptAt: new Date(),
+      lastAttemptAt: now,
       errorMessage: null,
-      updatedAt: new Date(),
+      updatedAt: now,
     })
     .where(and(
       eq(emailDeliveryLogs.id, deliveryId),
-      inArray(emailDeliveryLogs.status, ['queued', 'failed']),
+      lt(emailDeliveryLogs.attemptCount, MAX_EMAIL_DELIVERY_ATTEMPTS),
+      or(
+        eq(emailDeliveryLogs.status, 'queued'),
+        and(
+          eq(emailDeliveryLogs.status, 'failed'),
+          or(
+            isNull(emailDeliveryLogs.lastAttemptAt),
+            lte(emailDeliveryLogs.lastAttemptAt, retryBefore),
+          ),
+        ),
+        and(
+          eq(emailDeliveryLogs.status, 'sending'),
+          or(
+            isNull(emailDeliveryLogs.lastAttemptAt),
+            lte(emailDeliveryLogs.lastAttemptAt, staleLeaseBefore),
+          ),
+        ),
+      ),
     ))
-    .returning({ id: emailDeliveryLogs.id })
+    .returning({
+      id: emailDeliveryLogs.id,
+      formId: emailDeliveryLogs.formId,
+      templateKind: emailDeliveryLogs.templateKind,
+      invoiceNumber: emailDeliveryLogs.invoiceNumber,
+    })
   if (!claimed) return null
 
   try {
+    if (claimed.templateKind === 'invoice' && !claimed.invoiceNumber) {
+      const [config] = await db
+        .select({ id: formInvoiceConfigs.id })
+        .from(formInvoiceConfigs)
+        .where(and(
+          eq(formInvoiceConfigs.formId, claimed.formId),
+          eq(formInvoiceConfigs.enabled, true),
+        ))
+        .limit(1)
+      if (!config) throw new Error('Invoice configuration is unavailable')
+      await allocateInvoiceNumber(config.id, deliveryId)
+    }
     const { delivery, form, context } = await deliveryContext(deliveryId)
     if (!EMAIL_PATTERN.test(delivery.recipientEmail)) {
       throw new Error('Could not resolve a valid respondent email address')
@@ -117,6 +159,7 @@ export async function attemptEmailDelivery(deliveryId: number) {
     const result = await sendTransactionalEmail(form.profileId, {
       recipient: delivery.recipientEmail,
       fromName: delivery.templateSnapshot.fromName,
+      idempotencyKey: `submission-delivery/${delivery.id}`,
       ...message,
     })
     const [sent] = await db
@@ -130,7 +173,11 @@ export async function attemptEmailDelivery(deliveryId: number) {
         sentAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(emailDeliveryLogs.id, deliveryId))
+      .where(and(
+        eq(emailDeliveryLogs.id, deliveryId),
+        eq(emailDeliveryLogs.status, 'sending'),
+        eq(emailDeliveryLogs.lastAttemptAt, now),
+      ))
       .returning()
     return sent
   } catch (error) {
@@ -138,7 +185,11 @@ export async function attemptEmailDelivery(deliveryId: number) {
     const [failed] = await db
       .update(emailDeliveryLogs)
       .set({ status: 'failed', errorMessage: errorMessage.slice(0, 1000), updatedAt: new Date() })
-      .where(eq(emailDeliveryLogs.id, deliveryId))
+      .where(and(
+        eq(emailDeliveryLogs.id, deliveryId),
+        eq(emailDeliveryLogs.status, 'sending'),
+        eq(emailDeliveryLogs.lastAttemptAt, now),
+      ))
       .returning()
     console.error(`[email-delivery:${deliveryId}] ${errorMessage}`)
     return failed
@@ -158,7 +209,6 @@ export async function dispatchSubmissionEmails(submissionId: number) {
   let kind: EmailTemplateKind
   let respondentEmailField: string | null
   let snapshot: EmailTemplateSnapshot
-  let invoiceConfigId: number | null = null
 
   if (payment) {
     const [config] = await db
@@ -169,7 +219,6 @@ export async function dispatchSubmissionEmails(submissionId: number) {
     if (!config) return null
     kind = 'invoice'
     respondentEmailField = config.respondentEmailField
-    invoiceConfigId = config.id
     snapshot = {
       subjectTemplate: config.subjectTemplate,
       bodyTemplate: config.bodyTemplate,
@@ -230,10 +279,6 @@ export async function dispatchSubmissionEmails(submissionId: number) {
       eq(emailDeliveryLogs.templateKind, kind),
     ))
     .limit(1))[0]
-  if (!delivery || delivery.status === 'sent' || delivery.status === 'sending') return delivery ?? null
-
-  if (kind === 'invoice' && !delivery.invoiceNumber && invoiceConfigId) {
-    await allocateInvoiceNumber(invoiceConfigId, delivery.id)
-  }
+  if (!delivery || delivery.status === 'sent') return delivery ?? null
   return attemptEmailDelivery(delivery.id)
 }

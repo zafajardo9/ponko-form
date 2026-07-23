@@ -2,7 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { auth } from '@clerk/tanstack-react-start/server'
 import { db } from '../../db/index'
 import { formFields, forms, profiles } from '../../db/schema'
-import { eq, max } from 'drizzle-orm'
+import { and, eq, inArray, max, sql } from 'drizzle-orm'
 
 async function assertFormOwner(formId: number, clerkId: string) {
   const [profile] = await db
@@ -18,8 +18,11 @@ async function assertFormOwner(formId: number, clerkId: string) {
 }
 
 export const getFields = createServerFn({ method: 'GET' })
-  .inputValidator((data: { formId: number }) => data)
+  .validator((data: { formId: number }) => data)
   .handler(async ({ data }) => {
+    const { userId } = await auth()
+    if (!userId) throw new Error('Unauthorized')
+    await assertFormOwner(data.formId, userId)
     return db
       .select()
       .from(formFields)
@@ -28,7 +31,7 @@ export const getFields = createServerFn({ method: 'GET' })
   })
 
 export const addField = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     (data: {
       formId: number
       type: 'text' | 'email' | 'number' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'payment' | 'date' | 'time' | 'datetime'
@@ -60,7 +63,7 @@ export const addField = createServerFn({ method: 'POST' })
   })
 
 export const updateField = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     (data: {
       fieldId: number
       formId: number
@@ -79,33 +82,50 @@ export const updateField = createServerFn({ method: 'POST' })
     const [field] = await db
       .update(formFields)
       .set(fields)
-      .where(eq(formFields.id, fieldId))
+      .where(and(eq(formFields.id, fieldId), eq(formFields.formId, data.formId)))
       .returning()
+    if (!field) throw new Error('Field not found')
     return field
   })
 
 export const deleteField = createServerFn({ method: 'POST' })
-  .inputValidator((data: { fieldId: number; formId: number }) => data)
+  .validator((data: { fieldId: number; formId: number }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
     await assertFormOwner(data.formId, userId)
 
-    await db.delete(formFields).where(eq(formFields.id, data.fieldId))
+    const [field] = await db
+      .delete(formFields)
+      .where(and(eq(formFields.id, data.fieldId), eq(formFields.formId, data.formId)))
+      .returning({ id: formFields.id })
+    if (!field) throw new Error('Field not found')
     return { success: true }
   })
 
 export const reorderFields = createServerFn({ method: 'POST' })
-  .inputValidator((data: { formId: number; orderedIds: number[] }) => data)
+  .validator((data: { formId: number; orderedIds: number[] }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
     await assertFormOwner(data.formId, userId)
 
-    await Promise.all(
-      data.orderedIds.map((id: number, index: number) =>
-        db.update(formFields).set({ order: index }).where(eq(formFields.id, id)),
-      ),
-    )
+    if (data.orderedIds.length > 0) {
+      const order = sql<number>`case ${sql.join(
+        data.orderedIds.map(
+          (id, index) => sql`when ${formFields.id} = ${id} then ${index}`,
+        ),
+        sql.raw(' '),
+      )} else ${formFields.order} end`
+      await db
+        .update(formFields)
+        .set({ order })
+        .where(
+          and(
+            eq(formFields.formId, data.formId),
+            inArray(formFields.id, data.orderedIds),
+          ),
+        )
+    }
     return { success: true }
   })

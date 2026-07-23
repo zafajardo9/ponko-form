@@ -5,7 +5,6 @@ import type {
   FormReference,
   PageField,
   PageFieldOption,
-  PaymentAdjustmentType,
   ReferenceMap,
   ReferenceValue,
 } from './types'
@@ -24,7 +23,7 @@ export interface PaymentCalculation {
 }
 
 export interface ComputedFieldResult {
-  value: number
+  value: number | string
   breakdown: PaymentBreakdownLine[]
   missingReferences: string[]
 }
@@ -68,42 +67,45 @@ export function referenceNumber(referenceKey: string | null | undefined, referen
 } {
   if (!referenceKey) return { value: 0 }
   const raw = references[referenceKey]
-  if (raw == null) return { value: 0, missing: referenceKey }
-  const value = Number(raw)
-  return Number.isFinite(value) ? { value } : { value: 0, missing: referenceKey }
-}
-
-export function optionPrice(option: PageFieldOption, references: ReferenceMap): {
-  value: number
-  missing?: string
-  base: number
-  additional: number
-} {
-  const baseResolved = option.priceReference
-    ? referenceNumber(option.priceReference, references)
-    : { value: Number(option.price ?? 0) }
-  const additionalResolved = option.additionalPriceReference
-    ? referenceNumber(option.additionalPriceReference, references)
-    : { value: Number(option.additionalPrice ?? 0) }
-  const base = Number.isFinite(baseResolved.value) ? baseResolved.value : 0
-  const additional = Number.isFinite(additionalResolved.value) ? additionalResolved.value : 0
-  return {
-    value: base + additional,
-    base,
-    additional,
-    missing: baseResolved.missing ?? additionalResolved.missing,
-  }
+  if (raw === undefined || raw === null) return { value: 0, missing: referenceKey }
+  const parsed = Number(raw)
+  if (!Number.isFinite(parsed)) return { value: 0, missing: referenceKey }
+  return { value: parsed }
 }
 
 function selectedSet(value: unknown): Set<string> {
-  return new Set(Array.isArray(value) ? value.map(String) : [String(value ?? '')])
+  if (Array.isArray(value)) return new Set(value.filter((item): item is string => typeof item === 'string'))
+  if (value == null) return new Set()
+  return new Set([String(value)])
 }
 
-function adjustmentLabel(type: PaymentAdjustmentType, reference: FormReference | undefined, key: string) {
-  const label = reference?.label || reference?.key || key
-  if (type === 'add') return `Add ${label}`
-  if (type === 'subtract') return `Subtract ${label}`
-  return `Multiply by ${label}`
+interface OptionPriceResult {
+  value: number
+  base: number
+  additional: number
+  missing?: string
+}
+
+export function optionPrice(option: PageFieldOption, references: ReferenceMap): OptionPriceResult {
+  let base = 0
+  if (option.priceReference) {
+    const resolved = referenceNumber(option.priceReference, references)
+    if (resolved.missing) return { value: 0, base: 0, additional: 0, missing: resolved.missing }
+    base = resolved.value
+  } else {
+    base = Number(option.price ?? 0)
+    if (!Number.isFinite(base)) base = 0
+  }
+  let additional = 0
+  if (option.additionalPriceReference) {
+    const resolved = referenceNumber(option.additionalPriceReference, references)
+    if (resolved.missing) return { value: base, base, additional: 0, missing: resolved.missing }
+    additional = resolved.value
+  } else {
+    additional = Number(option.additionalPrice ?? 0)
+    if (!Number.isFinite(additional)) additional = 0
+  }
+  return { value: base + additional, base, additional }
 }
 
 function applyFormulaOperator(current: number, operator: FormulaOperator, value: number) {
@@ -122,7 +124,19 @@ function formulaOperatorLabel(operator: FormulaOperator) {
   if (operator === 'subtract') return 'Subtract'
   if (operator === 'multiply') return 'Multiply by'
   if (operator === 'divide') return 'Divide by'
+  if (operator === 'concat') return 'Combine with'
   return 'Add percent'
+}
+
+function adjustmentLabel(
+  type: 'add' | 'subtract' | 'multiply',
+  reference: FormReference | undefined,
+  key: string,
+) {
+  const label = reference?.label || reference?.key || key
+  if (type === 'add') return `Add ${label}`
+  if (type === 'subtract') return `Subtract ${label}`
+  return `Multiply by ${label}`
 }
 
 function parseFormulaExpression(expression: string): NonNullable<FieldComputation['terms']> {
@@ -194,21 +208,23 @@ export function calculatePagePayment(
     const field = fields.find((item) => item.bindVariable === binding)
     if (field?.fieldType === 'computation') {
       const computed = calculateFieldComputation(field.validationRules?.computation, fields, dataScope, references)
+      const numValue = Number(computed.value)
       return {
-        amount: computed.value,
-        subtotal: computed.breakdown.find((line) => line.kind === 'subtotal')?.amount ?? computed.value,
+        amount: Number.isFinite(numValue) ? numValue : 0,
+        subtotal: computed.breakdown.find((line) => line.kind === 'subtotal')?.amount ?? numValue,
         breakdown: computed.breakdown.length > 0
           ? computed.breakdown
-          : [{ label: field.label || 'Amount', amount: computed.value, kind: 'total' }],
+          : [{ label: field.label || 'Amount', amount: Number.isFinite(numValue) ? numValue : 0, kind: 'total' }],
         missingReferences: computed.missingReferences,
       }
     }
-    const amount = binding ? Number(dataScope[binding] ?? 0) : 0
+    const raw = binding ? dataScope[binding] : undefined
+    const amount = Number(raw ?? 0)
     const safeAmount = Number.isFinite(amount) ? amount : 0
     return {
       amount: safeAmount,
       subtotal: safeAmount,
-      breakdown: [{ label: 'Amount', amount: safeAmount, kind: 'total' }],
+      breakdown: [{ label: field?.label || 'Amount', amount: safeAmount, kind: 'total' }],
       missingReferences: [],
     }
   }
@@ -235,11 +251,19 @@ export function calculatePagePayment(
           .map((field) => field.bindVariable)
     for (const binding of numberBindings) {
       const field = fields.find((item) => item.bindVariable === binding)
-      const value = Number(dataScope[binding] ?? 0)
-      const amount = Number.isFinite(value) ? value : 0
-      subtotal += amount
-      if (amount !== 0) {
-        breakdown.push({ label: field?.label || binding, amount, kind: 'item' })
+      if (field?.fieldType === 'computation') {
+        const computed = calculateFieldComputation(field.validationRules?.computation, fields, dataScope, references)
+        const numValue = Number(computed.value)
+        const safeNum = Number.isFinite(numValue) ? numValue : 0
+        subtotal += safeNum
+        breakdown.push({ label: field.label || binding, amount: safeNum, kind: 'item' })
+        computed.missingReferences.forEach((key) => missingReferences.add(key))
+      } else {
+        const raw = dataScope[binding]
+        const value = Number(raw ?? 0)
+        const safeValue = Number.isFinite(value) ? value : 0
+        subtotal += safeValue
+        breakdown.push({ label: field?.label || binding, amount: safeValue, kind: 'item' })
       }
     }
   } else if (computation.mode === 'sum_priced_options' || computation.mode === 'formula') {
@@ -248,20 +272,14 @@ export function calculatePagePayment(
       : fields
           .filter((field) =>
             ['select', 'checkbox', 'radio'].includes(field.fieldType) &&
-            field.validationRules?.optionPricesEnabled &&
-            field.options?.some((option) =>
-              Number(option.price ?? 0) > 0 ||
-              Number(option.additionalPrice ?? 0) > 0 ||
-              Boolean(option.priceReference) ||
-              Boolean(option.additionalPriceReference),
-            ),
+            field.validationRules?.optionPricesEnabled
           )
           .map((field) => field.bindVariable)
     for (const binding of pricedBindings) {
       const field = fields.find((item) => item.bindVariable === binding)
-      if (!field?.options?.length) continue
+      if (!field) continue
       const selected = selectedSet(dataScope[binding])
-      for (const option of field.options) {
+      for (const option of field.options ?? []) {
         if (!selected.has(option.value)) continue
         const resolved = optionPrice(option, referenceMap)
         if (resolved.missing) missingReferences.add(resolved.missing)
@@ -278,10 +296,8 @@ export function calculatePagePayment(
     }
   }
 
+  breakdown.push({ label: 'Subtotal', amount: subtotal, kind: 'subtotal' })
   let amount = subtotal
-  if (breakdown.length > 0) {
-    breakdown.push({ label: 'Subtotal', amount: subtotal, kind: 'subtotal' })
-  }
 
   if (computation.mode === 'formula') {
     for (const adjustment of computation.adjustments ?? []) {
@@ -297,21 +313,23 @@ export function calculatePagePayment(
       } else {
         amount += resolved.value
       }
+      const reference = referencesByKey.get(adjustment.referenceKey)
       breakdown.push({
-        label: adjustmentLabel(adjustment.type, referencesByKey.get(adjustment.referenceKey), adjustment.referenceKey),
+        label: adjustmentLabel(
+          adjustment.type,
+          reference,
+          adjustment.referenceKey,
+        ),
         amount: delta,
         kind: 'adjustment',
       })
     }
   }
 
-  const safeAmount = Number.isFinite(amount) ? Math.max(0, amount) : 0
-  breakdown.push({ label: 'Total', amount: safeAmount, kind: 'total' })
-
   return {
-    amount: safeAmount,
+    amount,
     subtotal,
-    breakdown,
+    breakdown: [...breakdown, { label: 'Total', amount, kind: 'total' }],
     missingReferences: [...missingReferences],
   }
 }
@@ -324,6 +342,35 @@ export function calculateFieldComputation(
   stack: string[] = [],
 ): ComputedFieldResult {
   if (!computation) return { value: 0, breakdown: [], missingReferences: [] }
+
+  // ── Text mode: concatenate string values from bound fields ──
+  if (computation.outputMode === 'text') {
+    const terms = computation.expression?.trim()
+      ? parseFormulaExpression(computation.expression)
+      : computation.terms ?? []
+
+    let result = ''
+    for (const term of terms) {
+      if (term.source === 'field') {
+        const fieldValue = String(dataScope[term.fieldBinding ?? ''] ?? '')
+        if (term.operator === 'set') {
+          result = fieldValue
+        } else {
+          result += fieldValue
+        }
+      } else if (term.source === 'fixed') {
+        const fixed = term.fixedValue != null ? String(term.fixedValue) : ''
+        if (term.operator === 'set') {
+          result = fixed
+        } else {
+          result += fixed
+        }
+      }
+    }
+    return { value: result.trim(), breakdown: [], missingReferences: [] }
+  }
+
+  // ── Number mode: existing logic ──
   if (computation.mode === 'expression') {
     const referenceMap = buildReferenceMap(references)
     const referencesByKey = new Map(references.map((reference) => [reference.key, reference]))
@@ -355,7 +402,7 @@ export function calculateFieldComputation(
               references,
               [...stack, field.bindVariable],
             )
-            value = nested.value
+            value = Number(nested.value)
             nestedBreakdown = nested.breakdown.filter((line) => line.kind !== 'total')
             nested.missingReferences.forEach((key) => missingReferences.add(key))
           }
