@@ -4,6 +4,11 @@ import { routeTree } from './routeTree.gen'
 import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query'
 import { getContext } from './integrations/tanstack-query/root-provider'
 
+// Load the visual component picker only in the browser during local development.
+if (import.meta.env.DEV && !import.meta.env.SSR) {
+  void import('react-grab')
+}
+
 export function getRouter() {
   const context = getContext()
 

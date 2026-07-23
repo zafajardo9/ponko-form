@@ -366,11 +366,10 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
       {field.type === 'satisfaction' && (
         usesSvgStars ? (
           <div
-            className={`inline-flex max-w-full items-center gap-0.5 rounded-[var(--ponko-radius,8px)] border bg-[#faf9f5] p-1.5 sm:gap-1 sm:p-2 ${
-              error ? 'border-[#c64545]' : 'border-[#e6dfd8]'
-            } ${readOnly ? 'opacity-60' : ''}`}
+            className={`flex w-full max-w-full items-center justify-center gap-1 py-1 sm:gap-2 ${readOnly ? 'opacity-60' : ''}`}
             role="radiogroup"
             aria-label={field.label}
+            aria-invalid={Boolean(error)}
             onMouseLeave={() => setHoveredRating(null)}
           >
             {options.map((opt) => {
@@ -384,11 +383,11 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
                   onMouseEnter={() => setHoveredRating(ratingValue)}
                   onFocus={() => setHoveredRating(ratingValue)}
                   onBlur={() => setHoveredRating(null)}
-                  className={`group flex h-10 w-10 cursor-pointer items-center justify-center rounded-md transition-[color,background-color,transform] duration-150 focus-within:outline-none focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] motion-reduce:transition-none sm:h-11 sm:w-11 ${
+                  className={`group flex h-10 w-10 cursor-pointer items-center justify-center transition-[color,transform] duration-150 motion-reduce:transition-none sm:h-11 sm:w-11 ${
                     active
                       ? 'text-[var(--ponko-primary,#cc785c)]'
-                      : 'text-[#c8beb3] hover:-translate-y-0.5 hover:bg-white hover:text-[var(--ponko-primary,#cc785c)]'
-                  } ${readOnly ? 'cursor-not-allowed hover:translate-y-0' : ''}`}
+                      : 'text-[#c8beb3] hover:text-[var(--ponko-primary,#cc785c)]'
+                  } ${readOnly ? 'cursor-not-allowed' : ''}`}
                 >
                   <input
                     type="radio"
@@ -403,7 +402,7 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
                   <StarIcon
                     size={28}
                     filled={active}
-                    className="h-7 w-7 transition-transform duration-150 group-active:scale-90 motion-reduce:transition-none sm:h-8 sm:w-8"
+                    className="h-7 w-7 rounded-sm transition-transform duration-150 group-active:scale-90 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4 peer-focus-visible:outline-[var(--ponko-primary,#cc785c)] motion-reduce:transition-none sm:h-8 sm:w-8"
                   />
                 </label>
               )

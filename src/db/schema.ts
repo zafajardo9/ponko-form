@@ -363,8 +363,17 @@ export const formSubmissions = pgTable(
     status: submissionStatusEnum('status').default('completed').notNull(),
     formData: jsonb('form_data').$type<Record<string, unknown>>().notNull(),
     submittedAt: timestamp('submitted_at').defaultNow().notNull(),
+    archivedAt: timestamp('archived_at'),
   },
-  (table) => [index('form_submissions_form_id_idx').on(table.formId)],
+  (table) => [
+    index('form_submissions_form_id_idx').on(table.formId),
+    index('form_submissions_form_archived_idx').on(table.formId, table.archivedAt),
+    index('form_submissions_form_archived_submitted_idx').on(
+      table.formId,
+      table.archivedAt,
+      table.submittedAt,
+    ),
+  ],
 )
 
 export const emailSurveyInvitations = pgTable(
@@ -512,7 +521,10 @@ export const payments = pgTable(
   (table) => [
     uniqueIndex('payments_gateway_payment_id_idx').on(table.gatewayPaymentId),
     uniqueIndex('payments_external_id_idx').on(table.externalId),
+    index('payments_form_submission_id_idx').on(table.formSubmissionId),
     index('payments_page_session_id_idx').on(table.pageSessionId),
+    index('payments_created_at_idx').on(table.createdAt),
+    index('payments_status_created_idx').on(table.status, table.createdAt),
     uniqueIndex('payments_subscription_plan_id_idx').on(table.subscriptionPlanId),
     index('payments_subscription_status_sync_idx').on(table.subscriptionStatus, table.subscriptionLastSyncedAt),
   ],

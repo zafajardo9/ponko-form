@@ -42,16 +42,21 @@ export function DataTableHeader({
 
   return (
     <th
-      className={`px-4 py-3 ${alignClass} font-medium text-[#6c6a64] cursor-pointer select-none hover:text-[#141413] transition-colors`}
+      className={`px-4 py-3 ${alignClass} font-medium text-[#6c6a64]`}
       style={width ? { width } : undefined}
-      onClick={() => onSort(sortKey)}
+      aria-sort={isActive ? (direction === "asc" ? "ascending" : "descending") : "none"}
     >
-      <span className="inline-flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className="inline-flex select-none items-center gap-1 rounded-sm transition-colors hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]"
+        aria-label={`Sort by ${typeof header === "string" ? header : sortKey}`}
+      >
         {header}
-        <span className="text-xs text-[#8e8b82]">
+        <span className="text-xs text-[#8e8b82]" aria-hidden="true">
           {isActive ? (direction === "asc" ? "↑" : "↓") : "↕"}
         </span>
-      </span>
+      </button>
     </th>
   )
 }

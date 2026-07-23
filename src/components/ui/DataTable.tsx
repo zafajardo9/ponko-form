@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import type { DataTableProps, SortState } from "./DataTableTypes";
 import { DataTableHeader } from "./DataTableHeader";
 import { DataTableRow } from "./DataTableRow";
@@ -30,6 +30,7 @@ export function DataTable<T>({
   page: serverPage,
   pageSize = 50,
   onPageChange,
+  onPageSizeChange,
   onSortChange,
   onFilterChange,
   loading = false,
@@ -65,6 +66,22 @@ export function DataTable<T>({
     }
     return initial;
   });
+  const knownColumnKeys = useRef(new Set(columns.map((column) => column.key)));
+
+  useEffect(() => {
+    const newlyAvailable = columns.filter(
+      (column) => !knownColumnKeys.current.has(column.key),
+    );
+    if (newlyAvailable.length === 0) return;
+    setVisibleColumns((previous) => {
+      const next = new Set(previous);
+      for (const column of newlyAvailable) {
+        if (!column.defaultHidden) next.add(column.key);
+        knownColumnKeys.current.add(column.key);
+      }
+      return next;
+    });
+  }, [columns]);
 
   // Search
   const [internalSearchValue, setInternalSearchValue] = useState("");
@@ -167,18 +184,8 @@ export function DataTable<T>({
       if (!col?.sortable) return;
       const sortKey = col.sortKey ?? col.key;
 
-      let newDir: "asc" | "desc" = "asc";
-      if (sortState?.key === sortKey) {
-        if (sortState.dir === "asc") newDir = "desc";
-        else {
-          // Cycle to none
-          setSortState(null);
-          if (onSortChange) {
-            onSortChange(sortKey, "asc"); // signal reset
-          }
-          return;
-        }
-      }
+      const newDir: "asc" | "desc" =
+        sortState?.key === sortKey && sortState.dir === "asc" ? "desc" : "asc";
 
       setSortState({ key: sortKey, dir: newDir });
       if (onSortChange) {
@@ -394,6 +401,7 @@ export function DataTable<T>({
             pageSize={pageSize}
             totalCount={effectiveTotalCount}
             onPageChange={handlePageChange}
+            onPageSizeChange={onPageSizeChange}
             loading={loading}
           />
         </div>

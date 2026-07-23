@@ -35,6 +35,7 @@ export function DataTableToolbar<T>({
   onBulkAction,
 }: DataTableToolbarProps<T>) {
   const [showColumns, setShowColumns] = useState(false)
+  const [showFilterMenu, setShowFilterMenu] = useState(false)
   const [activeFilterColumn, setActiveFilterColumn] = useState<string | null>(null)
 
   const filterableColumns = columns.filter((c) => c.filterable)
@@ -49,6 +50,9 @@ export function DataTableToolbar<T>({
       if (typeof val === "object" && val !== null && "from" in val) {
         const range = val as { from: string; to: string }
         filterLabels[col.key] = `${range.from || "…"} – ${range.to || "…"}`
+      } else if (typeof val === "object" && val !== null && ("min" in val || "max" in val)) {
+        const range = val as { min?: number; max?: number }
+        filterLabels[col.key] = `${range.min ?? "…"} – ${range.max ?? "…"}`
       } else {
         filterLabels[col.key] = String(val)
       }
@@ -109,11 +113,13 @@ export function DataTableToolbar<T>({
         {filterableColumns.length > 0 && (
           <div className="relative">
             <button
-              onClick={() =>
-                setActiveFilterColumn(
-                  activeFilterColumn ? null : filterableColumns[0].key,
-                )
-              }
+              type="button"
+              aria-expanded={showFilterMenu || activeFilterColumn != null}
+              aria-haspopup="menu"
+              onClick={() => {
+                setActiveFilterColumn(null)
+                setShowFilterMenu((visible) => !visible)
+              }}
               className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm ${
                 hasActiveFilters
                   ? "border-[#cc785c] bg-[#fdf0f0] text-[#cc785c]"
@@ -135,6 +141,37 @@ export function DataTableToolbar<T>({
                 </span>
               )}
             </button>
+
+            {showFilterMenu && (
+              <div
+                role="menu"
+                aria-label="Choose a filter"
+                className="absolute right-0 top-full z-30 mt-1 w-64 overflow-hidden rounded-lg border border-[#e6dfd8] bg-[#faf9f5] py-1 shadow-lg"
+              >
+                <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-[#8e8b82]">
+                  Filter by
+                </p>
+                {filterableColumns.map((column) => {
+                  const label = typeof column.header === "string" ? column.header : column.key
+                  const active = activeFilters[column.key] != null && activeFilters[column.key] !== ""
+                  return (
+                    <button
+                      key={column.key}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setShowFilterMenu(false)
+                        setActiveFilterColumn(column.key)
+                      }}
+                      className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-[#141413] hover:bg-[#f5f0e8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#cc785c]"
+                    >
+                      <span>{label}</span>
+                      {active && <span className="text-xs font-medium text-[#cc785c]">Applied</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
 
             {activeFilterColumn && (
               <DataTableFilterPanel

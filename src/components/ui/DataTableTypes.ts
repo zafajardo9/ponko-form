@@ -30,6 +30,7 @@ export interface DataTableProps<T> {
   page?: number;
   pageSize?: number;
   onPageChange?: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
   onSortChange?: (sortKey: string, direction: "asc" | "desc") => void;
   onFilterChange?: (filters: Record<string, unknown>) => void;
 

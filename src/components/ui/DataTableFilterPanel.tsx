@@ -4,7 +4,7 @@ import type { DataTableColumn } from "./DataTableTypes"
 type FilterValue =
   | string
   | { from: string; to: string }
-  | { min: number; max: number }
+  | { min?: number; max?: number }
 
 interface DataTableFilterPanelProps<T> {
   column: DataTableColumn<T>
@@ -121,6 +121,57 @@ export function DataTableFilterPanel<T>({
                   to: e.target.value,
                 }))
               }
+              className="h-10 w-full rounded-md border border-[#e6dfd8] bg-white px-3 text-sm text-[#141413] outline-none focus:border-[#cc785c] focus:ring-2 focus:ring-[#cc785c]/20"
+            />
+          </div>
+        </div>
+      )}
+
+      {filterType === "number-range" && (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="mb-1 block text-xs text-[#6c6a64]">Minimum</label>
+            <input
+              type="number"
+              aria-label="Minimum"
+              value={
+                localValue && typeof localValue === "object" && "min" in localValue
+                  ? localValue.min ?? ""
+                  : ""
+              }
+              onChange={(event) => {
+                const value = event.target.value
+                setLocalValue((previous) => ({
+                  ...(previous && typeof previous === "object" ? previous : {}),
+                  min: value === "" ? undefined : Number(value),
+                }))
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") apply()
+              }}
+              className="h-10 w-full rounded-md border border-[#e6dfd8] bg-white px-3 text-sm text-[#141413] outline-none focus:border-[#cc785c] focus:ring-2 focus:ring-[#cc785c]/20"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-[#6c6a64]">Maximum</label>
+            <input
+              type="number"
+              aria-label="Maximum"
+              value={
+                localValue && typeof localValue === "object" && "max" in localValue
+                  ? localValue.max ?? ""
+                  : ""
+              }
+              onChange={(event) => {
+                const value = event.target.value
+                setLocalValue((previous) => ({
+                  ...(previous && typeof previous === "object" ? previous : {}),
+                  max: value === "" ? undefined : Number(value),
+                }))
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") apply()
+              }}
               className="h-10 w-full rounded-md border border-[#e6dfd8] bg-white px-3 text-sm text-[#141413] outline-none focus:border-[#cc785c] focus:ring-2 focus:ring-[#cc785c]/20"
             />
           </div>

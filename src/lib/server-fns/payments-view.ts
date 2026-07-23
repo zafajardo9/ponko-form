@@ -6,14 +6,14 @@ import {
   paymentGateways,
   flowExecutions,
   flows,
-  formSubmissions,
   forms,
+  formPages,
   formSubmissionSessions,
   paymentEvents,
   profiles,
   subscriptionCycles,
 } from "../../db/schema";
-import { eq, desc, inArray, or, sql } from "drizzle-orm";
+import { eq, desc, asc, and, or, sql, type SQL } from "drizzle-orm";
 import { reconcilePayment } from "../payments/reconciliation";
 import { paymentRegistry } from "../../integrations/payments";
 import {
@@ -84,13 +84,145 @@ export interface PaymentViewRow {
   }>;
 }
 
+const paymentPageSizes = new Set([10, 25, 50, 100]);
+const basePaymentStatuses = new Set(["pending", "completed", "failed", "refunded"]);
+const subscriptionPaymentStatuses = new Set([
+  "pending",
+  "active",
+  "paused",
+  "past_due",
+  "cancelled",
+  "deactivated",
+  "completed",
+]);
+
+export function normalizePaymentPageSize(value?: number) {
+  return value && paymentPageSizes.has(value) ? value : 25;
+}
+
+function paymentScopeCondition(formId: number) {
+  return sql`(${flows.formId} = ${formId} OR ${formSubmissionSessions.formId} = ${formId})`;
+}
+
+function paymentQueryConditions({
+  formId,
+  filters,
+  search,
+}: {
+  formId: number;
+  filters?: Record<string, unknown>;
+  search?: string;
+}) {
+  const conditions: SQL[] = [paymentScopeCondition(formId)];
+
+  for (const [key, value] of Object.entries(filters ?? {})) {
+    if (value == null || value === "") continue;
+
+    if (key === "status" && typeof value === "string") {
+      const [kind, status] = value.split(":");
+      if (kind === "one_time" && basePaymentStatuses.has(status)) {
+        conditions.push(
+          sql`${payments.paymentKind} = 'one_time' AND ${payments.status}::text = ${status}`,
+        );
+      } else if (kind === "subscription" && subscriptionPaymentStatuses.has(status)) {
+        conditions.push(
+          status === "pending"
+            ? sql`${payments.paymentKind} = 'subscription' AND COALESCE(${payments.subscriptionStatus}, 'pending') = 'pending'`
+            : sql`${payments.paymentKind} = 'subscription' AND ${payments.subscriptionStatus} = ${status}`,
+        );
+      }
+      continue;
+    }
+
+    if (key === "paymentKind" && (value === "one_time" || value === "subscription")) {
+      conditions.push(sql`${payments.paymentKind} = ${value}`);
+      continue;
+    }
+
+    if (key === "gateway" && typeof value === "string" && value.trim()) {
+      conditions.push(sql`${paymentGateways.slug} = ${value.trim()}`);
+      continue;
+    }
+
+    if (key === "createdAt" && typeof value === "object") {
+      const range = value as { from?: string; to?: string };
+      const from = range.from ? new Date(`${range.from}T00:00:00`) : null;
+      const to = range.to ? new Date(`${range.to}T23:59:59.999`) : null;
+      if (from && !Number.isNaN(from.getTime())) {
+        conditions.push(sql`${payments.createdAt} >= ${from}`);
+      }
+      if (to && !Number.isNaN(to.getTime())) {
+        conditions.push(sql`${payments.createdAt} <= ${to}`);
+      }
+      continue;
+    }
+
+    if (key === "amount" && typeof value === "object") {
+      const range = value as { min?: number; max?: number };
+      if (typeof range.min === "number" && Number.isFinite(range.min)) {
+        conditions.push(sql`${payments.amount} >= ${Math.round(range.min * 100)}`);
+      }
+      if (typeof range.max === "number" && Number.isFinite(range.max)) {
+        conditions.push(sql`${payments.amount} <= ${Math.round(range.max * 100)}`);
+      }
+    }
+  }
+
+  const term = search?.trim();
+  if (term) {
+    const pattern = `%${term}%`;
+    conditions.push(sql`(
+      CONCAT('PAY-', LPAD(${payments.id}::text, 6, '0')) ILIKE ${pattern}
+      OR COALESCE(${payments.respondentName}, '') ILIKE ${pattern}
+      OR COALESCE(${payments.respondentEmail}, '') ILIKE ${pattern}
+      OR COALESCE(${payments.gatewayPaymentId}, '') ILIKE ${pattern}
+      OR COALESCE(${payments.externalId}, '') ILIKE ${pattern}
+      OR COALESCE(${payments.paymentChannel}, '') ILIKE ${pattern}
+      OR ${paymentGateways.name} ILIKE ${pattern}
+    )`);
+  }
+
+  return conditions;
+}
+
+function paymentOrderBy(sortKey?: string, sortDir?: "asc" | "desc") {
+  const direction = sortDir === "asc" ? asc : desc;
+  let expression: SQL | typeof payments.createdAt = payments.createdAt;
+
+  if (sortKey === "invoice") expression = sql`${payments.id}`;
+  else if (sortKey === "amount") expression = sql`${payments.amount}`;
+  else if (sortKey === "subscriber") {
+    expression = sql`LOWER(COALESCE(${payments.respondentName}, ${payments.respondentEmail}, ''))`;
+  } else if (sortKey === "status") {
+    expression = sql`LOWER(COALESCE(${payments.subscriptionStatus}, ${payments.status}::text))`;
+  } else if (sortKey === "gateway") {
+    expression = sql`LOWER(${paymentGateways.name})`;
+  } else if (sortKey === "channel") {
+    expression = sql`LOWER(COALESCE(${payments.paymentChannel}, ''))`;
+  } else if (sortKey === "reference") {
+    expression = sql`LOWER(COALESCE(${payments.gatewayPaymentId}, ''))`;
+  }
+
+  return [direction(expression), desc(payments.id)] as const;
+}
+
 /**
  * getFormPayments({ formId })
  * Returns all payment transactions for the given form, ordered newest first.
  * The form creator must own the form.
  */
 export const getFormPayments = createServerFn({ method: "GET", strict: false })
-  .inputValidator((data: { formId: number; page?: number }) => data)
+  .inputValidator(
+    (data: {
+      formId: number;
+      page?: number;
+      pageSize?: number;
+      sortKey?: string;
+      sortDir?: "asc" | "desc";
+      filters?: Record<string, unknown>;
+      search?: string;
+    }) => data,
+  )
   .handler(async ({ data }) => {
     const { userId } = await auth();
     if (!userId) throw new Error("Unauthorized");
@@ -109,11 +241,17 @@ export const getFormPayments = createServerFn({ method: "GET", strict: false })
       .limit(1);
     if (!form || form.profileId !== profile.id) throw new Error("Not found");
 
-    const page = data.page ?? 1;
-    const limit = 50;
-    const offset = (page - 1) * limit;
+    const page = Math.max(1, Math.floor(data.page ?? 1));
+    const pageSize = normalizePaymentPageSize(data.pageSize);
+    const offset = (page - 1) * pageSize;
+    const conditions = paymentQueryConditions({
+      formId: data.formId,
+      filters: data.filters,
+      search: data.search,
+    });
+    const orderBy = paymentOrderBy(data.sortKey, data.sortDir);
 
-    const rows = await db
+    const rowsQuery = db
       .select({
         id: payments.id,
         amount: payments.amount,
@@ -152,7 +290,7 @@ export const getFormPayments = createServerFn({ method: "GET", strict: false })
         gatewayName: paymentGateways.name,
         gatewaySlug: paymentGateways.slug,
         executionId: flowExecutions.id,
-        submissionId: formSubmissions.id,
+        submissionId: payments.formSubmissionId,
       })
       .from(payments)
       .innerJoin(
@@ -165,29 +303,31 @@ export const getFormPayments = createServerFn({ method: "GET", strict: false })
       )
       .leftJoin(flows, eq(flowExecutions.flowId, flows.id))
       .leftJoin(formSubmissionSessions, eq(payments.pageSessionId, formSubmissionSessions.id))
-      .leftJoin(
-        formSubmissions,
-        eq(payments.formSubmissionId, formSubmissions.id),
-      )
-      .where(or(eq(flows.formId, data.formId), eq(formSubmissionSessions.formId, data.formId)))
-      .orderBy(desc(payments.createdAt))
-      .limit(limit)
+      .where(and(...conditions))
+      .orderBy(...orderBy)
+      .limit(pageSize)
       .offset(offset);
 
-    const eventRows = rows.length > 0
-      ? await db.select().from(paymentEvents)
-          .where(inArray(paymentEvents.paymentId, rows.map((row) => row.id)))
-          .orderBy(desc(paymentEvents.receivedAt))
-      : []
-    const eventsByPayment = new Map<number, typeof eventRows>()
-    for (const event of eventRows) eventsByPayment.set(event.paymentId, [...(eventsByPayment.get(event.paymentId) ?? []), event])
-    const cycleRows = rows.length > 0
-      ? await db.select().from(subscriptionCycles)
-          .where(inArray(subscriptionCycles.paymentId, rows.map((row) => row.id)))
-          .orderBy(desc(subscriptionCycles.scheduledAt), desc(subscriptionCycles.id))
-      : []
-    const cyclesByPayment = new Map<number, typeof cycleRows>()
-    for (const cycle of cycleRows) cyclesByPayment.set(cycle.paymentId, [...(cyclesByPayment.get(cycle.paymentId) ?? []), cycle])
+    const countQuery = db
+      .select({ count: sql<number>`count(DISTINCT ${payments.id})::int` })
+      .from(payments)
+      .innerJoin(
+        paymentGateways,
+        eq(payments.paymentGatewayId, paymentGateways.id),
+      )
+      .leftJoin(
+        flowExecutions,
+        eq(payments.flowExecutionId, flowExecutions.id),
+      )
+      .leftJoin(flows, eq(flowExecutions.flowId, flows.id))
+      .leftJoin(
+        formSubmissionSessions,
+        eq(payments.pageSessionId, formSubmissionSessions.id),
+      )
+      .where(and(...conditions));
+
+    const [rows, [countResult]] = await Promise.all([rowsQuery, countQuery]);
+    const totalCount = countResult?.count ?? 0;
 
     const result: PaymentViewRow[] = rows.map((r) => ({
       id: r.id,
@@ -211,7 +351,7 @@ export const getFormPayments = createServerFn({ method: "GET", strict: false })
       gatewaySlug: r.gatewaySlug,
       gatewayPaymentId: r.gatewayPaymentId,
       paymentChannel: r.paymentChannel ?? extractPaymentChannel(r.gatewaySlug, r.gatewayResponse),
-      gatewayResponse: r.gatewayResponse,
+      gatewayResponse: null,
       executionId: r.executionId,
       pageSessionId: r.pageSessionId,
       submissionId: r.submissionId,
@@ -229,29 +369,8 @@ export const getFormPayments = createServerFn({ method: "GET", strict: false })
       lastVerifiedAt: r.lastVerifiedAt as unknown as string | null,
       verificationSource: r.verificationSource,
       failureReason: r.failureReason,
-      events: (eventsByPayment.get(r.id) ?? []).map((event) => ({
-        id: event.id,
-        eventType: event.eventType,
-        providerStatus: event.providerStatus,
-        normalizedStatus: event.normalizedStatus,
-        source: event.source,
-        processingStatus: event.processingStatus,
-        receivedAt: event.receivedAt as unknown as string,
-        payload: event.payload,
-      })),
-      cycles: (cyclesByPayment.get(r.id) ?? []).map((cycle) => ({
-        id: cycle.id,
-        gatewayCycleId: cycle.gatewayCycleId,
-        cycleNumber: cycle.cycleNumber,
-        status: cycle.status,
-        amount: cycle.amount,
-        currency: cycle.currency,
-        scheduledAt: cycle.scheduledAt as unknown as string | null,
-        paidAt: cycle.paidAt as unknown as string | null,
-        failedAt: cycle.failedAt as unknown as string | null,
-        failureCode: cycle.failureCode,
-        verificationSource: cycle.verificationSource,
-      })),
+      events: [],
+      cycles: [],
     }));
 
     // Check if this form has any payment flow (to show/hide the tab).
@@ -265,13 +384,21 @@ export const getFormPayments = createServerFn({ method: "GET", strict: false })
       .where(eq(flows.formId, data.formId))
       .limit(1);
 
-    const [pagePayment] = await db.select({ id: sql`1` }).from(formSubmissionSessions)
-      .where(eq(formSubmissionSessions.formId, data.formId)).limit(1)
+    const [pagePayment] = await db
+      .select({ id: formPages.id })
+      .from(formPages)
+      .where(
+        and(eq(formPages.formId, data.formId), eq(formPages.hasPayment, true)),
+      )
+      .limit(1);
 
     return {
       payments: result,
       hasPaymentFlow: !!paymentNode || !!pagePayment,
       formTitle: form.title,
+      totalCount,
+      page,
+      pageSize,
     };
   });
 
@@ -313,6 +440,61 @@ async function ownedPayment(formId: number, paymentId: number, clerkId: string) 
   if (!row) throw new Error("Payment not found");
   return { ...row, profileId: profile.id, formTitle: form.title };
 }
+
+export const getPaymentActivity = createServerFn({ method: "GET", strict: false })
+  .inputValidator((data: { formId: number; paymentId: number }) => data)
+  .handler(async ({ data }) => {
+    const { userId } = await auth();
+    if (!userId) throw new Error("Unauthorized");
+    const { payment, gatewaySlug } = await ownedPayment(
+      data.formId,
+      data.paymentId,
+      userId,
+    );
+
+    const [events, cycles] = await Promise.all([
+      db
+        .select()
+        .from(paymentEvents)
+        .where(eq(paymentEvents.paymentId, payment.id))
+        .orderBy(desc(paymentEvents.receivedAt)),
+      db
+        .select()
+        .from(subscriptionCycles)
+        .where(eq(subscriptionCycles.paymentId, payment.id))
+        .orderBy(desc(subscriptionCycles.scheduledAt), desc(subscriptionCycles.id)),
+    ]);
+
+    return {
+      gatewayResponse: payment.gatewayResponse,
+      paymentChannel:
+        payment.paymentChannel ??
+        extractPaymentChannel(gatewaySlug, payment.gatewayResponse),
+      events: events.map((event) => ({
+        id: event.id,
+        eventType: event.eventType,
+        providerStatus: event.providerStatus,
+        normalizedStatus: event.normalizedStatus,
+        source: event.source,
+        processingStatus: event.processingStatus,
+        receivedAt: event.receivedAt as unknown as string,
+        payload: event.payload,
+      })),
+      cycles: cycles.map((cycle) => ({
+        id: cycle.id,
+        gatewayCycleId: cycle.gatewayCycleId,
+        cycleNumber: cycle.cycleNumber,
+        status: cycle.status,
+        amount: cycle.amount,
+        currency: cycle.currency,
+        scheduledAt: cycle.scheduledAt as unknown as string | null,
+        paidAt: cycle.paidAt as unknown as string | null,
+        failedAt: cycle.failedAt as unknown as string | null,
+        failureCode: cycle.failureCode,
+        verificationSource: cycle.verificationSource,
+      })),
+    };
+  });
 
 export const getPaymentRecoveryLink = createServerFn({ method: "POST", strict: false })
   .inputValidator((data: { formId: number; paymentId: number }) => data)

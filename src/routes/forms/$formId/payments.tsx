@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { requireAuth } from "../../../lib/server-fns/auth";
 import {
   getFormPayments,
+  getPaymentActivity,
   verifyFormPayment,
   getPaymentRecoveryLink,
   replaceExpiredPaymentLink,
@@ -11,7 +12,11 @@ import {
   type PaymentViewRow,
 } from "../../../lib/server-fns/payments-view";
 import { Badge } from "../../../components/ui/Badge";
-import { FormSectionNav } from "../../../components/forms/FormSectionNav";
+import { FormWorkspaceLayout } from "../../../components/forms/FormWorkspaceLayout";
+import {
+  DataTable,
+  type DataTableColumn,
+} from "../../../components/ui/DataTable";
 
 export const Route = createFileRoute("/forms/$formId/payments")({
   beforeLoad: ({ location }) => requireAuth({ data: { returnTo: location.href } }),
@@ -21,18 +26,65 @@ export const Route = createFileRoute("/forms/$formId/payments")({
 function PaymentsPage() {
   const { formId } = Route.useParams();
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [sortKey, setSortKey] = useState("createdAt");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [filters, setFilters] = useState<Record<string, unknown>>({});
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<PaymentViewRow | null>(null);
   const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["form-payments", formId, page],
-    queryFn: () => getFormPayments({ data: { formId: Number(formId), page } }),
+    queryKey: [
+      "form-payments",
+      formId,
+      page,
+      pageSize,
+      sortKey,
+      sortDir,
+      filters,
+      search,
+    ],
+    queryFn: () =>
+      getFormPayments({
+        data: {
+          formId: Number(formId),
+          page,
+          pageSize,
+          sortKey,
+          sortDir,
+          filters,
+          search,
+        },
+      }),
   });
 
   const payments = data?.payments ?? [];
+  const totalCount = data?.totalCount ?? 0;
   const hasPaymentFlow = data?.hasPaymentFlow ?? false;
   const formTitle = data?.formTitle;
+  const activityQuery = useQuery({
+    queryKey: ["payment-activity", formId, selected?.id],
+    queryFn: () =>
+      getPaymentActivity({
+        data: { formId: Number(formId), paymentId: selected!.id },
+      }),
+    enabled: selected != null,
+  });
+  const selectedPayment =
+    selected && activityQuery.data
+      ? { ...selected, ...activityQuery.data }
+      : selected;
   const verifyMut = useMutation({
     mutationFn: (paymentId: number) => verifyFormPayment({ data: { formId: Number(formId), paymentId } }),
     onSuccess: async () => {
@@ -70,13 +122,21 @@ function PaymentsPage() {
   });
 
   // No payment flow configured for this form.
-  if (!isLoading && !hasPaymentFlow && payments.length === 0) {
+  if (
+    !isLoading &&
+    !hasPaymentFlow &&
+    totalCount === 0 &&
+    !search &&
+    Object.keys(filters).length === 0
+  ) {
     return (
-      <div className="mx-auto max-w-5xl px-6 py-12">
-        <Breadcrumbs formId={formId} formTitle={formTitle} />
-        <div className="mb-8"><FormSectionNav formId={formId} active="payments" /></div>
-        <h1 className="mb-2 text-2xl font-medium text-[#141413]">Payments</h1>
-        <div className="mt-8 rounded-xl border border-dashed border-[#e6dfd8] py-24 text-center">
+      <FormWorkspaceLayout
+        formId={formId}
+        formTitle={formTitle}
+        active="payments"
+        title="Payments"
+      >
+        <div className="rounded-xl border border-dashed border-[#e6dfd8] py-24 text-center">
           <p className="text-[#8e8b82]">
             This form doesn't have any payment steps configured.
           </p>
@@ -92,7 +152,7 @@ function PaymentsPage() {
             ← Back to builder
           </Link>
         </div>
-      </div>
+      </FormWorkspaceLayout>
     );
   }
 
@@ -131,186 +191,220 @@ function PaymentsPage() {
     return <Badge variant="pending">{status ?? "Pending"}</Badge>;
   }
 
-  return (
-    <div className="mx-auto max-w-5xl px-6 py-12">
-      <Breadcrumbs formId={formId} formTitle={formTitle} />
-      <div className="mb-8"><FormSectionNav formId={formId} active="payments" /></div>
-
-      <h1 className="text-2xl font-medium text-[#141413]">
-        Payments
-        {payments.length > 0 && (
-          <span className="ml-2 text-base text-[#6c6a64]">
-            ({payments.length})
-          </span>
-        )}
-      </h1>
-      {hasPaymentFlow && (
-        <p className="mt-1 text-xs text-[#8e8b82]">
-          All payment transactions processed through this form's flow.
-        </p>
-      )}
-
-      {isLoading ? (
-        <div className="mt-6 space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="h-14 animate-pulse rounded-xl bg-[#efe9de]"
-            />
-          ))}
-        </div>
-      ) : payments.length === 0 ? (
-        <div className="mt-8 rounded-xl border border-dashed border-[#e6dfd8] py-24 text-center">
-          <p className="text-[#8e8b82]">No payment transactions yet.</p>
-          <p className="mt-1 text-xs text-[#8e8b82]">
-            Transactions will appear here once respondents submit payments.
-          </p>
-        </div>
-      ) : (
-        <div className="mt-6 overflow-x-auto rounded-xl border border-[#e6dfd8]">
-          <table className="min-w-[980px] w-full text-sm">
-            <thead className="border-b border-[#e6dfd8] bg-[#f5f0e8]">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-[#6c6a64]">
-                  Invoice
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[#6c6a64]">
-                  Date
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[#6c6a64]">
-                  Amount
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[#6c6a64]">
-                  Subscriber
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[#6c6a64]">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[#6c6a64]">
-                  Gateway
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[#6c6a64]">
-                  Channel
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[#6c6a64]">
-                  Reference
-                </th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#e6dfd8] bg-[#faf9f5]">
-              {payments.map((p) => (
-                <tr
-                  key={p.id}
-                  className="cursor-pointer transition-colors hover:bg-[#f5f0e8]"
-                  onClick={() => setSelected(p)}
-                >
-                  <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-[#57544d]">
-                    {p.invoiceNo}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-[#6c6a64]">
-                    {new Date(p.createdAt).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 font-medium text-[#141413]">
-                    {formatAmount(p.amount, p.currency)}
-                    {p.paymentKind === "subscription" && <span className="ml-1 text-xs font-normal text-[#8e8b82]">/cycle</span>}
-                  </td>
-                  <td className="max-w-[180px] px-4 py-3 text-[#57544d]">
-                    {p.paymentKind === "subscription" ? (
-                      <><p className="truncate">{p.respondentName ?? "Subscriber"}</p><p className="truncate text-xs text-[#8e8b82]">{p.respondentEmail ?? "—"}</p></>
-                    ) : "One-time"}
-                  </td>
-                  <td className="px-4 py-3">{p.paymentKind === "subscription" ? subscriptionStatusBadge(p.subscriptionStatus) : statusBadge(p.status)}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-[#57544d]">
-                    {p.gatewayName}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-[#6c6a64]">
-                    {p.paymentChannel ?? "—"}
-                  </td>
-                  <td className="max-w-[120px] truncate px-4 py-3 font-mono text-xs text-[#8e8b82]">
-                    {p.gatewayPaymentId ?? "—"}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-[#cc785c]">
-                    Details →
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {payments.length === 50 && (
-            <div className="flex justify-center gap-3 border-t border-[#e6dfd8] py-3">
-              <button
-                disabled={page === 1}
-                onClick={() => setPage((p) => p - 1)}
-                className="text-sm text-[#cc785c] disabled:opacity-40 hover:text-[#a9583e]"
-              >
-                ← Previous
-              </button>
-              <span className="text-sm text-[#6c6a64]">Page {page}</span>
-              <button
-                onClick={() => setPage((p) => p + 1)}
-                className="text-sm text-[#cc785c] hover:text-[#a9583e]"
-              >
-                Next →
-              </button>
-            </div>
+  const paymentColumns: DataTableColumn<PaymentViewRow>[] = [
+    {
+      key: "invoice",
+      header: "Invoice",
+      sortable: true,
+      accessor: (payment) => (
+        <span className="whitespace-nowrap font-mono text-xs text-[#57544d]">
+          {payment.invoiceNo}
+        </span>
+      ),
+    },
+    {
+      key: "createdAt",
+      header: "Date",
+      sortable: true,
+      filterable: true,
+      filterType: "date-range",
+      accessor: (payment) => (
+        <span className="whitespace-nowrap text-[#6c6a64]">
+          {new Date(payment.createdAt).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </span>
+      ),
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      sortable: true,
+      filterable: true,
+      filterType: "number-range",
+      accessor: (payment) => (
+        <span className="whitespace-nowrap font-medium text-[#141413]">
+          {formatAmount(payment.amount, payment.currency)}
+          {payment.paymentKind === "subscription" && (
+            <span className="ml-1 text-xs font-normal text-[#8e8b82]">/cycle</span>
           )}
-        </div>
-      )}
+        </span>
+      ),
+    },
+    {
+      key: "paymentKind",
+      header: "Type",
+      filterable: true,
+      filterType: "select",
+      filterOptions: [
+        { label: "One-time", value: "one_time" },
+        { label: "Subscription", value: "subscription" },
+      ],
+      accessor: (payment) =>
+        payment.paymentKind === "subscription" ? "Subscription" : "One-time",
+    },
+    {
+      key: "subscriber",
+      header: "Subscriber",
+      sortable: true,
+      accessor: (payment) =>
+        payment.paymentKind === "subscription" ? (
+          <div className="max-w-[180px]">
+            <p className="truncate text-[#57544d]">
+              {payment.respondentName ?? "Subscriber"}
+            </p>
+            <p className="truncate text-xs text-[#8e8b82]">
+              {payment.respondentEmail ?? "—"}
+            </p>
+          </div>
+        ) : (
+          <span className="text-[#8e8b82]">—</span>
+        ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      sortable: true,
+      filterable: true,
+      filterType: "select",
+      filterOptions: [
+        { label: "Pending payment", value: "one_time:pending" },
+        { label: "Completed payment", value: "one_time:completed" },
+        { label: "Failed payment", value: "one_time:failed" },
+        { label: "Refunded payment", value: "one_time:refunded" },
+        { label: "Pending subscription", value: "subscription:pending" },
+        { label: "Active subscription", value: "subscription:active" },
+        { label: "Paused subscription", value: "subscription:paused" },
+        { label: "Past-due subscription", value: "subscription:past_due" },
+        { label: "Cancelled subscription", value: "subscription:cancelled" },
+        { label: "Deactivated subscription", value: "subscription:deactivated" },
+        { label: "Ended subscription", value: "subscription:completed" },
+      ],
+      accessor: (payment) =>
+        payment.paymentKind === "subscription"
+          ? subscriptionStatusBadge(payment.subscriptionStatus)
+          : statusBadge(payment.status),
+    },
+    {
+      key: "gateway",
+      header: "Gateway",
+      sortable: true,
+      filterable: true,
+      filterType: "select",
+      filterOptions: [
+        { label: "Xendit", value: "xendit" },
+        { label: "PayPal", value: "paypal" },
+      ],
+      accessor: (payment) => payment.gatewayName,
+    },
+    {
+      key: "channel",
+      header: "Channel",
+      sortable: true,
+      hideable: true,
+      defaultHidden: true,
+      accessor: (payment) => payment.paymentChannel ?? "—",
+    },
+    {
+      key: "reference",
+      header: "Reference",
+      sortable: true,
+      hideable: true,
+      defaultHidden: true,
+      accessor: (payment) => (
+        <span className="block max-w-[140px] truncate font-mono text-xs text-[#8e8b82]">
+          {payment.gatewayPaymentId ?? "—"}
+        </span>
+      ),
+    },
+    {
+      key: "details",
+      header: "",
+      align: "right",
+      accessor: () => (
+        <span className="whitespace-nowrap font-medium text-[#cc785c]">
+          Details →
+        </span>
+      ),
+    },
+  ];
 
-      {selected && (
+  return (
+    <FormWorkspaceLayout
+      formId={formId}
+      formTitle={formTitle}
+      active="payments"
+      title="Payments"
+      count={totalCount}
+      description={
+        hasPaymentFlow
+          ? "All payment transactions processed through this form's flow."
+          : undefined
+      }
+    >
+      <DataTable
+        columns={paymentColumns}
+        data={payments}
+        keyField="id"
+        totalCount={totalCount}
+        page={page}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(nextPageSize) => {
+          setPageSize(nextPageSize);
+          setPage(1);
+        }}
+        onSortChange={(nextSortKey, nextSortDir) => {
+          setSortKey(nextSortKey);
+          setSortDir(nextSortDir);
+          setPage(1);
+        }}
+        onFilterChange={(nextFilters) => {
+          setFilters(nextFilters);
+          setPage(1);
+        }}
+        loading={isLoading}
+        emptyMessage={
+          search || Object.keys(filters).length > 0
+            ? "No payment transactions match your search or filters."
+            : "No payment transactions yet."
+        }
+        searchValue={searchInput}
+        onSearchChange={setSearchInput}
+        onRowClick={setSelected}
+        initialSort={{ key: "createdAt", dir: "desc" }}
+      />
+
+      {selectedPayment && (
         <PaymentDetailDialog
-          payment={selected}
+          payment={selectedPayment}
           onClose={() => setSelected(null)}
           formatAmount={formatAmount}
-          onVerify={() => verifyMut.mutate(selected.id)}
+          onVerify={() => verifyMut.mutate(selectedPayment.id)}
           verifying={verifyMut.isPending}
           formId={formId}
-          onCopyLink={() => copyLinkMut.mutate(selected.id)}
-          onReplaceLink={() => replaceLinkMut.mutate(selected.id)}
+          onCopyLink={() => copyLinkMut.mutate(selectedPayment.id)}
+          onReplaceLink={() => replaceLinkMut.mutate(selectedPayment.id)}
           recoveryBusy={copyLinkMut.isPending || replaceLinkMut.isPending}
           recoveryMessage={recoveryMessage}
           onEmailLink={() => {
             const recipientEmail = window.prompt("Recipient email address")?.trim();
-            if (recipientEmail) emailLinkMut.mutate({ paymentId: selected.id, recipientEmail });
+            if (recipientEmail) {
+              emailLinkMut.mutate({
+                paymentId: selectedPayment.id,
+                recipientEmail,
+              });
+            }
           }}
           emailing={emailLinkMut.isPending}
+          activityLoading={activityQuery.isLoading}
         />
       )}
-    </div>
-  );
-}
-
-function Breadcrumbs({
-  formId,
-  formTitle,
-}: {
-  formId: string;
-  formTitle?: string;
-}) {
-  return (
-    <div className="mb-1 flex items-center gap-2 text-sm text-[#6c6a64]">
-      <Link to="/forms" className="hover:text-[#141413]">
-        Forms
-      </Link>
-      <span>/</span>
-      <Link
-        to="/forms/$formId/edit"
-        params={{ formId }}
-        className="hover:text-[#141413]"
-      >
-        {formTitle ?? "Form"}
-      </Link>
-      <span>/</span>
-      <span className="text-[#141413]">Payments</span>
-    </div>
+    </FormWorkspaceLayout>
   );
 }
 
@@ -327,6 +421,7 @@ function PaymentDetailDialog({
   recoveryMessage,
   onEmailLink,
   emailing,
+  activityLoading,
 }: {
   payment: PaymentViewRow;
   onClose: () => void;
@@ -340,6 +435,7 @@ function PaymentDetailDialog({
   recoveryMessage: string | null;
   onEmailLink: () => void;
   emailing: boolean;
+  activityLoading: boolean;
 }) {
   // Close on Escape.
   useEffect(() => {
@@ -495,7 +591,9 @@ function PaymentDetailDialog({
                 <p className="text-xs font-semibold uppercase tracking-wider text-[#8e8b82]">Billing cycles</p>
                 <span className="text-xs text-[#8e8b82]">Managed in Xendit</span>
               </div>
-              {payment.cycles.length === 0 ? (
+              {activityLoading ? (
+                <p className="mt-2 text-sm text-[#8e8b82]">Loading billing activity…</p>
+              ) : payment.cycles.length === 0 ? (
                 <p className="mt-2 text-sm text-[#8e8b82]">No billing attempts have been reported yet.</p>
               ) : payment.cycles.map((cycle) => (
                 <div key={cycle.id} className="mt-3 border-t border-[#e6dfd8] pt-3 text-sm">
@@ -521,7 +619,9 @@ function PaymentDetailDialog({
 
           <div className="mt-5 rounded-lg border border-[#e6dfd8] bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-wider text-[#8e8b82]">Event timeline</p>
-            {payment.events.length === 0 ? (
+            {activityLoading ? (
+              <p className="mt-2 text-sm text-[#8e8b82]">Loading event activity…</p>
+            ) : payment.events.length === 0 ? (
               <p className="mt-2 text-sm text-[#8e8b82]">No verification events recorded yet.</p>
             ) : payment.events.map((event) => (
               <div key={event.id} className="mt-3 border-t border-[#e6dfd8] pt-3 text-xs">

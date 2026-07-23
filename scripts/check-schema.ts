@@ -71,6 +71,22 @@ async function main() {
         SELECT 1 FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = 'payments' AND column_name = 'subscription_plan_id'
       ) AS has_subscription_plan,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'form_submissions' AND column_name = 'archived_at'
+      ) AS has_submission_archiving,
+      EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename = 'form_submissions'
+          AND indexname = 'form_submissions_form_archived_submitted_idx'
+      ) AS has_submission_query_index,
+      EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename = 'payments'
+          AND indexname = 'payments_created_at_idx'
+      ) AS has_payment_query_index,
       to_regprocedure('public.replace_page_form(integer,jsonb,jsonb)') IS NOT NULL
         AS has_replace_page_form
   `
@@ -89,6 +105,9 @@ async function main() {
     !compatibility?.has_subscription_cycles ||
     !compatibility?.has_subscription_config ||
     !compatibility?.has_subscription_plan ||
+    !compatibility?.has_submission_archiving ||
+    !compatibility?.has_submission_query_index ||
+    !compatibility?.has_payment_query_index ||
     !compatibility?.has_replace_page_form
   ) {
     throw new Error(

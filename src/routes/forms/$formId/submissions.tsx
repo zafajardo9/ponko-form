@@ -1,11 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { FormSectionNav } from "../../../components/forms/FormSectionNav";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { FormWorkspaceLayout } from "../../../components/forms/FormWorkspaceLayout";
+import {
+  ResponseActionDialog,
+  ResponseRowActions,
+} from "../../../components/forms/ResponseActions";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useCallback } from "react";
 import { requireAuth } from "../../../lib/server-fns/auth";
 import {
   getSubmissions,
   exportSubmissionsCsv,
+  setSubmissionArchived,
+  deleteSubmission,
 } from "../../../lib/server-fns/submissions";
 import type { ResponseColumn } from "../../../lib/server-fns/submissions";
 import { Badge } from "../../../components/ui/Badge";
@@ -29,32 +35,68 @@ interface SubmissionRow {
   formData: Record<string, unknown>;
   submittedAt: string;
   status: string;
+  archivedAt: string | null;
   payment?: PaymentInfo;
+}
+
+type ResponseView = "active" | "archived";
+
+interface PendingResponseAction {
+  kind: "archive" | "delete";
+  row: SubmissionRow;
+  number: number;
 }
 
 function SubmissionsPage() {
   const { formId } = Route.useParams();
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [sortKey, setSortKey] = useState<string>("submitted_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [filters, setFilters] = useState<Record<string, unknown>>({});
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const [responseView, setResponseView] = useState<ResponseView>("active");
+  const [pendingAction, setPendingAction] =
+    useState<PendingResponseAction | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [selected, setSelected] = useState<{
     sub: any;
     number: number;
   } | null>(null);
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["submissions", formId, page, sortKey, sortDir, filters, search],
+    queryKey: [
+      "submissions",
+      formId,
+      responseView,
+      page,
+      pageSize,
+      sortKey,
+      sortDir,
+      filters,
+      search,
+    ],
     queryFn: () =>
       getSubmissions({
         data: {
           formId: Number(formId),
           page,
+          pageSize,
           sortKey,
           sortDir,
           filters,
           search: search || undefined,
+          archived: responseView === "archived",
         },
       }),
   });
@@ -65,7 +107,7 @@ function SubmissionsPage() {
   const paymentMap = (data?.paymentMap ?? {}) as Record<string, PaymentInfo>;
   const totalCount = data?.totalCount ?? 0;
 
-  const hasPaymentData = Object.keys(paymentMap).length > 0;
+  const hasPaymentData = data?.hasPaymentData ?? false;
 
   // Build enriched rows
   const rows: SubmissionRow[] = submissions.map((sub: any) => ({
@@ -74,15 +116,58 @@ function SubmissionsPage() {
     formData: sub.formData as Record<string, unknown>,
     submittedAt: sub.submittedAt,
     status: sub.status,
+    archivedAt: sub.archivedAt,
     payment: paymentMap[String(sub.id)] as PaymentInfo | undefined,
   }));
+
+  const openResponse = useCallback(
+    (row: SubmissionRow, index: number) => {
+      const submission = submissions.find((item) => item.id === row.id);
+      if (!submission) return;
+      setSelected({
+        sub: submission,
+        number: (page - 1) * pageSize + index + 1,
+      });
+    },
+    [page, pageSize, submissions],
+  );
+
+  const archiveMutation = useMutation({
+    mutationFn: ({ submissionId, archived }: { submissionId: number; archived: boolean }) =>
+      setSubmissionArchived({
+        data: { formId: Number(formId), submissionId, archived },
+      }),
+    onSuccess: async (_result, variables) => {
+      setPendingAction(null);
+      setActionMessage(variables.archived ? "Response archived." : "Response restored.");
+      if (rows.length === 1 && page > 1) setPage(page - 1);
+      await queryClient.invalidateQueries({ queryKey: ["submissions", formId] });
+    },
+    onError: (error) => {
+      setActionMessage(error instanceof Error ? error.message : "Unable to update the response.");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (submissionId: number) =>
+      deleteSubmission({ data: { formId: Number(formId), submissionId } }),
+    onSuccess: async () => {
+      setPendingAction(null);
+      setActionMessage("Response permanently deleted.");
+      if (rows.length === 1 && page > 1) setPage(page - 1);
+      await queryClient.invalidateQueries({ queryKey: ["submissions", formId] });
+    },
+    onError: (error) => {
+      setActionMessage(error instanceof Error ? error.message : "Unable to delete the response.");
+    },
+  });
 
   // Build column definitions
   const submissionColumns: DataTableColumn<SubmissionRow>[] = [
     {
       key: "number",
       header: "#",
-      accessor: (_row, idx) => (page - 1) * 50 + idx + 1,
+      accessor: (_row, idx) => (page - 1) * pageSize + idx + 1,
       sortable: false,
       width: "60px",
       hideable: false,
@@ -105,6 +190,14 @@ function SubmissionsPage() {
       sortable: true,
       sortKey: "status",
       width: "130px",
+      filterable: true,
+      filterType: "select",
+      filterOptions: [
+        { label: "Completed", value: "completed" },
+        { label: "Awaiting payment", value: "pending_payment" },
+        { label: "Payment failed", value: "payment_failed" },
+        { label: "Incomplete", value: "incomplete" },
+      ],
     },
     ...columns.map(
       (col): DataTableColumn<SubmissionRow> => ({
@@ -145,6 +238,29 @@ function SubmissionsPage() {
           } satisfies DataTableColumn<SubmissionRow>,
         ]
       : []),
+    {
+      key: "actions",
+      header: <span className="sr-only">Actions</span>,
+      accessor: (row, index) => {
+        const number = (page - 1) * pageSize + index + 1;
+        return (
+          <ResponseRowActions
+            archived={responseView === "archived"}
+            busy={archiveMutation.isPending || deleteMutation.isPending}
+            onView={() => openResponse(row, index)}
+            onArchive={() => setPendingAction({ kind: "archive", row, number })}
+            onRestore={() =>
+              archiveMutation.mutate({ submissionId: row.id, archived: false })
+            }
+            onDelete={() => setPendingAction({ kind: "delete", row, number })}
+          />
+        );
+      },
+      sortable: false,
+      hideable: false,
+      align: "right",
+      width: "132px",
+    },
   ];
 
   // Sort change handler
@@ -176,6 +292,7 @@ function SubmissionsPage() {
           sortKey,
           sortDir,
           search: search || undefined,
+          archived: responseView === "archived",
         },
       });
       return csv;
@@ -194,38 +311,14 @@ function SubmissionsPage() {
   });
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-12">
-      {/* Header */}
-      <div className="mb-5">
-        <FormSectionNav formId={formId} active="responses" />
-      </div>
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <div className="mb-1 flex items-center gap-2 text-sm text-[#6c6a64]">
-            <Link to="/forms" className="hover:text-[#141413]">
-              Forms
-            </Link>
-            <span>/</span>
-            <Link
-              to="/forms/$formId/edit"
-              params={{ formId }}
-              className="hover:text-[#141413]"
-            >
-              {form?.title ?? "Form"}
-            </Link>
-            <span>/</span>
-            <span className="text-[#141413]">Responses</span>
-          </div>
-          <h1 className="text-2xl font-medium text-[#141413]">
-            Responses
-            {totalCount > 0 && (
-              <span className="ml-2 text-base text-[#6c6a64]">
-                ({totalCount})
-              </span>
-            )}
-          </h1>
-        </div>
-        <div className="flex items-center gap-3">
+    <FormWorkspaceLayout
+      formId={formId}
+      formTitle={form?.title}
+      active="responses"
+      title="Responses"
+      count={totalCount}
+      actions={
+        <>
           {hasPaymentData && (
             <Link
               to="/forms/$formId/payments"
@@ -240,7 +333,40 @@ function SubmissionsPage() {
               ← Back to builder
             </span>
           </Link>
+        </>
+      }
+    >
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          className="inline-flex w-fit rounded-lg border border-[#e6dfd8] bg-[#f5f0e8] p-0.5"
+          role="group"
+          aria-label="Response view"
+        >
+          {(["active", "archived"] as const).map((view) => (
+            <button
+              key={view}
+              type="button"
+              aria-pressed={responseView === view}
+              onClick={() => {
+                setResponseView(view);
+                setPage(1);
+                setActionMessage(null);
+              }}
+              className={`rounded-md px-3 py-1.5 text-sm capitalize transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] ${
+                responseView === view
+                  ? "bg-white font-medium text-[#141413] shadow-sm"
+                  : "text-[#6c6a64] hover:text-[#141413]"
+              }`}
+            >
+              {view}
+            </button>
+          ))}
         </div>
+        {actionMessage && (
+          <p role="status" className="text-sm text-[#6c6a64]">
+            {actionMessage}
+          </p>
+        )}
       </div>
 
       {/* DataTable */}
@@ -250,25 +376,25 @@ function SubmissionsPage() {
         keyField="id"
         totalCount={totalCount}
         page={page}
-        pageSize={50}
+        pageSize={pageSize}
         onPageChange={setPage}
+        onPageSizeChange={(nextPageSize) => {
+          setPageSize(nextPageSize);
+          setPage(1);
+        }}
         onSortChange={handleSortChange}
         onFilterChange={handleFilterChange}
         loading={isLoading || exportMutation.isPending}
-        emptyMessage="No responses yet."
-        onRowClick={(row) => {
-          const idx = rows.indexOf(row);
-          setSelected({
-            sub: submissions[idx],
-            number: (page - 1) * 50 + idx + 1,
-          });
-        }}
+        emptyMessage={
+          responseView === "archived"
+            ? "No archived responses."
+            : "No responses yet."
+        }
+        onRowClick={(row) => openResponse(row, rows.indexOf(row))}
         onExportCsv={() => exportMutation.mutate()}
-        searchValue={search}
-        onSearchChange={(value) => {
-          setSearch(value);
-          setPage(1);
-        }}
+        initialSort={{ key: "submitted_at", dir: "desc" }}
+        searchValue={searchInput}
+        onSearchChange={setSearchInput}
       />
 
       {/* Response Dialog */}
@@ -283,7 +409,26 @@ function SubmissionsPage() {
           onClose={() => setSelected(null)}
         />
       )}
-    </div>
+
+      {pendingAction && (
+        <ResponseActionDialog
+          kind={pendingAction.kind}
+          number={pendingAction.number}
+          busy={archiveMutation.isPending || deleteMutation.isPending}
+          onCancel={() => setPendingAction(null)}
+          onConfirm={() => {
+            if (pendingAction.kind === "archive") {
+              archiveMutation.mutate({
+                submissionId: pendingAction.row.id,
+                archived: true,
+              });
+            } else {
+              deleteMutation.mutate(pendingAction.row.id);
+            }
+          }}
+        />
+      )}
+    </FormWorkspaceLayout>
   );
 }
 

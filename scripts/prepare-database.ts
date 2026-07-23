@@ -27,6 +27,8 @@ async function main() {
     '0024_recaptcha_field_type.sql',
     '0025_invoicing_builder.sql',
     '0026_subscription_xendit.sql',
+    '0027_submission_archiving.sql',
+    '0028_table_query_indexes.sql',
   ]) {
     const migration = await readFile(resolve(import.meta.dirname, `../drizzle/${filename}`), 'utf8')
     for (const statement of migration.split('--> statement-breakpoint')) {

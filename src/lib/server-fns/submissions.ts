@@ -12,7 +12,17 @@ import {
   payments,
   profiles,
 } from "../../db/schema";
-import { eq, desc, asc, inArray, sql, and } from "drizzle-orm";
+import {
+  eq,
+  desc,
+  asc,
+  inArray,
+  sql,
+  and,
+  isNull,
+  isNotNull,
+  type SQL,
+} from "drizzle-orm";
 import { dispatchSubmissionEmails } from "../invoicing/delivery";
 
 /** A response column: the key to read from a submission's formData + its label. */
@@ -23,6 +33,134 @@ export interface ResponseColumn {
 
 function paymentStatusPriority(status: string) {
   return status === 'refunded' ? 4 : status === 'completed' ? 3 : status === 'pending' ? 2 : 1
+}
+
+const submissionStatuses = new Set([
+  "pending_payment",
+  "incomplete",
+  "completed",
+  "payment_failed",
+]);
+const paymentStatuses = new Set(["pending", "completed", "failed", "refunded"]);
+const allowedPageSizes = new Set([10, 25, 50, 100]);
+
+export function normalizeSubmissionPageSize(value?: number) {
+  return value && allowedPageSizes.has(value) ? value : 25;
+}
+
+function paymentStatusExpression() {
+  return sql<string | null>`(
+    SELECT p.status::text
+    FROM payments p
+    WHERE p.form_submission_id = ${formSubmissions.id}
+    ORDER BY
+      CASE p.status::text
+        WHEN 'refunded' THEN 4
+        WHEN 'completed' THEN 3
+        WHEN 'pending' THEN 2
+        ELSE 1
+      END DESC,
+      p.id DESC
+    LIMIT 1
+  )`;
+}
+
+function buildSubmissionWhereConditions({
+  formId,
+  archived,
+  filters,
+  search,
+  columns,
+}: {
+  formId: number;
+  archived?: boolean;
+  filters?: Record<string, unknown>;
+  search?: string;
+  columns: ResponseColumn[];
+}) {
+  const conditions: SQL[] = [
+    eq(formSubmissions.formId, formId),
+    archived
+      ? isNotNull(formSubmissions.archivedAt)
+      : isNull(formSubmissions.archivedAt),
+  ];
+  const answerKeys = new Set(columns.map((column) => column.key));
+
+  for (const [key, value] of Object.entries(filters ?? {})) {
+    if (value == null || value === "") continue;
+
+    if (key === "payment_status" && typeof value === "string") {
+      if (value === "none") {
+        conditions.push(sql`NOT EXISTS (
+          SELECT 1 FROM payments p
+          WHERE p.form_submission_id = ${formSubmissions.id}
+        )`);
+      } else if (paymentStatuses.has(value)) {
+        conditions.push(sql`${paymentStatusExpression()} = ${value}`);
+      }
+      continue;
+    }
+
+    if (key === "submitted_at" && typeof value === "object") {
+      const range = value as { from?: string; to?: string };
+      const from = range.from ? new Date(`${range.from}T00:00:00`) : null;
+      const to = range.to ? new Date(`${range.to}T23:59:59.999`) : null;
+      if (from && !Number.isNaN(from.getTime())) {
+        conditions.push(sql`${formSubmissions.submittedAt} >= ${from}`);
+      }
+      if (to && !Number.isNaN(to.getTime())) {
+        conditions.push(sql`${formSubmissions.submittedAt} <= ${to}`);
+      }
+      continue;
+    }
+
+    if (key === "status" && typeof value === "string") {
+      if (submissionStatuses.has(value)) {
+        conditions.push(sql`${formSubmissions.status}::text = ${value}`);
+      }
+      continue;
+    }
+
+    if (answerKeys.has(key) && typeof value === "string" && value.trim()) {
+      conditions.push(
+        sql`LOWER(COALESCE(${formSubmissions.formData} ->> ${key}, '')) LIKE LOWER(${"%" + value.trim() + "%"})`,
+      );
+    }
+  }
+
+  const normalizedSearch = search?.trim();
+  if (normalizedSearch) {
+    conditions.push(
+      sql`LOWER(${formSubmissions.formData}::text) LIKE LOWER(${"%" + normalizedSearch + "%"})`,
+    );
+  }
+
+  return conditions;
+}
+
+function buildSubmissionOrderBy({
+  sortKey,
+  sortDir,
+  columns,
+}: {
+  sortKey?: string;
+  sortDir?: "asc" | "desc";
+  columns: ResponseColumn[];
+}) {
+  const direction = sortDir === "asc" ? asc : desc;
+  const answerKeys = new Set(columns.map((column) => column.key));
+  let expression: SQL | typeof formSubmissions.submittedAt =
+    formSubmissions.submittedAt;
+
+  if (sortKey === "status") {
+    expression = sql`${formSubmissions.status}::text`;
+  } else if (sortKey === "payment_status") {
+    expression = paymentStatusExpression();
+  } else if (sortKey && answerKeys.has(sortKey)) {
+    expression = sql`LOWER(COALESCE(${formSubmissions.formData} ->> ${sortKey}, ''))`;
+  }
+
+  return [direction(expression), desc(formSubmissions.id)] as const;
 }
 
 /**
@@ -152,10 +290,12 @@ export const getSubmissions = createServerFn({ method: "GET", strict: false })
     (data: {
       formId: number;
       page?: number;
+      pageSize?: number;
       sortKey?: string;
       sortDir?: "asc" | "desc";
       filters?: Record<string, unknown>;
       search?: string;
+      archived?: boolean;
     }) => data,
   )
   .handler(async ({ data }) => {
@@ -176,100 +316,46 @@ export const getSubmissions = createServerFn({ method: "GET", strict: false })
       .limit(1);
     if (!form || form.profileId !== profile.id) throw new Error("Not found");
 
-    const page = data.page ?? 1;
-    const limit = 50;
-    const offset = (page - 1) * limit;
-
-    // Build WHERE conditions
-    const whereConditions: ReturnType<typeof eq>[] = [
-      eq(formSubmissions.formId, data.formId),
-    ];
-
-    // Apply filters
-    if (data.filters) {
-      for (const [key, value] of Object.entries(data.filters)) {
-        if (value == null || value === "") continue;
-
-        if (key === "payment_status" && typeof value === "string") {
-          // Payment status filter is handled post-query via paymentMap
-        } else if (key === "submitted_at") {
-          // Date range filter
-          if (typeof value === "object" && value !== null) {
-            const range = value as { from?: string; to?: string };
-            if (range.from) {
-              whereConditions.push(
-                sql`${formSubmissions.submittedAt} >= ${new Date(range.from)}`,
-              );
-            }
-            if (range.to) {
-              // End of day for "to" date
-              const toDate = new Date(range.to);
-              toDate.setHours(23, 59, 59, 999);
-              whereConditions.push(
-                sql`${formSubmissions.submittedAt} <= ${toDate}`,
-              );
-            }
-          }
-        } else if (key === "status" && typeof value === "string") {
-          whereConditions.push(sql`${formSubmissions.status} = ${value}`);
-        } else if (typeof value === "string") {
-          // Text / form data field filter — jsonb contains (case-insensitive)
-          whereConditions.push(
-            sql`LOWER(${formSubmissions.formData}->>${sql.raw(key)}) LIKE LOWER(${"%" + value + "%"})`,
-          );
-        }
-      }
-    }
-
-    // Global search across all formData values
-    if (data.search && data.search.trim()) {
-      const searchTerm = `%${data.search.trim()}%`;
-      whereConditions.push(
-        sql`LOWER(${formSubmissions.formData}::text) LIKE LOWER(${searchTerm})`,
-      );
-    }
-
-    // Build ORDER BY
-    const sortKey = data.sortKey ?? "submitted_at";
-    const sortDir = data.sortDir ?? "desc";
-
-    let orderByClause:
-      | ReturnType<typeof desc>
-      | ReturnType<typeof asc>
-      | ReturnType<typeof sql>;
-    if (sortKey === "submitted_at") {
-      orderByClause =
-        sortDir === "desc"
-          ? desc(formSubmissions.submittedAt)
-          : asc(formSubmissions.submittedAt);
-    } else if (sortKey === "status") {
-      orderByClause =
-        sortDir === "desc"
-          ? desc(formSubmissions.status)
-          : asc(formSubmissions.status);
-    } else {
-      // Form data JSONB field sorting
-      orderByClause = sql`${formSubmissions.formData}->>${sql.raw(sortKey)} ${sql.raw(sortDir.toUpperCase())}`;
-    }
-
-    // Count total for pagination
-    const [countResult] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(formSubmissions)
-      .where(and(...whereConditions));
-
-    const totalCount = countResult?.count ?? 0;
-
-    // Fetch submissions
-    const submissions = await db
-      .select()
-      .from(formSubmissions)
-      .where(and(...whereConditions))
-      .orderBy(orderByClause)
-      .limit(limit)
-      .offset(offset);
-
     const columns = await getResponseColumns(data.formId);
+    const pageSize = normalizeSubmissionPageSize(data.pageSize);
+    const page = Math.max(1, Math.floor(data.page ?? 1));
+    const offset = (page - 1) * pageSize;
+    const whereConditions = buildSubmissionWhereConditions({
+      formId: data.formId,
+      archived: data.archived,
+      filters: data.filters,
+      search: data.search,
+      columns,
+    });
+    const orderBy = buildSubmissionOrderBy({
+      sortKey: data.sortKey,
+      sortDir: data.sortDir,
+      columns,
+    });
+
+    const [[countResult], submissions, [paymentRecord]] = await Promise.all([
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(formSubmissions)
+        .where(and(...whereConditions)),
+      db
+        .select()
+        .from(formSubmissions)
+        .where(and(...whereConditions))
+        .orderBy(...orderBy)
+        .limit(pageSize)
+        .offset(offset),
+      db
+        .select({ id: payments.id })
+        .from(payments)
+        .innerJoin(
+          formSubmissions,
+          eq(payments.formSubmissionId, formSubmissions.id),
+        )
+        .where(eq(formSubmissions.formId, data.formId))
+        .limit(1),
+    ]);
+    const totalCount = countResult?.count ?? 0;
 
     // Attach payment status to each submission
     const subIds = submissions.map((s) => s.id).filter(Boolean);
@@ -306,27 +392,82 @@ export const getSubmissions = createServerFn({ method: "GET", strict: false })
       }
     }
 
-    // Post-filter by payment_status if needed
-    let filteredSubmissions = submissions;
-    if (
-      data.filters?.payment_status &&
-      typeof data.filters.payment_status === "string"
-    ) {
-      const targetStatus = data.filters.payment_status;
-      filteredSubmissions = submissions.filter((sub) => {
-        const payment = paymentMap.get(sub.id);
-        if (targetStatus === "none") return !payment;
-        return payment?.status === targetStatus;
-      });
-    }
-
     return {
-      submissions: filteredSubmissions,
+      submissions,
       columns,
       form,
       paymentMap: Object.fromEntries(paymentMap),
       totalCount,
+      page,
+      pageSize,
+      hasPaymentData: !!paymentRecord,
     };
+  });
+
+async function requireOwnedSubmission(formId: number, submissionId: number) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  const [ownedSubmission] = await db
+    .select({ id: formSubmissions.id })
+    .from(formSubmissions)
+    .innerJoin(forms, eq(forms.id, formSubmissions.formId))
+    .innerJoin(profiles, eq(profiles.id, forms.profileId))
+    .where(
+      and(
+        eq(formSubmissions.id, submissionId),
+        eq(formSubmissions.formId, formId),
+        eq(profiles.clerkId, userId),
+      ),
+    )
+    .limit(1);
+
+  if (!ownedSubmission) throw new Error("Response not found");
+}
+
+export const setSubmissionArchived = createServerFn({
+  method: "POST",
+  strict: false,
+})
+  .inputValidator(
+    (data: { formId: number; submissionId: number; archived: boolean }) => data,
+  )
+  .handler(async ({ data }) => {
+    await requireOwnedSubmission(data.formId, data.submissionId);
+
+    const [submission] = await db
+      .update(formSubmissions)
+      .set({ archivedAt: data.archived ? new Date() : null })
+      .where(
+        and(
+          eq(formSubmissions.id, data.submissionId),
+          eq(formSubmissions.formId, data.formId),
+        ),
+      )
+      .returning({ id: formSubmissions.id, archivedAt: formSubmissions.archivedAt });
+
+    return submission;
+  });
+
+export const deleteSubmission = createServerFn({
+  method: "POST",
+  strict: false,
+})
+  .inputValidator((data: { formId: number; submissionId: number }) => data)
+  .handler(async ({ data }) => {
+    await requireOwnedSubmission(data.formId, data.submissionId);
+
+    const [deleted] = await db
+      .delete(formSubmissions)
+      .where(
+        and(
+          eq(formSubmissions.id, data.submissionId),
+          eq(formSubmissions.formId, data.formId),
+        ),
+      )
+      .returning({ id: formSubmissions.id });
+
+    return deleted;
   });
 
 /**
@@ -341,6 +482,7 @@ export const exportSubmissionsCsv = createServerFn({ method: "GET" })
       sortKey?: string;
       sortDir?: "asc" | "desc";
       search?: string;
+      archived?: boolean;
     }) => data,
   )
   .handler(async ({ data }) => {
@@ -361,76 +503,25 @@ export const exportSubmissionsCsv = createServerFn({ method: "GET" })
       .limit(1);
     if (!form || form.profileId !== profile.id) throw new Error("Not found");
 
-    // Build WHERE conditions (same as getSubmissions but no pagination)
-    const whereConditions: ReturnType<typeof eq>[] = [
-      eq(formSubmissions.formId, data.formId),
-    ];
-
-    if (data.filters) {
-      for (const [key, value] of Object.entries(data.filters)) {
-        if (value == null || value === "") continue;
-        if (key === "payment_status") continue; // post-filter
-        if (key === "submitted_at") {
-          if (typeof value === "object" && value !== null) {
-            const range = value as { from?: string; to?: string };
-            if (range.from) {
-              whereConditions.push(
-                sql`${formSubmissions.submittedAt} >= ${new Date(range.from)}`,
-              );
-            }
-            if (range.to) {
-              const toDate = new Date(range.to);
-              toDate.setHours(23, 59, 59, 999);
-              whereConditions.push(
-                sql`${formSubmissions.submittedAt} <= ${toDate}`,
-              );
-            }
-          }
-        } else if (key === "status" && typeof value === "string") {
-          whereConditions.push(sql`${formSubmissions.status} = ${value}`);
-        } else if (typeof value === "string") {
-          whereConditions.push(
-            sql`LOWER(${formSubmissions.formData}->>${sql.raw(key)}) LIKE LOWER(${"%" + value + "%"})`,
-          );
-        }
-      }
-    }
-
-    if (data.search && data.search.trim()) {
-      const searchTerm = `%${data.search.trim()}%`;
-      whereConditions.push(
-        sql`LOWER(${formSubmissions.formData}::text) LIKE LOWER(${searchTerm})`,
-      );
-    }
-
-    // Build ORDER BY
-    const sortKey = data.sortKey ?? "submitted_at";
-    const sortDir = data.sortDir ?? "desc";
-    let orderByClause:
-      | ReturnType<typeof desc>
-      | ReturnType<typeof asc>
-      | ReturnType<typeof sql>;
-    if (sortKey === "submitted_at") {
-      orderByClause =
-        sortDir === "desc"
-          ? desc(formSubmissions.submittedAt)
-          : asc(formSubmissions.submittedAt);
-    } else if (sortKey === "status") {
-      orderByClause =
-        sortDir === "desc"
-          ? desc(formSubmissions.status)
-          : asc(formSubmissions.status);
-    } else {
-      orderByClause = sql`${formSubmissions.formData}->>${sql.raw(sortKey)} ${sql.raw(sortDir.toUpperCase())}`;
-    }
+    const columns = await getResponseColumns(data.formId);
+    const whereConditions = buildSubmissionWhereConditions({
+      formId: data.formId,
+      archived: data.archived,
+      filters: data.filters,
+      search: data.search,
+      columns,
+    });
+    const orderBy = buildSubmissionOrderBy({
+      sortKey: data.sortKey,
+      sortDir: data.sortDir,
+      columns,
+    });
 
     const submissions = await db
       .select()
       .from(formSubmissions)
       .where(and(...whereConditions))
-      .orderBy(orderByClause);
-
-    const columns = await getResponseColumns(data.formId);
+      .orderBy(...orderBy);
 
     // Fetch payment info (needed for payment_status filter)
     const subIds = submissions.map((s) => s.id).filter(Boolean);
@@ -467,20 +558,6 @@ export const exportSubmissionsCsv = createServerFn({ method: "GET" })
       }
     }
 
-    // Post-filter
-    let filteredSubmissions = submissions;
-    if (
-      data.filters?.payment_status &&
-      typeof data.filters.payment_status === "string"
-    ) {
-      const targetStatus = data.filters.payment_status;
-      filteredSubmissions = submissions.filter((sub) => {
-        const payment = paymentMap.get(sub.id);
-        if (targetStatus === "none") return !payment;
-        return payment?.status === targetStatus;
-      });
-    }
-
     // Build CSV with BOM for Excel compatibility
     const headers = [
       "#",
@@ -500,7 +577,7 @@ export const exportSubmissionsCsv = createServerFn({ method: "GET" })
       return str;
     };
 
-    const rows = filteredSubmissions.map((sub, i) => {
+    const rows = submissions.map((sub, i) => {
       const formData = sub.formData as Record<string, unknown>;
       const payment = paymentMap.get(sub.id);
       return [

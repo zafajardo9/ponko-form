@@ -10,7 +10,7 @@ import {
   sendTestTemplate,
   type InvoicingTemplateKind,
 } from '../../../lib/server-fns/invoicing'
-import { FormSectionNav } from '../../../components/forms/FormSectionNav'
+import { FormWorkspaceLayout } from '../../../components/forms/FormWorkspaceLayout'
 import { InvoiceTemplateBuilder } from '../../../components/invoicing/InvoiceTemplateBuilder'
 import { DeliveryHistory } from '../../../components/invoicing/DeliveryHistory'
 import { Badge } from '../../../components/ui/Badge'
@@ -33,13 +33,12 @@ function InvoicingPage() {
   if (query.isLoading) return <LoadingPage formId={formId} />
   if (query.error || !query.data) {
     return (
-      <main className="mx-auto max-w-7xl px-6 py-12">
-        <FormSectionNav formId={formId} active="invoicing" />
-        <div className="mt-8 rounded-xl border border-[#e6dfd8] bg-white p-10 text-center">
+      <FormWorkspaceLayout formId={formId} active="invoicing" title="Invoicing">
+        <div className="rounded-xl border border-[#e6dfd8] bg-white p-10 text-center">
           <h1 className="text-xl font-medium text-[#141413]">Unable to load invoicing</h1>
           <p className="mt-2 text-sm text-[#8e8b82]">{query.error instanceof Error ? query.error.message : 'This form could not be found.'}</p>
         </div>
-      </main>
+      </FormWorkspaceLayout>
     )
   }
   return <LoadedInvoicingPage key={`${formId}-${query.data.form.status}`} formId={formId} data={query.data} />
@@ -105,20 +104,14 @@ function LoadedInvoicingPage({
   const hasEmailIntegration = data.emailAvailability.resend || data.emailAvailability.smtp
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:py-12">
-      <div className="mb-5 flex flex-wrap items-center gap-2 text-sm text-[#6c6a64]">
-        <Link to="/forms" className="hover:text-[#141413]">Forms</Link><span>/</span>
-        <Link to="/forms/$formId/edit" params={{ formId }} className="hover:text-[#141413]">{data.form.title}</Link><span>/</span>
-        <span className="text-[#141413]">Invoicing</span>
-      </div>
-      <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div className="flex items-center gap-3"><h1 className="text-3xl font-medium text-[#141413]">Invoicing</h1><Badge variant={data.form.status}>{data.form.status}</Badge></div>
-          <p className="mt-2 max-w-2xl text-sm text-[#6c6a64]">Design the invoice and confirmation emails respondents receive after successful completion.</p>
-        </div>
-        <FormSectionNav formId={formId} active="invoicing" />
-      </div>
-
+    <FormWorkspaceLayout
+      formId={formId}
+      formTitle={data.form.title}
+      active="invoicing"
+      title="Invoicing"
+      titleAdornment={<Badge variant={data.form.status}>{data.form.status}</Badge>}
+      description="Design the invoice and confirmation emails respondents receive after successful completion."
+    >
       {!hasEmailIntegration && (
         <div className="mb-6 flex flex-col gap-3 rounded-xl border border-[#e2c49f] bg-[#fff8eb] px-5 py-4 text-sm text-[#79572e] sm:flex-row sm:items-center sm:justify-between">
           <div><strong>Email delivery is not connected.</strong><p className="mt-1">Connect Resend or SMTP before enabling respondent emails.</p></div>
@@ -153,10 +146,17 @@ function LoadedInvoicingPage({
       </section>
 
       <DeliveryHistory deliveries={data.deliveries} retryingId={retryingId} onRetry={(id) => retryMutation.mutate(id)} />
-    </main>
+    </FormWorkspaceLayout>
   )
 }
 
 function LoadingPage({ formId }: { formId: string }) {
-  return <main className="mx-auto max-w-7xl px-6 py-12"><FormSectionNav formId={formId} active="invoicing" /><div className="mt-8 grid gap-6 xl:grid-cols-2"><div className="h-[700px] animate-pulse rounded-xl bg-[#efe9de]" /><div className="h-[700px] animate-pulse rounded-xl bg-[#efe9de]" /></div></main>
+  return (
+    <FormWorkspaceLayout formId={formId} active="invoicing" title="Invoicing">
+      <div className="grid gap-6 xl:grid-cols-2">
+        <div className="h-[700px] animate-pulse rounded-xl bg-[#efe9de]" />
+        <div className="h-[700px] animate-pulse rounded-xl bg-[#efe9de]" />
+      </div>
+    </FormWorkspaceLayout>
+  )
 }
