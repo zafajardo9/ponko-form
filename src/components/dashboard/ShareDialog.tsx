@@ -9,6 +9,8 @@ import {
   buildEmailSurveyHtml,
   emailSurveyRatingUrl,
 } from "../../lib/email-survey-html";
+import { SVG_STAR_MARKER } from "../../lib/page-builder/satisfaction";
+import { StarIcon } from "../ui/StarIcon";
 
 interface ShareDialogProps {
   publicId: string;
@@ -269,7 +271,11 @@ export function ShareDialog({ publicId, title, onClose }: ShareDialogProps) {
                         rel="noreferrer"
                         className="flex min-h-16 min-w-16 flex-1 flex-col items-center justify-center rounded-md border border-[#e6dfd8] bg-[#faf9f5] px-2 py-2 text-center text-xs text-[#141413]"
                       >
-                        <span className="text-xl">{option.emoji || option.value}</span>
+                        {option.emoji === SVG_STAR_MARKER ? (
+                          <StarIcon size={24} filled className="text-[#cc785c]" />
+                        ) : (
+                          <span className="text-xl">{option.emoji || option.value}</span>
+                        )}
                         <span className="mt-1">{option.label}</span>
                       </a>
                     ))}

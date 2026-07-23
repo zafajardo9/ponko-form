@@ -173,7 +173,7 @@ export function IntegrationModal({ provider, open, onClose, onSave, onOAuth, sav
               <code className="mt-2 block break-all select-all rounded bg-white p-2">
                 {typeof window === 'undefined' ? meta.webhookPath : `${window.location.origin}${meta.webhookPath}`}
               </code>
-              <p className="mt-2">Use this URL for Xendit invoice and refund webhooks.</p>
+              <p className="mt-2">Use this URL for Xendit invoice, refund, payment session, subscription plan, and recurring cycle webhooks.</p>
             </details>
           )}
 

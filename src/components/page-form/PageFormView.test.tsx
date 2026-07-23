@@ -56,6 +56,7 @@ const pages = [
     paymentAmountVariable: null,
     paymentCurrency: 'USD',
     paymentComputation: null,
+    subscriptionConfig: null,
     fields: [{
       id: 1,
       pageId: 1,
@@ -85,6 +86,7 @@ const pages = [
     paymentAmountVariable: null,
     paymentCurrency: 'USD',
     paymentComputation: null,
+    subscriptionConfig: null,
     fields: [],
   },
 ] as FormPage[]

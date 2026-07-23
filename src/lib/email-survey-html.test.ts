@@ -26,4 +26,20 @@ describe('email survey HTML', () => {
     expect(html).not.toContain('<form')
     expect(html).not.toContain('<script')
   })
+
+  it('renders modern star markers as email-safe stars', () => {
+    const html = buildEmailSurveyHtml({
+      origin: 'https://forms.example',
+      publicId: 'public-id',
+      token: 'token_value',
+      title: 'Rate the service',
+      options: [
+        { label: '1 star', value: '1', emoji: 'star-svg' },
+        { label: '5 stars', value: '5', emoji: 'star-svg' },
+      ],
+    })
+
+    expect(html).toContain('★')
+    expect(html).not.toContain('star-svg')
+  })
 })

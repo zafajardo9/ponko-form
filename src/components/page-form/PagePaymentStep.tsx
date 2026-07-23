@@ -107,17 +107,46 @@ export function PagePaymentStep({ sessionId, pageId, onPaymentStatusChange }: Pa
 
   return (
     <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-4">
-      <p className="text-sm text-[#6c6a64]">Amount due</p>
+      <p className="text-sm text-[#6c6a64]">
+        {data.paymentMode === 'subscription' ? 'Subscription amount' : 'Amount due'}
+      </p>
       <p className="mt-1 text-2xl font-medium text-[#141413]">
         {formatMoney(data.amount, data.currency)}
+        {data.paymentMode === 'subscription' && data.subscription && (
+          <span className="ml-1 text-sm font-normal text-[#6c6a64]">
+            /{data.subscription.interval === 'weekly'
+              ? 'week'
+              : data.subscription.interval === 'monthly'
+                ? 'month'
+                : data.subscription.interval === 'quarterly'
+                  ? '3 months'
+                  : data.subscription.interval === 'semiannual' ? '6 months' : 'year'}
+          </span>
+        )}
       </p>
+      {data.paymentMode === 'subscription' && data.subscription && (
+        <div className="mt-3 rounded-lg border border-[#e6dfd8] bg-white p-3 text-xs leading-relaxed text-[#6c6a64]">
+          {data.subscription.trialPeriodDays > 0
+            ? `Your ${data.subscription.trialPeriodDays}-day trial starts after you securely link an eligible auto-debit payment method with Xendit.`
+            : 'Xendit will securely link an eligible auto-debit payment method and attempt charges on this schedule.'}
+          {data.subscription.maxCycles
+            ? ` This subscription ends after ${data.subscription.maxCycles} billing cycles.`
+            : ' Billing continues until the subscription is cancelled.'}
+        </div>
+      )}
 
       {paid && (
         <div className="mt-4 flex items-start gap-3 rounded-xl border border-[#cfe3ca] bg-[#f3fbf1] px-4 py-3 text-[#356a39]" role="status">
           <CheckCircle2 className="mt-0.5 shrink-0" size={18} aria-hidden="true" />
           <div>
-            <p className="text-sm font-semibold">Payment confirmed</p>
-            <p className="mt-0.5 text-xs leading-relaxed">Your transaction was verified. You can continue with the form.</p>
+            <p className="text-sm font-semibold">
+              {data.paymentMode === 'subscription' ? 'Subscription active' : 'Payment confirmed'}
+            </p>
+            <p className="mt-0.5 text-xs leading-relaxed">
+              {data.paymentMode === 'subscription'
+                ? 'Xendit confirmed your enrollment. Future billing attempts will follow the schedule above.'
+                : 'Your transaction was verified. You can continue with the form.'}
+            </p>
           </div>
         </div>
       )}
@@ -153,7 +182,9 @@ export function PagePaymentStep({ sessionId, pageId, onPaymentStatusChange }: Pa
 
       {data.gateways.length === 0 ? (
         <p className="mt-4 text-sm text-[#c64545]">
-          No connected gateway can process this currency.
+          {data.paymentMode === 'subscription'
+            ? 'Xendit subscription checkout is not available for this form.'
+            : 'No connected gateway can process this currency.'}
         </p>
       ) : (
         <div className="mt-5">
@@ -165,10 +196,12 @@ export function PagePaymentStep({ sessionId, pageId, onPaymentStatusChange }: Pa
                 disabled={initiate.isPending || paid}
               >
                 {paid
-                  ? 'Paid'
+                  ? data.paymentMode === 'subscription' ? 'Subscribed' : 'Paid'
                   : initiate.isPending && pendingGateway === gateway.slug
                     ? `Opening ${gateway.name}…`
-                    : `Pay with ${gateway.name}`}
+                    : data.paymentMode === 'subscription'
+                      ? `Subscribe with ${gateway.name}`
+                      : `Pay with ${gateway.name}`}
               </Button>
             ))}
           </div>

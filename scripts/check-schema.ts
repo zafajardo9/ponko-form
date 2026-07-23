@@ -59,6 +59,18 @@ async function main() {
         SELECT 1 FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = 'email_delivery_logs'
       ) AS has_email_delivery_logs,
+      EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'subscription_cycles'
+      ) AS has_subscription_cycles,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'form_pages' AND column_name = 'subscription_config'
+      ) AS has_subscription_config,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'payments' AND column_name = 'subscription_plan_id'
+      ) AS has_subscription_plan,
       to_regprocedure('public.replace_page_form(integer,jsonb,jsonb)') IS NOT NULL
         AS has_replace_page_form
   `
@@ -74,6 +86,9 @@ async function main() {
     !compatibility?.has_invoice_configs ||
     !compatibility?.has_confirmation_configs ||
     !compatibility?.has_email_delivery_logs ||
+    !compatibility?.has_subscription_cycles ||
+    !compatibility?.has_subscription_config ||
+    !compatibility?.has_subscription_plan ||
     !compatibility?.has_replace_page_form
   ) {
     throw new Error(

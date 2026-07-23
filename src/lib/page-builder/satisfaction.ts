@@ -1,6 +1,10 @@
 import type { PageFieldOption } from './types'
 
-export type SatisfactionPreset = 'five-point' | 'stars' | 'nps' | 'custom'
+export type SatisfactionPreset = 'five-point' | 'stars' | 'svg-stars' | 'nps' | 'custom'
+
+/** Special emoji marker used by the SVG stars preset. Renderers detect this
+ *  string and render <StarIcon /> components instead of raw emoji text. */
+export const SVG_STAR_MARKER = 'star-svg'
 
 export const SATISFACTION_PRESETS: Record<Exclude<SatisfactionPreset, 'custom'>, PageFieldOption[]> = {
   'five-point': [
@@ -17,6 +21,13 @@ export const SATISFACTION_PRESETS: Record<Exclude<SatisfactionPreset, 'custom'>,
     { label: '4 stars', value: '4', emoji: '★★★★' },
     { label: '5 stars', value: '5', emoji: '★★★★★' },
   ],
+  'svg-stars': [
+    { label: '1 star', value: '1', emoji: SVG_STAR_MARKER },
+    { label: '2 stars', value: '2', emoji: SVG_STAR_MARKER },
+    { label: '3 stars', value: '3', emoji: SVG_STAR_MARKER },
+    { label: '4 stars', value: '4', emoji: SVG_STAR_MARKER },
+    { label: '5 stars', value: '5', emoji: SVG_STAR_MARKER },
+  ],
   nps: Array.from({ length: 11 }, (_, score) => ({
     label: score <= 6 ? `${score} · Not likely` : score <= 8 ? `${score} · Neutral` : `${score} · Very likely`,
     value: String(score),
@@ -30,7 +41,7 @@ export function satisfactionOptions(preset: Exclude<SatisfactionPreset, 'custom'
 
 export function inferSatisfactionPreset(options: PageFieldOption[] | null | undefined): SatisfactionPreset {
   if (!options?.length) return 'five-point'
-  for (const preset of ['five-point', 'stars', 'nps'] as const) {
+  for (const preset of ['five-point', 'stars', 'svg-stars', 'nps'] as const) {
     const candidate = SATISFACTION_PRESETS[preset]
     if (
       options.length === candidate.length &&

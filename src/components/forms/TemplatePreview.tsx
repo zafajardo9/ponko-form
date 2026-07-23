@@ -1,4 +1,6 @@
 import { Check, ChevronRight } from 'lucide-react'
+import { StarIcon } from '../ui/StarIcon'
+import { SVG_STAR_MARKER } from '../../lib/page-builder/satisfaction'
 import type { FormTemplateRecord } from '../../lib/form-templates/types'
 
 export function TemplatePreview({ template }: { template: FormTemplateRecord }) {
@@ -21,7 +23,10 @@ export function TemplatePreview({ template }: { template: FormTemplateRecord }) 
             </div>
             {!page.isFinal && page.fields.length > 0 && (
               <div className="mt-4 grid gap-2 pl-10 sm:grid-cols-2">
-                {[...page.fields].sort((a, b) => a.position - b.position).map((field) => (
+                {[...page.fields].sort((a, b) => a.position - b.position).map((field) => {
+                  const options = field.options ?? []
+                  const usesSvgStars = options.length > 0 && options.every((opt) => (opt.emoji?.trim() ?? '') === SVG_STAR_MARKER)
+                  return (
                   <div key={field.bindVariable} className={field.fieldType === 'satisfaction' ? 'sm:col-span-2' : ''}>
                     <div className="flex items-center gap-2 text-xs text-[#6c6a64]">
                       <ChevronRight size={12} className="text-[#b0aaa1]" />
@@ -30,7 +35,13 @@ export function TemplatePreview({ template }: { template: FormTemplateRecord }) 
                     </div>
                     {field.fieldType === 'satisfaction' && (
                       <div className="mt-2 flex gap-1.5 pl-5" aria-label={`${field.label} rating preview`}>
-                        {(field.options ?? []).map((option) => (
+                        {usesSvgStars ? (
+                          <span className="flex gap-0.5">
+                            {[...Array(options.length)].map((_, i) => (
+                              <StarIcon key={i} size={16} filled={i < 3} className="text-[#cc785c]" />
+                            ))}
+                          </span>
+                        ) : options.map((option) => (
                           <span
                             key={option.value}
                             title={option.label}
@@ -42,7 +53,7 @@ export function TemplatePreview({ template }: { template: FormTemplateRecord }) 
                       </div>
                     )}
                   </div>
-                ))}
+                )})}
               </div>
             )}
           </div>

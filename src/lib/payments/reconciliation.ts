@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { and, desc, eq, inArray, isNull, lt, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { db } from '../../db/index'
 import {
   flowExecutions,
@@ -10,16 +10,29 @@ import {
   paymentEvents,
   paymentGateways,
   payments,
+  subscriptionCycles,
 } from '../../db/schema'
 import { paymentRegistry } from '../../integrations/payments/index'
-import type { GatewayCredentials, PaymentDetails, PaymentStatus } from '../../integrations/payments/types'
+import type {
+  GatewayCredentials,
+  PaymentDetails,
+  PaymentStatus,
+  SubscriptionCycleDetails,
+  SubscriptionCycleStatus,
+  SubscriptionPlanStatus,
+} from '../../integrations/payments/types'
 import {
   loadIntegrationConfigs,
   paypalCredentialsForEnvironment,
   xenditCredentialsForEnvironment,
 } from '../integrations/credentials'
 import type { PaymentEnvironment } from '../integrations/types'
-import { nextPaymentStatus, paymentOwnerStatus, sanitizePaymentPayload } from './reconciliation-utils'
+import {
+  nextPaymentStatus,
+  nextSubscriptionPlanStatus,
+  paymentOwnerStatus,
+  sanitizePaymentPayload,
+} from './reconciliation-utils'
 
 export type VerificationSource = 'webhook' | 'return' | 'reconciliation' | 'manual'
 
@@ -125,6 +138,9 @@ export async function reconcilePayment(input: {
     .innerJoin(paymentGateways, eq(payments.paymentGatewayId, paymentGateways.id))
     .where(eq(payments.id, input.paymentId)).limit(1)
   if (!row?.payment.gatewayPaymentId) throw new Error('Payment reference is unavailable')
+  if (row.payment.paymentKind === 'subscription') {
+    return reconcileSubscriptionPayment(input)
+  }
 
   const profileId = await paymentOwnerProfileId(row.payment)
   if (input.expectedProfileId != null && profileId !== input.expectedProfileId) {
@@ -208,9 +224,315 @@ export async function reconcilePayment(input: {
   return { status: normalized, duplicate: false, paymentId: row.payment.id }
 }
 
+async function subscriptionContext(paymentId: number, expectedProfileId?: number) {
+  const [row] = await db.select({ payment: payments, slug: paymentGateways.slug })
+    .from(payments)
+    .innerJoin(paymentGateways, eq(payments.paymentGatewayId, paymentGateways.id))
+    .where(eq(payments.id, paymentId))
+    .limit(1)
+  if (!row?.payment.gatewayPaymentId || row.payment.paymentKind !== 'subscription') {
+    throw new Error('Subscription payment reference is unavailable')
+  }
+  const profileId = await paymentOwnerProfileId(row.payment)
+  if (expectedProfileId != null && profileId !== expectedProfileId) {
+    throw new Error('Payment does not belong to this webhook endpoint')
+  }
+  const gateway = paymentRegistry.get(row.slug)
+  if (!gateway?.supportsSubscriptions()) throw new Error('Subscription gateway is unavailable')
+  const configs = await loadIntegrationConfigs(profileId)
+  const environment = paymentEnvironment(row.payment) ?? configs.xendit?.mode ?? 'sandbox'
+  const credentials = credentialsForSlug(row.slug, configs, environment)
+  if (!credentials) throw new Error('Gateway credentials are unavailable')
+  return { ...row, profileId, gateway, environment, credentials }
+}
+
+function webhookRecord(payload: unknown) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return {}
+  const root = payload as Record<string, unknown>
+  return root.data && typeof root.data === 'object' && !Array.isArray(root.data)
+    ? root.data as Record<string, unknown>
+    : root
+}
+
+function optionalDate(value: unknown) {
+  if (typeof value !== 'string' || !value) return null
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function normalizedPlanStatus(value: unknown): SubscriptionPlanStatus {
+  switch (String(value ?? '').toUpperCase()) {
+    case 'ACTIVE': return 'active'
+    case 'PAUSED': return 'paused'
+    case 'PAST_DUE': return 'past_due'
+    case 'COMPLETED': return 'completed'
+    case 'CANCELLED':
+    case 'CANCELED': return 'cancelled'
+    case 'INACTIVE':
+    case 'DEACTIVATED': return 'deactivated'
+    case 'FAILED': return 'failed'
+    default: return 'pending'
+  }
+}
+
+function normalizedCycleStatus(value: unknown): SubscriptionCycleStatus {
+  switch (String(value ?? '').toUpperCase()) {
+    case 'SUCCEEDED':
+    case 'PAID':
+    case 'COMPLETED': return 'paid'
+    case 'RETRYING':
+    case 'ATTEMPTING': return 'retrying'
+    case 'FAILED': return 'failed'
+    case 'CANCELLED':
+    case 'CANCELED': return 'cancelled'
+    case 'SKIPPED': return 'skipped'
+    case 'SCHEDULED': return 'scheduled'
+    default: return 'pending'
+  }
+}
+
+async function upsertSubscriptionCycle(
+  payment: typeof payments.$inferSelect,
+  cycle: SubscriptionCycleDetails,
+  source: Exclude<VerificationSource, 'return'>,
+) {
+  const now = new Date()
+  await db.insert(subscriptionCycles).values({
+    paymentId: payment.id,
+    gatewayCycleId: cycle.gatewayCycleId,
+    cycleNumber: cycle.cycleNumber,
+    status: cycle.status,
+    amount: cycle.amount || payment.amount,
+    currency: cycle.currency || payment.currency,
+    scheduledAt: optionalDate(cycle.scheduledAt),
+    paidAt: optionalDate(cycle.paidAt),
+    failedAt: optionalDate(cycle.failedAt),
+    failureCode: cycle.failureCode,
+    verificationSource: source,
+    lastVerifiedAt: now,
+    updatedAt: now,
+  }).onConflictDoUpdate({
+    target: subscriptionCycles.gatewayCycleId,
+    set: {
+      cycleNumber: cycle.cycleNumber,
+      status: sql`CASE
+        WHEN ${subscriptionCycles.status} IN ('paid', 'cancelled', 'skipped') THEN ${subscriptionCycles.status}
+        ELSE ${cycle.status}
+      END`,
+      amount: cycle.amount || payment.amount,
+      currency: cycle.currency || payment.currency,
+      scheduledAt: optionalDate(cycle.scheduledAt),
+      paidAt: optionalDate(cycle.paidAt),
+      failedAt: optionalDate(cycle.failedAt),
+      failureCode: cycle.failureCode,
+      verificationSource: source,
+      lastVerifiedAt: now,
+      updatedAt: now,
+    },
+  })
+}
+
+export async function reconcileSubscriptionPayment(input: {
+  paymentId: number
+  source: VerificationSource
+  eventType?: string
+  gatewayEventId?: string | null
+  providerTimestamp?: string | null
+  payload?: unknown
+  expectedProfileId?: number
+}) {
+  const context = await subscriptionContext(input.paymentId, input.expectedProfileId)
+  const { payment, gateway, credentials, environment } = context
+  const session = await gateway.getSubscriptionSession(payment.gatewayPaymentId!, credentials)
+  const planId = session.subscriptionPlanId ?? payment.subscriptionPlanId ?? undefined
+  const plan = planId ? await gateway.getSubscriptionPlan(planId, credentials) : null
+  const subscriptionStatus = nextSubscriptionPlanStatus(
+    payment.subscriptionStatus,
+    plan?.status ?? (session.status === 'active' ? 'active' : payment.subscriptionStatus ?? 'pending'),
+  )
+  const active = session.status === 'active' && subscriptionStatus === 'active'
+  const activated = active && payment.subscriptionStatus !== 'active'
+  const failed = ['failed', 'expired', 'cancelled'].includes(session.status)
+  const normalized = nextPaymentStatus(payment.status, active ? 'completed' : failed ? 'failed' : 'pending')
+  const providerStatus = plan?.providerStatus ?? session.providerStatus
+  const sanitizedPayload = sanitizePaymentPayload(input.payload ?? plan?.raw ?? session.raw)
+  const key = eventKey({
+    gatewayEventId: input.gatewayEventId,
+    gatewayPaymentId: payment.gatewayPaymentId!,
+    eventType: input.eventType ?? 'subscription.verification',
+    providerStatus,
+    providerTimestamp: input.providerTimestamp,
+  })
+  const [createdEvent] = await db.insert(paymentEvents).values({
+    paymentId: payment.id,
+    eventKey: key,
+    gatewayEventId: input.gatewayEventId,
+    eventType: input.eventType ?? 'subscription.verification',
+    providerStatus,
+    normalizedStatus: normalized,
+    source: input.source,
+    payload: sanitizedPayload,
+    processingStatus: normalized === payment.status && plan?.status === payment.subscriptionStatus ? 'ignored' : 'processed',
+    processedAt: new Date(),
+  }).onConflictDoNothing({ target: paymentEvents.eventKey }).returning({ id: paymentEvents.id })
+
+  const now = new Date()
+  await db.update(payments).set({
+    status: normalized,
+    subscriptionPlanId: planId ?? null,
+    subscriptionStatus,
+    subscriptionCheckoutStatus: session.providerStatus,
+    subscriptionNextChargeAt: optionalDate(plan?.nextChargeAt),
+    subscriptionEndedAt: optionalDate(plan?.endedAt),
+    subscriptionLastSyncedAt: now,
+    verificationSource: input.source,
+    lastVerifiedAt: now,
+    failureReason: failed ? `Subscription enrollment ${session.status}` : payment.failureReason,
+    failedAt: normalized === 'failed' && !payment.failedAt ? now : payment.failedAt,
+    gatewayResponse: {
+      ...((payment.gatewayResponse as Record<string, unknown> | null) ?? {}),
+      ...sanitizedPayload,
+      environment,
+    },
+    updatedAt: now,
+  }).where(eq(payments.id, payment.id))
+
+  if (planId) {
+    const cycles = await gateway.listSubscriptionCycles(planId, credentials)
+    for (const cycle of cycles) {
+      await upsertSubscriptionCycle(payment, cycle, input.source === 'webhook' ? 'webhook' : input.source === 'manual' ? 'manual' : 'reconciliation')
+    }
+    const nextCycle = cycles
+      .filter((cycle) => ['scheduled', 'pending', 'retrying'].includes(cycle.status) && cycle.scheduledAt)
+      .sort((left, right) => new Date(left.scheduledAt!).getTime() - new Date(right.scheduledAt!).getTime())[0]
+    if (nextCycle?.scheduledAt) {
+      await db.update(payments).set({ subscriptionNextChargeAt: new Date(nextCycle.scheduledAt) })
+        .where(eq(payments.id, payment.id))
+    }
+  }
+  await markRecoverableResponse(payment, normalized)
+  await syncPaymentOwnerStatus(payment, normalized)
+  return { status: normalized, duplicate: !createdEvent, paymentId: payment.id, subscriptionActivated: activated }
+}
+
+export async function reconcileSubscriptionWebhook(input: {
+  paymentId: number
+  eventType: string
+  gatewayEventId?: string | null
+  providerTimestamp?: string | null
+  payload: unknown
+  expectedProfileId: number
+  kind: 'session' | 'plan' | 'cycle'
+}) {
+  if (input.kind === 'session') {
+    return reconcileSubscriptionPayment({ ...input, source: 'webhook' })
+  }
+  const context = await subscriptionContext(input.paymentId, input.expectedProfileId)
+  const { payment } = context
+  const data = webhookRecord(input.payload)
+  const providerStatus = String(data.status ?? 'UNKNOWN').toUpperCase()
+  const key = eventKey({
+    gatewayEventId: input.gatewayEventId,
+    gatewayPaymentId: input.kind === 'cycle'
+      ? String(data.id ?? data.cycle_id ?? payment.subscriptionPlanId)
+      : payment.subscriptionPlanId ?? payment.gatewayPaymentId!,
+    eventType: input.eventType,
+    providerStatus,
+    providerTimestamp: input.providerTimestamp,
+  })
+  const normalizedPaymentStatus = input.kind === 'plan' && normalizedPlanStatus(providerStatus) === 'active'
+    ? 'completed' as const
+    : payment.status
+  const [createdEvent] = await db.insert(paymentEvents).values({
+    paymentId: payment.id,
+    eventKey: key,
+    gatewayEventId: input.gatewayEventId,
+    eventType: input.eventType,
+    providerStatus,
+    normalizedStatus: normalizedPaymentStatus,
+    source: 'webhook',
+    payload: sanitizePaymentPayload(input.payload),
+    processingStatus: 'processed',
+    processedAt: new Date(),
+  }).onConflictDoNothing({ target: paymentEvents.eventKey }).returning({ id: paymentEvents.id })
+  if (!createdEvent) {
+    return { status: payment.status, duplicate: true, paymentId: payment.id, subscriptionActivated: false }
+  }
+
+  const now = new Date()
+  if (input.kind === 'cycle') {
+    const cycleId = typeof data.id === 'string' && data.id.trim()
+      ? data.id.trim()
+      : typeof data.cycle_id === 'string' && data.cycle_id.trim() ? data.cycle_id.trim() : null
+    if (!cycleId) throw new Error('Subscription cycle reference is unavailable')
+    const status = normalizedCycleStatus(providerStatus)
+    const attempts = Array.isArray(data.attempt_details)
+      ? data.attempt_details.filter((attempt): attempt is Record<string, unknown> =>
+          Boolean(attempt && typeof attempt === 'object' && !Array.isArray(attempt)))
+      : []
+    const lastAttempt = attempts[attempts.length - 1]
+    const amount = typeof data.amount === 'number' && Number.isFinite(data.amount)
+      ? Math.round(data.amount * 100)
+      : payment.amount
+    await upsertSubscriptionCycle(payment, {
+      gatewayCycleId: cycleId,
+      cycleNumber: typeof data.cycle_number === 'number' ? data.cycle_number : undefined,
+      status,
+      providerStatus,
+      amount,
+      currency: typeof data.currency === 'string' ? data.currency : payment.currency,
+      scheduledAt: typeof data.scheduled_timestamp === 'string'
+        ? data.scheduled_timestamp
+        : typeof data.scheduled_at === 'string' ? data.scheduled_at : undefined,
+      paidAt: status === 'paid' ? String(data.succeeded_at ?? data.paid_at ?? data.updated ?? '') || undefined : undefined,
+      failedAt: status === 'failed' ? String(data.failed_at ?? data.updated ?? '') || undefined : undefined,
+      failureCode: typeof lastAttempt?.failure_code === 'string'
+        ? lastAttempt.failure_code
+        : typeof data.failure_code === 'string' ? data.failure_code : undefined,
+    }, 'webhook')
+    const cycleSubscriptionStatus = status === 'paid'
+      ? nextSubscriptionPlanStatus(payment.subscriptionStatus, 'active')
+      : status === 'failed' || status === 'retrying'
+        ? nextSubscriptionPlanStatus(payment.subscriptionStatus, 'past_due')
+        : payment.subscriptionStatus
+    await db.update(payments).set({
+      subscriptionStatus: cycleSubscriptionStatus,
+      subscriptionNextChargeAt: optionalDate(data.next_scheduled_at) ?? payment.subscriptionNextChargeAt,
+      subscriptionLastSyncedAt: now,
+      updatedAt: now,
+    }).where(eq(payments.id, payment.id))
+    return { status: payment.status, duplicate: false, paymentId: payment.id, subscriptionActivated: false }
+  }
+
+  const incomingStatus = normalizedPlanStatus(providerStatus)
+  const status = nextSubscriptionPlanStatus(payment.subscriptionStatus, incomingStatus)
+  const activated = status === 'active' && payment.subscriptionStatus !== 'active'
+  await db.update(payments).set({
+    status: activated ? 'completed' : payment.status,
+    subscriptionStatus: status,
+    subscriptionNextChargeAt: optionalDate(data.next_scheduled_at) ?? payment.subscriptionNextChargeAt,
+    subscriptionEndedAt: ['cancelled', 'deactivated', 'completed'].includes(status)
+      ? optionalDate(data.ended_at) ?? optionalDate(data.deactivated_at) ?? now
+      : payment.subscriptionEndedAt,
+    subscriptionLastSyncedAt: now,
+    lastVerifiedAt: now,
+    verificationSource: 'webhook',
+    updatedAt: now,
+  }).where(eq(payments.id, payment.id))
+  if (activated) {
+    await markRecoverableResponse(payment, 'completed')
+    await syncPaymentOwnerStatus(payment, 'completed')
+  }
+  return { status: activated ? 'completed' as const : payment.status, duplicate: false, paymentId: payment.id, subscriptionActivated: activated }
+}
+
 export async function paymentByGatewayReference(reference: string) {
   const [payment] = await db.select().from(payments)
-    .where(or(eq(payments.gatewayPaymentId, reference), eq(payments.externalId, reference)))
+    .where(or(
+      eq(payments.gatewayPaymentId, reference),
+      eq(payments.externalId, reference),
+      eq(payments.subscriptionPlanId, reference),
+    ))
     .orderBy(desc(payments.id)).limit(1)
   return payment ?? null
 }
@@ -240,5 +562,27 @@ export async function reconcileStalePayments(limit = 50) {
       })
     }
   }
-  return { checked: stale.length, updated: results.filter((result) => !result.duplicate).length }
+  const activeCutoff = new Date(Date.now() - 6 * 60 * 60_000)
+  const activeSubscriptions = await db.select({ id: payments.id }).from(payments)
+    .where(and(
+      eq(payments.paymentKind, 'subscription'),
+      eq(payments.subscriptionStatus, 'active'),
+      or(isNull(payments.subscriptionLastSyncedAt), lt(payments.subscriptionLastSyncedAt, activeCutoff)),
+    ))
+    .orderBy(payments.subscriptionLastSyncedAt)
+    .limit(Math.min(Math.max(limit, 1), 100))
+  for (const payment of activeSubscriptions) {
+    try {
+      results.push(await reconcileSubscriptionPayment({ paymentId: payment.id, source: 'reconciliation' }))
+    } catch (error) {
+      console.error('[subscription-reconciliation-failed]', {
+        paymentId: payment.id,
+        category: error instanceof Error ? error.name : 'UnknownError',
+      })
+    }
+  }
+  return {
+    checked: stale.length + activeSubscriptions.length,
+    updated: results.filter((result) => !result.duplicate).length,
+  }
 }

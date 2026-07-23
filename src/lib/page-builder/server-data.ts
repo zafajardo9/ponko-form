@@ -13,6 +13,7 @@ import type {
   PageField,
   PageFieldType,
   PaymentComputation,
+  SubscriptionConfig,
 } from './types'
 
 export async function hydratePages(formId: number): Promise<FormPage[]> {
@@ -81,6 +82,7 @@ export async function hydratePages(formId: number): Promise<FormPage[]> {
     paymentAmountVariable: page.paymentAmountVariable,
     paymentCurrency: page.paymentCurrency,
     paymentComputation: (page.paymentComputation as PaymentComputation | null) ?? null,
+    subscriptionConfig: (page.subscriptionConfig as SubscriptionConfig | null) ?? null,
     fields: fieldsByPage.get(page.id) ?? [],
   }))
 }

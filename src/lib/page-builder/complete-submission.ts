@@ -40,6 +40,12 @@ export async function completePageSubmissionRecord(
     .where(eq(formSubmissionSessions.id, sessionId))
     .limit(1)
   if (!session) throw new Error('Session not found')
+  if (session.status === 'completed' && session.formSubmissionId) {
+    const [submission] = await db.select().from(formSubmissions)
+      .where(eq(formSubmissions.id, session.formSubmissionId))
+      .limit(1)
+    if (submission) return { session, submission }
+  }
   const pages = await hydratePages(session.formId)
   const references = await loadFormReferences(session.formId)
   const referenceMap = buildReferenceMap(references)

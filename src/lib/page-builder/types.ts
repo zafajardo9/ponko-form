@@ -139,7 +139,21 @@ export interface FormPage {
   paymentAmountVariable: string | null
   paymentCurrency: string
   paymentComputation: PaymentComputation | null
+  subscriptionConfig: SubscriptionConfig | null
   fields: PageField[]
+}
+
+export type SubscriptionIntervalPreset = 'weekly' | 'monthly' | 'quarterly' | 'semiannual' | 'annual'
+
+export interface SubscriptionConfig {
+  enabled: true
+  interval: SubscriptionIntervalPreset
+  intervalUnit: 'WEEK' | 'MONTH'
+  intervalCount: number
+  trialPeriodDays: number
+  maxCycles: number | null
+  customerNameField: string
+  customerEmailField: string
 }
 
 export type PaymentComputationMode = 'field' | 'sum_priced_options' | 'sum_number_fields' | 'fixed' | 'formula'

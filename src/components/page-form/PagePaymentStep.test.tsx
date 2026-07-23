@@ -135,4 +135,26 @@ describe('PagePaymentStep recovery', () => {
     await act(async () => undefined)
     expect(secondCallback).not.toHaveBeenCalled()
   })
+
+  it('discloses subscription schedule and uses enrollment language', async () => {
+    serverFns.getPagePaymentOptions.mockResolvedValue({
+      amount: 2500,
+      currency: 'PHP',
+      gateways: [{ slug: 'xendit', name: 'Xendit' }],
+      breakdown: [],
+      showBreakdown: false,
+      missingReferences: [],
+      paymentStatus: null,
+      paymentMode: 'subscription',
+      subscription: {
+        interval: 'monthly', intervalUnit: 'MONTH', intervalCount: 1,
+        trialPeriodDays: 14, maxCycles: 12,
+      },
+    })
+    renderPaymentStep()
+
+    expect(await screen.findByText(/14-day trial/i)).toBeTruthy()
+    expect(screen.getByText(/ends after 12 billing cycles/i)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Subscribe with Xendit' })).toBeTruthy()
+  })
 })

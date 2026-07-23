@@ -11,6 +11,7 @@ import {
   formSubmissionSessions,
   paymentEvents,
   profiles,
+  subscriptionCycles,
 } from "../../db/schema";
 import { eq, desc, inArray, or, sql } from "drizzle-orm";
 import { reconcilePayment } from "../payments/reconciliation";
@@ -36,6 +37,18 @@ export interface PaymentViewRow {
   amount: number; // smallest currency unit
   currency: string;
   status: "pending" | "completed" | "failed" | "refunded";
+  paymentKind: "one_time" | "subscription";
+  respondentName: string | null;
+  respondentEmail: string | null;
+  subscriptionPlanId: string | null;
+  subscriptionStatus: string | null;
+  subscriptionCheckoutStatus: string | null;
+  subscriptionInterval: "WEEK" | "MONTH" | null;
+  subscriptionIntervalCount: number | null;
+  subscriptionMaxCycles: number | null;
+  subscriptionTrialDays: number | null;
+  subscriptionNextChargeAt: string | null;
+  subscriptionEndedAt: string | null;
   gatewayName: string;
   gatewaySlug: string;
   gatewayPaymentId: string | null;
@@ -63,6 +76,11 @@ export interface PaymentViewRow {
   events: Array<{
     id: number; eventType: string; providerStatus: string | null; normalizedStatus: string | null;
     source: string; processingStatus: string; receivedAt: string; payload: Record<string, unknown> | null;
+  }>;
+  cycles: Array<{
+    id: number; gatewayCycleId: string; cycleNumber: number | null; status: string;
+    amount: number; currency: string; scheduledAt: string | null; paidAt: string | null;
+    failedAt: string | null; failureCode: string | null; verificationSource: string | null;
   }>;
 }
 
@@ -101,6 +119,18 @@ export const getFormPayments = createServerFn({ method: "GET", strict: false })
         amount: payments.amount,
         currency: payments.currency,
         status: payments.status,
+        paymentKind: payments.paymentKind,
+        respondentName: payments.respondentName,
+        respondentEmail: payments.respondentEmail,
+        subscriptionPlanId: payments.subscriptionPlanId,
+        subscriptionStatus: payments.subscriptionStatus,
+        subscriptionCheckoutStatus: payments.subscriptionCheckoutStatus,
+        subscriptionInterval: payments.subscriptionInterval,
+        subscriptionIntervalCount: payments.subscriptionIntervalCount,
+        subscriptionMaxCycles: payments.subscriptionMaxCycles,
+        subscriptionTrialDays: payments.subscriptionTrialDays,
+        subscriptionNextChargeAt: payments.subscriptionNextChargeAt,
+        subscriptionEndedAt: payments.subscriptionEndedAt,
         gatewayPaymentId: payments.gatewayPaymentId,
         gatewayResponse: payments.gatewayResponse,
         paymentChannel: payments.paymentChannel,
@@ -151,6 +181,13 @@ export const getFormPayments = createServerFn({ method: "GET", strict: false })
       : []
     const eventsByPayment = new Map<number, typeof eventRows>()
     for (const event of eventRows) eventsByPayment.set(event.paymentId, [...(eventsByPayment.get(event.paymentId) ?? []), event])
+    const cycleRows = rows.length > 0
+      ? await db.select().from(subscriptionCycles)
+          .where(inArray(subscriptionCycles.paymentId, rows.map((row) => row.id)))
+          .orderBy(desc(subscriptionCycles.scheduledAt), desc(subscriptionCycles.id))
+      : []
+    const cyclesByPayment = new Map<number, typeof cycleRows>()
+    for (const cycle of cycleRows) cyclesByPayment.set(cycle.paymentId, [...(cyclesByPayment.get(cycle.paymentId) ?? []), cycle])
 
     const result: PaymentViewRow[] = rows.map((r) => ({
       id: r.id,
@@ -158,6 +195,18 @@ export const getFormPayments = createServerFn({ method: "GET", strict: false })
       amount: r.amount,
       currency: r.currency,
       status: r.status,
+      paymentKind: r.paymentKind,
+      respondentName: r.respondentName,
+      respondentEmail: r.respondentEmail,
+      subscriptionPlanId: r.subscriptionPlanId,
+      subscriptionStatus: r.subscriptionStatus,
+      subscriptionCheckoutStatus: r.subscriptionCheckoutStatus,
+      subscriptionInterval: r.subscriptionInterval,
+      subscriptionIntervalCount: r.subscriptionIntervalCount,
+      subscriptionMaxCycles: r.subscriptionMaxCycles,
+      subscriptionTrialDays: r.subscriptionTrialDays,
+      subscriptionNextChargeAt: r.subscriptionNextChargeAt as unknown as string | null,
+      subscriptionEndedAt: r.subscriptionEndedAt as unknown as string | null,
       gatewayName: r.gatewayName,
       gatewaySlug: r.gatewaySlug,
       gatewayPaymentId: r.gatewayPaymentId,
@@ -189,6 +238,19 @@ export const getFormPayments = createServerFn({ method: "GET", strict: false })
         processingStatus: event.processingStatus,
         receivedAt: event.receivedAt as unknown as string,
         payload: event.payload,
+      })),
+      cycles: (cyclesByPayment.get(r.id) ?? []).map((cycle) => ({
+        id: cycle.id,
+        gatewayCycleId: cycle.gatewayCycleId,
+        cycleNumber: cycle.cycleNumber,
+        status: cycle.status,
+        amount: cycle.amount,
+        currency: cycle.currency,
+        scheduledAt: cycle.scheduledAt as unknown as string | null,
+        paidAt: cycle.paidAt as unknown as string | null,
+        failedAt: cycle.failedAt as unknown as string | null,
+        failureCode: cycle.failureCode,
+        verificationSource: cycle.verificationSource,
       })),
     }));
 

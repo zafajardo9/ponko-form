@@ -134,6 +134,13 @@
       "when": 1784204937192,
       "tag": "0025_invoicing_builder",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1784770825961,
+      "tag": "0026_subscription_xendit",
+      "breakpoints": true
     }
   ]
 }

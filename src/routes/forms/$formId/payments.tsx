@@ -124,6 +124,13 @@ function PaymentsPage() {
     }
   }
 
+  function subscriptionStatusBadge(status: string | null) {
+    if (status === "active") return <Badge variant="paid">Active</Badge>;
+    if (status === "past_due" || status === "failed") return <Badge variant="failed">{status === "past_due" ? "Past due" : "Failed"}</Badge>;
+    if (status === "cancelled" || status === "deactivated" || status === "completed") return <Badge variant="draft">{status === "cancelled" ? "Cancelled" : status === "deactivated" ? "Deactivated" : "Ended"}</Badge>;
+    return <Badge variant="pending">{status ?? "Pending"}</Badge>;
+  }
+
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
       <Breadcrumbs formId={formId} formTitle={formTitle} />
@@ -160,8 +167,8 @@ function PaymentsPage() {
           </p>
         </div>
       ) : (
-        <div className="mt-6 overflow-hidden rounded-xl border border-[#e6dfd8]">
-          <table className="w-full text-sm">
+        <div className="mt-6 overflow-x-auto rounded-xl border border-[#e6dfd8]">
+          <table className="min-w-[980px] w-full text-sm">
             <thead className="border-b border-[#e6dfd8] bg-[#f5f0e8]">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-[#6c6a64]">
@@ -172,6 +179,9 @@ function PaymentsPage() {
                 </th>
                 <th className="px-4 py-3 text-left font-medium text-[#6c6a64]">
                   Amount
+                </th>
+                <th className="px-4 py-3 text-left font-medium text-[#6c6a64]">
+                  Subscriber
                 </th>
                 <th className="px-4 py-3 text-left font-medium text-[#6c6a64]">
                   Status
@@ -209,8 +219,14 @@ function PaymentsPage() {
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 font-medium text-[#141413]">
                     {formatAmount(p.amount, p.currency)}
+                    {p.paymentKind === "subscription" && <span className="ml-1 text-xs font-normal text-[#8e8b82]">/cycle</span>}
                   </td>
-                  <td className="px-4 py-3">{statusBadge(p.status)}</td>
+                  <td className="max-w-[180px] px-4 py-3 text-[#57544d]">
+                    {p.paymentKind === "subscription" ? (
+                      <><p className="truncate">{p.respondentName ?? "Subscriber"}</p><p className="truncate text-xs text-[#8e8b82]">{p.respondentEmail ?? "—"}</p></>
+                    ) : "One-time"}
+                  </td>
+                  <td className="px-4 py-3">{p.paymentKind === "subscription" ? subscriptionStatusBadge(p.subscriptionStatus) : statusBadge(p.status)}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-[#57544d]">
                     {p.gatewayName}
                   </td>
@@ -367,7 +383,7 @@ function PaymentDetailDialog({
           <div className="mb-5 flex items-center justify-between rounded-lg border border-[#e6dfd8] bg-white px-5 py-4">
             <div className="flex flex-col gap-1">
               <span className="text-xs text-[#8e8b82]">Status</span>
-              {statusBadgeText(payment.status)}
+              {statusBadgeText(payment.paymentKind === "subscription" ? payment.subscriptionStatus ?? "pending" : payment.status)}
             </div>
             <div className="text-right">
               <span className="text-xs text-[#8e8b82]">Amount</span>
@@ -381,7 +397,7 @@ function PaymentDetailDialog({
             <button onClick={onVerify} disabled={verifying} className="rounded-md bg-[#141413] px-3 py-2 text-sm text-white disabled:opacity-50">
               {verifying ? "Verifying…" : "Verify now"}
             </button>
-            {payment.status === "pending" && payment.paymentUrl && (
+            {payment.paymentKind === "one_time" && payment.status === "pending" && payment.paymentUrl && (
               <>
                 <button onClick={onCopyLink} disabled={recoveryBusy} className="rounded-md border border-[#e6dfd8] px-3 py-2 text-sm text-[#141413] disabled:opacity-50">
                   Copy payment link
@@ -391,7 +407,7 @@ function PaymentDetailDialog({
                 </button>
               </>
             )}
-            {(payment.status === "failed" || (payment.expiresAt && new Date(payment.expiresAt).getTime() <= Date.now())) && (
+            {payment.paymentKind === "one_time" && (payment.status === "failed" || (payment.expiresAt && new Date(payment.expiresAt).getTime() <= Date.now())) && (
               <button onClick={onReplaceLink} disabled={recoveryBusy} className="rounded-md border border-[#e6dfd8] px-3 py-2 text-sm text-[#141413] disabled:opacity-50">
                 Create replacement link
               </button>
@@ -408,6 +424,21 @@ function PaymentDetailDialog({
           <dl className="divide-y divide-[#e6dfd8] rounded-lg border border-[#e6dfd8] bg-white">
             <DetailRow label="Payment ID" value={String(payment.id)} mono />
             <DetailRow label="Invoice" value={payment.invoiceNo} mono />
+            <DetailRow label="Type" value={payment.paymentKind === "subscription" ? "Subscription enrollment" : "One-time payment"} />
+            {payment.paymentKind === "subscription" && <>
+              <DetailRow label="Subscriber" value={payment.respondentName ?? "—"} />
+              <DetailRow label="Subscriber email" value={payment.respondentEmail ?? "—"} />
+              <DetailRow label="Subscription status" value={payment.subscriptionStatus ?? "Pending"} />
+              <DetailRow label="Xendit plan" value={payment.subscriptionPlanId ?? "—"} mono />
+              <DetailRow label="Checkout status" value={payment.subscriptionCheckoutStatus ?? "—"} />
+              <DetailRow label="Schedule" value={payment.subscriptionInterval
+                ? `Every ${payment.subscriptionIntervalCount ?? 1} ${payment.subscriptionInterval.toLowerCase()}${(payment.subscriptionIntervalCount ?? 1) === 1 ? "" : "s"}`
+                : "—"} />
+              <DetailRow label="Trial" value={`${payment.subscriptionTrialDays ?? 0} days`} />
+              <DetailRow label="Maximum cycles" value={payment.subscriptionMaxCycles == null ? "No limit" : String(payment.subscriptionMaxCycles)} />
+              <DetailRow label="Next billing" value={payment.subscriptionNextChargeAt ? new Date(payment.subscriptionNextChargeAt).toLocaleString() : "—"} />
+              <DetailRow label="Cancelled / ended" value={payment.subscriptionEndedAt ? new Date(payment.subscriptionEndedAt).toLocaleString() : "—"} />
+            </>}
             <DetailRow label="Gateway" value={payment.gatewayName} />
             <DetailRow
               label="Environment"
@@ -457,6 +488,36 @@ function PaymentDetailDialog({
               mono
             />
           </dl>
+
+          {payment.paymentKind === "subscription" && (
+            <div className="mt-5 rounded-lg border border-[#e6dfd8] bg-white p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#8e8b82]">Billing cycles</p>
+                <span className="text-xs text-[#8e8b82]">Managed in Xendit</span>
+              </div>
+              {payment.cycles.length === 0 ? (
+                <p className="mt-2 text-sm text-[#8e8b82]">No billing attempts have been reported yet.</p>
+              ) : payment.cycles.map((cycle) => (
+                <div key={cycle.id} className="mt-3 border-t border-[#e6dfd8] pt-3 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-[#141413]">Cycle {cycle.cycleNumber ?? "—"} · {cycle.status}</p>
+                      <p className="mt-0.5 text-xs text-[#8e8b82]">
+                        {cycle.scheduledAt ? new Date(cycle.scheduledAt).toLocaleString() : "Schedule unavailable"}
+                        {cycle.failureCode ? ` · ${cycle.failureCode}` : ""}
+                      </p>
+                    </div>
+                    <span className="font-medium text-[#141413]">{formatAmount(cycle.amount, cycle.currency)}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-[#6c6a64]">
+                    {cycle.status === "paid" && cycle.paidAt ? `Received ${new Date(cycle.paidAt).toLocaleString()}`
+                      : cycle.status === "failed" && cycle.failedAt ? `Failed ${new Date(cycle.failedAt).toLocaleString()}`
+                        : "Awaiting provider outcome"}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="mt-5 rounded-lg border border-[#e6dfd8] bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-wider text-[#8e8b82]">Event timeline</p>
@@ -511,6 +572,13 @@ function DetailRow({
 /** Render a human-readable status badge for the dialog header. */
 function statusBadgeText(status: string) {
   switch (status) {
+    case "active":
+      return <span className="text-sm font-semibold text-[#2d7a3e]">● Active</span>;
+    case "past_due":
+      return <span className="text-sm font-semibold text-[#b45309]">● Past due</span>;
+    case "cancelled":
+    case "deactivated":
+      return <span className="text-sm font-semibold text-[#6c6a64]">● {status === "cancelled" ? "Cancelled" : "Deactivated"}</span>;
     case "completed":
       return (
         <span className="text-sm font-semibold text-[#2d7a3e]">

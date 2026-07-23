@@ -30,6 +30,80 @@ export interface PaymentDetails {
   raw?: Record<string, unknown>
 }
 
+export type SubscriptionEnrollmentStatus = 'pending' | 'active' | 'failed' | 'expired' | 'cancelled'
+export type SubscriptionPlanStatus =
+  | 'pending'
+  | 'active'
+  | 'paused'
+  | 'past_due'
+  | 'completed'
+  | 'cancelled'
+  | 'deactivated'
+  | 'failed'
+export type SubscriptionCycleStatus = 'scheduled' | 'pending' | 'retrying' | 'paid' | 'failed' | 'cancelled' | 'skipped'
+
+export interface SubscriptionRequest {
+  amount: number
+  currency: string
+  referenceId: string
+  customerReferenceId: string
+  customerName: string
+  customerEmail: string
+  description: string
+  interval: 'WEEK' | 'MONTH'
+  intervalCount: number
+  anchorDate: string
+  totalRecurrence?: number | null
+  immediatePayment: boolean
+  metadata: Record<string, string>
+  returnUrl: string
+  cancelUrl: string
+}
+
+export interface SubscriptionResult {
+  success: boolean
+  paymentUrl: string | null
+  paymentSessionId: string | null
+  subscriptionPlanId: string | null
+  providerStatus: string | null
+  expiresAt?: string | null
+  error: string | null
+}
+
+export interface SubscriptionSessionDetails {
+  status: SubscriptionEnrollmentStatus
+  providerStatus: string
+  paymentSessionId: string
+  subscriptionPlanId?: string
+  expiresAt?: string
+  raw?: Record<string, unknown>
+}
+
+export interface SubscriptionPlanDetails {
+  status: SubscriptionPlanStatus
+  providerStatus: string
+  subscriptionPlanId: string
+  nextChargeAt?: string
+  endedAt?: string
+  interval?: 'WEEK' | 'MONTH'
+  intervalCount?: number
+  raw?: Record<string, unknown>
+}
+
+export interface SubscriptionCycleDetails {
+  gatewayCycleId: string
+  cycleNumber?: number
+  status: SubscriptionCycleStatus
+  providerStatus: string
+  amount: number
+  currency: string
+  scheduledAt?: string
+  paidAt?: string
+  failedAt?: string
+  failureCode?: string
+  raw?: Record<string, unknown>
+}
+
 /**
  * Per-merchant credentials passed to a gateway at call time. These come from the
  * form owner's encrypted `integration_settings` row (see

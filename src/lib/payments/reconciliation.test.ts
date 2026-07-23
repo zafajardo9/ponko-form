@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { nextPaymentStatus, paymentOwnerStatus, sanitizePaymentPayload } from './reconciliation-utils'
+import {
+  nextPaymentStatus,
+  nextSubscriptionPlanStatus,
+  paymentOwnerStatus,
+  sanitizePaymentPayload,
+} from './reconciliation-utils'
 
 describe('payment reconciliation security', () => {
   it('removes secrets and unrelated personal fields from audit payloads', () => {
@@ -35,5 +40,12 @@ describe('payment reconciliation security', () => {
     expect(paymentOwnerStatus('failed')).toBe('payment_failed')
     expect(paymentOwnerStatus('completed')).toBe('in_progress')
     expect(paymentOwnerStatus('refunded')).toBeNull()
+  })
+
+  it('does not reactivate a terminal subscription from a delayed webhook', () => {
+    expect(nextSubscriptionPlanStatus('cancelled', 'active')).toBe('cancelled')
+    expect(nextSubscriptionPlanStatus('cancelled', 'past_due')).toBe('cancelled')
+    expect(nextSubscriptionPlanStatus('deactivated', 'active')).toBe('deactivated')
+    expect(nextSubscriptionPlanStatus('past_due', 'active')).toBe('active')
   })
 })

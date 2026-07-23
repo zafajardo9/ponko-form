@@ -1,6 +1,6 @@
 # Payments Guide
 
-> **Accept payments through your flow forms.** Connect a payment gateway, add a Payment node, and track every transaction.
+> **Accept one-time payments through flow or page-builder forms, and Xendit subscriptions through page-builder forms.** Connect your own gateway and track transactions in PonkoForm.
 
 ---
 
@@ -48,6 +48,23 @@ Before any form can accept payments, you need to connect at least one payment ga
 | **Webhook Token** | Optional — for real-time payment notifications |
 
 > Xendit supports **PHP** only. If your form uses a different currency, the system will warn you.
+
+For subscriptions, the Xendit account must have an active payment channel that supports merchant-initiated transactions (MIT/automatic recurring debits). Configure the integration's PonkoForm webhook URL in Xendit for payment-session, recurring-plan, and recurring-cycle events. Keep the webhook token configured in both systems so PonkoForm can verify every callback.
+
+## Page-Builder Xendit Subscriptions
+
+Subscription payments are available on page-builder forms in this release. Flow-builder subscriptions are planned separately.
+
+1. Add required **Name** and **Email** fields on a page before the payment page.
+2. Enable payment on a later page and select **Subscription**.
+3. Select Xendit. Subscription currency is fixed to **PHP**.
+4. Choose the earlier Name and Email fields used to create the Xendit customer.
+5. Choose weekly, monthly, quarterly, semiannual, or annual billing.
+6. Optionally configure a trial (0–365 days) and a maximum number of cycles.
+
+PonkoForm considers the response complete once Xendit reports that the checkout session is completed and the recurring plan is active. It does not wait for every future billing cycle. Each later automatic debit is recorded as its own cycle through verified Xendit webhooks, and those cycle payments do not resend the form-completion email.
+
+Cancellation remains managed in Xendit for phase 1. When Xendit reports that a recurring plan is inactive, PonkoForm displays the subscription as deactivated/cancelled and preserves its cycle history.
 
 ---
 
@@ -122,6 +139,8 @@ Or navigate directly to: `/forms/{formId}/payments`
 | **Channel** | How the customer paid (GCash, Credit Card, Bank Transfer, etc.) |
 | **Reference** | The gateway's transaction ID |
 
+Subscription rows also show the subscriber, plan status, billing interval, next scheduled charge, and the latest cycle result. Open the detail view for the complete paid/pending/failed cycle timeline.
+
 ### Payment Detail View
 
 Click any row to open a detail dialog with:
@@ -173,6 +192,21 @@ If they cancel or close the gateway's checkout, they're returned to the form and
 ### Q: Can I refund a payment?
 Not yet from within PonkoForm — process refunds directly through your gateway's dashboard. We'll add in-app refunds in a future update.
 
+### Q: Does PonkoForm charge the subscriber every cycle?
+No. Xendit performs the automatic recurring debit. PonkoForm verifies Xendit's signed webhook events and stores the resulting cycle history.
+
+### Q: How does a subscriber cancel?
+Cancellation is handled in Xendit in this release. PonkoForm reflects the inactive/cancelled state after receiving the plan webhook; it does not yet provide an in-app cancellation control.
+
+## Subscription Operations
+
+- Register the PonkoForm integration webhook URL for `payment_session.completed`, recurring plan activation/inactivation, and recurring cycle created/retrying/succeeded/failed events. PonkoForm accepts the documented dot and underscore event-name variants.
+- Subscription session, plan, and cycle calls use Xendit's `2026-01-01` API version.
+- Ensure the Xendit secret key can create payment sessions and read recurring plans and cycles.
+- Use Xendit test credentials and a test MIT-capable payment channel before enabling live subscriptions.
+- Set `SUBSCRIPTION_PAYMENTS_ENABLED=false` to stop new subscription configuration and checkout creation during an incident. Existing webhooks and stored subscription history continue to reconcile.
+- Monitor rejected webhook signatures and stale active subscriptions. Active subscriptions are periodically reconciled against Xendit so missed callbacks can be recovered.
+
 ---
 
 ## Troubleshooting
@@ -183,3 +217,6 @@ Not yet from within PonkoForm — process refunds directly through your gateway'
 | Payment fails during testing | Sandbox credentials are incorrect | Double-check your PayPal/Xendit sandbox keys |
 | "Amount is zero or invalid" | The Calculator node before Payment didn't compute correctly | Check the expression and that the amount variable has a value |
 | Transactions not showing | The form might not have a payment flow | Add a **Payment** node to your flow |
+| Subscription option has no gateway | Xendit is not connected, PHP is not selected, or subscriptions are disabled | Connect Xendit, use PHP, and check `SUBSCRIPTION_PAYMENTS_ENABLED` |
+| Subscription remains pending | Checkout or plan activation has not been confirmed | Check the Xendit session and recurring plan, then verify webhook delivery |
+| A renewal is missing | A recurring-cycle webhook was delayed or rejected | Verify the webhook token and event configuration; scheduled reconciliation will also fetch missing cycles |

@@ -16,7 +16,11 @@ import {
 } from '../../db/schema'
 import { paymentRegistry } from '../../integrations/payments/index'
 import { reconcilePayment } from '../payments/reconciliation'
-import type { GatewayCredentials } from '../../integrations/payments/types'
+import type {
+  GatewayCredentials,
+  PaymentResult,
+  SubscriptionResult,
+} from '../../integrations/payments/types'
 import { loadIntegrationConfigs } from '../integrations/credentials'
 import {
   getRecaptchaConfigForForm,
@@ -44,7 +48,15 @@ import type {
   PageFieldType,
   PageForm,
   PaymentComputation,
+  SubscriptionConfig,
 } from '../page-builder/types'
+import {
+  normalizedSubscriptionConfig,
+  subscriptionAnchorDate,
+  subscriptionCustomer,
+  subscriptionPaymentsEnabled,
+  validateSubscriptionBindings,
+} from '../payments/subscriptions'
 import { assertFormOwner, uniqueVarName } from './flow-helpers'
 import { emailSurveyTokenHash, validEmailSurveyToken } from './email-survey-token'
 import { publicRequestOrigin } from './request-origin'
@@ -322,6 +334,7 @@ export const updatePage = createServerFn({ method: 'POST', strict: false })
       paymentAmountVariable?: string | null
       paymentCurrency?: string
       paymentComputation?: PaymentComputation | null
+      subscriptionConfig?: SubscriptionConfig | null
     }) => data,
   )
   .handler(async ({ data }) => {
@@ -516,6 +529,7 @@ export const savePageForm = createServerFn({ method: 'POST', strict: false })
         paymentAmountVariable?: string | null
         paymentCurrency?: string
         paymentComputation?: PaymentComputation | null
+        subscriptionConfig?: SubscriptionConfig | null
         fields: {
           id: number
           fieldType: PageFieldType
@@ -609,6 +623,23 @@ export const savePageForm = createServerFn({ method: 'POST', strict: false })
       { ...finalInput, isFinal: true },
     ]
     const firstPaymentIndex = normalizedPages.findIndex((page) => !page.isFinal && page.hasPayment)
+    const paymentPage = firstPaymentIndex >= 0 ? normalizedPages[firstPaymentIndex] : null
+    let savedSubscriptionConfig: SubscriptionConfig | null = null
+    if (paymentPage?.subscriptionConfig?.enabled) {
+      if (!subscriptionPaymentsEnabled()) throw new Error('Subscription payments are temporarily unavailable')
+      savedSubscriptionConfig = normalizedSubscriptionConfig(paymentPage.subscriptionConfig)
+      if (!savedSubscriptionConfig) throw new Error('Subscription configuration is required')
+      if ((paymentPage.paymentCurrency || '').toUpperCase() !== 'PHP') {
+        throw new Error('Xendit subscriptions require PHP currency')
+      }
+      if (!paymentPage.paymentGatewayId) throw new Error('Select Xendit for subscription payments')
+      const [selectedGateway] = await db.select({ slug: paymentGateways.slug })
+        .from(paymentGateways)
+        .where(eq(paymentGateways.id, paymentPage.paymentGatewayId))
+        .limit(1)
+      if (selectedGateway?.slug !== 'xendit') throw new Error('Subscriptions currently require Xendit')
+      validateSubscriptionBindings(savedSubscriptionConfig, paymentPage, normalizedPages)
+    }
 
     const referencesPayload = inputReferences.map((reference, index) => ({
       key: reference.key,
@@ -635,6 +666,7 @@ export const savePageForm = createServerFn({ method: 'POST', strict: false })
         paymentAmountVariable: isPaymentPage ? page.paymentAmountVariable ?? null : null,
         paymentCurrency: (page.paymentCurrency || 'USD').slice(0, 3).toUpperCase(),
         paymentComputation: isPaymentPage ? page.paymentComputation ?? null : null,
+        subscriptionConfig: isPaymentPage ? savedSubscriptionConfig : null,
         fields: [...page.fields]
           .sort((a, b) => a.position - b.position)
           .map((field, fieldIndex) => ({
@@ -897,7 +929,11 @@ export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: fal
     const paymentId = Number(((session.collectedData ?? {}) as Record<string, unknown>).__paymentId)
     const [existingPayment] = Number.isFinite(paymentId)
       ? await db
-          .select({ status: payments.status })
+          .select({
+            status: payments.status,
+            paymentKind: payments.paymentKind,
+            subscriptionStatus: payments.subscriptionStatus,
+          })
           .from(payments)
           .where(eq(payments.id, paymentId))
           .limit(1)
@@ -919,6 +955,12 @@ export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: fal
       gateways = gateways.filter((gateway) => gateway.slug === selectedGateway?.slug)
     }
     const computation = (page.paymentComputation as PaymentComputation | null) ?? null
+    const subscriptionConfig = normalizedSubscriptionConfig(page.subscriptionConfig as SubscriptionConfig | null)
+    if (subscriptionConfig) {
+      gateways = subscriptionPaymentsEnabled()
+        ? gateways.filter((gateway) => paymentRegistry.get(gateway.slug)?.supportsSubscriptions())
+        : []
+    }
       return {
       amount,
       currency,
@@ -926,7 +968,17 @@ export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: fal
       breakdown: calculation.breakdown,
       showBreakdown: Boolean(computation?.showBreakdown),
       missingReferences: calculation.missingReferences,
-      paymentStatus: existingPayment?.status ?? null,
+      paymentStatus: existingPayment?.paymentKind === 'subscription' && existingPayment.subscriptionStatus === 'active'
+        ? 'completed'
+        : existingPayment?.status ?? null,
+      paymentMode: subscriptionConfig ? 'subscription' as const : 'one_time' as const,
+      subscription: subscriptionConfig ? {
+        interval: subscriptionConfig.interval,
+        intervalUnit: subscriptionConfig.intervalUnit,
+        intervalCount: subscriptionConfig.intervalCount,
+        trialPeriodDays: subscriptionConfig.trialPeriodDays,
+        maxCycles: subscriptionConfig.maxCycles,
+      } : null,
       }
     })(), 8_000, 'getPagePaymentOptions', {
       sessionId: data.sessionId,
@@ -985,12 +1037,17 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
     const pages = await hydratePages(session.formId)
     const allFields = pages.flatMap((item) => item.fields)
     const references = await loadFormReferences(session.formId)
+    const computedSessionData = applyComputedFieldValues(
+      allFields,
+      (session.collectedData ?? {}) as Record<string, unknown>,
+      references,
+    )
     const amountMajor = calculatePagePayment(
       page as unknown as FormPage,
       allFields,
       {
         ...buildReferenceMap(references),
-        ...applyComputedFieldValues(allFields, (session.collectedData ?? {}) as Record<string, unknown>, references),
+        ...computedSessionData,
       },
       references,
     ).amount
@@ -1003,6 +1060,17 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
     const configs = await loadIntegrationConfigs(form.profileId)
     const credentials = credentialsForSlug(data.gatewaySlug, configs)
     if (!credentials) throw new Error(`The form owner has not connected ${gateway.getGatewayName()}`)
+    const subscriptionConfig = normalizedSubscriptionConfig(page.subscriptionConfig as SubscriptionConfig | null)
+    if (subscriptionConfig && !subscriptionPaymentsEnabled()) {
+      throw new Error('Subscription payments are temporarily unavailable')
+    }
+    if (subscriptionConfig && (data.gatewaySlug !== 'xendit' || !gateway.supportsSubscriptions())) {
+      throw new Error('Subscriptions currently require Xendit')
+    }
+    if (subscriptionConfig && page.paymentCurrency !== 'PHP') {
+      throw new Error('Xendit subscriptions require PHP currency')
+    }
+    const customer = subscriptionConfig ? subscriptionCustomer(subscriptionConfig, computedSessionData) : null
 
     const origin = publicRequestOrigin()
     const base = `${origin}/forms/payment-return?pageSessionId=${session.id}&pageId=${page.id}`
@@ -1013,28 +1081,108 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
       status: 'pending_payment',
     })
       .where(eq(formSubmissions.id, submissionId))
-    const [payment] = await db.insert(payments).values({
-      paymentGatewayId: gwId,
-      pageSessionId: session.id,
-      formSubmissionId: submissionId,
+    const sessionPaymentId = Number((session.collectedData as Record<string, unknown> | null)?.__paymentId)
+    const [reusablePayment] = Number.isFinite(sessionPaymentId)
+      ? await db.select().from(payments).where(and(
+          eq(payments.id, sessionPaymentId),
+          eq(payments.pageSessionId, session.id),
+        )).limit(1)
+      : []
+    if (
+      reusablePayment?.paymentUrl &&
+      reusablePayment.status === 'pending' &&
+      (!reusablePayment.expiresAt || reusablePayment.expiresAt.getTime() > Date.now())
+    ) {
+      return { paymentUrl: reusablePayment.paymentUrl, issue: null }
+    }
+    const newPaymentValues: typeof payments.$inferInsert = {
+          paymentGatewayId: gwId,
+          pageSessionId: session.id,
+          formSubmissionId: submissionId,
+          amount: Math.round(amountMajor * 100),
+          currency: page.paymentCurrency,
+          paymentKind: subscriptionConfig ? 'subscription' : 'one_time',
+          status: 'pending',
+          respondentName: customer?.name,
+          respondentEmail: customer?.email,
+          subscriptionStatus: subscriptionConfig ? 'pending' : null,
+          subscriptionCheckoutStatus: subscriptionConfig ? 'PENDING' : null,
+          subscriptionInterval: subscriptionConfig?.intervalUnit,
+          subscriptionIntervalCount: subscriptionConfig?.intervalCount,
+          subscriptionMaxCycles: subscriptionConfig?.maxCycles,
+          subscriptionTrialDays: subscriptionConfig?.trialPeriodDays,
+          subscriptionAnchorDate: subscriptionConfig
+            ? subscriptionAnchorDate(subscriptionConfig.trialPeriodDays)
+            : null,
+          gatewayResponse: { environment: credentials.mode ?? 'sandbox' },
+        }
+    const subscriptionExternalId = subscriptionConfig
+      ? `ponkoform-subscription-session-${session.id}`
+      : null
+    let payment = reusablePayment
+    if (!payment && subscriptionExternalId) {
+      const [inserted] = await db.insert(payments)
+        .values({ ...newPaymentValues, externalId: subscriptionExternalId })
+        .onConflictDoNothing({ target: payments.externalId })
+        .returning()
+      if (inserted) {
+        payment = inserted
+      } else {
+        const [existing] = await db.select().from(payments)
+          .where(eq(payments.externalId, subscriptionExternalId))
+          .limit(1)
+        payment = existing
+      }
+    }
+    if (!payment) {
+      const [inserted] = await db.insert(payments).values(newPaymentValues).returning()
+      payment = inserted
+    }
+    if (!payment) throw new Error('Could not initialize payment')
+    const externalId = subscriptionExternalId ?? `ponkoform-payment-${payment.id}`
+    await db.update(payments).set({
+      externalId,
       amount: Math.round(amountMajor * 100),
-      currency: page.paymentCurrency,
-      status: 'pending',
-      gatewayResponse: { environment: credentials.mode ?? 'sandbox' },
-    }).returning({ id: payments.id })
-    const externalId = `ponkoform-payment-${payment.id}`
-    await db.update(payments).set({ externalId }).where(eq(payments.id, payment.id))
-    const result = await withTimeout(gateway.createPayment(
-      {
-        amount: Math.round(amountMajor * 100),
-        currency: page.paymentCurrency,
-        externalId,
-        metadata: { pageSessionId: String(session.id), pageId: String(page.id), paymentId: String(payment.id) },
-        returnUrl: base,
-        cancelUrl: `${base}&cancelled=1`,
-      },
-      credentials,
-    ), 15_000, 'initiatePagePayment.gatewayCreate', {
+      respondentName: customer?.name ?? reusablePayment?.respondentName,
+      respondentEmail: customer?.email ?? reusablePayment?.respondentEmail,
+      subscriptionAnchorDate: subscriptionConfig
+        ? subscriptionAnchorDate(subscriptionConfig.trialPeriodDays)
+        : reusablePayment?.subscriptionAnchorDate,
+    }).where(eq(payments.id, payment.id))
+    await db.update(formSubmissionSessions).set({
+      formSubmissionId: submissionId,
+      collectedData: { ...(session.collectedData as Record<string, unknown>), __paymentId: payment.id },
+      updatedAt: new Date(),
+    }).where(eq(formSubmissionSessions.id, session.id))
+    const metadata = { pageSessionId: String(session.id), pageId: String(page.id), paymentId: String(payment.id) }
+    const anchorDate = subscriptionConfig ? subscriptionAnchorDate(subscriptionConfig.trialPeriodDays) : null
+    const createOperation: Promise<PaymentResult | SubscriptionResult> = subscriptionConfig
+      ? gateway.createSubscription({
+          amount: Math.round(amountMajor * 100),
+          currency: page.paymentCurrency,
+          referenceId: `${externalId}-${Date.now()}`.slice(0, 64),
+          customerReferenceId: `pf${form.id}s${session.id}`,
+          customerName: customer!.name,
+          customerEmail: customer!.email,
+          description: `${form.title} subscription`.slice(0, 1000),
+          interval: subscriptionConfig.intervalUnit,
+          intervalCount: subscriptionConfig.intervalCount,
+          anchorDate: anchorDate!.toISOString(),
+          totalRecurrence: subscriptionConfig.maxCycles,
+          immediatePayment: subscriptionConfig.trialPeriodDays === 0,
+          metadata,
+          returnUrl: base,
+          cancelUrl: `${base}&cancelled=1`,
+        }, credentials)
+      : gateway.createPayment({
+          amount: Math.round(amountMajor * 100),
+          currency: page.paymentCurrency,
+          externalId,
+          metadata,
+          returnUrl: base,
+          cancelUrl: `${base}&cancelled=1`,
+        }, credentials)
+    const result = await withTimeout(createOperation, 15_000, 'initiatePagePayment.gatewayCreate', {
       sessionId: data.sessionId,
       pageId: data.pageId,
       correlationId: `page-${data.sessionId}`,
@@ -1070,13 +1218,16 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
     }
 
     await db.update(payments).set({
-      gatewayPaymentId: result.gatewayPaymentId,
+      gatewayPaymentId: 'paymentSessionId' in result ? result.paymentSessionId : result.gatewayPaymentId,
       paymentUrl: result.paymentUrl,
       expiresAt: result.expiresAt ? new Date(result.expiresAt) : null,
+      subscriptionPlanId: 'subscriptionPlanId' in result ? result.subscriptionPlanId : null,
+      subscriptionCheckoutStatus: 'providerStatus' in result ? result.providerStatus : null,
       gatewayResponse: {
         pageSessionId: session.id,
         pageId: page.id,
         environment: credentials.mode ?? 'sandbox',
+        ...(subscriptionConfig ? { subscriptionInterval: subscriptionConfig.interval } : {}),
       },
       updatedAt: new Date(),
     }).where(eq(payments.id, payment.id))

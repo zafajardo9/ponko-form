@@ -12,6 +12,7 @@ import {
   index,
 } from 'drizzle-orm/pg-core'
 import type { TemplatePageData } from '../lib/form-templates/types'
+import type { SubscriptionConfig } from '../lib/page-builder/types'
 
 export const formStatusEnum = pgEnum('form_status', ['draft', 'published'])
 export const fieldTypeEnum = pgEnum('field_type', [
@@ -245,6 +246,7 @@ export const formPages = pgTable(
       adjustments?: { type: 'add' | 'subtract' | 'multiply'; referenceKey: string }[]
       showBreakdown?: boolean
     }>(),
+    subscriptionConfig: jsonb('subscription_config').$type<SubscriptionConfig>(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
@@ -469,6 +471,10 @@ export const payments = pgTable(
     amount: integer('amount').notNull(),
     paidAmount: integer('paid_amount'),
     currency: varchar('currency', { length: 3 }).notNull().default('USD'),
+    paymentKind: varchar('payment_kind', { length: 20 })
+      .notNull()
+      .default('one_time')
+      .$type<'one_time' | 'subscription'>(),
     status: paymentStatusEnum('status').default('pending').notNull(),
     externalId: text('external_id'),
     paymentUrl: text('payment_url'),
@@ -484,6 +490,20 @@ export const payments = pgTable(
     failedAt: timestamp('failed_at'),
     refundedAt: timestamp('refunded_at'),
     lastVerifiedAt: timestamp('last_verified_at'),
+    respondentName: varchar('respondent_name', { length: 255 }),
+    respondentEmail: varchar('respondent_email', { length: 255 }),
+    subscriptionPlanId: text('subscription_plan_id'),
+    subscriptionStatus: varchar('subscription_status', { length: 30 })
+      .$type<'pending' | 'active' | 'paused' | 'past_due' | 'completed' | 'cancelled' | 'deactivated' | 'failed'>(),
+    subscriptionCheckoutStatus: varchar('subscription_checkout_status', { length: 30 }),
+    subscriptionInterval: varchar('subscription_interval', { length: 10 }).$type<'WEEK' | 'MONTH'>(),
+    subscriptionIntervalCount: integer('subscription_interval_count'),
+    subscriptionMaxCycles: integer('subscription_max_cycles'),
+    subscriptionTrialDays: integer('subscription_trial_days'),
+    subscriptionAnchorDate: timestamp('subscription_anchor_date'),
+    subscriptionNextChargeAt: timestamp('subscription_next_charge_at'),
+    subscriptionEndedAt: timestamp('subscription_ended_at'),
+    subscriptionLastSyncedAt: timestamp('subscription_last_synced_at'),
     reminderCount: integer('reminder_count').notNull().default(0),
     lastReminderAt: timestamp('last_reminder_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -493,6 +513,38 @@ export const payments = pgTable(
     uniqueIndex('payments_gateway_payment_id_idx').on(table.gatewayPaymentId),
     uniqueIndex('payments_external_id_idx').on(table.externalId),
     index('payments_page_session_id_idx').on(table.pageSessionId),
+    uniqueIndex('payments_subscription_plan_id_idx').on(table.subscriptionPlanId),
+    index('payments_subscription_status_sync_idx').on(table.subscriptionStatus, table.subscriptionLastSyncedAt),
+  ],
+)
+
+export const subscriptionCycles = pgTable(
+  'subscription_cycles',
+  {
+    id: serial().primaryKey(),
+    paymentId: integer('payment_id')
+      .notNull()
+      .references(() => payments.id, { onDelete: 'cascade' }),
+    gatewayCycleId: text('gateway_cycle_id').notNull(),
+    cycleNumber: integer('cycle_number'),
+    status: varchar('status', { length: 30 })
+      .notNull()
+      .$type<'scheduled' | 'pending' | 'retrying' | 'paid' | 'failed' | 'cancelled' | 'skipped'>(),
+    amount: integer('amount').notNull(),
+    currency: varchar('currency', { length: 3 }).notNull(),
+    scheduledAt: timestamp('scheduled_at'),
+    paidAt: timestamp('paid_at'),
+    failedAt: timestamp('failed_at'),
+    failureCode: varchar('failure_code', { length: 100 }),
+    verificationSource: varchar('verification_source', { length: 20 })
+      .$type<'webhook' | 'reconciliation' | 'manual'>(),
+    lastVerifiedAt: timestamp('last_verified_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('subscription_cycles_gateway_cycle_id_idx').on(table.gatewayCycleId),
+    index('subscription_cycles_payment_scheduled_idx').on(table.paymentId, table.scheduledAt),
   ],
 )
 

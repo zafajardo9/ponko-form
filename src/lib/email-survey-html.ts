@@ -1,4 +1,5 @@
 import type { PageFieldOption } from './page-builder/types'
+import { SVG_STAR_MARKER } from './page-builder/satisfaction'
 
 function escapeHtml(value: string) {
   return value
@@ -30,7 +31,9 @@ export function buildEmailSurveyHtml(input: {
 }) {
   const cells = input.options.map((option) => {
     const href = escapeHtml(emailSurveyRatingUrl(input.origin, input.publicId, input.token, option.value))
-    const visual = option.emoji?.trim() || option.value
+    const visual = option.emoji?.trim() === SVG_STAR_MARKER
+      ? '★'.repeat(Math.max(1, Math.min(5, Number(option.value) || 1)))
+      : option.emoji?.trim() || option.value
     const visualHtml = /^https?:\/\//i.test(visual)
       ? `<img src="${escapeHtml(visual)}" width="32" height="32" alt="" style="display:block;margin:0 auto 6px;object-fit:contain;">`
       : `<span style="display:block;font-size:24px;line-height:28px;margin-bottom:6px;">${escapeHtml(visual)}</span>`

@@ -27,6 +27,7 @@ import { richTextHtml } from '../form-builder/fields/FieldRenderer'
 import {
   inferSatisfactionPreset,
   satisfactionOptions,
+  SVG_STAR_MARKER,
   type SatisfactionPreset,
 } from '../../lib/page-builder/satisfaction'
 import type {
@@ -43,8 +44,10 @@ import type {
   FormPage,
   PageField,
   PageFieldType,
+  SubscriptionIntervalPreset,
 } from '../../lib/page-builder/types'
 import { Button } from '../ui/Button'
+import { StarIcon } from '../ui/StarIcon'
 import {
   AlignJustify,
   MapPin,
@@ -133,7 +136,7 @@ interface PageBuilderWorkspaceProps {
   formId: number
   pages: FormPage[]
   references: FormReference[]
-  gateways: { id: number; name: string }[]
+  gateways: { id: number; name: string; slug: string }[]
   onChanged: () => void
   onDraftChange?: (draft: { pages: FormPage[]; references: FormReference[] }) => void
 }
@@ -182,6 +185,7 @@ function snapshotBuilder(pages: EditablePage[], references: FormReference[]) {
         paymentAmountVariable: page.paymentAmountVariable ?? null,
         paymentCurrency: page.paymentCurrency,
         paymentComputation: page.paymentComputation ?? null,
+        subscriptionConfig: page.subscriptionConfig ?? null,
         fields: page.fields.map((field, fieldIndex) => ({
           fieldType: field.fieldType,
           label: field.label,
@@ -406,6 +410,7 @@ export function PageBuilderWorkspace({
       paymentAmountVariable: null,
       paymentCurrency: 'USD',
       paymentComputation: null,
+      subscriptionConfig: null,
       fields: [],
     }
     const next = [...editablePages, page, ...(finalPage ? [finalPage] : [])].map((item, index) => ({
@@ -803,6 +808,7 @@ export function PageBuilderWorkspace({
             <PageSettings
               page={selectedPage}
               gateways={gateways}
+              pages={draftPages}
               fields={draftPages.flatMap((page) => page.fields)}
               references={draftReferences}
               onUpdate={(patch) => updatePageLocal(selectedPage.id, patch)}
@@ -817,7 +823,8 @@ export function PageBuilderWorkspace({
 
 interface PageSettingsProps {
   page: FormPage
-  gateways: { id: number; name: string }[]
+  gateways: { id: number; name: string; slug: string }[]
+  pages: FormPage[]
   fields: PageField[]
   references: FormReference[]
   onUpdate: (patch: Partial<FormPage>) => void
@@ -1038,7 +1045,7 @@ function ReferencesPanel({
   )
 }
 
-function PageSettings({ page, gateways, fields, references, onUpdate, onDelete }: PageSettingsProps) {
+function PageSettings({ page, gateways, pages, fields, references, onUpdate, onDelete }: PageSettingsProps) {
   const numberReferences = references.filter((reference) => reference.type === 'number' || reference.type === 'percentage')
   const pricedOptionFields = fields.filter((field) =>
     ['select', 'checkbox', 'radio'].includes(field.fieldType) &&
@@ -1051,6 +1058,12 @@ function PageSettings({ page, gateways, fields, references, onUpdate, onDelete }
     ),
   )
   const numberFields = fields.filter((field) => field.fieldType === 'number' || field.fieldType === 'computation')
+  const earlierFields = pages
+    .filter((candidate) => candidate.position < page.position)
+    .flatMap((candidate) => candidate.fields)
+  const customerNameFields = earlierFields.filter((field) => ['text', 'textarea'].includes(field.fieldType))
+  const customerEmailFields = earlierFields.filter((field) => field.fieldType === 'email')
+  const xenditGateway = gateways.find((gateway) => gateway.slug === 'xendit')
   const paymentComputation = page.paymentComputation ?? {
     mode: page.paymentAmountVariable ? 'field' : 'sum_priced_options',
     fieldBindings: page.paymentAmountVariable ? [page.paymentAmountVariable] : [],
@@ -1133,15 +1146,136 @@ function PageSettings({ page, gateways, fields, references, onUpdate, onDelete }
                   value={page.paymentGatewayId ?? ''}
                   onChange={(e) => onUpdate({ paymentGatewayId: e.target.value ? Number(e.target.value) : null })}
                   className={inputClass}
+                  disabled={Boolean(page.subscriptionConfig)}
                 >
-                  <option value="">Visitor chooses connected gateway</option>
-                  {gateways.map((gateway) => (
+                  {!page.subscriptionConfig && <option value="">Visitor chooses connected gateway</option>}
+                  {gateways.filter((gateway) => !page.subscriptionConfig || gateway.slug === 'xendit').map((gateway) => (
                     <option key={gateway.id} value={gateway.id}>
                       {gateway.name}
                     </option>
                   ))}
                 </select>
               </Field>
+              <Field label="Payment mode">
+                <select
+                  value={page.subscriptionConfig ? 'subscription' : 'one_time'}
+                  onChange={(event) => {
+                    if (event.target.value === 'one_time') {
+                      onUpdate({ subscriptionConfig: null })
+                      return
+                    }
+                    onUpdate({
+                      paymentGatewayId: xenditGateway?.id ?? null,
+                      paymentCurrency: 'PHP',
+                      subscriptionConfig: {
+                        enabled: true,
+                        interval: 'monthly',
+                        intervalUnit: 'MONTH',
+                        intervalCount: 1,
+                        trialPeriodDays: 0,
+                        maxCycles: null,
+                        customerNameField: customerNameFields[0]?.bindVariable ?? '',
+                        customerEmailField: customerEmailFields[0]?.bindVariable ?? '',
+                      },
+                    })
+                  }}
+                  className={inputClass}
+                >
+                  <option value="one_time">One-time payment</option>
+                  <option value="subscription">Subscription</option>
+                </select>
+              </Field>
+              {page.subscriptionConfig && (
+                <div className="rounded-lg border border-[#e6dfd8] bg-white p-3">
+                  <p className="text-sm font-medium text-[#141413]">Subscription schedule</p>
+                  {!xenditGateway && (
+                    <p className="mt-2 text-xs text-[#a9583e]">Xendit must be active before this form can be saved.</p>
+                  )}
+                  <div className="mt-3 flex flex-col gap-3">
+                    <Field label="Billing interval">
+                      <select
+                        value={page.subscriptionConfig.interval}
+                        onChange={(event) => {
+                          const interval = event.target.value as SubscriptionIntervalPreset
+                          const mapping = {
+                            weekly: { intervalUnit: 'WEEK' as const, intervalCount: 1 },
+                            monthly: { intervalUnit: 'MONTH' as const, intervalCount: 1 },
+                            quarterly: { intervalUnit: 'MONTH' as const, intervalCount: 3 },
+                            semiannual: { intervalUnit: 'MONTH' as const, intervalCount: 6 },
+                            annual: { intervalUnit: 'MONTH' as const, intervalCount: 12 },
+                          }[interval]
+                          onUpdate({ subscriptionConfig: { ...page.subscriptionConfig!, interval, ...mapping } })
+                        }}
+                        className={inputClass}
+                      >
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="quarterly">Quarterly</option>
+                        <option value="semiannual">Semiannual</option>
+                        <option value="annual">Annual</option>
+                      </select>
+                    </Field>
+                    <Field label="Customer name field">
+                      <select
+                        value={page.subscriptionConfig.customerNameField}
+                        onChange={(event) => onUpdate({ subscriptionConfig: {
+                          ...page.subscriptionConfig!, customerNameField: event.target.value,
+                        } })}
+                        className={inputClass}
+                      >
+                        <option value="">Select an earlier name field...</option>
+                        {customerNameFields.map((field) => <option key={field.id} value={field.bindVariable}>{field.label}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Customer email field">
+                      <select
+                        value={page.subscriptionConfig.customerEmailField}
+                        onChange={(event) => onUpdate({ subscriptionConfig: {
+                          ...page.subscriptionConfig!, customerEmailField: event.target.value,
+                        } })}
+                        className={inputClass}
+                      >
+                        <option value="">Select an earlier email field...</option>
+                        {customerEmailFields.map((field) => <option key={field.id} value={field.bindVariable}>{field.label}</option>)}
+                      </select>
+                    </Field>
+                    {(customerNameFields.length === 0 || customerEmailFields.length === 0) && (
+                      <p className="text-xs leading-relaxed text-[#a9583e]">
+                        Add required Name (text) and Email fields on a page before this payment page.
+                      </p>
+                    )}
+                    <Field label="Trial period (days)">
+                      <input
+                        type="number"
+                        min={0}
+                        max={365}
+                        value={page.subscriptionConfig.trialPeriodDays}
+                        onChange={(event) => onUpdate({ subscriptionConfig: {
+                          ...page.subscriptionConfig!, trialPeriodDays: Math.max(0, Number(event.target.value) || 0),
+                        } })}
+                        className={inputClass}
+                      />
+                    </Field>
+                    <Field label="Maximum billing cycles">
+                      <input
+                        type="number"
+                        min={1}
+                        max={32000}
+                        value={page.subscriptionConfig.maxCycles ?? ''}
+                        placeholder="No limit"
+                        onChange={(event) => onUpdate({ subscriptionConfig: {
+                          ...page.subscriptionConfig!,
+                          maxCycles: event.target.value === '' ? null : Math.max(1, Number(event.target.value) || 1),
+                        } })}
+                        className={inputClass}
+                      />
+                    </Field>
+                    <p className="text-xs leading-relaxed text-[#8e8b82]">
+                      Editing this schedule affects new subscribers only. Existing plans continue with their original schedule.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="rounded-lg border border-[#e6dfd8] bg-white p-3">
                 <p className="text-sm font-medium text-[#141413]">Payment computation</p>
                 <div className="mt-3 flex flex-col gap-3">
@@ -1243,6 +1377,7 @@ function PageSettings({ page, gateways, fields, references, onUpdate, onDelete }
                   value={page.paymentCurrency}
                   onChange={(e) => onUpdate({ paymentCurrency: e.target.value.toUpperCase().slice(0, 3) })}
                   className={inputClass}
+                  disabled={Boolean(page.subscriptionConfig)}
                 />
               </Field>
               <label className="flex items-center gap-2 rounded-lg border border-[#e6dfd8] bg-white p-3 text-sm text-[#141413]">
@@ -1625,14 +1760,23 @@ function SortableFieldCard({ field, pages, selected, onSelect, onMoveToPage }: S
         )}
         {field.fieldType === 'satisfaction' && (
           <button type="button" onClick={onSelect} className="mt-3 block w-full text-left">
-            <div className="flex gap-1.5 overflow-hidden">
-              {(field.options ?? []).map((option) => (
+            {(field.options?.length ?? 0) > 0 && (field.options ?? []).every((option) => option.emoji === SVG_STAR_MARKER) ? (
+              <div className="inline-flex items-center gap-1 rounded-lg border border-[#e6dfd8] bg-white px-3 py-2.5 text-[#cc785c]">
+                {(field.options ?? []).map((option) => (
+                  <StarIcon key={option.value} size={24} filled={false} className="h-6 w-6" />
+                ))}
+                <span className="ml-2 text-[10px] font-medium uppercase tracking-wide text-[#8e8b82]">Star rating</span>
+              </div>
+            ) : (
+              <div className="flex gap-1.5 overflow-hidden">
+                {(field.options ?? []).map((option) => (
                 <span key={option.value} className="flex min-w-0 flex-1 flex-col items-center rounded-md border border-[#e6dfd8] bg-white px-1 py-2">
                   <span className="text-lg leading-none">{option.emoji || option.value}</span>
                   <span className="mt-1 max-w-full truncate text-[10px] text-[#8e8b82]">{option.label}</span>
                 </span>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </button>
         )}
         {field.fieldType === 'recaptcha' && (
@@ -1702,6 +1846,7 @@ function SatisfactionSettings({ field, onUpdate }: Pick<FieldSettingsProps, 'fie
         <select value={preset} onChange={(event) => selectPreset(event.target.value as SatisfactionPreset)} className={inputClass}>
           <option value="five-point">5-point satisfaction</option>
           <option value="stars">Star rating</option>
+          <option value="svg-stars">Modern star rating</option>
           <option value="nps">Net Promoter Score (0–10)</option>
           <option value="custom">Custom scale</option>
         </select>
@@ -1709,13 +1854,22 @@ function SatisfactionSettings({ field, onUpdate }: Pick<FieldSettingsProps, 'fie
       <div className="mt-3 flex flex-col gap-2">
         {options.map((option, index) => (
           <div key={`${option.value}-${index}`} className="grid grid-cols-[64px_minmax(0,1fr)_64px_32px] gap-2">
-            <input
-              aria-label={`Rating ${index + 1} visual`}
-              value={option.emoji ?? ''}
-              onChange={(event) => updateOption(index, { emoji: event.target.value || null })}
-              className={inputClass}
-              placeholder="😊"
-            />
+            {preset === 'svg-stars' ? (
+              <span
+                aria-label={`Rating ${index + 1} star visual`}
+                className="flex h-10 items-center justify-center rounded-md border border-[#e6dfd8] bg-white text-[#cc785c]"
+              >
+                <StarIcon size={22} filled />
+              </span>
+            ) : (
+              <input
+                aria-label={`Rating ${index + 1} visual`}
+                value={option.emoji ?? ''}
+                onChange={(event) => updateOption(index, { emoji: event.target.value || null })}
+                className={inputClass}
+                placeholder="😊"
+              />
+            )}
             <input
               aria-label={`Rating ${index + 1} label`}
               value={option.label}
@@ -1746,7 +1900,7 @@ function SatisfactionSettings({ field, onUpdate }: Pick<FieldSettingsProps, 'fie
       <button type="button" onClick={addOption} className="mt-3 text-xs font-medium text-[#a9583e] hover:text-[#7f3f2d]">
         + Add rating level
       </button>
-      <p className="mt-2 text-xs leading-5 text-[#8e8b82]">The saved value is numeric and can be used in logic, calculations, submissions, and exports. Visuals accept emoji or image URLs.</p>
+      <p className="mt-2 text-xs leading-5 text-[#8e8b82]">The saved value is numeric and can be used in logic, calculations, submissions, and exports. Custom scales accept emoji or image URLs.</p>
     </div>
   )
 }

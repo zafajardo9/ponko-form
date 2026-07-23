@@ -835,7 +835,7 @@ function UnifiedEditorPage() {
           formId={Number(formId)}
           pages={pageForm.pages}
           references={pageForm.references ?? []}
-          gateways={gateways as { id: number; name: string }[]}
+          gateways={gateways as { id: number; name: string; slug: string }[]}
           onChanged={() => {
             queryClient.invalidateQueries({ queryKey: ["page-form", formId] });
           }}

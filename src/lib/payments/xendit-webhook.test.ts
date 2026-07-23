@@ -15,4 +15,16 @@ describe('Xendit webhook validation', () => {
       eventType: 'refund.succeeded', isRefund: true, reference: 'inv-2',
     })
   })
+
+  it('resolves subscription cycle events through their parent plan', () => {
+    expect(xenditWebhookIdentity({
+      event: 'recurring.cycle',
+      data: { id: 'recy_1', recurring_plan_id: 'repl_1', status: 'SUCCEEDED' },
+    })).toMatchObject({
+      subscriptionKind: 'cycle',
+      subscriptionPlanId: 'repl_1',
+      cycleId: 'recy_1',
+      reference: 'repl_1',
+    })
+  })
 })

@@ -1,3 +1,7 @@
+import { useState } from 'react'
+import { StarIcon } from '../../ui/StarIcon'
+import { SVG_STAR_MARKER } from '../../../lib/page-builder/satisfaction'
+
 export interface AddressValue {
   currentAddress?: string
   apartment?: string
@@ -83,6 +87,7 @@ function isImageUrl(value: string): boolean {
 }
 
 export function FieldRenderer({ field, value, onChange, error, readOnly }: FieldRendererProps) {
+  const [hoveredRating, setHoveredRating] = useState<number | null>(null)
   const inputBase =
     'w-full rounded-[var(--ponko-radius,6px)] border border-[#e6dfd8] bg-[#faf9f5] px-3.5 py-2.5 text-sm text-[#141413] placeholder:text-[#8e8b82] outline-none focus:border-[var(--ponko-primary,#cc785c)] focus:ring-2 focus:ring-[var(--ponko-primary-soft,#cc785c29)] transition-colors disabled:opacity-60'
 
@@ -103,6 +108,7 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
 
   const options =
     (field.options as FieldOption[] | null | undefined) ?? []
+  const usesSvgStars = options.length > 0 && options.every((opt) => (opt.emoji?.trim() ?? '') === SVG_STAR_MARKER)
   const mediaType = options.find((option) => option.label === 'type')?.value ?? 'image'
   const caption = options.find((option) => option.label === 'caption')?.value ?? ''
 
@@ -358,12 +364,58 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
       )}
 
       {field.type === 'satisfaction' && (
-        <div
-          className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(2.5rem,1fr))] gap-1 sm:gap-2"
-          role="radiogroup"
-          aria-label={field.label}
-        >
-          {options.map((opt) => {
+        usesSvgStars ? (
+          <div
+            className={`inline-flex max-w-full items-center gap-0.5 rounded-[var(--ponko-radius,8px)] border bg-[#faf9f5] p-1.5 sm:gap-1 sm:p-2 ${
+              error ? 'border-[#c64545]' : 'border-[#e6dfd8]'
+            } ${readOnly ? 'opacity-60' : ''}`}
+            role="radiogroup"
+            aria-label={field.label}
+            onMouseLeave={() => setHoveredRating(null)}
+          >
+            {options.map((opt) => {
+              const ratingValue = Number(opt.value)
+              const activeRating = hoveredRating ?? Number(strValue)
+              const active = Number.isFinite(ratingValue) && ratingValue <= activeRating
+              return (
+                <label
+                  key={opt.value}
+                  title={opt.label}
+                  onMouseEnter={() => setHoveredRating(ratingValue)}
+                  onFocus={() => setHoveredRating(ratingValue)}
+                  onBlur={() => setHoveredRating(null)}
+                  className={`group flex h-10 w-10 cursor-pointer items-center justify-center rounded-md transition-[color,background-color,transform] duration-150 focus-within:outline-none focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] motion-reduce:transition-none sm:h-11 sm:w-11 ${
+                    active
+                      ? 'text-[var(--ponko-primary,#cc785c)]'
+                      : 'text-[#c8beb3] hover:-translate-y-0.5 hover:bg-white hover:text-[var(--ponko-primary,#cc785c)]'
+                  } ${readOnly ? 'cursor-not-allowed hover:translate-y-0' : ''}`}
+                >
+                  <input
+                    type="radio"
+                    name={`field-${field.id}`}
+                    value={opt.value}
+                    checked={strValue === opt.value}
+                    disabled={readOnly}
+                    onChange={() => onChange(opt.value)}
+                    aria-label={opt.label}
+                    className="sr-only"
+                  />
+                  <StarIcon
+                    size={28}
+                    filled={active}
+                    className="h-7 w-7 transition-transform duration-150 group-active:scale-90 motion-reduce:transition-none sm:h-8 sm:w-8"
+                  />
+                </label>
+              )
+            })}
+          </div>
+        ) : (
+          <div
+            className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(2.5rem,1fr))] gap-1 sm:gap-2"
+            role="radiogroup"
+            aria-label={field.label}
+          >
+            {options.map((opt) => {
             const selected = strValue === opt.value
             const visual = opt.emoji?.trim() || opt.value
             return (
@@ -395,8 +447,9 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
                 <span className="sr-only">{opt.label}</span>
               </label>
             )
-          })}
-        </div>
+            })}
+          </div>
+        )
       )}
 
       {field.type === 'date' && (

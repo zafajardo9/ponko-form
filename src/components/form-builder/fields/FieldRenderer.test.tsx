@@ -84,6 +84,38 @@ describe('FieldRenderer choice and calendar controls', () => {
     expect(screen.getAllByRole('radio')).toHaveLength(11)
   })
 
+  it('renders the modern preset as one accessible five-star control', () => {
+    const onChange = vi.fn()
+    const field: FieldConfig = {
+      id: 11,
+      type: 'satisfaction',
+      label: 'Service rating',
+      required: false,
+      options: Array.from({ length: 5 }, (_, index) => ({
+        label: `${index + 1} star${index === 0 ? '' : 's'}`,
+        value: String(index + 1),
+        emoji: 'star-svg',
+      })),
+    }
+
+    const { container, rerender } = render(
+      <FieldRenderer field={field} value="" onChange={onChange} />,
+    )
+
+    expect(screen.getByRole('radiogroup', { name: 'Service rating' })).toBeTruthy()
+    expect(screen.getAllByRole('radio')).toHaveLength(5)
+    expect(screen.queryByText('star-svg')).toBeNull()
+    expect(container.querySelectorAll('svg[data-star-icon]')).toHaveLength(5)
+    expect(container.querySelectorAll('svg[data-filled="true"]')).toHaveLength(0)
+
+    fireEvent.click(screen.getByRole('radio', { name: '4 stars' }))
+    expect(onChange).toHaveBeenCalledWith('4')
+
+    rerender(<FieldRenderer field={field} value="4" onChange={onChange} />)
+    expect(container.querySelectorAll('svg[data-filled="true"]')).toHaveLength(4)
+    expect(container.querySelectorAll('svg[data-filled="false"]')).toHaveLength(1)
+  })
+
   it('changes and clears a calendar value', () => {
     const onChange = vi.fn()
     const dateField: FieldConfig = {
