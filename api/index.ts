@@ -7,6 +7,7 @@
  * Uses srvx (already a dependency of @tanstack/start-plugin-core) to convert
  * between Node.js HTTP and Web Fetch API.
  */
+import { join } from 'node:path'
 import { NodeRequest, sendNodeResponse } from 'srvx/node'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
@@ -19,12 +20,14 @@ let serverHandler: FetchHandler | null = null
 async function getServerHandler(): Promise<FetchHandler> {
   if (serverHandler) return serverHandler
 
-  // dist/server/server.js is produced by `vite build` and ships no type
-  // declarations, so we cast the dynamic import to the shape we use. The
-  // @ts-ignore covers TS7016 ("could not find a declaration file") on the
-  // build artifact, which only exists after the build step runs.
+  // On Vercel, process.cwd() is always the project root. Use an absolute
+  // path so the dynamic import survives Vercel's function bundling (esbuild
+  // treats dynamic imports as externals and leaves the path string intact).
+  // dist/server/server.js is produced by `vite build`.
+  const serverPath = join(process.cwd(), 'dist', 'server', 'server.js')
+
   // @ts-ignore -- built artifact, no .d.ts
-  const mod = (await import('../dist/server/server.js')) as { default: FetchHandler }
+  const mod = (await import(serverPath)) as { default: FetchHandler }
   serverHandler = mod.default
   return serverHandler
 }

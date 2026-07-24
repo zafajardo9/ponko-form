@@ -58,6 +58,9 @@
     "tsx": "^4.21.0",
     "zod": "^4.3.6"
   },
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "devDependencies": {
     "@rolldown/plugin-babel": "^0.2.3",
     "@tanstack/devtools-event-client": "latest",

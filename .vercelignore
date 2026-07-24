@@ -1,0 +1,47 @@
+# Dependencies (installed during build)
+node_modules
+
+# Build output — these are generated during the build step,
+# not needed in the source upload.
+dist
+dist-ssr
+.vinxi
+.nitro
+.output
+.tanstack
+
+# Development / local
+.env
+.env.local
+*.local
+.DS_Store
+
+# Documentation & plans (not needed for the deployment)
+docs
+feature-plan
+plans
+memory-ponko
+tmp
+output
+
+# IDE
+.vscode
+.idea
+
+# CI / other platforms (not Vercel)
+render.yaml
+
+# Scripts used only for local DB management
+scripts
+drizzle
+
+# Agent configurations
+.agents
+.claude
+.hermes
+
+# Test files
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
