@@ -231,11 +231,16 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
     const isText = comp?.outputMode === 'text'
     const strVal = String(value ?? '')
     const amount = Number(value ?? 0)
+    const decimalPlaces = Math.min(10, Math.max(0, Number(comp?.decimalPlaces ?? 2)))
     const display = isText
       ? strVal || '—'
       : Number.isFinite(amount)
-        ? new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)
-        : '0.00'
+        ? new Intl.NumberFormat(undefined, comp?.numericType === 'integer'
+          ? { maximumFractionDigits: 0 }
+          : comp?.numericType === 'decimal'
+            ? { minimumFractionDigits: decimalPlaces, maximumFractionDigits: decimalPlaces }
+            : { maximumFractionDigits: 10 }).format(amount)
+        : '0'
 
     return (
       <div className="rounded-[var(--ponko-radius,6px)] border border-[#e6dfd8] bg-[#faf9f5] p-4">

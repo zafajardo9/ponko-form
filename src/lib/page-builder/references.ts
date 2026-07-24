@@ -118,6 +118,17 @@ function applyFormulaOperator(current: number, operator: FormulaOperator, value:
   return current
 }
 
+function formatNumericComputationValue(value: number, computation: FieldComputation) {
+  if (!Number.isFinite(value)) return 0
+  if (computation.numericType === 'integer') return Math.round(value)
+  if (computation.numericType === 'decimal') {
+    const places = Math.min(10, Math.max(0, Math.round(Number(computation.decimalPlaces ?? 2))))
+    const factor = 10 ** places
+    return Math.round((value + Number.EPSILON) * factor) / factor
+  }
+  return value
+}
+
 function formulaOperatorLabel(operator: FormulaOperator) {
   if (operator === 'set') return ''
   if (operator === 'add') return 'Add'
@@ -186,6 +197,41 @@ function parseFormulaExpression(expression: string): NonNullable<FieldComputatio
       })
       pendingOperator = 'add'
     }
+  }
+
+  return terms
+}
+
+function unquoteTextLiteral(value: string) {
+  const quote = value[0]
+  const inner = value.slice(1, -1)
+  return inner.replace(/\\(['"\\nrt])/g, (_match, escaped: string) => {
+    if (escaped === 'n') return '\n'
+    if (escaped === 'r') return '\r'
+    if (escaped === 't') return '\t'
+    return escaped === quote || escaped === '\\' ? escaped : `\\${escaped}`
+  })
+}
+
+function parseTextExpression(expression: string): NonNullable<FieldComputation['terms']> {
+  const tokenPattern = /\{\{\s*[a-z][a-z0-9_]*\s*\}\}|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\bconcat\b|\+/gi
+  const tokens = expression.match(tokenPattern) ?? []
+  const terms: NonNullable<FieldComputation['terms']> = []
+
+  for (const token of tokens) {
+    if (token === '+' || token.toLowerCase() === 'concat') continue
+    const bindingMatch = token.match(/^\{\{\s*([a-z][a-z0-9_]*)\s*\}\}$/i)
+    terms.push(bindingMatch
+      ? {
+          operator: terms.length === 0 ? 'set' : 'concat',
+          source: 'field',
+          fieldBinding: bindingMatch[1],
+        }
+      : {
+          operator: terms.length === 0 ? 'set' : 'concat',
+          source: 'fixed',
+          fixedValue: unquoteTextLiteral(token),
+        })
   }
 
   return terms
@@ -345,29 +391,50 @@ export function calculateFieldComputation(
 
   // ── Text mode: concatenate string values from bound fields ──
   if (computation.outputMode === 'text') {
-    const terms = computation.expression?.trim()
-      ? parseFormulaExpression(computation.expression)
+    const useSyntax = computation.editorMode === 'syntax' ||
+      (computation.editorMode == null && Boolean(computation.expression?.trim()))
+    const terms = useSyntax && computation.expression?.trim()
+      ? parseTextExpression(computation.expression)
       : computation.terms ?? []
+    const referenceMap = buildReferenceMap(references)
+    const referencesByKey = new Map(references.map((reference) => [reference.key, reference]))
+    const missingReferences = new Set<string>()
 
     let result = ''
     for (const term of terms) {
+      let value = ''
       if (term.source === 'field') {
-        const fieldValue = String(dataScope[term.fieldBinding ?? ''] ?? '')
-        if (term.operator === 'set') {
-          result = fieldValue
+        const binding = term.fieldBinding ?? ''
+        const field = fields.find((item) => item.bindVariable === binding)
+        const reference = referencesByKey.get(binding)
+        if (field?.fieldType === 'computation' && !stack.includes(binding)) {
+          const nested = calculateFieldComputation(
+            field.validationRules?.computation,
+            fields,
+            dataScope,
+            references,
+            [...stack, binding],
+          )
+          value = String(nested.value ?? '')
+          nested.missingReferences.forEach((key) => missingReferences.add(key))
+        } else if (reference) {
+          value = String(referenceMap[binding] ?? '')
+        } else if (field || Object.hasOwn(dataScope, binding)) {
+          const raw = dataScope[binding]
+          value = Array.isArray(raw) ? raw.join(', ') : String(raw ?? '')
         } else {
-          result += fieldValue
+          missingReferences.add(binding)
         }
+      } else if (term.source === 'reference') {
+        const key = term.referenceKey ?? ''
+        if (referencesByKey.has(key)) value = String(referenceMap[key] ?? '')
+        else if (key) missingReferences.add(key)
       } else if (term.source === 'fixed') {
-        const fixed = term.fixedValue != null ? String(term.fixedValue) : ''
-        if (term.operator === 'set') {
-          result = fixed
-        } else {
-          result += fixed
-        }
+        value = term.fixedValue != null ? String(term.fixedValue) : ''
       }
+      result = term.operator === 'set' ? value : result + value
     }
-    return { value: result.trim(), breakdown: [], missingReferences: [] }
+    return { value: result, breakdown: [], missingReferences: [...missingReferences] }
   }
 
   // ── Number mode: existing logic ──
@@ -378,7 +445,9 @@ export function calculateFieldComputation(
     const breakdown: PaymentBreakdownLine[] = []
     let amount = 0
 
-    const terms = computation.expression?.trim()
+    const useSyntax = computation.editorMode === 'syntax' ||
+      (computation.editorMode == null && Boolean(computation.expression?.trim()))
+    const terms = useSyntax && computation.expression?.trim()
       ? parseFormulaExpression(computation.expression)
       : computation.terms ?? []
     for (const [index, term] of terms.entries()) {
@@ -468,7 +537,10 @@ export function calculateFieldComputation(
       }
     }
 
-    const safeAmount = Number.isFinite(amount) ? Math.max(0, amount) : 0
+    const safeAmount = formatNumericComputationValue(
+      Number.isFinite(amount) ? Math.max(0, amount) : 0,
+      computation,
+    )
     if (breakdown.length > 0) {
       breakdown.push({ label: 'Total', amount: safeAmount, kind: 'total' })
     }
@@ -494,7 +566,7 @@ export function calculateFieldComputation(
     references,
   )
   return {
-    value: calculation.amount,
+    value: formatNumericComputationValue(calculation.amount, computation),
     breakdown: calculation.breakdown,
     missingReferences: calculation.missingReferences,
   }

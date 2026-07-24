@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   applyComputedFieldValues,
   buildReferenceMap,
+  calculateFieldComputation,
   calculatePagePayment,
   optionPrice,
   parseReferenceValue,
@@ -48,6 +49,16 @@ const references: FormReference[] = [
     label: 'Processing fee',
     description: null,
     position: 3,
+  },
+  {
+    id: 5,
+    formId: 1,
+    key: 'account_prefix',
+    type: 'text',
+    value: 'Customer',
+    label: 'Account prefix',
+    description: null,
+    position: 4,
   },
 ]
 
@@ -253,5 +264,133 @@ describe('page-builder references', () => {
     expect(result.breakdown).toContainEqual({ label: 'Identity Check', amount: 450, kind: 'item' })
     expect(result.breakdown).toContainEqual({ label: 'Address Check', amount: 200, kind: 'item' })
     expect(result.breakdown).toContainEqual({ label: 'Add percent VAT', amount: 84, kind: 'adjustment' })
+  })
+
+  it('concatenates fields, text references, literal spacing, and nested text calculations', () => {
+    const firstName = {
+      id: 20,
+      pageId: 1,
+      fieldType: 'text',
+      label: 'First name',
+      placeholder: null,
+      required: false,
+      bindVariable: 'first_name',
+      position: 0,
+      width: 'full',
+      options: null,
+      validationRules: null,
+      conditions: [],
+    } satisfies PageField
+    const displayName = {
+      id: 21,
+      pageId: 1,
+      fieldType: 'computation',
+      label: 'Display name',
+      placeholder: null,
+      required: false,
+      bindVariable: 'display_name',
+      position: 1,
+      width: 'full',
+      options: null,
+      validationRules: {
+        computation: {
+          mode: 'expression',
+          outputMode: 'text',
+          expression: '{{account_prefix}} concat ": " concat {{first_name}}',
+        },
+      },
+      conditions: [],
+    } satisfies PageField
+    const greeting = {
+      id: 22,
+      pageId: 1,
+      fieldType: 'computation',
+      label: 'Greeting',
+      placeholder: null,
+      required: false,
+      bindVariable: 'greeting',
+      position: 2,
+      width: 'full',
+      options: null,
+      validationRules: {
+        computation: {
+          mode: 'expression',
+          outputMode: 'text',
+          terms: [
+            { operator: 'set', source: 'fixed', fixedValue: 'Hello, ' },
+            { operator: 'concat', source: 'field', fieldBinding: 'display_name' },
+            { operator: 'concat', source: 'fixed', fixedValue: '!' },
+          ],
+        },
+      },
+      conditions: [],
+    } satisfies PageField
+
+    const data = applyComputedFieldValues(
+      [firstName, greeting, displayName],
+      { first_name: 'Ada' },
+      references,
+    )
+
+    expect(data.display_name).toBe('Customer: Ada')
+    expect(data.greeting).toBe('Hello, Customer: Ada!')
+  })
+
+  it('supports whole-number and decimal numeric outputs', () => {
+    const base = {
+      mode: 'expression',
+      editorMode: 'syntax',
+      expression: '10 / 3',
+      outputMode: 'number',
+    } as const
+
+    expect(calculateFieldComputation(
+      { ...base, numericType: 'integer' },
+      [],
+      {},
+      [],
+    ).value).toBe(3)
+    expect(calculateFieldComputation(
+      { ...base, numericType: 'decimal', decimalPlaces: 2 },
+      [],
+      {},
+      [],
+    ).value).toBe(3.33)
+  })
+
+  it('preserves syntax and visual formulas while evaluating the selected editor', () => {
+    const visual = calculateFieldComputation(
+      {
+        mode: 'expression',
+        editorMode: 'visual',
+        expression: '100',
+        outputMode: 'number',
+        terms: [
+          { operator: 'set', source: 'fixed', fixedValue: 8 },
+          { operator: 'multiply', source: 'fixed', fixedValue: 2 },
+        ],
+      },
+      [],
+      {},
+      [],
+    )
+    const syntax = calculateFieldComputation(
+      {
+        mode: 'expression',
+        editorMode: 'syntax',
+        expression: '100',
+        outputMode: 'number',
+        terms: [
+          { operator: 'set', source: 'fixed', fixedValue: 8 },
+          { operator: 'multiply', source: 'fixed', fixedValue: 2 },
+        ],
+      },
+      [],
+      {},
+      [],
+    )
+
+    expect(visual.value).toBe(16)
+    expect(syntax.value).toBe(100)
   })
 })

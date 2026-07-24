@@ -57,19 +57,25 @@ export interface FieldComputation {
   fieldBindings?: string[]
   adjustments?: { type: PaymentAdjustmentType; referenceKey: string }[]
   expression?: string | null
+  /** Selects the active expression editor while preserving both representations. */
+  editorMode?: 'visual' | 'syntax'
   terms?: {
     id?: string
     operator: FormulaOperator
     source: FormulaTermSource
     fieldBinding?: string | null
     referenceKey?: string | null
-    fixedValue?: number | null
+    fixedValue?: number | string | null
   }[]
   showBreakdown?: boolean
   /** When false, the computation still runs but the field is hidden from the respondent. */
   visible?: boolean
   /** Output type for the computed value. 'text' enables string concatenation via the `concat` operator. */
   outputMode?: 'number' | 'text'
+  /** Numeric result shape. JavaScript stores both integer and decimal values as numbers. */
+  numericType?: 'automatic' | 'integer' | 'decimal'
+  /** Decimal places applied when numericType is decimal. */
+  decimalPlaces?: number | null
 }
 
 export interface FieldValidationRules {

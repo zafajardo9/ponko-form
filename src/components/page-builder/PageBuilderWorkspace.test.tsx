@@ -63,7 +63,7 @@ const pages: FormPage[] = [
   },
 ]
 
-function renderBuilder() {
+function renderBuilder(builderPages = pages) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
@@ -71,7 +71,7 @@ function renderBuilder() {
     <QueryClientProvider client={queryClient}>
       <PageBuilderWorkspace
         formId={10}
-        pages={pages}
+        pages={builderPages}
         references={[]}
         gateways={[]}
         onChanged={vi.fn()}
@@ -147,5 +147,69 @@ describe('PageBuilderWorkspace field configuration UX', () => {
     expect(screen.queryByLabelText(/Answer variable/)).toBeNull()
     expect(screen.queryByRole('button', { name: /Validation rules/ })).toBeNull()
     expect(screen.getByRole('button', { name: /Conditional visibility/ })).toBeTruthy()
+  })
+
+  it('offers a typed, responsive calculation studio with text variables and live preview', () => {
+    const calculationPages: FormPage[] = [{
+      ...pages[0],
+      fields: [
+        pages[0].fields[0],
+        {
+          id: 13,
+          pageId: 1,
+          fieldType: 'number',
+          label: 'Hours',
+          placeholder: null,
+          required: false,
+          options: null,
+          bindVariable: 'hours',
+          position: 1,
+          width: 'full',
+          validationRules: null,
+          conditions: [],
+        },
+        {
+          id: 14,
+          pageId: 1,
+          fieldType: 'computation',
+          label: 'Customer summary',
+          placeholder: null,
+          required: false,
+          options: null,
+          bindVariable: 'customer_summary',
+          position: 2,
+          width: 'full',
+          validationRules: {
+            computation: {
+              mode: 'expression',
+              editorMode: 'visual',
+              outputMode: 'number',
+              numericType: 'automatic',
+              terms: [],
+              showBreakdown: true,
+            },
+          },
+          conditions: [],
+        },
+      ],
+    }]
+    renderBuilder(calculationPages)
+
+    fireEvent.click(screen.getByRole('button', { name: /Customer summary.*Calculated value.*Configure/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Open calculation studio/ }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Calculation studio' })
+    expect(dialog.className).toContain('sm:max-w-6xl')
+    expect(screen.getByText('What should this field produce?')).toBeTruthy()
+    expect(screen.getByText('Result preview')).toBeTruthy()
+    expect(screen.getAllByText('{{customer_summary}}').length).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByRole('radio', { name: /Text.*Combine written answers/ }))
+    expect(screen.getByRole('button', { name: /Combine text/ })).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: 'Formula syntax' }))
+
+    expect(screen.getByRole('button', { name: /Full name.*full_name.*Answer/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Hours.*hours.*Number/ })).toBeTruthy()
+    expect(screen.getByPlaceholderText('{{first_name}} concat " " concat {{last_name}}')).toBeTruthy()
   })
 })

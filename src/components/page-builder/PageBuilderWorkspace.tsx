@@ -23,6 +23,10 @@ import {
   type SavedPageForm,
 } from '../../lib/server-fns/page-forms'
 import { addressRequiredParts } from '../../lib/page-builder/conditions'
+import {
+  buildReferenceMap,
+  calculateFieldComputation,
+} from '../../lib/page-builder/references'
 import { richTextHtml } from '../form-builder/fields/FieldRenderer'
 import {
   inferSatisfactionPreset,
@@ -62,6 +66,7 @@ import {
   CircleDot,
   Clock,
   Eye,
+  EyeOff,
   FileText,
   GripVertical,
   Hash,
@@ -69,15 +74,18 @@ import {
   Info,
   LayoutGrid,
   List,
+  ListPlus,
   Plus,
   Search,
   SlidersHorizontal,
   Save,
   Settings2,
   ShieldCheck,
+  Sparkles,
   Smile,
   Trash2,
   Type,
+  Variable,
   Upload,
   X,
 } from 'lucide-react'
@@ -552,7 +560,16 @@ export function PageBuilderWorkspace({
       position: currentPage.fields.length,
       width: 'full',
       validationRules: fieldType === 'computation'
-        ? { computation: { mode: 'expression', terms: [], showBreakdown: true } }
+        ? {
+            computation: {
+              mode: 'expression',
+              editorMode: 'visual',
+              outputMode: 'number',
+              numericType: 'automatic',
+              terms: [],
+              showBreakdown: true,
+            },
+          }
         : null,
       conditions: [],
     }
@@ -1043,7 +1060,6 @@ export function PageBuilderWorkspace({
               page={selectedPage}
               gateways={gateways}
               pages={draftPages}
-              fields={draftPages.flatMap((page) => page.fields)}
               references={draftReferences}
               onUpdate={(patch) => updatePageLocal(selectedPage.id, patch)}
               onDelete={() => deletePageLocal(selectedPage.id)}
@@ -1059,7 +1075,6 @@ interface PageSettingsProps {
   page: FormPage
   gateways: { id: number; name: string; slug: string }[]
   pages: FormPage[]
-  fields: PageField[]
   references: FormReference[]
   onUpdate: (patch: Partial<FormPage>) => void
   onDelete: () => void
@@ -1279,9 +1294,12 @@ function ReferencesPanel({
   )
 }
 
-function PageSettings({ page, gateways, pages, fields, references, onUpdate, onDelete }: PageSettingsProps) {
+function PageSettings({ page, gateways, pages, references, onUpdate, onDelete }: PageSettingsProps) {
   const numberReferences = references.filter((reference) => reference.type === 'number' || reference.type === 'percentage')
-  const pricedOptionFields = fields.filter((field) =>
+  const availablePaymentFields = pages
+    .filter((candidate) => candidate.position <= page.position && !candidate.isFinal)
+    .flatMap((candidate) => candidate.fields)
+  const pricedOptionFields = availablePaymentFields.filter((field) =>
     ['select', 'checkbox', 'radio'].includes(field.fieldType) &&
     field.validationRules?.optionPricesEnabled &&
     field.options?.some((option) =>
@@ -1291,7 +1309,10 @@ function PageSettings({ page, gateways, pages, fields, references, onUpdate, onD
       Boolean(option.additionalPriceReference),
     ),
   )
-  const numberFields = fields.filter((field) => field.fieldType === 'number' || field.fieldType === 'computation')
+  const numberFields = availablePaymentFields.filter((field) =>
+    field.fieldType === 'number' ||
+    (field.fieldType === 'computation' && field.validationRules?.computation?.outputMode !== 'text'),
+  )
   const earlierFields = pages
     .filter((candidate) => candidate.position < page.position)
     .flatMap((candidate) => candidate.fields)
@@ -1551,10 +1572,15 @@ function PageSettings({ page, gateways, pages, fields, references, onUpdate, onD
                         <option value="">Select amount field...</option>
                         {numberFields.map((field) => (
                           <option key={field.id} value={field.bindVariable}>
-                            {field.label || field.bindVariable}
+                            {field.label || field.bindVariable} {`{{${field.bindVariable}}}`}
                           </option>
                         ))}
                       </select>
+                      {numberFields.length === 0 && (
+                        <p className="mt-1 text-xs leading-relaxed text-[#a9583e]">
+                          Add a number field or a numeric calculation on this page or an earlier page.
+                        </p>
+                      )}
                     </Field>
                   )}
 
@@ -2503,9 +2529,15 @@ function FieldSettings({ field, pages, fields, references, onUpdate, onMoveToPag
           icon={<Calculator size={15} />}
         >
           <SettingsAction
-            title="Build calculation"
-            description="Choose source fields, formulas, reference adjustments, and display behavior."
-            status={rules.computation?.mode === 'sum_number_fields' ? 'Number fields' : rules.computation?.mode === 'sum_priced_options' ? 'Priced options' : 'Formula'}
+            title="Open calculation studio"
+            description="Choose the output type, build with typed variables, and preview the result."
+            status={rules.computation?.outputMode === 'text'
+              ? 'Text result'
+              : rules.computation?.numericType === 'integer'
+                ? 'Whole number'
+                : rules.computation?.numericType === 'decimal'
+                  ? 'Decimal'
+                  : 'Number'}
             onClick={() => setComputationOpen(true)}
           />
         </SettingsSection>
@@ -2580,7 +2612,16 @@ function FieldSettings({ field, pages, fields, references, onUpdate, onMoveToPag
           field={field}
           fields={fields}
           references={references}
-          computation={rules.computation ?? { mode: 'sum_priced_options', fieldBindings: [], adjustments: [], showBreakdown: true }}
+          computation={rules.computation ?? {
+            mode: 'expression',
+            editorMode: 'visual',
+            outputMode: 'number',
+            numericType: 'automatic',
+            fieldBindings: [],
+            terms: [],
+            adjustments: [],
+            showBreakdown: true,
+          }}
           onClose={() => setComputationOpen(false)}
           onChange={(computation) => updateRules({ computation })}
         />
@@ -2607,11 +2648,13 @@ function FieldDialog({
   subtitle,
   onClose,
   children,
+  wide = false,
 }: {
   title: string
   subtitle: string
   onClose: () => void
   children: React.ReactNode
+  wide?: boolean
 }) {
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -2623,14 +2666,21 @@ function FieldDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-0 backdrop-blur-[2px] sm:p-4"
       onClick={(event) => event.target === event.currentTarget && onClose()}
     >
-      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-xl bg-[#f5f0e8] shadow-xl">
-        <div className="flex items-center justify-between rounded-t-xl border-b border-[#e6dfd8] bg-[#faf9f5] px-5 py-3">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="field-dialog-title"
+        className={`flex h-full max-h-none w-full flex-col bg-[#f5f0e8] shadow-2xl sm:h-auto sm:max-h-[92vh] sm:rounded-2xl ${
+          wide ? 'sm:max-w-6xl' : 'sm:max-w-3xl'
+        }`}
+      >
+        <div className="flex items-center justify-between border-b border-[#e6dfd8] bg-[#faf9f5] px-4 py-3 sm:rounded-t-2xl sm:px-5">
           <div>
             <p className="text-xs font-medium uppercase text-[#8e8b82]">{subtitle}</p>
-            <h2 className="mt-1 text-lg font-medium text-[#141413]">{title}</h2>
+            <h2 id="field-dialog-title" className="mt-1 text-lg font-medium text-[#141413]">{title}</h2>
           </div>
           <button
             type="button"
@@ -2641,8 +2691,8 @@ function FieldDialog({
             <X size={16} />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-5">{children}</div>
-        <div className="flex justify-end rounded-b-xl border-t border-[#e6dfd8] bg-[#faf9f5] px-5 py-3">
+        <div className={`flex-1 overflow-y-auto ${wide ? 'p-0' : 'p-4 sm:p-5'}`}>{children}</div>
+        <div className="flex justify-end border-t border-[#e6dfd8] bg-[#faf9f5] px-4 py-3 sm:rounded-b-2xl sm:px-5">
           <Button type="button" size="sm" onClick={onClose}>
             Done
           </Button>
@@ -2654,7 +2704,11 @@ function FieldDialog({
 
 function computationSourceFields(fields: PageField[], currentFieldId: number, mode: FieldComputation['mode']) {
   if (mode === 'sum_number_fields') {
-    return fields.filter((field) => field.id !== currentFieldId && (field.fieldType === 'number' || field.fieldType === 'computation'))
+    return fields.filter((field) =>
+      field.id !== currentFieldId &&
+      (field.fieldType === 'number' ||
+        (field.fieldType === 'computation' && field.validationRules?.computation?.outputMode !== 'text')),
+    )
   }
   return fields.filter((field) =>
     field.id !== currentFieldId &&
@@ -2669,17 +2723,14 @@ function computationSourceFields(fields: PageField[], currentFieldId: number, mo
   )
 }
 
-function computationFormulaFields(fields: PageField[], currentField: PageField) {
+function computationFormulaFields(
+  fields: PageField[],
+  currentField: PageField,
+  outputMode: FieldComputation['outputMode'] = 'number',
+) {
   return fields.filter((field) =>
     field.id !== currentField.id &&
-    !['content', 'media', 'address', 'recaptcha'].includes(field.fieldType) &&
-    (field.fieldType === 'number' ||
-      field.fieldType === 'satisfaction' ||
-      field.fieldType === 'computation' ||
-      field.fieldType === 'text' ||
-      field.fieldType === 'email' ||
-      field.fieldType === 'textarea' ||
-      ['select', 'checkbox', 'radio'].includes(field.fieldType)),
+    (outputMode === 'text' ? fieldCanProvideTextValue(field) : fieldCanProvideFormulaValue(field)),
   )
 }
 
@@ -2689,6 +2740,7 @@ function formulaOperatorSymbol(operator: FormulaOperator) {
   if (operator === 'subtract') return '-'
   if (operator === 'multiply') return 'x'
   if (operator === 'divide') return '/'
+  if (operator === 'concat') return 'combine'
   return '+%'
 }
 
@@ -2746,89 +2798,146 @@ function FormulaComposer({
   fields,
   references,
   expression,
+  outputMode,
   onChange,
 }: {
   field: PageField
   fields: PageField[]
   references: FormReference[]
   expression: string
+  outputMode: FieldComputation['outputMode']
   onChange: (expression: string) => void
 }) {
-  const availableFields = computationFormulaFields(fields, field)
-  const computationFields = availableFields.filter((item) => item.fieldType === 'computation')
-  const inputFields = availableFields.filter((item) => item.fieldType !== 'computation')
-  const availableReferences = references.filter((reference) => reference.type === 'number' || reference.type === 'percentage' || reference.type === 'text')
+  const [variableSearch, setVariableSearch] = useState('')
+  const availableFields = computationFormulaFields(fields, field, outputMode)
+  const availableReferences = references.filter((reference) =>
+    outputMode === 'text' || reference.type === 'number' || reference.type === 'percentage',
+  )
+  const variableItems = [
+    ...availableFields.map((item) => ({
+      key: `field-${item.id}`,
+      label: item.label || item.bindVariable,
+      binding: item.bindVariable,
+      kind: item.fieldType === 'computation' ? 'Calculated' : item.fieldType === 'number' ? 'Number' : item.fieldType === 'email' ? 'Email' : 'Answer',
+      source: item.fieldType === 'computation' ? 'Calculated values' : 'Form answers',
+      token: `{{${item.bindVariable}}}`,
+    })),
+    ...availableReferences.map((reference) => ({
+      key: `reference-${reference.id}`,
+      label: reference.label || reference.key,
+      binding: reference.key,
+      kind: reference.type === 'percentage' ? 'Percent' : reference.type === 'number' ? 'Number' : reference.type === 'boolean' ? 'True/false' : 'Text',
+      source: 'References',
+      token: `{{${reference.key}}}`,
+    })),
+  ].filter((item) => {
+    const query = variableSearch.trim().toLowerCase()
+    return !query || `${item.label} ${item.binding} ${item.kind}`.toLowerCase().includes(query)
+  })
 
   function append(value: string) {
     onChange(`${expression}${expression.trim() ? ' ' : ''}${value}`.trimStart())
   }
 
   return (
-    <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
-      <div className="mb-3">
-        <p className="text-sm font-medium text-[#141413]">Type or click to build</p>
-        <p className="mt-0.5 text-xs text-[#8e8b82]">Use bindings like {`{{subtotal}}`} and references like {`{{vat_rate}}`}.</p>
+    <div className="overflow-hidden rounded-xl border border-[#d9d0c5] bg-white">
+      <div className="border-b border-[#e6dfd8] bg-[#faf9f5] p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-[#141413]">Formula syntax</p>
+            <p className="mt-1 text-xs leading-5 text-[#746f68]">
+          {outputMode === 'text'
+            ? <>Combine bindings like {`{{first_name}}`} with quoted text such as <span className="font-mono">" "</span>.</>
+            : <>Use bindings like {`{{subtotal}}`} and references like {`{{vat_rate}}`}.</>}
+            </p>
+          </div>
+          <span className="rounded-full border border-[#d9d0c5] bg-white px-2.5 py-1 font-mono text-[11px] text-[#746f68]">
+            {outputMode === 'text' ? 'text formula' : 'numeric formula'}
+          </span>
+        </div>
       </div>
-      <textarea
-        value={expression}
-        onChange={(event) => onChange(event.target.value)}
-        rows={3}
-        className={`${inputClass} h-auto resize-none font-mono`}
-        placeholder="{{subtotal}} +% {{vat_rate}} + {{processing_fee}}"
-      />
-      <div className="mt-3 flex flex-wrap gap-2">
-        {[
-          ['+', 'Plus'],
-          ['-', 'Minus'],
-          ['*', 'Multiply'],
-          ['/', 'Divide'],
-          ['+%', 'Add %'],
-        ].map(([symbol, label]) => (
-          <button
-            key={symbol}
-            type="button"
-            onClick={() => append(symbol)}
-            className="rounded-md border border-[#e6dfd8] bg-white px-3 py-1.5 text-sm font-medium text-[#3d3d3a] hover:border-[#cc785c] hover:text-[#141413]"
-          >
-            {label}
-          </button>
-        ))}
+      <div className="p-4">
+        <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#746f68]" htmlFor={`formula-${field.id}`}>
+          Formula
+        </label>
+        <textarea
+          id={`formula-${field.id}`}
+          value={expression}
+          onChange={(event) => onChange(event.target.value)}
+          rows={4}
+          spellCheck={false}
+          className="mt-2 min-h-28 w-full resize-y rounded-xl border border-[#d9d0c5] bg-[#1f2421] px-4 py-3 font-mono text-sm leading-7 text-[#f8f3ea] outline-none transition-shadow placeholder:text-[#89908a] focus:border-[#cc785c] focus:ring-4 focus:ring-[#cc785c]/15"
+          placeholder={outputMode === 'text'
+            ? '{{first_name}} concat " " concat {{last_name}}'
+            : '{{subtotal}} +% {{vat_rate}} + {{processing_fee}}'}
+        />
+        <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Formula operators">
+          {(outputMode === 'text'
+            ? [['concat', 'Combine text']]
+            : [
+                ['+', 'Add'],
+                ['-', 'Subtract'],
+                ['*', 'Multiply'],
+                ['/', 'Divide'],
+                ['+%', 'Add percent'],
+              ]).map(([symbol, label]) => (
+            <button
+              key={symbol}
+              type="button"
+              onClick={() => append(symbol)}
+              className="rounded-md border border-[#ded6cd] bg-[#faf9f5] px-2.5 py-1.5 text-xs font-medium text-[#4f4a44] transition-colors hover:border-[#cc785c] hover:bg-[#fff6f0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]"
+            >
+              <span className="font-mono text-[#a9583e]">{symbol}</span>
+              <span className="ml-1.5">{label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <TokenPickerGroup
-          title="Computations"
-          emptyText="No other computation blocks yet."
-          items={computationFields.map((item) => ({
-            key: item.bindVariable,
-            label: item.label || item.bindVariable,
-            meta: `{{${item.bindVariable}}}`,
-            token: `{{${item.bindVariable}}}`,
-          }))}
-          onPick={append}
-        />
-        <TokenPickerGroup
-          title="Fields"
-          emptyText="No compatible fields yet."
-          items={inputFields.map((item) => ({
-            key: item.bindVariable,
-            label: item.label || item.bindVariable,
-            meta: `{{${item.bindVariable}}}`,
-            token: `{{${item.bindVariable}}}`,
-          }))}
-          onPick={append}
-        />
-        <TokenPickerGroup
-          title="References"
-          emptyText="No references available yet."
-          items={availableReferences.map((reference) => ({
-            key: reference.key,
-            label: reference.label || reference.key,
-            meta: `${reference.value} · {{${reference.key}}}`,
-            token: `{{${reference.key}}}`,
-          }))}
-          onPick={append}
-        />
+      <div className="border-t border-[#e6dfd8] bg-[#faf9f5] p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-[#141413]">Insert a variable</p>
+            <p className="mt-0.5 text-xs text-[#746f68]">Only variables compatible with this output are shown.</p>
+          </div>
+          <label className="relative block sm:w-64">
+            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8e8b82]" />
+            <span className="sr-only">Search variables</span>
+            <input
+              value={variableSearch}
+              onChange={(event) => setVariableSearch(event.target.value)}
+              placeholder="Search variables"
+              className="h-9 w-full rounded-lg border border-[#ded6cd] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#cc785c] focus:ring-2 focus:ring-[#cc785c]/15"
+            />
+          </label>
+        </div>
+        {variableItems.length === 0 ? (
+          <div className="mt-3 rounded-lg border border-dashed border-[#d9d0c5] bg-white px-4 py-6 text-center">
+            <Variable size={18} className="mx-auto text-[#b2aca4]" />
+            <p className="mt-2 text-sm font-medium text-[#5f5a53]">No matching variables</p>
+            <p className="mt-1 text-xs text-[#8e8b82]">Add a compatible field or clear the search.</p>
+          </div>
+        ) : (
+          <div className="mt-3 grid max-h-56 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+            {variableItems.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => append(item.token)}
+                className="group flex min-w-0 items-center gap-3 rounded-lg border border-[#e1d9d0] bg-white px-3 py-2.5 text-left transition-colors hover:border-[#cc785c] hover:bg-[#fff8f4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]"
+              >
+                <span className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-[#f3ece5] text-[#a9583e]">
+                  {item.source === 'Calculated values' ? <Calculator size={15} /> : item.source === 'References' ? <Variable size={15} /> : <ListPlus size={15} />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-[#2e2b28]">{item.label}</span>
+                  <span className="block truncate font-mono text-[11px] text-[#8e8b82]">{`{{${item.binding}}}`}</span>
+                </span>
+                <span className="flex-none rounded-full bg-[#f1efeb] px-2 py-0.5 text-[10px] font-medium text-[#746f68]">{item.kind}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -2839,17 +2948,23 @@ function checkFormulaExpression(
   currentField: PageField,
   fields: PageField[],
   references: FormReference[],
+  outputMode: FieldComputation['outputMode'] = 'number',
 ) {
   const errors: string[] = []
   const warnings: string[] = []
   const trimmed = expression.trim()
   const fieldBindings = new Set(fields.map((item) => item.bindVariable))
   const referencesByKey = new Map(references.map((reference) => [reference.key, reference]))
-  const tokenPattern = /\+%|\{\{\s*[a-z][a-z0-9_]*\s*\}\}|[+\-*/]|-?\d+(?:\.\d+)?/gi
+  const textMode = outputMode === 'text'
+  const tokenPattern = textMode
+    ? /\{\{\s*[a-z][a-z0-9_]*\s*\}\}|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\bconcat\b|\+/gi
+    : /\+%|\{\{\s*[a-z][a-z0-9_]*\s*\}\}|[+\-*/]|-?\d+(?:\.\d+)?/gi
   const tokens = trimmed.match(tokenPattern) ?? []
 
   if (!trimmed) {
-    warnings.push('Add at least one field, reference, or fixed number.')
+    warnings.push(textMode
+      ? 'Add at least one field, reference, or quoted text value.'
+      : 'Add at least one field, reference, or fixed number.')
     return { errors, warnings }
   }
 
@@ -2862,7 +2977,9 @@ function checkFormulaExpression(
   let valueCount = 0
   let lastOperator = ''
   for (const token of tokens) {
-    const isOperator = ['+', '-', '*', '/', '+%'].includes(token)
+    const isOperator = textMode
+      ? token === '+' || token.toLowerCase() === 'concat'
+      : ['+', '-', '*', '/', '+%'].includes(token)
     if (isOperator) {
       if (expectingValue) {
         errors.push(`Operator "${token}" needs a value before it.`)
@@ -2887,13 +3004,14 @@ function checkFormulaExpression(
         errors.push(`Unknown field or reference: {{${key}}}.`)
       } else {
         const reference = referencesByKey.get(key)
-        if (reference && !['number', 'percentage'].includes(reference.type)) {
+        if (!textMode && reference && !['number', 'percentage'].includes(reference.type)) {
           errors.push(`Reference {{${key}}} is ${reference.type}; formulas need number or percentage references.`)
         }
       }
       continue
     }
 
+    if (textMode) continue
     const numberValue = Number(token)
     if (!Number.isFinite(numberValue)) {
       errors.push(`Invalid number: ${token}.`)
@@ -2916,8 +3034,12 @@ function checkFormulaExpression(
 function fieldCanProvideFormulaValue(field: PageField) {
   return field.fieldType === 'number' ||
     field.fieldType === 'satisfaction' ||
-    field.fieldType === 'computation' ||
+    (field.fieldType === 'computation' && field.validationRules?.computation?.outputMode !== 'text') ||
     (['select', 'checkbox', 'radio'].includes(field.fieldType) && Boolean(field.validationRules?.optionPricesEnabled))
+}
+
+function fieldCanProvideTextValue(field: PageField) {
+  return !['content', 'media', 'address', 'recaptcha', 'file_upload'].includes(field.fieldType)
 }
 
 function expressionFieldBindings(expression: string) {
@@ -2927,7 +3049,9 @@ function expressionFieldBindings(expression: string) {
 function computationFieldDependencies(field: PageField) {
   const computation = field.validationRules?.computation
   if (!computation) return []
-  if (computation.mode === 'expression' && computation.expression?.trim()) {
+  const useSyntax = computation.editorMode === 'syntax' ||
+    (computation.editorMode == null && Boolean(computation.expression?.trim()))
+  if (computation.mode === 'expression' && useSyntax && computation.expression?.trim()) {
     return expressionFieldBindings(computation.expression)
   }
   if (computation.mode === 'expression') {
@@ -2963,7 +3087,7 @@ function checkComputationBlock(
   const errors: string[] = []
   const warnings: string[] = []
   const mode = computation.mode ?? 'expression'
-  const compatibleFormulaFields = computationFormulaFields(fields, currentField)
+  const compatibleFormulaFields = computationFormulaFields(fields, currentField, computation.outputMode)
   const compatiblePricedFields = computationSourceFields(fields, currentField.id, 'sum_priced_options')
   const compatibleNumberFields = computationSourceFields(fields, currentField.id, 'sum_number_fields')
   const fieldByBinding = new Map(fields.map((field) => [field.bindVariable, field]))
@@ -2974,10 +3098,22 @@ function checkComputationBlock(
   }
 
   if (mode === 'expression') {
-    if (computation.expression?.trim()) {
-      const expressionCheck = checkFormulaExpression(computation.expression, currentField, compatibleFormulaFields, references)
+    const useSyntax = computation.editorMode === 'syntax' ||
+      (computation.editorMode == null && Boolean(computation.expression?.trim()))
+    if (useSyntax && computation.expression?.trim()) {
+      const expressionCheck = checkFormulaExpression(
+        computation.expression,
+        currentField,
+        compatibleFormulaFields,
+        references,
+        computation.outputMode,
+      )
       errors.push(...expressionCheck.errors)
       warnings.push(...expressionCheck.warnings)
+    } else if (useSyntax) {
+      warnings.push(computation.outputMode === 'text'
+        ? 'Write a formula using variables and quoted text.'
+        : 'Write a formula using variables, references, or numbers.')
     } else {
       const terms = computation.terms ?? []
       if (terms.length === 0) {
@@ -2993,8 +3129,12 @@ function checkComputationBlock(
           } else {
             const field = fieldByBinding.get(term.fieldBinding)
             if (!field) errors.push(`Formula row ${index + 1} references missing field {{${term.fieldBinding}}}.`)
-            else if (!fieldCanProvideFormulaValue(field)) {
-              errors.push(`Formula row ${index + 1} uses {{${term.fieldBinding}}}, but that field cannot provide a numeric value.`)
+            else if (computation.outputMode === 'text'
+              ? !fieldCanProvideTextValue(field)
+              : !fieldCanProvideFormulaValue(field)) {
+              errors.push(computation.outputMode === 'text'
+                ? `Formula row ${index + 1} uses {{${term.fieldBinding}}}, but that field cannot provide text.`
+                : `Formula row ${index + 1} uses {{${term.fieldBinding}}}, but that field cannot provide a numeric value.`)
             }
           }
         }
@@ -3004,16 +3144,19 @@ function checkComputationBlock(
           } else {
             const reference = referenceByKey.get(term.referenceKey)
             if (!reference) errors.push(`Formula row ${index + 1} references missing reference {{${term.referenceKey}}}.`)
-            else if (!['number', 'percentage'].includes(reference.type)) {
+            else if (computation.outputMode !== 'text' && !['number', 'percentage'].includes(reference.type)) {
               errors.push(`Formula row ${index + 1} uses {{${term.referenceKey}}}, but formulas need number or percentage references.`)
             }
           }
         }
-        if (term.source === 'fixed' && !Number.isFinite(Number(term.fixedValue ?? 0))) {
+        if (computation.outputMode !== 'text' && term.source === 'fixed' && !Number.isFinite(Number(term.fixedValue ?? 0))) {
           errors.push(`Formula row ${index + 1} has an invalid fixed number.`)
         }
-        if (term.operator === 'divide' && term.source === 'fixed' && Number(term.fixedValue ?? 0) === 0) {
+        if (computation.outputMode !== 'text' && term.operator === 'divide' && term.source === 'fixed' && Number(term.fixedValue ?? 0) === 0) {
           errors.push(`Formula row ${index + 1} divides by zero.`)
+        }
+        if (computation.outputMode === 'text' && index > 0 && term.operator !== 'concat' && term.operator !== 'add') {
+          errors.push(`Text row ${index + 1} must use Combine.`)
         }
       }
     }
@@ -3071,85 +3214,25 @@ function checkComputationBlock(
   return { errors: [...new Set(errors)], warnings: [...new Set(warnings)] }
 }
 
-function FormulaCheckResult({
-  check,
-}: {
-  check: { errors: string[]; warnings: string[] }
-}) {
-  if (check.errors.length === 0 && check.warnings.length === 0) {
-    return (
-      <div className="mt-2 rounded-md border border-[#d8ead4] bg-[#f3fbf1] px-3 py-2 text-sm text-[#3f7a42]">
-        Computation looks good.
-      </div>
-    )
-  }
-
-  return (
-    <div className={`mt-2 rounded-md border px-3 py-2 text-sm ${
-      check.errors.length > 0
-        ? 'border-[#f0c2b8] bg-[#fff3ef] text-[#c64545]'
-        : 'border-[#eadbbd] bg-[#fff9eb] text-[#7a5a2c]'
-    }`}>
-      <p className="font-medium">{check.errors.length > 0 ? 'Computation needs attention' : 'Computation note'}</p>
-      <ul className="mt-1 list-inside list-disc">
-        {[...check.errors, ...check.warnings].map((message) => (
-          <li key={message}>{message}</li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
-function TokenPickerGroup({
-  title,
-  emptyText,
-  items,
-  onPick,
-}: {
-  title: string
-  emptyText: string
-  items: { key: string; label: string; meta: string; token: string }[]
-  onPick: (token: string) => void
-}) {
-  return (
-    <div className="rounded-lg border border-[#e6dfd8] bg-white p-3">
-      <p className="text-xs font-medium uppercase text-[#8e8b82]">{title}</p>
-      {items.length === 0 ? (
-        <p className="mt-2 text-sm text-[#8e8b82]">{emptyText}</p>
-      ) : (
-        <div className="mt-2 flex max-h-44 flex-col gap-2 overflow-y-auto">
-          {items.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => onPick(item.token)}
-              className="rounded-md border border-[#e6dfd8] bg-[#faf9f5] px-3 py-2 text-left transition-colors hover:border-[#cc785c] hover:bg-[#fff8ef]"
-            >
-              <span className="block truncate text-sm font-medium text-[#141413]">{item.label}</span>
-              <span className="mt-0.5 block truncate font-mono text-xs text-[#8e8b82]">{item.meta}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 function ExpressionBuilder({
   field,
   fields,
   references,
   terms,
+  outputMode,
   onChange,
 }: {
   field: PageField
   fields: PageField[]
   references: FormReference[]
   terms: NonNullable<FieldComputation['terms']>
+  outputMode: FieldComputation['outputMode']
   onChange: (terms: NonNullable<FieldComputation['terms']>) => void
 }) {
-  const availableFields = computationFormulaFields(fields, field)
-  const availableReferences = references.filter((reference) => reference.type === 'number' || reference.type === 'percentage' || reference.type === 'text')
+  const availableFields = computationFormulaFields(fields, field, outputMode)
+  const availableReferences = references.filter((reference) =>
+    outputMode === 'text' || reference.type === 'number' || reference.type === 'percentage',
+  )
 
   function updateTerm(index: number, patch: Partial<NonNullable<FieldComputation['terms']>[number]>) {
     onChange(terms.map((term, termIndex) => (termIndex === index ? { ...term, ...patch } : term)))
@@ -3160,115 +3243,301 @@ function ExpressionBuilder({
       ...terms,
       {
         id: tempId().toString(),
-        operator: terms.length === 0 ? 'set' : 'add',
+        operator: terms.length === 0 ? 'set' : outputMode === 'text' ? 'concat' : 'add',
         source: availableFields.length > 0 ? 'field' : availableReferences.length > 0 ? 'reference' : 'fixed',
         fieldBinding: availableFields[0]?.bindVariable ?? null,
         referenceKey: availableFields.length === 0 ? availableReferences[0]?.key ?? null : null,
-        fixedValue: 0,
+        fixedValue: outputMode === 'text' ? '' : 0,
       },
     ])
   }
 
   return (
-    <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <div className="overflow-hidden rounded-xl border border-[#d9d0c5] bg-white">
+      <div className="flex flex-col gap-3 border-b border-[#e6dfd8] bg-[#faf9f5] p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-medium text-[#141413]">Formula rows</p>
-          <p className="mt-0.5 text-xs text-[#8e8b82]">Use field bindings, references, or fixed values to build this computed field.</p>
+          <p className="text-sm font-semibold text-[#141413]">Visual formula</p>
+          <p className="mt-1 text-xs leading-5 text-[#746f68]">
+            Build the result one step at a time. Each row continues from the value above it.
+          </p>
         </div>
         <button
           type="button"
           onClick={addTerm}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#e6dfd8] bg-white px-2.5 text-xs font-medium text-[#3d3d3a] hover:border-[#cc785c] hover:text-[#141413]"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#2f3933] px-3 text-xs font-semibold text-white transition-colors hover:bg-[#202923] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] sm:self-auto"
         >
-          <Plus size={13} /> Add row
+          <Plus size={14} /> Add step
         </button>
       </div>
 
       {terms.length === 0 ? (
-        <p className="text-sm text-[#8e8b82]">No formula rows yet.</p>
+        <button
+          type="button"
+          onClick={addTerm}
+          className="m-4 flex w-[calc(100%-2rem)] flex-col items-center rounded-xl border border-dashed border-[#cfc5ba] bg-[#faf9f5] px-5 py-10 text-center transition-colors hover:border-[#cc785c] hover:bg-[#fff8f4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]"
+        >
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#efe6de] text-[#a9583e]">
+            <Sparkles size={19} />
+          </span>
+          <span className="mt-3 text-sm font-semibold text-[#3d3935]">Start with a value</span>
+          <span className="mt-1 max-w-sm text-xs leading-5 text-[#7d766f]">
+            Choose a form answer, another calculated value, a reference, or a fixed {outputMode === 'text' ? 'piece of text' : 'number'}.
+          </span>
+        </button>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3 p-4">
           {terms.map((term, index) => (
-            <div key={term.id ?? index} className="grid grid-cols-[96px_130px_minmax(0,1fr)_auto] gap-2">
-              <select
-                value={index === 0 ? 'set' : term.operator}
-                onChange={(e) => updateTerm(index, { operator: e.target.value as FormulaOperator })}
-                disabled={index === 0}
-                className={inputClass}
-              >
-                <option value="set">Start</option>
-                <option value="add">Plus</option>
-                <option value="subtract">Minus</option>
-                <option value="multiply">Times</option>
-                <option value="divide">Divide</option>
-                <option value="percent">Add %</option>
-              </select>
-              <select
-                value={term.source}
-                onChange={(e) => {
-                  const source = e.target.value as FormulaTermSource
-                  updateTerm(index, {
-                    source,
-                    fieldBinding: source === 'field' ? availableFields[0]?.bindVariable ?? null : null,
-                    referenceKey: source === 'reference' ? availableReferences[0]?.key ?? null : null,
-                    fixedValue: source === 'fixed' ? term.fixedValue ?? 0 : null,
-                  })
-                }}
-                className={inputClass}
-              >
-                <option value="field">Field binding</option>
-                <option value="reference">Reference</option>
-                <option value="fixed">Fixed value</option>
-              </select>
-              {term.source === 'field' ? (
-                <select
-                  value={term.fieldBinding ?? ''}
-                  onChange={(e) => updateTerm(index, { fieldBinding: e.target.value })}
-                  className={inputClass}
+            <div key={term.id ?? index} className="relative rounded-xl border border-[#e1d9d0] bg-[#faf9f5] p-3 pl-12 sm:p-4 sm:pl-14">
+              <span className="absolute left-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-[#2f3933] text-xs font-semibold text-white sm:left-4 sm:top-4">
+                {index + 1}
+              </span>
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-[130px_150px_minmax(0,1fr)_40px] lg:items-end">
+                <FieldGroup label={index === 0 ? 'Begin with' : 'Operation'}>
+                  <select
+                    aria-label={`Step ${index + 1} operation`}
+                    value={index === 0 ? 'set' : term.operator}
+                    onChange={(e) => updateTerm(index, { operator: e.target.value as FormulaOperator })}
+                    disabled={index === 0}
+                    className={inputClass}
+                  >
+                    <option value="set">Start</option>
+                    {outputMode === 'text' ? (
+                      <option value="concat">Combine with</option>
+                    ) : (
+                      <>
+                        <option value="add">Add</option>
+                        <option value="subtract">Subtract</option>
+                        <option value="multiply">Multiply by</option>
+                        <option value="divide">Divide by</option>
+                        <option value="percent">Add percent</option>
+                      </>
+                    )}
+                  </select>
+                </FieldGroup>
+                <FieldGroup label="Value source">
+                  <select
+                    aria-label={`Step ${index + 1} source`}
+                    value={term.source}
+                    onChange={(e) => {
+                      const source = e.target.value as FormulaTermSource
+                      updateTerm(index, {
+                        source,
+                        fieldBinding: source === 'field' ? availableFields[0]?.bindVariable ?? null : null,
+                        referenceKey: source === 'reference' ? availableReferences[0]?.key ?? null : null,
+                        fixedValue: source === 'fixed' ? term.fixedValue ?? (outputMode === 'text' ? '' : 0) : null,
+                      })
+                    }}
+                    className={inputClass}
+                  >
+                    <option value="field">Form variable</option>
+                    <option value="reference">Reference</option>
+                    <option value="fixed">{outputMode === 'text' ? 'Fixed text' : 'Fixed number'}</option>
+                  </select>
+                </FieldGroup>
+                <FieldGroup label={term.source === 'field' ? 'Variable' : term.source === 'reference' ? 'Reference' : outputMode === 'text' ? 'Text' : 'Number'}>
+                  {term.source === 'field' ? (
+                    <select
+                      aria-label={`Step ${index + 1} variable`}
+                      value={term.fieldBinding ?? ''}
+                      onChange={(e) => updateTerm(index, { fieldBinding: e.target.value })}
+                      className={inputClass}
+                    >
+                      <option value="">Select a compatible variable...</option>
+                      {availableFields.map((item) => (
+                        <option key={item.id} value={item.bindVariable}>
+                          {item.label || item.bindVariable} {`{{${item.bindVariable}}}`}
+                        </option>
+                      ))}
+                    </select>
+                  ) : term.source === 'reference' ? (
+                    <select
+                      aria-label={`Step ${index + 1} reference`}
+                      value={term.referenceKey ?? ''}
+                      onChange={(e) => updateTerm(index, { referenceKey: e.target.value })}
+                      className={inputClass}
+                    >
+                      <option value="">Select a compatible reference...</option>
+                      {availableReferences.map((reference) => (
+                        <option key={reference.id} value={reference.key}>
+                          {reference.label || reference.key} {`{{${reference.key}}}`} = {reference.value}
+                        </option>
+                      ))}
+                    </select>
+                  ) : outputMode === 'text' ? (
+                    <input
+                      type="text"
+                      aria-label={`Step ${index + 1} fixed text`}
+                      value={String(term.fixedValue ?? '')}
+                      placeholder="Text to combine"
+                      onChange={(e) => updateTerm(index, { fixedValue: e.target.value })}
+                      className={inputClass}
+                    />
+                  ) : (
+                    <input
+                      type="number"
+                      aria-label={`Step ${index + 1} fixed number`}
+                      step="any"
+                      value={term.fixedValue ?? 0}
+                      onChange={(e) => updateTerm(index, { fixedValue: Number(e.target.value) })}
+                      className={inputClass}
+                    />
+                  )}
+                </FieldGroup>
+                <button
+                  type="button"
+                  onClick={() => onChange(terms.filter((_, termIndex) => termIndex !== index))}
+                  className="flex h-10 w-full items-center justify-center rounded-lg text-[#b24b42] transition-colors hover:bg-[#fff0ec] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c64545] lg:w-10"
+                  aria-label={`Remove step ${index + 1}`}
+                  title="Remove step"
                 >
-                  <option value="">Select field...</option>
-                  {availableFields.map((item) => (
-                    <option key={item.id} value={item.bindVariable}>
-                      {item.label || item.bindVariable} {`{{${item.bindVariable}}}`}
-                    </option>
-                  ))}
-                </select>
-              ) : term.source === 'reference' ? (
-                <select
-                  value={term.referenceKey ?? ''}
-                  onChange={(e) => updateTerm(index, { referenceKey: e.target.value })}
-                  className={inputClass}
-                >
-                  <option value="">Select reference...</option>
-                  {availableReferences.map((reference) => (
-                    <option key={reference.id} value={reference.key}>
-                      {reference.label || reference.key} {`{{${reference.key}}}`} = {reference.value}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="number"
-                  step="0.01"
-                  value={term.fixedValue ?? 0}
-                  onChange={(e) => updateTerm(index, { fixedValue: Number(e.target.value) })}
-                  className={inputClass}
-                />
+                  <Trash2 size={16} />
+                  <span className="ml-2 text-xs font-medium lg:hidden">Remove step</span>
+                </button>
+              </div>
+              {index < terms.length - 1 && (
+                <span className="absolute -bottom-3 left-[25px] h-3 w-px bg-[#cfc5ba] sm:left-[29px]" aria-hidden="true" />
               )}
-              <button
-                type="button"
-                onClick={() => onChange(terms.filter((_, termIndex) => termIndex !== index))}
-                className="flex h-10 w-10 items-center justify-center rounded-md text-[#c64545] hover:bg-[#fff3ef]"
-                title="Remove row"
-              >
-                <Trash2 size={15} />
-              </button>
             </div>
           ))}
         </div>
       )}
     </div>
+  )
+}
+
+type ComputationOutputChoice = 'automatic' | 'integer' | 'decimal' | 'text'
+
+function computationOutputChoice(computation: FieldComputation): ComputationOutputChoice {
+  if (computation.outputMode === 'text') return 'text'
+  return computation.numericType ?? 'automatic'
+}
+
+function sampleValueForField(field: PageField): unknown {
+  if (field.fieldType === 'number') return 12.5
+  if (field.fieldType === 'satisfaction') return Number(field.options?.[0]?.value ?? 5)
+  if (field.fieldType === 'checkbox') return field.options?.[0] ? [field.options[0].value] : []
+  if (field.fieldType === 'select' || field.fieldType === 'radio') return field.options?.[0]?.value ?? ''
+  if (field.fieldType === 'email') return 'alex@example.com'
+  if (field.fieldType === 'date') return '2026-07-24'
+  if (field.fieldType === 'time') return '09:30'
+  if (field.fieldType === 'datetime') return '2026-07-24T09:30'
+  if (field.fieldType === 'text' || field.fieldType === 'textarea') return field.label ? `Sample ${field.label.toLowerCase()}` : 'Sample text'
+  return ''
+}
+
+function computationPreview(
+  computation: FieldComputation,
+  currentField: PageField,
+  fields: PageField[],
+  references: FormReference[],
+) {
+  const sampleData = Object.fromEntries(
+    fields
+      .filter((item) => item.id !== currentField.id && item.fieldType !== 'computation')
+      .map((item) => [item.bindVariable, sampleValueForField(item)]),
+  )
+  const scope = { ...buildReferenceMap(references), ...sampleData }
+  return calculateFieldComputation(
+    computation,
+    fields,
+    scope,
+    references,
+    [currentField.bindVariable],
+  )
+}
+
+function ComputationResultConsole({
+  field,
+  computation,
+  preview,
+  check,
+}: {
+  field: PageField
+  computation: FieldComputation
+  preview: ReturnType<typeof computationPreview>
+  check: { errors: string[]; warnings: string[] }
+}) {
+  const isText = computation.outputMode === 'text'
+  const numericValue = Number(preview.value)
+  const displayValue = isText
+    ? String(preview.value || 'Your text result')
+    : Number.isFinite(numericValue)
+      ? new Intl.NumberFormat(undefined, {
+          minimumFractionDigits: computation.numericType === 'decimal' ? computation.decimalPlaces ?? 2 : 0,
+          maximumFractionDigits: computation.numericType === 'integer' ? 0 : computation.numericType === 'decimal' ? computation.decimalPlaces ?? 2 : 10,
+        }).format(numericValue)
+      : '0'
+  const outputLabel = isText
+    ? 'Text'
+    : computation.numericType === 'integer'
+      ? 'Whole number'
+      : computation.numericType === 'decimal'
+        ? `Decimal · ${computation.decimalPlaces ?? 2} places`
+        : 'Number · automatic precision'
+
+  return (
+    <aside className="space-y-4 lg:sticky lg:top-0">
+      <section className="overflow-hidden rounded-xl border border-[#36423b] bg-[#26312b] text-white shadow-[0_16px_40px_rgba(35,43,38,0.12)]">
+        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Sparkles size={14} className="text-[#efb79f]" />
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#d9dfdb]">Result preview</p>
+          </div>
+          <span className={`h-2 w-2 rounded-full ${check.errors.length > 0 ? 'bg-[#f08b78]' : 'bg-[#8bc48d]'}`} />
+        </div>
+        <div className="p-5">
+          <p className="text-xs text-[#aeb8b2]">Illustrative result</p>
+          <p className={`mt-2 break-words font-semibold tracking-tight ${isText ? 'text-2xl leading-8' : 'text-4xl tabular-nums'}`}>
+            {displayValue}
+          </p>
+          <div className="mt-5 space-y-2 border-t border-white/10 pt-4">
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="text-[#aeb8b2]">Saved as</span>
+              <span className="font-medium text-white">{outputLabel}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="text-[#aeb8b2]">Variable</span>
+              <code className="max-w-[65%] truncate rounded bg-white/10 px-2 py-1 text-[#f7d8c9]">{`{{${field.bindVariable || 'calculated_value'}}}`}</code>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-[#ddd4ca] bg-white p-4">
+        <p className="text-sm font-semibold text-[#292622]">Calculation health</p>
+        <div className={`mt-3 flex items-start gap-2 rounded-lg px-3 py-2.5 text-xs leading-5 ${
+          check.errors.length > 0
+            ? 'bg-[#fff0ec] text-[#9f3f35]'
+            : check.warnings.length > 0
+              ? 'bg-[#fff8e8] text-[#765b2d]'
+              : 'bg-[#eef8ed] text-[#3f7042]'
+        }`}>
+          {check.errors.length > 0 ? <Info size={15} className="mt-0.5 flex-none" /> : <Check size={15} className="mt-0.5 flex-none" />}
+          <div>
+            <p className="font-semibold">
+              {check.errors.length > 0 ? `${check.errors.length} item${check.errors.length === 1 ? '' : 's'} to fix` : check.warnings.length > 0 ? 'Ready with a note' : 'Ready to calculate'}
+            </p>
+            <p className="mt-0.5">
+              {check.errors[0] ?? check.warnings[0] ?? 'The result updates whenever a source answer changes.'}
+            </p>
+          </div>
+        </div>
+        {check.errors.length + check.warnings.length > 1 && (
+          <ul className="mt-3 space-y-1.5 text-xs leading-5 text-[#746f68]">
+            {[...check.errors.slice(1), ...check.warnings.slice(check.errors.length > 0 ? 0 : 1)].map((message) => (
+              <li key={message} className="flex gap-2">
+                <span className="mt-2 h-1 w-1 flex-none rounded-full bg-[#b2aaa2]" />
+                <span>{message}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <p className="px-1 text-xs leading-5 text-[#8e8b82]">
+        Preview uses example answers and your current reference values. The published form recalculates with each respondent’s answers.
+      </p>
+    </aside>
   )
 }
 
@@ -3287,14 +3556,46 @@ function ComputationDialog({
   onClose: () => void
   onChange: (computation: FieldComputation) => void
 }) {
-  const availableReferences = references.filter((reference) => reference.type === 'number' || reference.type === 'percentage' || reference.type === 'text')
-  const mode = computation.mode ?? 'sum_priced_options'
+  const outputChoice = computationOutputChoice(computation)
+  const mode = computation.outputMode === 'text' ? 'expression' : computation.mode ?? 'expression'
+  const editorMode = computation.editorMode ??
+    (computation.expression?.trim() ? 'syntax' : 'visual')
+  const numericReferences = references.filter((reference) => reference.type === 'number' || reference.type === 'percentage')
   const availableFields = computationSourceFields(fields, field.id, mode)
   const selectedBindings = computation.fieldBindings ?? []
   const computationCheck = checkComputationBlock(computation, field, fields, references)
+  const preview = computationPreview(computation, field, fields, references)
 
   function update(patch: Partial<FieldComputation>) {
     onChange({ ...computation, ...patch })
+  }
+
+  function selectOutput(choice: ComputationOutputChoice) {
+    const text = choice === 'text'
+    const nextTerms = (computation.terms ?? []).map((term, index) => ({
+      ...term,
+      operator: index === 0 ? 'set' as const : text ? 'concat' as const : term.operator === 'concat' ? 'add' as const : term.operator,
+      fixedValue: text
+        ? String(term.fixedValue ?? '')
+        : term.source === 'fixed'
+          ? Number(term.fixedValue ?? 0)
+          : term.fixedValue,
+    }))
+    update({
+      outputMode: text ? 'text' : 'number',
+      numericType: text ? computation.numericType : choice,
+      decimalPlaces: choice === 'decimal' ? computation.decimalPlaces ?? 2 : computation.decimalPlaces,
+      mode: text ? 'expression' : mode,
+      terms: nextTerms,
+    })
+  }
+
+  function selectMode(nextMode: FieldComputation['mode']) {
+    update({
+      mode: nextMode,
+      fieldBindings: nextMode === mode ? computation.fieldBindings : [],
+      adjustments: nextMode === 'formula' ? computation.adjustments ?? [] : computation.adjustments,
+    })
   }
 
   function toggleBinding(binding: string, checked: boolean) {
@@ -3306,116 +3607,248 @@ function ComputationDialog({
 
   return (
     <FieldDialog
-      title="Computation"
-      subtitle={field.label || 'Computed total'}
+      title="Calculation studio"
+      subtitle={field.label || 'Calculated value'}
       onClose={onClose}
+      wide
     >
-      <div className="flex flex-col gap-5">
-        <Field label="Calculation type">
-          <select
-            value={mode}
-            onChange={(e) =>
-              update({
-                mode: e.target.value as FieldComputation['mode'],
-                fieldBindings: [],
-                adjustments: e.target.value === 'formula' ? computation.adjustments ?? [] : [],
-                terms: e.target.value === 'expression' ? computation.terms ?? [] : [],
-              })
-            }
-            className={inputClass}
-          >
-            <option value="expression">Formula builder</option>
-            <option value="sum_priced_options">Sum selected option prices</option>
-            <option value="sum_number_fields">Sum number fields</option>
-            <option value="formula">Service subtotal + adjustments</option>
-          </select>
-        </Field>
-
-        <Field label="Output type">
-          <select
-            value={computation.outputMode ?? 'number'}
-            onChange={(e) => update({ outputMode: e.target.value as 'number' | 'text' })}
-            className={inputClass}
-          >
-            <option value="number">Number (for calculations & prices)</option>
-            <option value="text">Text (concatenate field values)</option>
-          </select>
-        </Field>
-
-        <FormulaCheckResult check={computationCheck} />
-
-        {mode === 'expression' ? (
-          <>
-            <ExpressionPreview
-              field={field}
-              expression={computation.expression}
-              terms={computation.terms ?? []}
-              fields={fields}
-            />
-            <FormulaComposer
-              field={field}
-              fields={fields}
-              references={availableReferences}
-              expression={computation.expression ?? ''}
-              onChange={(expression) => update({ expression })}
-            />
-            <ExpressionBuilder
-              field={field}
-              fields={fields}
-              references={availableReferences}
-              terms={computation.terms ?? []}
-              onChange={(terms) => update({ terms })}
-            />
-          </>
-        ) : (
-          <>
-            <FormulaPreview
-              sourceFields={availableFields}
-              selectedBindings={selectedBindings}
-              adjustments={mode === 'formula' ? computation.adjustments ?? [] : []}
-              references={availableReferences}
-            />
-
-            <PaymentFieldChecklist
-              fields={availableFields}
-              selected={selectedBindings}
-              emptyText={
-                mode === 'sum_number_fields'
-                  ? 'No number fields are available yet.'
-                  : 'No priced option fields yet. Enable option prices on a checkbox, radio, or dropdown field first.'
-              }
-              onToggle={toggleBinding}
-            />
-
-            {mode === 'formula' && (
-              <FormulaAdjustmentsEditor
-                references={availableReferences}
-                adjustments={computation.adjustments ?? []}
-                onChange={(adjustments) => update({ adjustments })}
-              />
+      <div className="bg-[#f5f0e8]">
+        <div className="border-b border-[#ded6cd] bg-white px-4 py-5 sm:px-6">
+          <div className="mx-auto max-w-5xl">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-[#2f3933] text-white">
+                <Calculator size={19} />
+              </span>
+              <div>
+                <h3 className="text-base font-semibold text-[#24211e]">What should this field produce?</h3>
+                <p className="mt-1 text-sm leading-6 text-[#746f68]">
+                  Choose the saved result first. Ponko will show only compatible variables and operations.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4" role="radiogroup" aria-label="Calculation output type">
+              {([
+                ['automatic', Hash, 'Number', 'Keep the calculated precision.'],
+                ['integer', List, 'Whole number', 'Round the result to an integer.'],
+                ['decimal', Calculator, 'Decimal', 'Float/double-style decimal value.'],
+                ['text', Type, 'Text', 'Combine written answers and values.'],
+              ] as const).map(([choice, Icon, title, description]) => {
+                const selected = outputChoice === choice
+                return (
+                  <button
+                    key={choice}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => selectOutput(choice)}
+                    className={`flex items-start gap-3 rounded-xl border p-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] ${
+                      selected
+                        ? 'border-[#b8654d] bg-[#fff5ef] shadow-[0_0_0_1px_#b8654d]'
+                        : 'border-[#ded6cd] bg-[#faf9f5] hover:border-[#c5b7aa] hover:bg-white'
+                    }`}
+                  >
+                    <span className={`mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-lg ${selected ? 'bg-[#b8654d] text-white' : 'bg-[#ece7e1] text-[#6f6861]'}`}>
+                      <Icon size={15} />
+                    </span>
+                    <span>
+                      <span className="block text-sm font-semibold text-[#302c28]">{title}</span>
+                      <span className="mt-0.5 block text-xs leading-5 text-[#7d766f]">{description}</span>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+            {outputChoice === 'decimal' && (
+              <div className="mt-3 flex flex-col gap-2 rounded-lg border border-[#ead9cf] bg-[#fff9f5] p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-[#3d3935]">Decimal precision</p>
+                  <p className="mt-0.5 text-xs text-[#7d766f]">Round the saved value to this many places.</p>
+                </div>
+                <select
+                  aria-label="Decimal places"
+                  value={computation.decimalPlaces ?? 2}
+                  onChange={(event) => update({ decimalPlaces: Number(event.target.value) })}
+                  className={`${inputClass} sm:w-36`}
+                >
+                  {[0, 1, 2, 3, 4, 5, 6].map((places) => (
+                    <option key={places} value={places}>{places} {places === 1 ? 'place' : 'places'}</option>
+                  ))}
+                </select>
+              </div>
             )}
-          </>
-        )}
+          </div>
+        </div>
 
-        <label className="flex items-center gap-2 rounded-lg border border-[#e6dfd8] bg-white p-3 text-sm text-[#141413]">
-          <input
-            type="checkbox"
-            checked={Boolean(computation.showBreakdown)}
-            onChange={(e) => update({ showBreakdown: e.target.checked })}
-            className="h-4 w-4 accent-[#cc785c]"
-          />
-          Show this total to respondents
-        </label>
+        <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
+          <section>
+            <p className="text-xs font-semibold uppercase tracking-[0.09em] text-[#7d766f]">Calculation method</p>
+            <div className={`mt-2 grid grid-cols-1 gap-2 ${computation.outputMode === 'text' ? 'sm:max-w-md' : 'sm:grid-cols-2 xl:grid-cols-4'}`}>
+              {([
+                ['expression', Sparkles, computation.outputMode === 'text' ? 'Combine text' : 'Build a formula', computation.outputMode === 'text' ? 'Join text variables and fixed words.' : 'Use visual steps or formula syntax.'],
+                ['sum_number_fields', ListPlus, 'Sum numbers', 'Add selected number variables.'],
+                ['sum_priced_options', CheckSquare, 'Total selected prices', 'Add prices from chosen options.'],
+                ['formula', Calculator, 'Price with adjustments', 'Start with prices, then apply fees or rates.'],
+              ] as const)
+                .filter(([method]) => computation.outputMode !== 'text' || method === 'expression')
+                .map(([method, Icon, title, description]) => {
+                  const selected = mode === method
+                  return (
+                    <button
+                      key={method}
+                      type="button"
+                      onClick={() => selectMode(method)}
+                      className={`rounded-xl border px-3 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] ${
+                        selected ? 'border-[#39463f] bg-[#39463f] text-white' : 'border-[#d9d0c5] bg-white text-[#302c28] hover:border-[#a99d91]'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2 text-sm font-semibold">
+                        <Icon size={15} className={selected ? 'text-[#efb79f]' : 'text-[#a9583e]'} />
+                        {title}
+                      </span>
+                      <span className={`mt-1.5 block text-xs leading-5 ${selected ? 'text-[#d5ddd8]' : 'text-[#7d766f]'}`}>{description}</span>
+                    </button>
+                  )
+                })}
+            </div>
+          </section>
 
-        <label className="flex items-center gap-2 rounded-lg border border-[#e6dfd8] bg-white p-3 text-sm text-[#141413]">
-          <input
-            type="checkbox"
-            checked={computation.visible !== false}
-            onChange={(e) => update({ visible: e.target.checked ? undefined : false })}
-            className="h-4 w-4 accent-[#cc785c]"
-          />
-          Visible to respondent (uncheck to hide and run in background)
-        </label>
+          <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
+            <main className="min-w-0 space-y-4">
+              {mode === 'expression' ? (
+                <>
+                  <div className="flex flex-col gap-3 rounded-xl border border-[#d9d0c5] bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-[#302c28]">Choose how you want to build</p>
+                      <p className="mt-0.5 text-xs text-[#7d766f]">You can switch editors without losing either version.</p>
+                    </div>
+                    <div className="grid grid-cols-2 rounded-lg bg-[#efebe6] p-1" role="tablist" aria-label="Formula editor">
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={editorMode === 'visual'}
+                        onClick={() => update({ editorMode: 'visual' })}
+                        className={`rounded-md px-3 py-2 text-xs font-semibold transition-colors ${editorMode === 'visual' ? 'bg-white text-[#302c28] shadow-sm' : 'text-[#746f68] hover:text-[#302c28]'}`}
+                      >
+                        Visual steps
+                      </button>
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={editorMode === 'syntax'}
+                        onClick={() => update({ editorMode: 'syntax' })}
+                        className={`rounded-md px-3 py-2 text-xs font-semibold transition-colors ${editorMode === 'syntax' ? 'bg-white text-[#302c28] shadow-sm' : 'text-[#746f68] hover:text-[#302c28]'}`}
+                      >
+                        Formula syntax
+                      </button>
+                    </div>
+                  </div>
+                  <ExpressionPreview
+                    field={field}
+                    expression={editorMode === 'syntax' ? computation.expression : null}
+                    terms={editorMode === 'visual' ? computation.terms ?? [] : []}
+                    fields={fields}
+                  />
+                  {editorMode === 'syntax' ? (
+                    <FormulaComposer
+                      field={field}
+                      fields={fields}
+                      references={references}
+                      expression={computation.expression ?? ''}
+                      outputMode={computation.outputMode ?? 'number'}
+                      onChange={(expression) => update({ expression, editorMode: 'syntax' })}
+                    />
+                  ) : (
+                    <ExpressionBuilder
+                      field={field}
+                      fields={fields}
+                      references={references}
+                      terms={computation.terms ?? []}
+                      outputMode={computation.outputMode ?? 'number'}
+                      onChange={(terms) => update({ terms, editorMode: 'visual' })}
+                    />
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="rounded-xl border border-[#d9d0c5] bg-white p-4">
+                    <h4 className="text-sm font-semibold text-[#302c28]">
+                      {mode === 'sum_number_fields' ? 'Choose number variables' : 'Choose priced answer fields'}
+                    </h4>
+                    <p className="mt-1 text-xs leading-5 text-[#7d766f]">
+                      {mode === 'sum_number_fields'
+                        ? 'Every selected number is added to the result. Numeric calculated fields can be included too.'
+                        : 'The prices attached to each respondent’s selected options are added automatically.'}
+                    </p>
+                    <div className="mt-4">
+                      <PaymentFieldChecklist
+                        fields={availableFields}
+                        selected={selectedBindings}
+                        emptyText={
+                          mode === 'sum_number_fields'
+                            ? 'No numeric fields are available yet. Add a number or numeric calculated field first.'
+                            : 'No priced choices are available yet. Enable prices on a checkbox, radio, or dropdown field.'
+                        }
+                        onToggle={toggleBinding}
+                      />
+                    </div>
+                  </div>
+                  <FormulaPreview
+                    sourceFields={availableFields}
+                    selectedBindings={selectedBindings}
+                    adjustments={mode === 'formula' ? computation.adjustments ?? [] : []}
+                    references={numericReferences}
+                  />
+                  {mode === 'formula' && (
+                    <FormulaAdjustmentsEditor
+                      references={numericReferences}
+                      adjustments={computation.adjustments ?? []}
+                      onChange={(adjustments) => update({ adjustments })}
+                    />
+                  )}
+                </>
+              )}
+
+              <section className="rounded-xl border border-[#d9d0c5] bg-white p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex gap-3">
+                    <span className="mt-0.5 flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-[#f0ebe5] text-[#6d655e]">
+                      {computation.visible === false || computation.showBreakdown === false ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-[#302c28]">Show this result on the form</p>
+                      <p className="mt-1 text-xs leading-5 text-[#7d766f]">
+                        Hidden calculations still run and remain available to logic, payments, submissions, and exports.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={computation.visible !== false && computation.showBreakdown !== false}
+                    onClick={() => {
+                      const nextVisible = !(computation.visible !== false && computation.showBreakdown !== false)
+                      update({ visible: nextVisible ? undefined : false, showBreakdown: nextVisible })
+                    }}
+                    className={`relative mt-1 h-6 w-11 flex-none rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] ${
+                      computation.visible !== false && computation.showBreakdown !== false ? 'bg-[#b8654d]' : 'bg-[#c9c2ba]'
+                    }`}
+                  >
+                    <span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                      computation.visible !== false && computation.showBreakdown !== false ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+              </section>
+            </main>
+
+            <ComputationResultConsole
+              field={field}
+              computation={computation}
+              preview={preview}
+              check={computationCheck}
+            />
+          </div>
+        </div>
       </div>
     </FieldDialog>
   )
