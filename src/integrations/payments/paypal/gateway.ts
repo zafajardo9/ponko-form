@@ -3,6 +3,7 @@ import type {
   PaymentRequest,
   PaymentResult,
   PaymentStatus,
+  PaymentDetails,
   GatewayConfigSchema,
   GatewayCredentials,
 } from '../types'
@@ -116,25 +117,49 @@ export class PayPalGateway extends PaymentGateway {
     gatewayPaymentId: string,
     credentials?: GatewayCredentials,
   ): Promise<PaymentStatus> {
-    try {
-      const accessToken = await this.getAccessToken(credentials)
-      const response = await fetch(
-        `${this.baseUrl(credentials)}/v2/checkout/orders/${gatewayPaymentId}/capture`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-        },
-      )
+    return (await this.getPaymentDetails(gatewayPaymentId, credentials)).status
+  }
 
-      if (!response.ok) return 'failed'
-      const data = await response.json() as { status: string }
-      return data.status === 'COMPLETED' ? 'completed' : 'failed'
-    } catch {
-      return 'failed'
+  async getPaymentDetails(
+    gatewayPaymentId: string,
+    credentials?: GatewayCredentials,
+  ): Promise<PaymentDetails> {
+    const accessToken = await this.getAccessToken(credentials)
+    const orderUrl = `${this.baseUrl(credentials)}/v2/checkout/orders/${encodeURIComponent(gatewayPaymentId)}`
+    const headers = {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
     }
+
+    const readOrder = async () => {
+      const response = await fetch(orderUrl, { headers })
+      if (!response.ok) {
+        throw new Error(`PayPal order verification failed (${response.status})`)
+      }
+      return response.json() as Promise<PayPalOrder>
+    }
+
+    let order = await readOrder()
+    if (order.status === 'APPROVED') {
+      const capture = await fetch(`${orderUrl}/capture`, {
+        method: 'POST',
+        headers,
+        body: '{}',
+      })
+      if (capture.ok) {
+        order = await capture.json() as PayPalOrder
+      } else {
+        // The capture may have succeeded even if its response was lost. Read
+        // the order once more before deciding, so a retry cannot turn a paid
+        // order into a local failure.
+        order = await readOrder()
+        if (order.status === 'APPROVED') {
+          throw new Error(`PayPal capture could not be confirmed (${capture.status})`)
+        }
+      }
+    }
+
+    return paypalOrderDetails(order)
   }
 
   getConfigSchema(): GatewayConfigSchema {
@@ -143,5 +168,57 @@ export class PayPalGateway extends PaymentGateway {
         { key: 'merchantEmail', label: 'PayPal Merchant Email', type: 'text', required: true },
       ],
     }
+  }
+}
+
+type PayPalOrder = {
+  status?: string
+  purchase_units?: Array<{
+    amount?: { currency_code?: string; value?: string }
+    payments?: {
+      captures?: Array<{
+        status?: string
+        amount?: { currency_code?: string; value?: string }
+        create_time?: string
+        status_details?: { reason?: string }
+      }>
+    }
+  }>
+}
+
+function paypalMinorAmount(value: string | undefined) {
+  if (!value) return undefined
+  const amount = Number(value)
+  return Number.isFinite(amount) ? Math.round(amount * 100) : undefined
+}
+
+function paypalOrderDetails(order: PayPalOrder): PaymentDetails {
+  const purchase = order.purchase_units?.[0]
+  const captures = purchase?.payments?.captures ?? []
+  const completed = captures.find((capture) => capture.status === 'COMPLETED')
+  const failed = captures.find((capture) =>
+    ['DECLINED', 'DENIED', 'FAILED', 'VOIDED'].includes(capture.status ?? ''),
+  )
+  const pending = captures.find((capture) => capture.status === 'PENDING')
+  const capture = completed ?? failed ?? pending
+  const providerStatus = capture?.status ?? order.status ?? 'UNKNOWN'
+  const status: PaymentStatus = completed
+    ? 'completed'
+    : failed || order.status === 'VOIDED'
+      ? 'failed'
+      : 'pending'
+  const amount = capture?.amount ?? purchase?.amount
+
+  return {
+    status,
+    providerStatus,
+    amount: paypalMinorAmount(purchase?.amount?.value),
+    paidAmount: completed ? paypalMinorAmount(amount?.value) : undefined,
+    currency: amount?.currency_code ?? purchase?.amount?.currency_code,
+    paidAt: completed?.create_time,
+    paymentMethod: 'paypal',
+    paymentChannel: 'PayPal',
+    failureReason: failed?.status_details?.reason,
+    raw: order as Record<string, unknown>,
   }
 }

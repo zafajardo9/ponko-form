@@ -116,6 +116,12 @@ const FlowPreviewModal = lazy(() =>
 
 export const Route = createFileRoute("/forms/$formId/edit")({
   beforeLoad: ({ location }) => requireAuth({ data: { returnTo: location.href } }),
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { preview?: boolean } =>
+    search.preview === true || search.preview === "true"
+      ? { preview: true }
+      : {},
   component: UnifiedEditorPage,
 });
 
@@ -136,13 +142,14 @@ type View = "list" | "canvas";
 
 function UnifiedEditorPage() {
   const { formId } = Route.useParams();
+  const { preview } = Route.useSearch();
   const queryClient = useQueryClient();
 
   const [view, setView] = useState<View>("list");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [showVariables, setShowVariables] = useState(false);
   const [validateOpen, setValidateOpen] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(preview === true);
   const [shareOpen, setShareOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pagePreviewDraft, setPagePreviewDraft] = useState<{

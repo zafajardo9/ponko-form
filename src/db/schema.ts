@@ -55,6 +55,9 @@ export const profiles = pgTable(
     clerkId: text('clerk_id').notNull().unique(),
     displayName: varchar('display_name', { length: 255 }),
     avatarUrl: text('avatar_url'),
+    dashboardCurrency: varchar('dashboard_currency', { length: 3 })
+      .notNull()
+      .default('USD'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [uniqueIndex('profiles_clerk_id_idx').on(table.clerkId)],

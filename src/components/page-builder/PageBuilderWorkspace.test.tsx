@@ -81,6 +81,46 @@ function renderBuilder() {
 }
 
 describe('PageBuilderWorkspace field configuration UX', () => {
+  it('searches field types and switches between list and grid views', () => {
+    renderBuilder()
+
+    expect(screen.queryByText('Choose what people will see or answer.')).toBeNull()
+
+    const search = screen.getByRole('searchbox', { name: 'Search field types' })
+    fireEvent.change(search, { target: { value: 'calculated' } })
+
+    expect(screen.getByRole('button', { name: 'Calculated value' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Short text' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Questions' })).toBeNull()
+    expect(screen.getByRole('status', { name: 'Field search results' }).textContent).toContain('1 field types found')
+
+    const listView = screen.getByRole('button', { name: 'List view' })
+    const gridView = screen.getByRole('button', { name: 'Grid view' })
+    expect(listView.getAttribute('aria-pressed')).toBe('true')
+    expect(gridView.getAttribute('aria-pressed')).toBe('false')
+
+    fireEvent.click(gridView)
+    expect(listView.getAttribute('aria-pressed')).toBe('false')
+    expect(gridView.getAttribute('aria-pressed')).toBe('true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear field search' }))
+    expect((search as HTMLInputElement).value).toBe('')
+    expect(screen.getByRole('button', { name: 'Short text' })).toBeTruthy()
+  })
+
+  it('offers a useful empty search state', () => {
+    renderBuilder()
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search field types' }), {
+      target: { value: 'does not exist' },
+    })
+
+    expect(screen.getByText('No matching fields')).toBeTruthy()
+    expect(screen.getByRole('status', { name: 'Field search results' }).textContent).toContain('0 field types found')
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+    expect(screen.getByRole('region', { name: 'Questions' })).toBeTruthy()
+  })
+
   it('groups field types and explains the configuration workflow', () => {
     renderBuilder()
 

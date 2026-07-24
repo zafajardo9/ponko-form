@@ -29,6 +29,7 @@ import { PagePaymentStep } from './PagePaymentStep'
 import { PagePaymentPreview } from './PagePaymentPreview'
 import { RecaptchaField } from './RecaptchaField'
 import { createPublicSessionToken } from '../../lib/public-session-access'
+import { FormLoadingIndicator } from '../public-form/FormLoadingIndicator'
 
 interface PageFormViewProps {
   formId?: number
@@ -263,7 +264,7 @@ export function PageFormView({
     return (
       <div className={outerClass} style={themed}>
         <div className={wrapperClass}>
-          <div className="h-64 animate-pulse rounded-xl bg-[#efe9de]" />
+          <FormLoadingIndicator message="Loading your saved form progress." />
         </div>
       </div>
     )

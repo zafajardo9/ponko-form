@@ -36,7 +36,7 @@ function FormsPage() {
   const shareForm = (forms as any[]).find((f: any) => f.id === shareFormId);
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-12">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:py-12">
       <div className="mb-10 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-medium text-[#141413]">My Forms</h1>
@@ -48,18 +48,18 @@ function FormsPage() {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="h-40 animate-pulse rounded-xl bg-[#efe9de]"
+              className="h-[318px] animate-pulse rounded-2xl bg-[#efe9de]"
             />
           ))}
         </div>
       ) : forms.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">
           {(forms as any[]).map((form) => (
             <FormCard
               key={form.id}

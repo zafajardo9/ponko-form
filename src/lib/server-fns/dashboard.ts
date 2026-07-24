@@ -5,19 +5,32 @@ import { forms, formSubmissions, payments, profiles } from "../../db/schema";
 import { eq, desc, sql, and, gte, count } from "drizzle-orm";
 import {
   mergeFormAnalytics,
+  type RevenueAmount,
   type FormAnalyticsRecord,
 } from "../dashboard-analytics";
+import {
+  isDashboardCurrency,
+  type DashboardCurrency,
+} from "../currency-conversion";
+import {
+  convertedAmount,
+  loadDashboardConversion,
+  type DashboardConversion,
+} from "../server/currency-rates";
 
-async function getProfileId() {
+async function getDashboardProfile() {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
   const [profile] = await db
-    .select()
+    .select({
+      id: profiles.id,
+      dashboardCurrency: profiles.dashboardCurrency,
+    })
     .from(profiles)
     .where(eq(profiles.clerkId, userId))
     .limit(1);
   if (!profile) throw new Error("Profile not found");
-  return profile.id;
+  return profile;
 }
 
 // ── Types ──
@@ -34,6 +47,7 @@ export interface DashboardStats {
   failedPayments: number;
   totalRevenue: number; // in cents
   revenueCurrency: string;
+  revenueBreakdown: RevenueAmount[];
 }
 
 export interface TimeSeriesPoint {
@@ -44,6 +58,7 @@ export interface TimeSeriesPoint {
 export interface RevenuePoint {
   date: string;
   amount: number; // in cents
+  currency: string;
 }
 
 export type FormAnalytics = FormAnalyticsRecord;
@@ -53,10 +68,12 @@ export interface DashboardOverview {
   submissions: TimeSeriesPoint[];
   revenue: RevenuePoint[];
   forms: FormAnalytics[];
+  conversion: DashboardConversion;
 }
 
 async function loadDashboardStats(profileId: number): Promise<DashboardStats> {
-  const [formCounts, subCounts, payCounts] = await Promise.all([
+  const [formCounts, subCounts, payCounts, revenueBreakdown] =
+    await Promise.all([
     db
       .select({
         total: count(),
@@ -112,6 +129,26 @@ async function loadDashboardStats(profileId: number): Promise<DashboardStats> {
       .innerJoin(forms, eq(formSubmissions.formId, forms.id))
       .where(eq(forms.profileId, profileId))
       .then((rows) => rows[0]),
+    db
+      .select({
+        currency: payments.currency,
+        amount: sql<number>`COALESCE(SUM(${payments.amount}), 0)`.mapWith(
+          Number,
+        ),
+      })
+      .from(payments)
+      .innerJoin(
+        formSubmissions,
+        eq(payments.formSubmissionId, formSubmissions.id),
+      )
+      .innerJoin(forms, eq(formSubmissions.formId, forms.id))
+      .where(
+        and(
+          eq(forms.profileId, profileId),
+          eq(payments.status, "completed"),
+        ),
+      )
+      .groupBy(payments.currency),
   ]);
 
   return {
@@ -125,7 +162,11 @@ async function loadDashboardStats(profileId: number): Promise<DashboardStats> {
     completedPayments: payCounts.completed,
     failedPayments: payCounts.failed,
     totalRevenue: payCounts.totalRevenue,
-    revenueCurrency: "USD",
+    revenueCurrency:
+      revenueBreakdown.length > 1
+        ? "MIXED"
+        : revenueBreakdown[0]?.currency ?? "USD",
+    revenueBreakdown,
   };
 }
 
@@ -158,6 +199,7 @@ async function loadRevenueOverTime(
     .select({
       date: sql<string>`DATE(${payments.createdAt})`.mapWith(String),
       amount: sql<number>`COALESCE(SUM(${payments.amount}), 0)`.mapWith(Number),
+      currency: payments.currency,
     })
     .from(payments)
     .innerJoin(
@@ -172,14 +214,19 @@ async function loadRevenueOverTime(
         gte(payments.createdAt, sql`NOW() - INTERVAL '30 days'`),
       ),
     )
-    .groupBy(sql`DATE(${payments.createdAt})`)
+    .groupBy(sql`DATE(${payments.createdAt})`, payments.currency)
     .orderBy(sql`DATE(${payments.createdAt})`);
 
-  return rows.map((row) => ({ date: row.date, amount: row.amount }));
+  return rows.map((row) => ({
+    date: row.date,
+    amount: row.amount,
+    currency: row.currency,
+  }));
 }
 
 async function loadFormAnalytics(profileId: number): Promise<FormAnalytics[]> {
-  const [userForms, submissionRows, paymentRows] = await Promise.all([
+  const [userForms, submissionRows, paymentRows, revenueRows] =
+    await Promise.all([
     db
       .select({
         id: forms.id,
@@ -226,9 +273,91 @@ async function loadFormAnalytics(profileId: number): Promise<FormAnalytics[]> {
       .innerJoin(forms, eq(formSubmissions.formId, forms.id))
       .where(eq(forms.profileId, profileId))
       .groupBy(formSubmissions.formId),
+    db
+      .select({
+        formId: formSubmissions.formId,
+        currency: payments.currency,
+        amount: sql<number>`COALESCE(SUM(${payments.amount}), 0)`.mapWith(
+          Number,
+        ),
+      })
+      .from(payments)
+      .innerJoin(
+        formSubmissions,
+        eq(payments.formSubmissionId, formSubmissions.id),
+      )
+      .innerJoin(forms, eq(formSubmissions.formId, forms.id))
+      .where(
+        and(
+          eq(forms.profileId, profileId),
+          eq(payments.status, "completed"),
+        ),
+      )
+      .groupBy(formSubmissions.formId, payments.currency),
   ]);
 
-  return mergeFormAnalytics(userForms, submissionRows, paymentRows);
+  const revenueByForm = new Map<number, RevenueAmount[]>();
+  revenueRows.forEach((row) => {
+    const values = revenueByForm.get(row.formId) ?? [];
+    values.push({ currency: row.currency, amount: row.amount });
+    revenueByForm.set(row.formId, values);
+  });
+
+  return mergeFormAnalytics(
+    userForms,
+    submissionRows,
+    paymentRows.map((row) => ({
+      ...row,
+      revenueBreakdown: revenueByForm.get(row.formId) ?? [],
+      revenueCurrency:
+        (revenueByForm.get(row.formId)?.length ?? 0) > 1
+          ? "MIXED"
+          : revenueByForm.get(row.formId)?.[0]?.currency ?? "USD",
+    })),
+  );
+}
+
+function applyDashboardConversion(
+  stats: DashboardStats,
+  revenue: RevenuePoint[],
+  forms: FormAnalytics[],
+  conversion: DashboardConversion,
+) {
+  if (conversion.status !== "ready") return { stats, revenue, forms };
+
+  const totalRevenue =
+    convertedAmount(stats.revenueBreakdown, conversion) ?? stats.totalRevenue;
+  const revenueByDate = new Map<string, number>();
+  revenue.forEach((point) => {
+    const converted =
+      convertedAmount(
+        [{ currency: point.currency, amount: point.amount }],
+        conversion,
+      ) ?? 0;
+    revenueByDate.set(
+      point.date,
+      (revenueByDate.get(point.date) ?? 0) + converted,
+    );
+  });
+
+  return {
+    stats: {
+      ...stats,
+      totalRevenue,
+      revenueCurrency: conversion.currency,
+    },
+    revenue: Array.from(revenueByDate, ([date, amount]) => ({
+      date,
+      amount,
+      currency: conversion.currency,
+    })),
+    forms: forms.map((form) => ({
+      ...form,
+      revenue:
+        convertedAmount(form.revenueBreakdown, conversion) ?? form.revenue,
+      revenueCurrency: conversion.currency,
+    })),
+  };
 }
 
 // ── Server Functions ──
@@ -240,30 +369,61 @@ async function loadFormAnalytics(profileId: number): Promise<FormAnalytics[]> {
  */
 export const getDashboardOverview = createServerFn({ method: "GET" }).handler(
   async (): Promise<DashboardOverview> => {
-    const profileId = await getProfileId();
+    const profile = await getDashboardProfile();
     const [stats, submissions, revenue, formAnalytics] = await Promise.all([
-      loadDashboardStats(profileId),
-      loadSubmissionsOverTime(profileId),
-      loadRevenueOverTime(profileId),
-      loadFormAnalytics(profileId),
+      loadDashboardStats(profile.id),
+      loadSubmissionsOverTime(profile.id),
+      loadRevenueOverTime(profile.id),
+      loadFormAnalytics(profile.id),
     ]);
-    return { stats, submissions, revenue, forms: formAnalytics };
+    const dashboardCurrency = isDashboardCurrency(profile.dashboardCurrency)
+      ? profile.dashboardCurrency
+      : "USD";
+    const conversion = await loadDashboardConversion(
+      stats.revenueBreakdown,
+      dashboardCurrency,
+    );
+    const converted = applyDashboardConversion(
+      stats,
+      revenue,
+      formAnalytics,
+      conversion,
+    );
+    return {
+      ...converted,
+      submissions,
+      conversion,
+    };
   },
 );
 
 /** Compatibility endpoints retained for existing consumers. */
 export const getDashboardStats = createServerFn({ method: "GET" }).handler(
-  async () => loadDashboardStats(await getProfileId()),
+  async () => loadDashboardStats((await getDashboardProfile()).id),
 );
 
 export const getSubmissionsOverTime = createServerFn({ method: "GET" }).handler(
-  async () => loadSubmissionsOverTime(await getProfileId()),
+  async () => loadSubmissionsOverTime((await getDashboardProfile()).id),
 );
 
 export const getRevenueOverTime = createServerFn({ method: "GET" }).handler(
-  async () => loadRevenueOverTime(await getProfileId()),
+  async () => loadRevenueOverTime((await getDashboardProfile()).id),
 );
 
 export const getFormAnalytics = createServerFn({ method: "GET" }).handler(
-  async () => loadFormAnalytics(await getProfileId()),
+  async () => loadFormAnalytics((await getDashboardProfile()).id),
 );
+
+export const saveDashboardCurrency = createServerFn({ method: "POST" })
+  .validator((data: { currency: string }) => data)
+  .handler(async ({ data }) => {
+    if (!isDashboardCurrency(data.currency)) {
+      throw new Error("Choose a supported display currency.");
+    }
+    const profile = await getDashboardProfile();
+    await db
+      .update(profiles)
+      .set({ dashboardCurrency: data.currency })
+      .where(eq(profiles.id, profile.id));
+    return { currency: data.currency as DashboardCurrency };
+  });

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   dashboardDateKey,
+  compareFormPerformance,
+  completionRate,
   fillDashboardDateGaps,
+  formatDashboardMoney,
   formatDashboardDate,
   mergeFormAnalytics,
 } from "./dashboard-analytics";
@@ -22,7 +25,16 @@ describe("mergeFormAnalytics", () => {
             lastAt: "2026-07-20T10:00:00.000Z",
           },
         ],
-        [{ formId: 1, total: 3, completed: 2, revenue: 12_500 }],
+        [
+          {
+            formId: 1,
+            total: 3,
+            completed: 2,
+            revenue: 12_500,
+            revenueCurrency: "PHP",
+            revenueBreakdown: [{ currency: "PHP", amount: 12_500 }],
+          },
+        ],
       ),
     ).toEqual([
       {
@@ -34,6 +46,8 @@ describe("mergeFormAnalytics", () => {
         paymentCount: 3,
         completedPaymentCount: 2,
         revenue: 12_500,
+        revenueCurrency: "PHP",
+        revenueBreakdown: [{ currency: "PHP", amount: 12_500 }],
         lastSubmissionAt: "2026-07-20T10:00:00.000Z",
       },
       {
@@ -45,6 +59,8 @@ describe("mergeFormAnalytics", () => {
         paymentCount: 0,
         completedPaymentCount: 0,
         revenue: 0,
+        revenueCurrency: "USD",
+        revenueBreakdown: [],
         lastSubmissionAt: null,
       },
     ]);
@@ -72,5 +88,35 @@ describe("mergeFormAnalytics", () => {
     expect(dashboardDateKey(date)).toBe("2026-07-20");
     expect(formatDashboardDate(date)).toBe("Jul 20, 2026");
     expect(formatDashboardDate("not-a-date")).toBe("—");
+  });
+
+  it("calculates readable completion rates and ranks form performance", () => {
+    expect(completionRate(7, 10)).toBe(70);
+    expect(completionRate(0, 0)).toBe(0);
+
+    const forms = mergeFormAnalytics(
+      [
+        { id: 1, title: "Volume", status: "published" },
+        { id: 2, title: "Quality", status: "published" },
+      ],
+      [
+        { formId: 1, total: 20, completed: 10, lastAt: null },
+        { formId: 2, total: 8, completed: 8, lastAt: null },
+      ],
+      [
+        {
+          formId: 1,
+          total: 4,
+          completed: 4,
+          revenue: 20_000,
+          revenueCurrency: "USD",
+          revenueBreakdown: [{ currency: "USD", amount: 20_000 }],
+        },
+      ],
+    );
+
+    expect(compareFormPerformance(forms).topBySubmissions?.title).toBe("Volume");
+    expect(compareFormPerformance(forms).topByCompletion?.title).toBe("Quality");
+    expect(formatDashboardMoney(12_500, "PHP")).toContain("PHP");
   });
 });

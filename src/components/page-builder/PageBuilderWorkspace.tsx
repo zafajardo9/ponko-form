@@ -67,7 +67,10 @@ import {
   Hash,
   Image,
   Info,
+  LayoutGrid,
+  List,
   Plus,
+  Search,
   SlidersHorizontal,
   Save,
   Settings2,
@@ -294,6 +297,8 @@ export function PageBuilderWorkspace({
   const [settingsPanelWidth, setSettingsPanelWidth] = useState(400)
   const [panelMode, setPanelMode] = useState<'settings' | 'references'>('settings')
   const [mobilePaletteOpen, setMobilePaletteOpen] = useState(false)
+  const [fieldSearch, setFieldSearch] = useState('')
+  const [paletteView, setPaletteView] = useState<'list' | 'grid'>('list')
   const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false)
   const isResizingSettings = useRef(false)
 
@@ -345,6 +350,18 @@ export function PageBuilderWorkspace({
     selection?.type === 'page'
       ? draftPages.find((page) => page.id === selection.pageId) ?? currentPage
       : currentPage
+  const filteredFieldItems = useMemo(() => {
+    const query = fieldSearch.trim().toLowerCase()
+    if (!query) return FIELD_ITEMS
+    return FIELD_ITEMS.filter((item) =>
+      [
+        item.label,
+        item.description,
+        item.category,
+        item.type.replaceAll('_', ' '),
+      ].some((value) => value.toLowerCase().includes(query)),
+    )
+  }, [fieldSearch])
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -642,12 +659,9 @@ export function PageBuilderWorkspace({
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto lg:min-h-0 lg:flex-row lg:overflow-hidden">
-      <aside className="flex-none border-b border-[#e6dfd8] bg-[#faf9f5] p-4 lg:w-60 lg:overflow-y-auto lg:border-b-0 lg:border-r">
-        <div className="flex items-start justify-between gap-3 lg:mb-4">
-          <div>
-            <p className="text-sm font-medium text-[#141413]">Add a field</p>
-            <p className="mt-0.5 hidden text-xs leading-5 text-[#8e8b82] lg:block">Choose what people will see or answer.</p>
-          </div>
+      <aside className="flex-none border-b border-[#e6dfd8] bg-[#faf9f5] p-4 lg:w-72 lg:overflow-y-auto lg:border-b-0 lg:border-r">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-medium text-[#141413]">Add a field</p>
           <div className="flex flex-none items-center gap-3">
             <span className={`text-xs ${isDirty ? 'text-[#cc785c]' : 'text-[#2f7d52]'}`}>
               {isDirty ? 'Unsaved' : 'Saved'}
@@ -663,34 +677,146 @@ export function PageBuilderWorkspace({
             </button>
           </div>
         </div>
-        <div className={`${mobilePaletteOpen ? 'mt-4 flex' : 'hidden'} flex-col gap-5 lg:flex`}>
-          {FIELD_CATEGORIES.map((category) => (
-            <section key={category} aria-labelledby={`field-category-${category.replaceAll(' ', '-').toLowerCase()}`}>
-              <p
-                id={`field-category-${category.replaceAll(' ', '-').toLowerCase()}`}
-                className="mb-2 text-[11px] font-medium uppercase tracking-wider text-[#8e8b82]"
+        <div className={`${mobilePaletteOpen ? 'mt-4 flex' : 'hidden'} flex-col lg:mt-4 lg:flex`}>
+          <div className="flex items-center gap-2">
+            <label className="relative min-w-0 flex-1">
+              <span className="sr-only">Search field types</span>
+              <Search
+                size={14}
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8e8b82]"
+              />
+              <input
+                type="search"
+                value={fieldSearch}
+                onChange={(event) => setFieldSearch(event.target.value)}
+                placeholder="Search fields"
+                className="h-9 w-full rounded-lg border border-[#ddd5cc] bg-white pl-8 pr-8 text-sm text-[#141413] outline-none transition-colors placeholder:text-[#9b9790] focus:border-[#cc785c] focus:ring-2 focus:ring-[#cc785c]/20"
+              />
+              {fieldSearch ? (
+                <button
+                  type="button"
+                  onClick={() => setFieldSearch('')}
+                  aria-label="Clear field search"
+                  className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-[#8e8b82] transition-colors hover:bg-[#efe9de] hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]"
+                >
+                  <X size={13} aria-hidden="true" />
+                </button>
+              ) : null}
+            </label>
+
+            <div
+              role="group"
+              aria-label="Field display"
+              className="flex flex-none rounded-lg border border-[#ddd5cc] bg-[#f3eee6] p-0.5"
+            >
+              <button
+                type="button"
+                aria-label="List view"
+                aria-pressed={paletteView === 'list'}
+                title="List view"
+                onClick={() => setPaletteView('list')}
+                className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] ${
+                  paletteView === 'list'
+                    ? 'bg-white text-[#b45f45] shadow-sm'
+                    : 'text-[#817d76] hover:text-[#141413]'
+                }`}
               >
-                {category}
+                <List size={15} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                aria-label="Grid view"
+                aria-pressed={paletteView === 'grid'}
+                title="Compact grid view"
+                onClick={() => setPaletteView('grid')}
+                className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] ${
+                  paletteView === 'grid'
+                    ? 'bg-white text-[#b45f45] shadow-sm'
+                    : 'text-[#817d76] hover:text-[#141413]'
+                }`}
+              >
+                <LayoutGrid size={15} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+
+          <p role="status" aria-label="Field search results" className="sr-only">
+            {filteredFieldItems.length === FIELD_ITEMS.length
+              ? `${FIELD_ITEMS.length} field types available`
+              : `${filteredFieldItems.length} field types found`}
+          </p>
+
+          {filteredFieldItems.length === 0 ? (
+            <div className="mt-4 rounded-xl border border-dashed border-[#d8cec3] bg-white px-4 py-6 text-center">
+              <Search size={18} aria-hidden="true" className="mx-auto text-[#b3aaa1]" />
+              <p className="mt-2 text-sm font-medium text-[#3d3d3a]">No matching fields</p>
+              <p className="mt-1 text-xs leading-5 text-[#817d76]">
+                Try a field name like email, rating, or date.
               </p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1">
-                {FIELD_ITEMS.filter((item) => item.category === category).map((item) => (
-                  <button
-                    key={`${item.type}-${item.preset ?? item.label}`}
-                    type="button"
-                    disabled={currentPage.isFinal}
-                    onClick={() => addFieldLocal(item)}
-                    title={item.description}
-                    className="group flex min-w-0 items-center gap-2 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] px-3 py-2.5 text-left text-sm transition-colors hover:border-[#cc785c] hover:bg-[#efe9de] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]/30 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <span className="flex h-7 w-7 flex-none items-center justify-center rounded-md bg-[#efe9de] text-[#cc785c] transition-colors group-hover:bg-white">
-                      {item.icon}
-                    </span>
-                    <span className="truncate text-[#141413]">{item.label}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-          ))}
+              <button
+                type="button"
+                onClick={() => setFieldSearch('')}
+                className="mt-3 text-xs font-medium text-[#b45f45] hover:text-[#8f4634] focus-visible:outline-none focus-visible:underline"
+              >
+                Clear search
+              </button>
+            </div>
+          ) : (
+            <div className={`mt-4 flex flex-col ${paletteView === 'grid' ? 'gap-4' : 'gap-5'}`}>
+              {FIELD_CATEGORIES.map((category) => {
+                const categoryItems = filteredFieldItems.filter((item) => item.category === category)
+                if (categoryItems.length === 0) return null
+                const categoryId = `field-category-${category.replaceAll(' ', '-').toLowerCase()}`
+
+                return (
+                  <section key={category} aria-labelledby={categoryId}>
+                    <p
+                      id={categoryId}
+                      className="mb-2 text-[11px] font-medium uppercase tracking-wider text-[#8e8b82]"
+                    >
+                      {category}
+                    </p>
+                    <div
+                      className={
+                        paletteView === 'grid'
+                          ? 'grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-3'
+                          : 'grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1'
+                      }
+                    >
+                      {categoryItems.map((item) => (
+                        <button
+                          key={`${item.type}-${item.preset ?? item.label}`}
+                          type="button"
+                          disabled={currentPage.isFinal}
+                          onClick={() => addFieldLocal(item)}
+                          title={item.description}
+                          className={`group min-w-0 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] text-sm transition-colors hover:border-[#cc785c] hover:bg-[#efe9de] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]/30 disabled:cursor-not-allowed disabled:opacity-50 ${
+                            paletteView === 'grid'
+                              ? 'flex min-h-[74px] flex-col items-center justify-center gap-1.5 px-1.5 py-2 text-center'
+                              : 'flex items-center gap-2 px-3 py-2.5 text-left'
+                          }`}
+                        >
+                          <span className="flex h-7 w-7 flex-none items-center justify-center rounded-md bg-[#efe9de] text-[#cc785c] transition-colors group-hover:bg-white">
+                            {item.icon}
+                          </span>
+                          <span
+                            className={
+                              paletteView === 'grid'
+                                ? 'line-clamp-2 text-[11px] font-medium leading-4 text-[#3d3d3a]'
+                                : 'truncate text-[#141413]'
+                            }
+                          >
+                            {item.label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                )
+              })}
+            </div>
+          )}
         </div>
       </aside>
 

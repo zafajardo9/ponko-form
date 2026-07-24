@@ -102,12 +102,28 @@ function PaymentsPage() {
     onError: (error) => setRecoveryMessage((error as Error).message),
   });
   const replaceLinkMut = useMutation({
-    mutationFn: (paymentId: number) => replaceExpiredPaymentLink({ data: { formId: Number(formId), paymentId } }),
+    mutationFn: ({
+      paymentId,
+      recipientEmail,
+    }: {
+      paymentId: number;
+      recipientEmail?: string;
+    }) =>
+      replaceExpiredPaymentLink({
+        data: { formId: Number(formId), paymentId, recipientEmail },
+      }),
     onSuccess: async (result) => {
       await navigator.clipboard.writeText(result.paymentUrl);
-      setRecoveryMessage(result.reused ? "Active payment link copied." : "Replacement payment link created and copied.");
+      setRecoveryMessage(
+        result.emailSent
+          ? "Replacement payment link created, emailed, and copied."
+          : result.emailError
+            ? `Replacement link created and copied, but email failed: ${result.emailError}`
+            : result.reused
+              ? "Active payment link copied."
+              : "Replacement payment link created and copied.",
+      );
       await queryClient.invalidateQueries({ queryKey: ["form-payments", formId] });
-      setSelected(null);
     },
     onError: (error) => setRecoveryMessage((error as Error).message),
   });
@@ -115,7 +131,7 @@ function PaymentsPage() {
     mutationFn: ({ paymentId, recipientEmail }: { paymentId: number; recipientEmail: string }) =>
       emailPaymentRecoveryLink({ data: { formId: Number(formId), paymentId, recipientEmail } }),
     onSuccess: async () => {
-      setRecoveryMessage("Payment reminder accepted by Resend.");
+      setRecoveryMessage("Payment reminder accepted for delivery.");
       await queryClient.invalidateQueries({ queryKey: ["form-payments", formId] });
     },
     onError: (error) => setRecoveryMessage((error as Error).message),
@@ -388,18 +404,20 @@ function PaymentsPage() {
           verifying={verifyMut.isPending}
           formId={formId}
           onCopyLink={() => copyLinkMut.mutate(selectedPayment.id)}
-          onReplaceLink={() => replaceLinkMut.mutate(selectedPayment.id)}
+          onReplaceLink={(recipientEmail) =>
+            replaceLinkMut.mutate({
+              paymentId: selectedPayment.id,
+              recipientEmail,
+            })
+          }
           recoveryBusy={copyLinkMut.isPending || replaceLinkMut.isPending}
           recoveryMessage={recoveryMessage}
-          onEmailLink={() => {
-            const recipientEmail = window.prompt("Recipient email address")?.trim();
-            if (recipientEmail) {
-              emailLinkMut.mutate({
-                paymentId: selectedPayment.id,
-                recipientEmail,
-              });
-            }
-          }}
+          onEmailLink={(recipientEmail) =>
+            emailLinkMut.mutate({
+              paymentId: selectedPayment.id,
+              recipientEmail,
+            })
+          }
           emailing={emailLinkMut.isPending}
           activityLoading={activityQuery.isLoading}
         />
@@ -430,13 +448,19 @@ function PaymentDetailDialog({
   verifying: boolean;
   formId: string;
   onCopyLink: () => void;
-  onReplaceLink: () => void;
+  onReplaceLink: (recipientEmail?: string) => void;
   recoveryBusy: boolean;
   recoveryMessage: string | null;
-  onEmailLink: () => void;
+  onEmailLink: (recipientEmail: string) => void;
   emailing: boolean;
   activityLoading: boolean;
 }) {
+  const [recipientEmail, setRecipientEmail] = useState(
+    payment.respondentEmail ?? "",
+  );
+  const validRecipient = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+    recipientEmail.trim(),
+  );
   // Close on Escape.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -493,27 +517,90 @@ function PaymentDetailDialog({
             <button onClick={onVerify} disabled={verifying} className="rounded-md bg-[#141413] px-3 py-2 text-sm text-white disabled:opacity-50">
               {verifying ? "Verifying…" : "Verify now"}
             </button>
-            {payment.paymentKind === "one_time" && payment.status === "pending" && payment.paymentUrl && (
-              <>
-                <button onClick={onCopyLink} disabled={recoveryBusy} className="rounded-md border border-[#e6dfd8] px-3 py-2 text-sm text-[#141413] disabled:opacity-50">
-                  Copy payment link
-                </button>
-                <button onClick={onEmailLink} disabled={emailing || recoveryBusy} className="rounded-md border border-[#e6dfd8] px-3 py-2 text-sm text-[#141413] disabled:opacity-50">
-                  {emailing ? "Sending…" : "Email payment link"}
-                </button>
-              </>
-            )}
-            {payment.paymentKind === "one_time" && (payment.status === "failed" || (payment.expiresAt && new Date(payment.expiresAt).getTime() <= Date.now())) && (
-              <button onClick={onReplaceLink} disabled={recoveryBusy} className="rounded-md border border-[#e6dfd8] px-3 py-2 text-sm text-[#141413] disabled:opacity-50">
-                Create replacement link
-              </button>
-            )}
             {payment.submissionId && (
               <Link to="/forms/$formId/submissions" params={{ formId: String(formId) }} className="rounded-md border border-[#e6dfd8] px-3 py-2 text-sm text-[#141413]">
                 Open response
               </Link>
             )}
           </div>
+
+          {payment.paymentKind === "one_time" &&
+            payment.status !== "completed" &&
+            payment.status !== "refunded" && (
+              <section className="mb-5 rounded-xl border border-[#ded5ca] bg-[#f6f1e9] p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-[#141413]">
+                      Payment recovery
+                    </h3>
+                    <p className="mt-1 text-xs leading-5 text-[#6c6a64]">
+                      The system verifies the provider before creating another checkout,
+                      which helps prevent duplicate payments.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#876e59]">
+                    Safeguarded
+                  </span>
+                </div>
+
+                <label className="mt-4 block">
+                  <span className="text-xs font-medium text-[#57544d]">
+                    Respondent email
+                  </span>
+                  <input
+                    type="email"
+                    value={recipientEmail}
+                    onChange={(event) => setRecipientEmail(event.target.value)}
+                    placeholder="name@example.com"
+                    className="mt-1.5 h-10 w-full rounded-lg border border-[#d8cfc3] bg-white px-3 text-sm text-[#141413] outline-none transition focus:border-[#cc785c] focus:ring-2 focus:ring-[#cc785c]/20"
+                  />
+                </label>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {payment.status === "pending" &&
+                    payment.paymentUrl &&
+                    (!payment.expiresAt ||
+                      new Date(payment.expiresAt).getTime() > Date.now()) && (
+                      <>
+                        <button
+                          onClick={onCopyLink}
+                          disabled={recoveryBusy}
+                          className="rounded-md border border-[#d8cfc3] bg-white px-3 py-2 text-sm text-[#141413] disabled:opacity-50"
+                        >
+                          Copy active link
+                        </button>
+                        <button
+                          onClick={() => onEmailLink(recipientEmail.trim())}
+                          disabled={!validRecipient || emailing || recoveryBusy}
+                          className="rounded-md bg-[#cc785c] px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+                        >
+                          {emailing ? "Sending…" : "Email active link"}
+                        </button>
+                      </>
+                    )}
+                  {(payment.status === "failed" ||
+                    (payment.expiresAt &&
+                      new Date(payment.expiresAt).getTime() <= Date.now())) && (
+                    <>
+                      <button
+                        onClick={() => onReplaceLink()}
+                        disabled={recoveryBusy}
+                        className="rounded-md border border-[#d8cfc3] bg-white px-3 py-2 text-sm text-[#141413] disabled:opacity-50"
+                      >
+                        Create and copy new link
+                      </button>
+                      <button
+                        onClick={() => onReplaceLink(recipientEmail.trim())}
+                        disabled={!validRecipient || recoveryBusy || emailing}
+                        className="rounded-md bg-[#cc785c] px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+                      >
+                        {recoveryBusy ? "Preparing…" : "Create and email new link"}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </section>
+            )}
           {recoveryMessage && <p className="mb-5 text-sm text-[#6c6a64]">{recoveryMessage}</p>}
 
           {/* Details grid */}

@@ -32,6 +32,7 @@ async function main() {
     '0029_flow_execution_client_token.sql',
     '0030_legacy_submission_client_token.sql',
     '0031_payment_checkout_key.sql',
+    '0032_dashboard_currency.sql',
   ]) {
     const migration = await readFile(resolve(import.meta.dirname, `../drizzle/${filename}`), 'utf8')
     for (const statement of migration.split('--> statement-breakpoint')) {

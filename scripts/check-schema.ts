@@ -97,6 +97,12 @@ async function main() {
           AND tablename = 'payments'
           AND indexname = 'payments_created_at_idx'
       ) AS has_payment_query_index,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'profiles'
+          AND column_name = 'dashboard_currency'
+      ) AS has_dashboard_currency,
       to_regprocedure('public.replace_page_form(integer,jsonb,jsonb)') IS NOT NULL
         AS has_replace_page_form
   `
@@ -120,6 +126,7 @@ async function main() {
     !compatibility?.has_submission_archiving ||
     !compatibility?.has_submission_query_index ||
     !compatibility?.has_payment_query_index ||
+    !compatibility?.has_dashboard_currency ||
     !compatibility?.has_replace_page_form
   ) {
     throw new Error(

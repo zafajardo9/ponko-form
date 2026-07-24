@@ -7,7 +7,14 @@ export interface FormAnalyticsRecord {
   paymentCount: number;
   completedPaymentCount: number;
   revenue: number;
+  revenueCurrency: string;
+  revenueBreakdown: RevenueAmount[];
   lastSubmissionAt: string | null;
+}
+
+export interface RevenueAmount {
+  currency: string;
+  amount: number;
 }
 
 export type FormSummary = Pick<
@@ -27,6 +34,8 @@ export type PaymentSummary = {
   total: number;
   completed: number;
   revenue: number;
+  revenueCurrency: string;
+  revenueBreakdown: RevenueAmount[];
 };
 
 export function dashboardDateKey(date: Date) {
@@ -87,7 +96,59 @@ export function mergeFormAnalytics(
       paymentCount: payment?.total ?? 0,
       completedPaymentCount: payment?.completed ?? 0,
       revenue: payment?.revenue ?? 0,
+      revenueCurrency: payment?.revenueCurrency ?? "USD",
+      revenueBreakdown: payment?.revenueBreakdown ?? [],
       lastSubmissionAt: submission?.lastAt ?? null,
     };
   });
+}
+
+export function completionRate(completed: number, total: number) {
+  if (total <= 0) return 0;
+  return Math.round((completed / total) * 100);
+}
+
+export function formatDashboardMoney(cents: number, currency = "USD") {
+  if (currency === "MIXED") return `${(cents / 100).toFixed(2)} combined`;
+  const fractionDigits = currencyFractionDigits(currency);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+    currencyDisplay: currency === "PHP" ? "code" : "symbol",
+  }).format(minorToMajor(cents, currency));
+}
+
+export function currencyFractionDigits(currency: string) {
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+    }).resolvedOptions().maximumFractionDigits ?? 2;
+  } catch {
+    return 2;
+  }
+}
+
+export function minorToMajor(amount: number, currency: string) {
+  return amount / 10 ** currencyFractionDigits(currency);
+}
+
+export function majorToMinor(amount: number, currency: string) {
+  return Math.round(amount * 10 ** currencyFractionDigits(currency));
+}
+
+export function compareFormPerformance(forms: FormAnalyticsRecord[]) {
+  const active = forms.filter((form) => form.submissionCount > 0);
+  const topBySubmissions = [...active].sort(
+    (a, b) => b.submissionCount - a.submissionCount,
+  )[0] ?? null;
+  const topByCompletion = [...active].sort(
+    (a, b) =>
+      completionRate(b.completedCount, b.submissionCount) -
+      completionRate(a.completedCount, a.submissionCount),
+  )[0] ?? null;
+  const topByRevenue = [...active].sort((a, b) => b.revenue - a.revenue)[0] ?? null;
+  return { topBySubmissions, topByCompletion, topByRevenue };
 }

@@ -8,6 +8,7 @@ import {
   flows,
   forms,
   formPages,
+  formSubmissions,
   formSubmissionSessions,
   paymentEvents,
   profiles,
@@ -17,16 +18,21 @@ import { eq, desc, asc, and, or, sql, type SQL } from "drizzle-orm";
 import { reconcilePayment } from "../payments/reconciliation";
 import { paymentRegistry } from "../../integrations/payments";
 import {
-  getIntegrationConfig,
   loadIntegrationConfigs,
   paypalCredentialsForEnvironment,
   xenditCredentialsForEnvironment,
 } from "../integrations/credentials";
 import type { GatewayCredentials } from "../../integrations/payments/types";
-import type { ResendConfig } from "../integrations/types";
-import { sendPaymentReminderEmail } from "../email/resend";
+import { paymentReminderMessage } from "../email/resend";
+import { sendTransactionalEmail } from "../email/transactional";
 import { publicRequestOrigin } from "./request-origin";
 import { loadPaymentListParts } from "../payments/payment-list-plan";
+import { claimPaymentCheckout } from "../payments/checkout-claim";
+import {
+  flowPaymentReturnUrl,
+  pagePaymentReturnUrl,
+} from "../public-session-access";
+import { completePaidPageSubmission } from "../page-builder/complete-submission";
 
 /**
  * Payment view model returned to the form creator's Payments page.
@@ -407,8 +413,19 @@ export const verifyFormPayment = createServerFn({ method: "POST", strict: false 
   .handler(async ({ data }) => {
     const { userId } = await auth();
     if (!userId) throw new Error("Unauthorized");
-    await ownedPayment(data.formId, data.paymentId, userId);
-    return reconcilePayment({ paymentId: data.paymentId, source: "manual" });
+    const { payment } = await ownedPayment(
+      data.formId,
+      data.paymentId,
+      userId,
+    );
+    const result = await reconcilePayment({
+      paymentId: data.paymentId,
+      source: "manual",
+    });
+    if (payment.pageSessionId && result.status === "completed") {
+      await completePaidPageSubmission(payment.pageSessionId);
+    }
+    return result;
   });
 
 async function ownedPayment(formId: number, paymentId: number, clerkId: string) {
@@ -514,14 +531,45 @@ export const getPaymentRecoveryLink = createServerFn({ method: "POST", strict: f
   });
 
 export const replaceExpiredPaymentLink = createServerFn({ method: "POST", strict: false })
-  .validator((data: { formId: number; paymentId: number }) => data)
+  .validator((data: { formId: number; paymentId: number; recipientEmail?: string }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth();
     if (!userId) throw new Error("Unauthorized");
-    const { payment, gatewaySlug, profileId } = await ownedPayment(data.formId, data.paymentId, userId);
+    let owned = await ownedPayment(data.formId, data.paymentId, userId);
+    let { payment, gatewaySlug, profileId } = owned;
     if (payment.status === "completed" || payment.status === "refunded") throw new Error("A successful payment cannot be replaced")
-    if (payment.paymentUrl && payment.expiresAt && payment.expiresAt.getTime() > Date.now() && payment.status === "pending") {
-      return { paymentUrl: payment.paymentUrl, paymentId: payment.id, reused: true }
+
+    // Always verify against the provider immediately before issuing another
+    // checkout. A delayed webhook or lost return response may mean the payment
+    // actually succeeded, and creating a replacement could invite a duplicate
+    // charge.
+    if (payment.gatewayPaymentId) {
+      const verified = await reconcilePayment({
+        paymentId: payment.id,
+        source: "manual",
+      });
+      if (verified.status === "completed" || verified.status === "refunded") {
+        if (payment.pageSessionId && verified.status === "completed") {
+          await completePaidPageSubmission(payment.pageSessionId);
+        }
+        throw new Error("This payment was confirmed successfully and does not need a replacement")
+      }
+      owned = await ownedPayment(data.formId, data.paymentId, userId);
+      ({ payment, gatewaySlug, profileId } = owned);
+    }
+
+    if (
+      payment.paymentUrl &&
+      payment.status === "pending" &&
+      (!payment.expiresAt || payment.expiresAt.getTime() > Date.now())
+    ) {
+      return {
+        paymentUrl: payment.paymentUrl,
+        paymentId: payment.id,
+        reused: true,
+        emailSent: false,
+        emailError: null,
+      }
     }
     const gateway = paymentRegistry.get(gatewaySlug);
     if (!gateway) throw new Error("Payment gateway is unavailable")
@@ -537,7 +585,8 @@ export const replaceExpiredPaymentLink = createServerFn({ method: "POST", strict
         : undefined;
     if (!credentials) throw new Error("Payment gateway credentials are unavailable")
     const baseUrl = publicRequestOrigin()
-    const [replacement] = await db.insert(payments).values({
+    const returnUrl = await recoveryReturnUrl(payment, baseUrl);
+    const checkout = await claimPaymentCheckout(`recovery:${payment.id}`, {
       formSubmissionId: payment.formSubmissionId,
       pageSessionId: payment.pageSessionId,
       flowExecutionId: payment.flowExecutionId,
@@ -546,11 +595,24 @@ export const replaceExpiredPaymentLink = createServerFn({ method: "POST", strict
       currency: payment.currency,
       status: "pending",
       gatewayResponse: { ...response, environment },
-    }).returning({ id: payments.id });
+    });
+    if (checkout.disposition === "reuse" && checkout.payment.paymentUrl) {
+      return {
+        paymentUrl: checkout.payment.paymentUrl,
+        paymentId: checkout.payment.id,
+        reused: true,
+        emailSent: false,
+        emailError: null,
+      };
+    }
+    if (checkout.disposition === "wait") {
+      throw new Error("A replacement checkout is already being prepared. Try again in a moment.")
+    }
+    if (checkout.disposition === "completed") {
+      throw new Error("The replacement payment has already completed")
+    }
+    const replacement = checkout.payment;
     const externalId = `ponkoform-payment-${replacement.id}`;
-    const returnPath = payment.pageSessionId
-      ? `/forms/payment-return?pageSessionId=${payment.pageSessionId}&pageId=${String(response.pageId ?? "")}`
-      : `/forms/payment-return?executionId=${payment.flowExecutionId}`;
     const result = await gateway.createPayment({
       amount: payment.amount,
       currency: payment.currency,
@@ -560,8 +622,8 @@ export const replaceExpiredPaymentLink = createServerFn({ method: "POST", strict
         ...(payment.pageSessionId ? { pageSessionId: String(payment.pageSessionId), pageId: String(response.pageId ?? "") } : {}),
         ...(payment.flowExecutionId ? { executionId: String(payment.flowExecutionId) } : {}),
       },
-      returnUrl: `${baseUrl}${returnPath}`,
-      cancelUrl: `${baseUrl}${returnPath}${returnPath.includes("?") ? "&" : "?"}cancelled=1`,
+      returnUrl,
+      cancelUrl: `${returnUrl}&cancelled=1`,
     }, credentials);
     if (!result.success || !result.paymentUrl) {
       await db.update(payments).set({ status: "failed", failureReason: result.error ?? "Replacement creation failed", failedAt: new Date(), updatedAt: new Date() })
@@ -585,52 +647,153 @@ export const replaceExpiredPaymentLink = createServerFn({ method: "POST", strict
         updatedAt: new Date(),
       }).where(eq(formSubmissionSessions.id, payment.pageSessionId));
     }
-    return { paymentUrl: result.paymentUrl, paymentId: replacement.id, reused: false };
+    if (payment.flowExecutionId) {
+      await db.update(flowExecutions).set({
+        status: "payment_pending",
+      }).where(eq(flowExecutions.id, payment.flowExecutionId));
+    }
+    if (payment.formSubmissionId) {
+      await db.update(formSubmissions).set({
+        status: "pending_payment",
+      }).where(eq(formSubmissions.id, payment.formSubmissionId));
+    }
+    let emailSent = false;
+    let emailError: string | null = null;
+    if (data.recipientEmail?.trim()) {
+      try {
+        await deliverPaymentRecoveryEmail({
+          payment: {
+            ...replacement,
+            paymentUrl: result.paymentUrl,
+            expiresAt: result.expiresAt ? new Date(result.expiresAt) : null,
+          },
+          profileId,
+          formTitle: owned.formTitle,
+          recipientEmail: data.recipientEmail,
+        });
+        emailSent = true;
+      } catch (error) {
+        emailError =
+          error instanceof Error
+            ? error.message
+            : "The replacement was created, but the email could not be sent";
+      }
+    }
+    return {
+      paymentUrl: result.paymentUrl,
+      paymentId: replacement.id,
+      reused: false,
+      emailSent,
+      emailError,
+    };
   });
+
+async function recoveryReturnUrl(
+  payment: typeof payments.$inferSelect,
+  origin: string,
+) {
+  if (payment.pageSessionId) {
+    const [session] = await db
+      .select({ clientToken: formSubmissionSessions.clientToken })
+      .from(formSubmissionSessions)
+      .where(eq(formSubmissionSessions.id, payment.pageSessionId))
+      .limit(1);
+    const response = payment.gatewayResponse ?? {};
+    const pageId = Number(response.pageId);
+    if (!session?.clientToken || !Number.isFinite(pageId)) {
+      throw new Error("The respondent session can no longer be resumed securely")
+    }
+    return pagePaymentReturnUrl(
+      origin,
+      payment.pageSessionId,
+      pageId,
+      session.clientToken,
+    );
+  }
+  if (payment.flowExecutionId) {
+    const [execution] = await db
+      .select({ clientToken: flowExecutions.clientToken })
+      .from(flowExecutions)
+      .where(eq(flowExecutions.id, payment.flowExecutionId))
+      .limit(1);
+    if (!execution?.clientToken) {
+      throw new Error("The respondent flow can no longer be resumed securely")
+    }
+    return flowPaymentReturnUrl(
+      origin,
+      payment.flowExecutionId,
+      execution.clientToken,
+    );
+  }
+  throw new Error("This payment is not attached to a resumable response")
+}
 
 export const emailPaymentRecoveryLink = createServerFn({ method: "POST", strict: false })
   .validator((data: { formId: number; paymentId: number; recipientEmail: string }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth();
     if (!userId) throw new Error("Unauthorized");
-    const recipient = data.recipientEmail.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) throw new Error("Enter a valid recipient email")
     const { payment, profileId, formTitle } = await ownedPayment(data.formId, data.paymentId, userId);
     if (!payment.paymentUrl) throw new Error("This payment does not have a checkout link")
     if (payment.status !== "pending") throw new Error(`This payment is already ${payment.status}`)
     if (payment.expiresAt && payment.expiresAt.getTime() <= Date.now()) throw new Error("This payment link has expired. Create a replacement first.")
-    const resend = await getIntegrationConfig<ResendConfig>(profileId, "resend");
-    if (!resend) throw new Error("Configure Resend before sending payment reminders")
-    const formattedAmount = new Intl.NumberFormat("en-US", { style: "currency", currency: payment.currency })
-      .format(payment.amount / 100);
-    const delivery = await sendPaymentReminderEmail({
-      config: resend,
-      recipient,
+    const delivery = await deliverPaymentRecoveryEmail({
+      payment,
+      profileId,
       formTitle,
-      amount: formattedAmount,
-      paymentUrl: payment.paymentUrl,
-      expiresAt: payment.expiresAt,
+      recipientEmail: data.recipientEmail,
     });
+    return { success: true, messageId: delivery.messageId, provider: delivery.provider };
+  });
+
+async function deliverPaymentRecoveryEmail(input: {
+  payment: typeof payments.$inferSelect;
+  profileId: number;
+  formTitle: string;
+  recipientEmail: string;
+}) {
+    const recipient = input.recipientEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+      throw new Error("Enter a valid recipient email")
+    }
+    if (!input.payment.paymentUrl) {
+      throw new Error("This payment does not have a checkout link")
+    }
+    const formattedAmount = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: input.payment.currency,
+    }).format(input.payment.amount / 100);
+    const delivery = await sendTransactionalEmail(
+      input.profileId,
+      paymentReminderMessage({
+        recipient,
+        formTitle: input.formTitle,
+        amount: formattedAmount,
+        paymentUrl: input.payment.paymentUrl,
+        expiresAt: input.payment.expiresAt,
+      }),
+    );
     const now = new Date();
     await db.update(payments).set({
-      reminderCount: payment.reminderCount + 1,
+      reminderCount: input.payment.reminderCount + 1,
       lastReminderAt: now,
       updatedAt: now,
-    }).where(eq(payments.id, payment.id));
+      respondentEmail: recipient,
+    }).where(eq(payments.id, input.payment.id));
     await db.insert(paymentEvents).values({
-      paymentId: payment.id,
+      paymentId: input.payment.id,
       eventKey: crypto.randomUUID().replaceAll('-', ''),
       gatewayEventId: delivery.messageId,
       eventType: "payment.reminder_sent",
-      providerStatus: "ACCEPTED_BY_RESEND",
-      normalizedStatus: payment.status,
+      providerStatus: `ACCEPTED_BY_${delivery.provider.toUpperCase()}`,
+      normalizedStatus: input.payment.status,
       source: "manual",
-      payload: { paymentId: payment.id },
+      payload: { paymentId: input.payment.id },
       processingStatus: "processed",
       processedAt: now,
     });
-    return { success: true, messageId: delivery.messageId };
-  });
+    return delivery;
+}
 
 /**
  * Extract a human-readable payment channel name from the gateway response.

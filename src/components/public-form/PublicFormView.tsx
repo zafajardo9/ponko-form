@@ -10,6 +10,7 @@ import { Card } from '../ui/Card'
 import { themeVars, type FormTheme } from '../../lib/theme'
 import type { FieldConfig, FieldValue } from '../form-builder/fields/FieldRenderer'
 import { createPublicSessionToken } from '../../lib/public-session-access'
+import { FormLoadingIndicator } from './FormLoadingIndicator'
 
 const FlowExecutionContainer = lazy(() =>
   import('../flow-execution/FlowExecutionContainer').then((module) => ({
@@ -336,64 +337,10 @@ function RuntimeLoadingScreen({
 }
 
 function FormLoadingScreen({ title, loadingSlow }: { title?: string; loadingSlow: boolean }) {
-  return (
-    <div
-      className="relative overflow-hidden border border-black/5 bg-white/75 px-5 py-10 shadow-[0_24px_70px_-34px_rgba(20,20,19,0.4)] backdrop-blur-sm sm:px-10 sm:py-12"
-      style={{ borderRadius: 'var(--ponko-radius-card,16px)' }}
-      role="status"
-      aria-live="polite"
-      aria-label="Loading form"
-    >
-      <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-[var(--ponko-primary-soft,#cc785c29)] blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -left-20 h-52 w-52 rounded-full bg-[var(--ponko-primary-soft,#cc785c29)] blur-3xl" />
-
-      <div className="relative mx-auto max-w-xl text-center">
-        <div className="relative mx-auto flex h-16 w-16 items-center justify-center" aria-hidden="true">
-          <div className="absolute inset-0 animate-ping rounded-full bg-[var(--ponko-primary-soft,#cc785c29)] [animation-duration:1.8s]" />
-          <div className="absolute inset-1 rounded-full border-2 border-[var(--ponko-primary-soft,#cc785c29)]" />
-          <div className="absolute inset-1 animate-spin rounded-full border-2 border-transparent border-t-[var(--ponko-primary,#cc785c)] [animation-duration:1.1s]" />
-          <div className="h-2.5 w-2.5 rounded-full bg-[var(--ponko-primary,#cc785c)] shadow-[0_0_18px_var(--ponko-primary,#cc785c)]" />
-        </div>
-
-        <h1 className="mt-5 text-2xl font-medium tracking-tight text-[#141413] sm:text-3xl">
-          {title || 'Preparing your form'}
-        </h1>
-        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#6c6a64]">
-          {loadingSlow
-            ? 'This is taking a little longer than usual. Your form is still loading safely.'
-            : 'Just a moment while we prepare everything for you.'}
-        </p>
-
-        <div
-          className="mx-auto mt-8 max-w-lg border border-black/5 bg-[var(--ponko-surface,#f5f0e8)] p-4 text-left sm:p-5"
-          style={{ borderRadius: 'var(--ponko-radius-card,16px)' }}
-          aria-hidden="true"
-        >
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--ponko-primary,#cc785c)]" />
-            <div className="h-2.5 w-24 animate-pulse rounded-full bg-[var(--ponko-primary-soft,#cc785c29)]" />
-          </div>
-          <div className="mt-5 space-y-4">
-            <div>
-              <div className="h-2.5 w-20 animate-pulse rounded-full bg-black/10" />
-              <div className="mt-2 h-11 animate-pulse bg-white/80" style={{ borderRadius: 'var(--ponko-radius,8px)' }} />
-            </div>
-            <div>
-              <div className="h-2.5 w-28 animate-pulse rounded-full bg-black/10 [animation-delay:120ms]" />
-              <div className="mt-2 h-11 animate-pulse bg-white/80 [animation-delay:120ms]" style={{ borderRadius: 'var(--ponko-radius,8px)' }} />
-            </div>
-          </div>
-          <div className="mt-5 h-1 overflow-hidden rounded-full bg-black/5">
-            <div className="h-full w-1/2 animate-pulse rounded-full bg-[var(--ponko-primary,#cc785c)]" />
-          </div>
-        </div>
-
-        <div className="mt-6 flex items-center justify-center gap-1.5" aria-hidden="true">
-          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--ponko-primary,#cc785c)]" />
-          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--ponko-primary,#cc785c)] [animation-delay:150ms]" />
-          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--ponko-primary,#cc785c)] [animation-delay:300ms]" />
-        </div>
-      </div>
-    </div>
-  )
+  const message = loadingSlow
+    ? 'This form is taking a little longer than usual to load.'
+    : title
+      ? `Loading ${title}.`
+      : 'Loading form.'
+  return <FormLoadingIndicator message={message} />
 }

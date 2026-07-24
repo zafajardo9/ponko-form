@@ -176,6 +176,13 @@
       "when": 1784797200000,
       "tag": "0031_payment_checkout_key",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1784862000000,
+      "tag": "0032_dashboard_currency",
+      "breakpoints": true
     }
   ]
 }

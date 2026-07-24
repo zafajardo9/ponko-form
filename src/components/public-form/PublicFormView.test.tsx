@@ -49,7 +49,55 @@ describe('PublicFormView recovery', () => {
     await act(async () => undefined)
     await act(async () => vi.advanceTimersByTimeAsync(3_000))
 
-    expect(screen.getByText(/taking a little longer than usual/i)).toBeTruthy()
+    const status = screen.getByRole('status', { name: 'Loading form' })
+    expect(status.textContent).toContain('taking a little longer than usual')
+    expect(status.querySelectorAll('svg')).toHaveLength(1)
+    expect(status.querySelector('.animate-pulse')).toBeNull()
+    expect(status.querySelector('.animate-bounce')).toBeNull()
+  })
+
+  it('keeps the simple loader visible until metadata and runtime are both ready', async () => {
+    let resolveForm!: (value: {
+      id: number
+      title: string
+      description: null
+      theme: null
+    }) => void
+    let resolveRuntime!: (value: {
+      kind: 'page'
+      pages: { id: number }[]
+      references: never[]
+      recaptchaSiteKey: null
+    }) => void
+    serverFns.getPublicForm.mockReturnValue(new Promise((resolve) => {
+      resolveForm = resolve
+    }))
+    serverFns.getPublicFormRuntime.mockReturnValue(new Promise((resolve) => {
+      resolveRuntime = resolve
+    }))
+
+    renderPublicForm()
+    expect(screen.getByRole('status', { name: 'Loading form' })).toBeTruthy()
+    expect(serverFns.getPublicFormRuntime).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveForm({ id: 7, title: 'Ready in stages', description: null, theme: null })
+    })
+    await waitFor(() => expect(serverFns.getPublicFormRuntime).toHaveBeenCalledOnce())
+    expect(screen.getByRole('status', { name: 'Loading form' })).toBeTruthy()
+
+    await act(async () => {
+      resolveRuntime({
+        kind: 'page',
+        pages: [{ id: 1 }],
+        references: [],
+        recaptchaSiteKey: null,
+      })
+    })
+    await waitFor(() => expect(serverFns.pageFormView).toHaveBeenCalledOnce())
+    await waitFor(() =>
+      expect(screen.queryByRole('status', { name: 'Loading form' })).toBeNull(),
+    )
   })
 
   it('uses the form theme while its detailed definition is loading', async () => {
@@ -62,8 +110,12 @@ describe('PublicFormView recovery', () => {
     serverFns.getPublicFormRuntime.mockReturnValue(new Promise(() => undefined))
     renderPublicForm()
 
-    expect(await screen.findByRole('heading', { name: 'Background Check' })).toBeTruthy()
-    const loadingStatus = screen.getByRole('status')
+    const loadingStatus = await screen.findByRole('status', { name: 'Loading form' })
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: 'Loading form' }).textContent)
+        .toContain('Loading Background Check'),
+    )
+    expect(screen.queryByRole('heading', { name: 'Background Check' })).toBeNull()
     let themedAncestor: HTMLElement | null = loadingStatus
     while (themedAncestor && !themedAncestor.style.getPropertyValue('--ponko-primary')) {
       themedAncestor = themedAncestor.parentElement
