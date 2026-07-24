@@ -44,6 +44,16 @@ async function main() {
         WHERE table_schema = 'public' AND table_name = 'payments' AND column_name = 'payment_url'
       ) AS has_payment_recovery_link,
       EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'payments' AND column_name = 'checkout_key'
+      ) AS has_payment_checkout_key,
+      EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename = 'payments'
+          AND indexname = 'payments_checkout_key_idx'
+      ) AS has_payment_checkout_key_index,
+      EXISTS (
         SELECT 1 FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = 'form_templates'
       ) AS has_form_templates,
@@ -98,6 +108,8 @@ async function main() {
     !compatibility?.has_payment_page_session ||
     !compatibility?.has_webhook_endpoint_key ||
     !compatibility?.has_payment_recovery_link ||
+    !compatibility?.has_payment_checkout_key ||
+    !compatibility?.has_payment_checkout_key_index ||
     !compatibility?.has_form_templates ||
     !compatibility?.has_invoice_configs ||
     !compatibility?.has_confirmation_configs ||

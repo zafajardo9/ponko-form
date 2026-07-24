@@ -57,16 +57,20 @@ import {
   Calculator,
   Check,
   CheckSquare,
+  ChevronRight,
   ChevronDown,
   CircleDot,
   Clock,
+  Eye,
   FileText,
   GripVertical,
   Hash,
   Image,
+  Info,
   Plus,
   SlidersHorizontal,
   Save,
+  Settings2,
   ShieldCheck,
   Smile,
   Trash2,
@@ -80,30 +84,44 @@ const RichTextEditor = lazy(() => import('./RichTextEditor'))
 type FieldPaletteItem = {
   type: PageFieldType
   label: string
+  description: string
+  category: 'Questions' | 'Choices' | 'Date & time' | 'Content' | 'Advanced'
   icon: React.ReactNode
   preset?: 'terms'
 }
 
 const FIELD_ITEMS: FieldPaletteItem[] = [
-  { type: 'text', label: 'Text', icon: <Type size={14} /> },
-  { type: 'email', label: 'Email', icon: <AtSign size={14} /> },
-  { type: 'number', label: 'Number', icon: <Hash size={14} /> },
-  { type: 'textarea', label: 'Long Text', icon: <AlignJustify size={14} /> },
-  { type: 'select', label: 'Dropdown', icon: <ChevronDown size={14} /> },
-  { type: 'checkbox', label: 'Checkboxes', icon: <CheckSquare size={14} /> },
-  { type: 'checkbox', label: 'Terms', icon: <ShieldCheck size={14} />, preset: 'terms' },
-  { type: 'radio', label: 'Radio', icon: <CircleDot size={14} /> },
-  { type: 'satisfaction', label: 'Satisfaction', icon: <Smile size={14} /> },
-  { type: 'recaptcha', label: 'reCAPTCHA', icon: <ShieldCheck size={14} /> },
-  { type: 'date', label: 'Date', icon: <Calendar size={14} /> },
-  { type: 'time', label: 'Time', icon: <Clock size={14} /> },
-  { type: 'datetime', label: 'Date & Time', icon: <CalendarClock size={14} /> },
-  { type: 'address', label: 'Address', icon: <MapPin size={14} /> },
-  { type: 'file_upload', label: 'Upload', icon: <Upload size={14} /> },
-  { type: 'computation', label: 'Computation', icon: <Calculator size={14} /> },
-  { type: 'content', label: 'Details', icon: <FileText size={14} /> },
-  { type: 'media', label: 'Media', icon: <Image size={14} /> },
+  { type: 'text', label: 'Short text', description: 'A single-line written answer.', category: 'Questions', icon: <Type size={14} /> },
+  { type: 'email', label: 'Email', description: 'An email address with validation.', category: 'Questions', icon: <AtSign size={14} /> },
+  { type: 'number', label: 'Number', description: 'A numeric answer you can calculate with.', category: 'Questions', icon: <Hash size={14} /> },
+  { type: 'textarea', label: 'Long text', description: 'A multi-line written answer.', category: 'Questions', icon: <AlignJustify size={14} /> },
+  { type: 'address', label: 'Address', description: 'A structured postal address.', category: 'Questions', icon: <MapPin size={14} /> },
+  { type: 'file_upload', label: 'File upload', description: 'One or more uploaded files.', category: 'Questions', icon: <Upload size={14} /> },
+  { type: 'select', label: 'Dropdown', description: 'Choose one option from a compact menu.', category: 'Choices', icon: <ChevronDown size={14} /> },
+  { type: 'checkbox', label: 'Checkboxes', description: 'Choose one or more options.', category: 'Choices', icon: <CheckSquare size={14} /> },
+  { type: 'checkbox', label: 'Terms', description: 'A required agreement checkbox.', category: 'Choices', icon: <ShieldCheck size={14} />, preset: 'terms' },
+  { type: 'radio', label: 'Single choice', description: 'Choose exactly one visible option.', category: 'Choices', icon: <CircleDot size={14} /> },
+  { type: 'satisfaction', label: 'Rating', description: 'Stars, satisfaction, or NPS scale.', category: 'Choices', icon: <Smile size={14} /> },
+  { type: 'date', label: 'Date', description: 'A calendar date.', category: 'Date & time', icon: <Calendar size={14} /> },
+  { type: 'time', label: 'Time', description: 'A time of day.', category: 'Date & time', icon: <Clock size={14} /> },
+  { type: 'datetime', label: 'Date and time', description: 'A calendar date and time.', category: 'Date & time', icon: <CalendarClock size={14} /> },
+  { type: 'content', label: 'Instructions', description: 'Formatted text that does not collect an answer.', category: 'Content', icon: <FileText size={14} /> },
+  { type: 'media', label: 'Media', description: 'An image, video, or embedded resource.', category: 'Content', icon: <Image size={14} /> },
+  { type: 'computation', label: 'Calculated value', description: 'A total or formula built from other answers.', category: 'Advanced', icon: <Calculator size={14} /> },
+  { type: 'recaptcha', label: 'Spam protection', description: 'Google reCAPTCHA verification.', category: 'Advanced', icon: <ShieldCheck size={14} /> },
 ]
+
+const FIELD_CATEGORIES: FieldPaletteItem['category'][] = [
+  'Questions',
+  'Choices',
+  'Date & time',
+  'Content',
+  'Advanced',
+]
+
+function fieldPaletteItem(type: PageFieldType) {
+  return FIELD_ITEMS.find((item) => item.type === type && !item.preset) ?? FIELD_ITEMS[0]
+}
 
 function isContentField(field: Pick<PageField, 'fieldType'>) {
   return field.fieldType === 'content' || field.fieldType === 'media'
@@ -232,6 +250,10 @@ function slugForOptionValue(input: string) {
     .slice(0, 60) || 'option'
 }
 
+function variableToken(name: string) {
+  return `{{${name}}}`
+}
+
 function optionValueForLabel(label: string, options: PageFieldOption[], index: number) {
   const base = slugForOptionValue(label) || `option_${index + 1}`
   const used = new Set(options.map((option, optionIndex) => (optionIndex === index ? '' : option.value)))
@@ -269,8 +291,9 @@ export function PageBuilderWorkspace({
   const [selection, setSelection] = useState<Selection>(
     incomingPages[0] ? { type: 'page', pageId: incomingPages[0].id } : null,
   )
-  const [settingsPanelWidth, setSettingsPanelWidth] = useState(360)
+  const [settingsPanelWidth, setSettingsPanelWidth] = useState(400)
   const [panelMode, setPanelMode] = useState<'settings' | 'references'>('settings')
+  const [mobilePaletteOpen, setMobilePaletteOpen] = useState(false)
   const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false)
   const isResizingSettings = useRef(false)
 
@@ -523,6 +546,7 @@ export function PageBuilderWorkspace({
     )
     setPanelMode('settings')
     setSelection({ type: 'field', fieldId: field.id })
+    setMobilePaletteOpen(false)
     setMobileSettingsOpen(true)
   }
 
@@ -619,25 +643,53 @@ export function PageBuilderWorkspace({
   return (
     <div className="flex flex-1 flex-col overflow-y-auto lg:min-h-0 lg:flex-row lg:overflow-hidden">
       <aside className="flex-none border-b border-[#e6dfd8] bg-[#faf9f5] p-4 lg:w-60 lg:overflow-y-auto lg:border-b-0 lg:border-r">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <p className="text-xs font-medium uppercase text-[#8e8b82]">Fields</p>
-          <span className={`text-xs ${isDirty ? 'text-[#cc785c]' : 'text-[#2f7d52]'}`}>
-            {isDirty ? 'Unsaved' : 'Saved'}
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1">
-          {FIELD_ITEMS.map((item) => (
+        <div className="flex items-start justify-between gap-3 lg:mb-4">
+          <div>
+            <p className="text-sm font-medium text-[#141413]">Add a field</p>
+            <p className="mt-0.5 hidden text-xs leading-5 text-[#8e8b82] lg:block">Choose what people will see or answer.</p>
+          </div>
+          <div className="flex flex-none items-center gap-3">
+            <span className={`text-xs ${isDirty ? 'text-[#cc785c]' : 'text-[#2f7d52]'}`}>
+              {isDirty ? 'Unsaved' : 'Saved'}
+            </span>
             <button
-              key={`${item.type}-${item.preset ?? item.label}`}
-              disabled={currentPage.isFinal}
-              onClick={() => addFieldLocal(item)}
-              className="flex min-w-0 items-center gap-2 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] px-3 py-2.5 text-left text-sm transition-colors hover:border-[#cc785c] hover:bg-[#efe9de] disabled:cursor-not-allowed disabled:opacity-50"
+              type="button"
+              aria-expanded={mobilePaletteOpen}
+              onClick={() => setMobilePaletteOpen((open) => !open)}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#e6dfd8] bg-white px-2.5 text-xs font-medium text-[#3d3d3a] lg:hidden"
             >
-              <span className="flex h-7 w-7 flex-none items-center justify-center rounded-md bg-[#efe9de] text-[#cc785c]">
-                {item.icon}
-              </span>
-              <span className="truncate text-[#141413]">{item.label}</span>
+              {mobilePaletteOpen ? 'Hide fields' : 'Browse field types'}
+              <ChevronDown size={13} className={`transition-transform ${mobilePaletteOpen ? 'rotate-180' : ''}`} />
             </button>
+          </div>
+        </div>
+        <div className={`${mobilePaletteOpen ? 'mt-4 flex' : 'hidden'} flex-col gap-5 lg:flex`}>
+          {FIELD_CATEGORIES.map((category) => (
+            <section key={category} aria-labelledby={`field-category-${category.replaceAll(' ', '-').toLowerCase()}`}>
+              <p
+                id={`field-category-${category.replaceAll(' ', '-').toLowerCase()}`}
+                className="mb-2 text-[11px] font-medium uppercase tracking-wider text-[#8e8b82]"
+              >
+                {category}
+              </p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1">
+                {FIELD_ITEMS.filter((item) => item.category === category).map((item) => (
+                  <button
+                    key={`${item.type}-${item.preset ?? item.label}`}
+                    type="button"
+                    disabled={currentPage.isFinal}
+                    onClick={() => addFieldLocal(item)}
+                    title={item.description}
+                    className="group flex min-w-0 items-center gap-2 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] px-3 py-2.5 text-left text-sm transition-colors hover:border-[#cc785c] hover:bg-[#efe9de] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]/30 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span className="flex h-7 w-7 flex-none items-center justify-center rounded-md bg-[#efe9de] text-[#cc785c] transition-colors group-hover:bg-white">
+                      {item.icon}
+                    </span>
+                    <span className="truncate text-[#141413]">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       </aside>
@@ -684,7 +736,7 @@ export function PageBuilderWorkspace({
             {saveMutation.isPending ? (
               'Saving...'
             ) : isDirty ? (
-              <span className="inline-flex items-center gap-1.5"><Save size={14} /> Save</span>
+              <span className="inline-flex items-center gap-1.5"><Save size={14} /> Save changes</span>
             ) : (
               <span className="inline-flex items-center gap-1.5"><Check size={14} /> Saved</span>
             )}
@@ -716,8 +768,12 @@ export function PageBuilderWorkspace({
                 </p>
               </div>
             ) : currentPage.fields.length === 0 ? (
-              <div className="flex min-h-[220px] items-center justify-center rounded-lg border-2 border-dashed border-[#e6dfd8] bg-[#faf9f5] text-sm text-[#8e8b82]">
-                Add fields from the left panel.
+              <div className="flex min-h-[220px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#e6dfd8] bg-[#faf9f5] px-6 text-center">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#efe9de] text-[#cc785c]">
+                  <Plus size={18} />
+                </span>
+                <p className="mt-3 text-sm font-medium text-[#141413]">This page has no fields yet</p>
+                <p className="mt-1 max-w-xs text-xs leading-5 text-[#8e8b82]">Choose a field type from the Add a field panel. It will appear here and open its settings.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -730,14 +786,12 @@ export function PageBuilderWorkspace({
                       <SortableFieldCard
                         key={field.id}
                         field={field}
-                        pages={draftPages}
                         selected={selectedField?.id === field.id}
                         onSelect={() => {
                           setPanelMode('settings')
                           setSelection({ type: 'field', fieldId: field.id })
                           setMobileSettingsOpen(true)
                         }}
-                        onMoveToPage={(pageId) => moveFieldToPageLocal(field.id, pageId)}
                       />
                     ))}
                   </SortableContext>
@@ -776,7 +830,7 @@ export function PageBuilderWorkspace({
             function onMouseMove(moveEvent: MouseEvent) {
               if (!isResizingSettings.current) return
               const nextWidth = startWidth - (moveEvent.clientX - startX)
-              setSettingsPanelWidth(Math.max(300, Math.min(720, nextWidth)))
+              setSettingsPanelWidth(Math.max(340, Math.min(720, nextWidth)))
             }
 
             function onMouseUp() {
@@ -806,6 +860,14 @@ export function PageBuilderWorkspace({
             </div>
             <button
               type="button"
+              onClick={() => saveMutation.mutate()}
+              disabled={!isDirty || saveMutation.isPending}
+              className="mt-2 inline-flex h-9 flex-none items-center justify-center rounded-md bg-[#cc785c] px-3 text-xs font-medium text-white transition-colors hover:bg-[#a9583e] disabled:bg-[#e6dfd8] disabled:text-[#8e8b82]"
+            >
+              {saveMutation.isPending ? 'Saving…' : isDirty ? 'Save changes' : 'Saved'}
+            </button>
+            <button
+              type="button"
               onClick={() => setMobileSettingsOpen(false)}
               className="mt-2 inline-flex h-9 w-9 flex-none items-center justify-center rounded-full border border-[#e6dfd8] bg-white text-[#6c6a64] transition-colors hover:border-[#cc785c] hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]"
               aria-label="Close field settings"
@@ -821,7 +883,7 @@ export function PageBuilderWorkspace({
               onClick={() => setPanelMode('settings')}
               className={`rounded-md px-3 py-1.5 ${panelMode === 'settings' ? 'bg-white font-medium text-[#141413] shadow-sm' : 'text-[#6c6a64] hover:text-[#141413]'}`}
             >
-              Settings
+              Configure
             </button>
             <button
               type="button"
@@ -1680,39 +1742,15 @@ function SortablePageTab({ page, active, onSelect }: SortablePageTabProps) {
 
 interface SortableFieldCardProps {
   field: PageField
-  pages: FormPage[]
   selected: boolean
   onSelect: () => void
-  onMoveToPage: (pageId: number) => void
 }
 
-function SortableFieldCard({ field, pages, selected, onSelect, onMoveToPage }: SortableFieldCardProps) {
-  const [moveOpen, setMoveOpen] = useState(false)
-  const moveMenuRef = useRef<HTMLDivElement | null>(null)
+function SortableFieldCard({ field, selected, onSelect }: SortableFieldCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: field.id,
   })
-  const destinationPages = pages.filter((page) => !page.isFinal && page.id !== field.pageId)
-
-  useEffect(() => {
-    if (!moveOpen) return
-
-    function onPointerDown(event: PointerEvent) {
-      if (moveMenuRef.current?.contains(event.target as Node)) return
-      setMoveOpen(false)
-    }
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setMoveOpen(false)
-    }
-
-    document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [moveOpen])
+  const paletteItem = fieldPaletteItem(field.fieldType)
 
   return (
     <div
@@ -1732,67 +1770,39 @@ function SortableFieldCard({ field, pages, selected, onSelect, onMoveToPage }: S
       >
         <GripVertical size={16} />
       </button>
-      <div className="min-w-0 flex-1 p-4 text-left">
+      <button type="button" onClick={onSelect} className="min-w-0 flex-1 p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#cc785c]/30">
         <div className="flex items-center justify-between gap-3">
-          <button type="button" onClick={onSelect} className="min-w-0 text-left">
+          <div className="min-w-0">
             <p className="truncate text-sm font-medium text-[#141413]">
               {field.label || 'Untitled field'}
               {field.required && <span className="text-[#c64545]"> *</span>}
             </p>
-          </button>
-          <div className="flex flex-none items-center gap-2">
-            <span className="rounded bg-[#efe9de] px-2 py-0.5 text-xs text-[#6c6a64]">
-              {field.fieldType}
+          </div>
+          <div className="flex flex-none items-center gap-2 text-xs">
+            <span className="inline-flex items-center gap-1.5 rounded bg-[#efe9de] px-2 py-1 text-[#6c6a64]">
+              {paletteItem.icon} {paletteItem.label}
             </span>
-            <div ref={moveMenuRef} className="relative">
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  setMoveOpen((open) => !open)
-                }}
-                disabled={destinationPages.length === 0}
-                className="inline-flex h-7 items-center gap-1 rounded-md border border-[#e6dfd8] bg-white px-2 text-xs font-medium text-[#6c6a64] transition-colors hover:border-[#cc785c] hover:text-[#141413] disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                Move <ChevronDown size={12} />
-              </button>
-              {moveOpen && (
-                <div className="absolute right-0 top-8 z-20 w-48 overflow-hidden rounded-md border border-[#e6dfd8] bg-white py-1 text-sm shadow-lg">
-                  {destinationPages.map((page) => (
-                    <button
-                      key={page.id}
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        onMoveToPage(page.id)
-                        setMoveOpen(false)
-                      }}
-                      className="block w-full truncate px-3 py-2 text-left text-[#3d3d3a] hover:bg-[#f5f0e8] hover:text-[#141413]"
-                    >
-                      {page.title || `Page ${page.position + 1}`}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <span className={`inline-flex items-center gap-1 font-medium ${selected ? 'text-[#a9583e]' : 'text-[#8e8b82]'}`}>
+              {selected ? 'Editing' : 'Configure'} <ChevronRight size={13} />
+            </span>
           </div>
         </div>
-        <button type="button" onClick={onSelect} className="mt-2 block w-full min-w-0 text-left">
-          <p className="truncate text-xs text-[#8e8b82]">
-            {field.bindVariable ? `{{${field.bindVariable}}}` : 'No binding'}
-            {field.conditions.length > 0 ? ` · ${field.conditions.length} condition(s)` : ''}
+        {!isContentField(field) && field.fieldType !== 'recaptcha' && (
+          <p className="mt-2 truncate text-xs text-[#8e8b82]">
+            Saves to {field.bindVariable ? `{{${field.bindVariable}}}` : 'no variable'}
+            {field.conditions.length > 0 ? ` · ${field.conditions.length} logic ${field.conditions.length === 1 ? 'rule' : 'rules'}` : ''}
           </p>
-        </button>
+        )}
         {field.fieldType === 'content' && field.placeholder && (
-          <button type="button" onClick={onSelect} className="mt-3 block w-full text-left">
+          <div className="mt-3 block w-full text-left">
             <div
               className="rich-text-content max-h-40 overflow-hidden rounded-md border border-[#e6dfd8] bg-white p-3 text-sm leading-6 text-[#6c6a64]"
               dangerouslySetInnerHTML={{ __html: richTextHtml(field.placeholder) }}
             />
-          </button>
+          </div>
         )}
         {field.fieldType === 'file_upload' && (
-          <button type="button" onClick={onSelect} className="mt-3 block w-full text-left">
+          <div className="mt-3 block w-full text-left">
             <div className="flex items-center gap-3 rounded-md border border-dashed border-[#d8cec3] bg-white p-3">
               <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-[#efe9de] text-[#cc785c]">
                 <Upload size={15} />
@@ -1802,10 +1812,10 @@ function SortableFieldCard({ field, pages, selected, onSelect, onMoveToPage }: S
                 <p className="truncate text-xs text-[#8e8b82]">{field.placeholder || 'Respondents can upload a file.'}</p>
               </div>
             </div>
-          </button>
+          </div>
         )}
         {field.fieldType === 'satisfaction' && (
-          <button type="button" onClick={onSelect} className="mt-3 block w-full text-left">
+          <div className="mt-3 block w-full text-left">
             {(field.options?.length ?? 0) > 0 && (field.options ?? []).every((option) => option.emoji === SVG_STAR_MARKER) ? (
               <div className="inline-flex items-center gap-1 rounded-lg border border-[#e6dfd8] bg-white px-3 py-2.5 text-[#cc785c]">
                 {(field.options ?? []).map((option) => (
@@ -1823,18 +1833,18 @@ function SortableFieldCard({ field, pages, selected, onSelect, onMoveToPage }: S
                 ))}
               </div>
             )}
-          </button>
+          </div>
         )}
         {field.fieldType === 'recaptcha' && (
-          <button type="button" onClick={onSelect} className="mt-3 block w-full text-left">
+          <div className="mt-3 block w-full text-left">
             <div className="flex h-[70px] max-w-[304px] items-center gap-3 rounded border border-[#d8d8d8] bg-white px-4 text-sm text-[#3d3d3a]">
               <span className="h-7 w-7 rounded border-2 border-[#777]" />
               <span>I’m not a robot</span>
               <span className="ml-auto text-[10px] text-[#777]">reCAPTCHA</span>
             </div>
-          </button>
+          </div>
         )}
-      </div>
+      </button>
     </div>
   )
 }
@@ -1951,6 +1961,93 @@ function SatisfactionSettings({ field, onUpdate }: Pick<FieldSettingsProps, 'fie
   )
 }
 
+function SettingsSection({
+  title,
+  description,
+  icon,
+  children,
+}: {
+  title: string
+  description: string
+  icon: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <section className="overflow-hidden rounded-xl border border-[#e6dfd8] bg-white">
+      <div className="flex items-start gap-3 border-b border-[#ebe6df] bg-[#f5f0e8] px-4 py-3">
+        <span className="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-md bg-white text-[#cc785c]">
+          {icon}
+        </span>
+        <div>
+          <h4 className="text-sm font-medium text-[#141413]">{title}</h4>
+          <p className="mt-0.5 text-xs leading-5 text-[#8e8b82]">{description}</p>
+        </div>
+      </div>
+      <div className="flex flex-col gap-4 p-4">{children}</div>
+    </section>
+  )
+}
+
+function SettingsAction({
+  title,
+  description,
+  status,
+  onClick,
+}: {
+  title: string
+  description: string
+  status: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex w-full items-center gap-3 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 text-left transition-colors hover:border-[#cc785c]/70 hover:bg-[#f5f0e8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]/30"
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-medium text-[#141413]">{title}</span>
+          <span className="rounded bg-white px-2 py-0.5 text-xs text-[#6c6a64]">{status}</span>
+        </div>
+        <p className="mt-1 text-xs leading-5 text-[#8e8b82]">{description}</p>
+      </div>
+      <ChevronRight size={16} className="flex-none text-[#8e8b82] transition-transform group-hover:translate-x-0.5 group-hover:text-[#cc785c]" />
+    </button>
+  )
+}
+
+function SettingsToggle({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string
+  description: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <label className="flex cursor-pointer items-start justify-between gap-4 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 transition-colors hover:border-[#cc785c]/60">
+      <span>
+        <span className="block text-sm font-medium text-[#141413]">{label}</span>
+        <span className="mt-0.5 block text-xs leading-5 text-[#8e8b82]">{description}</span>
+      </span>
+      <span className="relative mt-0.5 inline-flex flex-none">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(event) => onChange(event.target.checked)}
+          className="peer sr-only"
+        />
+        <span className="h-6 w-11 rounded-full bg-[#d8cec3] transition-colors peer-checked:bg-[#cc785c] peer-focus-visible:ring-2 peer-focus-visible:ring-[#cc785c]/30 peer-focus-visible:ring-offset-2" />
+        <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5" />
+      </span>
+    </label>
+  )
+}
+
 function FieldSettings({ field, pages, fields, references, onUpdate, onMoveToPage, onDelete, onSaveConditions }: FieldSettingsProps) {
   const [conditions, setConditions] = useState(field.conditions)
   const [rulesOpen, setRulesOpen] = useState(false)
@@ -2020,286 +2117,316 @@ function FieldSettings({ field, pages, fields, references, onUpdate, onMoveToPag
     onUpdate({ fieldType })
   }
 
+  const paletteItem = fieldPaletteItem(field.fieldType)
+  const collectsAnswer = !isContentField(field) && field.fieldType !== 'recaptcha'
+  const supportsPlaceholder = ['text', 'email', 'number', 'textarea', 'select'].includes(field.fieldType)
+  const supportsRules = collectsAnswer && !['computation', 'satisfaction'].includes(field.fieldType)
+  const supportsLogic = !isContentField(field) && field.fieldType !== 'computation'
+
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <p className="text-xs font-medium uppercase text-[#8e8b82]">Field settings</p>
-        <h3 className="mt-1 text-lg font-medium text-[#141413]">{field.label || 'Untitled field'}</h3>
-      </div>
-
-      <Field label={field.fieldType === 'recaptcha' ? 'Label (optional)' : 'Label'}>
-        <input
-          value={field.label}
-          onChange={(e) => onUpdate({ label: e.target.value })}
-          className={inputClass}
-          placeholder={field.fieldType === 'recaptcha' ? 'Leave blank to show only the widget' : undefined}
-        />
-      </Field>
-      <Field label="Type">
-        <select value={field.fieldType} onChange={(e) => changeFieldType(e.target.value as PageFieldType)} className={inputClass}>
-          {FIELD_ITEMS.filter((item) => !item.preset).map((item) => (
-            <option key={item.type} value={item.type}>
-              {item.label}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label="Move to page">
-        <select value={field.pageId} onChange={(e) => onMoveToPage(Number(e.target.value))} className={inputClass}>
-          {editablePages.map((page) => (
-            <option key={page.id} value={page.id}>
-              {page.title || `Page ${page.position + 1}`}
-            </option>
-          ))}
-        </select>
-      </Field>
-
-      {field.fieldType === 'content' ? (
-        <FieldGroup label="Body">
-          <Suspense
-            fallback={(
-              <div
-                role="status"
-                aria-label="Loading rich text editor"
-                className="h-48 animate-pulse rounded-md border border-[#e6dfd8] bg-[#faf9f5]"
-              />
-            )}
-          >
-            <RichTextEditor
-              value={field.placeholder ?? ''}
-              onChange={(html) => onUpdate({ placeholder: html || null })}
-            />
-          </Suspense>
-        </FieldGroup>
-      ) : field.fieldType === 'media' ? (
-        <>
-          <Field label="Media URL">
-            <input
-              value={field.placeholder ?? ''}
-              onChange={(e) => onUpdate({ placeholder: e.target.value || null })}
-              className={inputClass}
-              placeholder="https://example.com/image.jpg"
-            />
-          </Field>
-          <Field label="Media type">
-            <select
-              value={mediaOption(field, 'type') || 'image'}
-              onChange={(e) => onUpdate({ options: setMediaOption(field, 'type', e.target.value) })}
-              className={inputClass}
-            >
-              <option value="image">Image</option>
-              <option value="video">Video</option>
-              <option value="embed">Embed</option>
-            </select>
-          </Field>
-          <Field label="Caption">
-            <input
-              value={mediaOption(field, 'caption')}
-              onChange={(e) => onUpdate({ options: setMediaOption(field, 'caption', e.target.value) })}
-              className={inputClass}
-            />
-          </Field>
-        </>
-      ) : field.fieldType === 'file_upload' ? (
-        <>
-          <Field label="Help text">
-            <input
-              value={field.placeholder ?? ''}
-              onChange={(e) => onUpdate({ placeholder: e.target.value || null })}
-              className={inputClass}
-              placeholder="Upload an image or file."
-            />
-          </Field>
-          <Field label="Binding">
-            <input value={field.bindVariable} onChange={(e) => onUpdate({ bindVariable: e.target.value })} className={inputClass} />
-          </Field>
-          <Field label="Accepted files">
-            <select
-              value={fieldOption(field, 'accept') || 'any'}
-              onChange={(e) => onUpdate({ options: setFieldOption(field, 'accept', e.target.value) })}
-              className={inputClass}
-            >
-              <option value="any">Any file</option>
-              <option value="image">Images only</option>
-              <option value="document">Documents only</option>
-              <option value="custom">Custom accept value</option>
-            </select>
-          </Field>
-          {(fieldOption(field, 'accept') || 'any') === 'custom' && (
-            <Field label="Custom accept">
-              <input
-                value={fieldOption(field, 'acceptCustom')}
-                onChange={(e) => onUpdate({ options: setFieldOption(field, 'acceptCustom', e.target.value) })}
-                className={inputClass}
-                placeholder=".pdf,image/*"
-              />
-            </Field>
-          )}
-          <label className="flex items-center gap-2 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 text-sm text-[#141413]">
-            <input
-              type="checkbox"
-              checked={fieldOption(field, 'multiple') === 'true'}
-              onChange={(e) => onUpdate({ options: setFieldOption(field, 'multiple', e.target.checked ? 'true' : 'false') })}
-              className="h-4 w-4 accent-[#cc785c]"
-            />
-            Allow multiple files
-          </label>
-        </>
-      ) : (
-        <>
-          <Field label="Placeholder">
-            <input value={field.placeholder ?? ''} onChange={(e) => onUpdate({ placeholder: e.target.value || null })} className={inputClass} />
-          </Field>
-          <Field label="Binding">
-            <input value={field.bindVariable} onChange={(e) => onUpdate({ bindVariable: e.target.value })} className={inputClass} />
-          </Field>
-        </>
-      )}
-
-      <div className="grid grid-cols-2 gap-3">
-        {!isContentField(field) && field.fieldType !== 'computation' && field.fieldType !== 'recaptcha' && (
-          <label className="flex items-center gap-2 text-sm text-[#141413]">
-            <input type="checkbox" checked={field.required} onChange={(e) => onUpdate({ required: e.target.checked })} className="h-4 w-4 accent-[#cc785c]" />
-            Required
-          </label>
-        )}
-        <Field label="Width">
-          <select value={field.width} onChange={(e) => onUpdate({ width: e.target.value as 'full' | 'half' })} className={inputClass}>
-            <option value="full">Full</option>
-            <option value="half">Half</option>
-          </select>
-        </Field>
-      </div>
-
-      {field.fieldType === 'address' && (
-        <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
-          <p className="text-sm font-medium text-[#141413]">Required address parts</p>
-          <div className="mt-3 grid grid-cols-1 gap-2">
-            {[
-              ['currentAddress', 'Current Address'],
-              ['apartment', 'Apartment'],
-              ['city', 'City'],
-              ['stateProvince', 'State/Province'],
-              ['zipPostalCode', 'ZIP/Postal Code'],
-              ['country', 'Country'],
-            ].map(([key, label]) => (
-              <label key={key} className="flex items-center gap-2 text-sm text-[#3d3d3a]">
-                <input
-                  type="checkbox"
-                  checked={addressRequired[key as keyof typeof addressRequired]}
-                  onChange={(e) =>
-                    updateRules({
-                      addressRequired: {
-                        ...addressRequired,
-                        [key]: e.target.checked,
-                      },
-                    })
-                  }
-                  className="h-4 w-4 accent-[#cc785c]"
-                />
-                {label}
-              </label>
-            ))}
+    <div className="flex flex-col gap-5 pb-2">
+      <header className="rounded-xl border border-[#e6dfd8] bg-[#f5f0e8] p-4">
+        <div className="flex items-start gap-3">
+          <span className="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-white text-[#cc785c] shadow-sm">
+            {paletteItem.icon}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-[#8e8b82]">Configure field</p>
+            <h3 className="mt-1 truncate text-lg font-medium text-[#141413]">{field.label || paletteItem.label}</h3>
+            <p className="mt-1 text-xs leading-5 text-[#6c6a64]">{paletteItem.description}</p>
           </div>
         </div>
-      )}
+        <div className="mt-3 flex items-start gap-2 rounded-lg border border-[#e6dfd8] bg-white px-3 py-2 text-xs leading-5 text-[#6c6a64]">
+          <Info size={14} className="mt-0.5 flex-none text-[#cc785c]" />
+          <p>
+            Changes are kept in this draft. Use <span className="font-medium text-[#141413]">Save changes</span> in the top bar when you are ready.
+          </p>
+        </div>
+      </header>
 
-      {field.fieldType === 'satisfaction' && (
-        <SatisfactionSettings field={field} onUpdate={onUpdate} />
+      <SettingsSection
+        title="What people see"
+        description="The wording and content shown on the published form."
+        icon={<Eye size={15} />}
+      >
+        <Field
+          label={field.fieldType === 'recaptcha' ? 'Label (optional)' : field.fieldType === 'content' ? 'Section name' : 'Question or label'}
+          hint={field.fieldType === 'recaptcha' ? 'Leave this blank to show only the verification widget.' : undefined}
+        >
+          <input
+            value={field.label}
+            onChange={(event) => onUpdate({ label: event.target.value })}
+            className={inputClass}
+            placeholder={field.fieldType === 'recaptcha' ? 'Optional heading' : 'Enter the text people will see'}
+          />
+        </Field>
+
+        <Field label="Field type" hint="Changing the type can change which settings and answers are available.">
+          <select value={field.fieldType} onChange={(event) => changeFieldType(event.target.value as PageFieldType)} className={inputClass}>
+            {FIELD_CATEGORIES.map((category) => (
+              <optgroup key={category} label={category}>
+                {FIELD_ITEMS.filter((item) => item.category === category && !item.preset).map((item) => (
+                  <option key={item.type} value={item.type}>{item.label}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </Field>
+
+        {field.fieldType === 'content' ? (
+          <FieldGroup label="Instructions">
+            <p className="-mt-0.5 text-xs leading-5 text-[#8e8b82]">Use this for context, directions, headings, or links. It does not collect an answer.</p>
+            <Suspense
+              fallback={<div role="status" aria-label="Loading rich text editor" className="h-48 animate-pulse rounded-md border border-[#e6dfd8] bg-[#faf9f5]" />}
+            >
+              <RichTextEditor value={field.placeholder ?? ''} onChange={(html) => onUpdate({ placeholder: html || null })} />
+            </Suspense>
+          </FieldGroup>
+        ) : field.fieldType === 'media' ? (
+          <>
+            <Field label="Media type">
+              <select
+                value={mediaOption(field, 'type') || 'image'}
+                onChange={(event) => onUpdate({ options: setMediaOption(field, 'type', event.target.value) })}
+                className={inputClass}
+              >
+                <option value="image">Image</option>
+                <option value="video">Video</option>
+                <option value="embed">Embed</option>
+              </select>
+            </Field>
+            <Field label="Media URL" hint="Use a public URL that respondents can access.">
+              <input
+                value={field.placeholder ?? ''}
+                onChange={(event) => onUpdate({ placeholder: event.target.value || null })}
+                className={inputClass}
+                placeholder="https://example.com/image.jpg"
+              />
+            </Field>
+            <Field label="Caption (optional)">
+              <input
+                value={mediaOption(field, 'caption')}
+                onChange={(event) => onUpdate({ options: setMediaOption(field, 'caption', event.target.value) })}
+                className={inputClass}
+                placeholder="Explain what this media shows"
+              />
+            </Field>
+          </>
+        ) : (
+          <>
+            {supportsPlaceholder && (
+              <Field
+                label={field.fieldType === 'select' ? 'Empty choice text' : 'Example or hint (optional)'}
+                hint={field.fieldType === 'select' ? 'Shown before someone chooses an option.' : 'Shown inside the empty answer box.'}
+              >
+                <input
+                  value={field.placeholder ?? ''}
+                  onChange={(event) => onUpdate({ placeholder: event.target.value || null })}
+                  className={inputClass}
+                  placeholder={field.fieldType === 'select' ? 'Select an option…' : 'Add a useful example'}
+                />
+              </Field>
+            )}
+            {field.fieldType === 'file_upload' && (
+              <Field label="Help text (optional)" hint="Tell people what to upload before they choose a file.">
+                <input
+                  value={field.placeholder ?? ''}
+                  onChange={(event) => onUpdate({ placeholder: event.target.value || null })}
+                  className={inputClass}
+                  placeholder="Upload an image or file."
+                />
+              </Field>
+            )}
+          </>
+        )}
+      </SettingsSection>
+
+      <SettingsSection
+        title="Placement"
+        description="Where this field appears and how much horizontal space it uses."
+        icon={<SlidersHorizontal size={15} />}
+      >
+        <Field label="Page">
+          <select value={field.pageId} onChange={(event) => onMoveToPage(Number(event.target.value))} className={inputClass}>
+            {editablePages.map((page) => (
+              <option key={page.id} value={page.id}>{page.title || `Page ${page.position + 1}`}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Width" hint="Half width sits beside another half-width field on larger screens.">
+          <select value={field.width} onChange={(event) => onUpdate({ width: event.target.value as 'full' | 'half' })} className={inputClass}>
+            <option value="full">Full row</option>
+            <option value="half">Half row</option>
+          </select>
+        </Field>
+      </SettingsSection>
+
+      {collectsAnswer && field.fieldType !== 'computation' && (
+        <SettingsSection
+          title="Answer behavior"
+          description="Control what people can submit and how their answer is collected."
+          icon={<Settings2 size={15} />}
+        >
+          <SettingsToggle
+            label="Answer required"
+            description="People must answer this field before they can continue."
+            checked={field.required}
+            onChange={(checked) => onUpdate({ required: checked })}
+          />
+
+          {field.fieldType === 'address' && (
+            <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
+              <p className="text-sm font-medium text-[#141413]">Required address parts</p>
+              <p className="mt-0.5 text-xs leading-5 text-[#8e8b82]">Choose exactly which parts of the address must be completed.</p>
+              <div className="mt-3 grid grid-cols-1 gap-2">
+                {[
+                  ['currentAddress', 'Street address'],
+                  ['apartment', 'Apartment or suite'],
+                  ['city', 'City'],
+                  ['stateProvince', 'State or province'],
+                  ['zipPostalCode', 'ZIP or postal code'],
+                  ['country', 'Country'],
+                ].map(([key, label]) => (
+                  <label key={key} className="flex items-center gap-2 text-sm text-[#3d3d3a]">
+                    <input
+                      type="checkbox"
+                      checked={addressRequired[key as keyof typeof addressRequired]}
+                      onChange={(event) => updateRules({
+                        addressRequired: { ...addressRequired, [key]: event.target.checked },
+                      })}
+                      className="h-4 w-4 accent-[#cc785c]"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {field.fieldType === 'satisfaction' && <SatisfactionSettings field={field} onUpdate={onUpdate} />}
+
+          {field.fieldType === 'file_upload' && (
+            <>
+              <Field label="Accepted files">
+                <select
+                  value={fieldOption(field, 'accept') || 'any'}
+                  onChange={(event) => onUpdate({ options: setFieldOption(field, 'accept', event.target.value) })}
+                  className={inputClass}
+                >
+                  <option value="any">Any file type</option>
+                  <option value="image">Images only</option>
+                  <option value="document">Documents only</option>
+                  <option value="custom">Custom file types</option>
+                </select>
+              </Field>
+              {(fieldOption(field, 'accept') || 'any') === 'custom' && (
+                <Field label="Allowed extensions or MIME types" hint="Separate multiple values with commas.">
+                  <input
+                    value={fieldOption(field, 'acceptCustom')}
+                    onChange={(event) => onUpdate({ options: setFieldOption(field, 'acceptCustom', event.target.value) })}
+                    className={inputClass}
+                    placeholder=".pdf, image/*"
+                  />
+                </Field>
+              )}
+              <SettingsToggle
+                label="Allow multiple files"
+                description="People can attach more than one file to this answer."
+                checked={fieldOption(field, 'multiple') === 'true'}
+                onChange={(checked) => onUpdate({ options: setFieldOption(field, 'multiple', checked ? 'true' : 'false') })}
+              />
+            </>
+          )}
+
+          {['select', 'checkbox', 'radio'].includes(field.fieldType) && (
+            <>
+              <SettingsAction
+                title="Answer options"
+                description="Edit the labels people see and the values saved with their response."
+                status={`${(field.options ?? []).length} ${(field.options ?? []).length === 1 ? 'option' : 'options'}`}
+                onClick={() => setOptionsOpen(true)}
+              />
+              <SettingsToggle
+                label="Use prices in payments"
+                description="Give each option a price that can feed a payment or calculated total."
+                checked={Boolean(rules.optionPricesEnabled)}
+                onChange={(checked) => updateRules({ optionPricesEnabled: checked ? true : null })}
+              />
+            </>
+          )}
+        </SettingsSection>
       )}
 
       {field.fieldType === 'recaptcha' && (
-        <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 text-xs leading-5 text-[#6c6a64]">
-          Uses the Google reCAPTCHA v2 checkbox credentials configured in Settings → Integrations → Security. The secret key is never exposed to respondents.
-        </div>
+        <SettingsSection
+          title="Spam protection"
+          description="How this verification works on the published form."
+          icon={<ShieldCheck size={15} />}
+        >
+          <div className="flex items-start gap-2 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 text-xs leading-5 text-[#6c6a64]">
+            <Info size={14} className="mt-0.5 flex-none text-[#cc785c]" />
+            Uses Google reCAPTCHA v2 credentials from Settings → Integrations → Security. The secret key is never exposed to respondents.
+          </div>
+        </SettingsSection>
       )}
 
       {field.fieldType === 'computation' && (
-        <button
-          type="button"
-          onClick={() => setComputationOpen(true)}
-          className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 text-left transition-colors hover:border-[#cc785c]/70 hover:bg-[#efe9de]"
+        <SettingsSection
+          title="Calculation"
+          description="Define the value this field produces from answers and references."
+          icon={<Calculator size={15} />}
         >
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-medium text-[#141413]">Computation</span>
-            <span className="rounded bg-white px-2 py-0.5 text-xs text-[#6c6a64]">
-              {rules.computation?.mode === 'expression'
-                ? 'Formula'
-                : rules.computation?.mode === 'formula'
-                ? 'Formula'
-                : rules.computation?.mode === 'sum_number_fields'
-                  ? 'Numbers'
-                  : 'Priced options'}
-            </span>
-          </div>
-          <p className="mt-1 text-xs text-[#8e8b82]">Choose fields and reference adjustments for this calculated total.</p>
-
-        </button>
-
+          <SettingsAction
+            title="Build calculation"
+            description="Choose source fields, formulas, reference adjustments, and display behavior."
+            status={rules.computation?.mode === 'sum_number_fields' ? 'Number fields' : rules.computation?.mode === 'sum_priced_options' ? 'Priced options' : 'Formula'}
+            onClick={() => setComputationOpen(true)}
+          />
+        </SettingsSection>
       )}
 
-      {['select', 'checkbox', 'radio'].includes(field.fieldType) && (
-        <div className="flex flex-col gap-3">
-          <label className="flex items-center gap-2 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 text-sm text-[#141413]">
-            <input
-              type="checkbox"
-              checked={Boolean(rules.optionPricesEnabled)}
-              onChange={(e) => updateRules({ optionPricesEnabled: e.target.checked ? true : null })}
-              className="h-4 w-4 accent-[#cc785c]"
+      {(collectsAnswer || supportsLogic) && (
+        <SettingsSection
+          title="Data and logic"
+          description="Control how this field is saved, validated, and shown conditionally."
+          icon={<Settings2 size={15} />}
+        >
+          {collectsAnswer && (
+            <Field label="Answer variable" hint={`Use ${variableToken(field.bindVariable || 'variable_name')} in calculations, logic, payments, and exports.`}>
+              <input
+                value={field.bindVariable}
+                onChange={(event) => onUpdate({ bindVariable: slugForOptionValue(event.target.value) })}
+                className={inputClass}
+                placeholder="answer_variable"
+              />
+            </Field>
+          )}
+          {supportsRules && (
+            <SettingsAction
+              title="Validation rules"
+              description="Set allowed characters, lengths, ranges, and a helpful error message."
+              status={field.validationRules ? 'Configured' : 'Optional'}
+              onClick={() => setRulesOpen(true)}
             />
-            Use option prices for payment
-          </label>
-          <button
-            type="button"
-            onClick={() => setOptionsOpen(true)}
-            className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 text-left transition-colors hover:border-[#cc785c]/70 hover:bg-[#efe9de]"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-medium text-[#141413]">Options</span>
-              <span className="rounded bg-white px-2 py-0.5 text-xs text-[#6c6a64]">
-                {(field.options ?? []).length} {(field.options ?? []).length === 1 ? 'option' : 'options'}
-              </span>
-            </div>
-            <p className="mt-1 text-xs text-[#8e8b82]">Edit labels, values, base prices, and optional additional charges.</p>
-          </button>
-        </div>
+          )}
+          {supportsLogic && (
+            <SettingsAction
+              title="Conditional visibility"
+              description="Show or hide this field based on another answer or reference."
+              status={`${conditions.length} ${conditions.length === 1 ? 'rule' : 'rules'}`}
+              onClick={() => setLogicOpen(true)}
+            />
+          )}
+        </SettingsSection>
       )}
 
-      {!isContentField(field) && field.fieldType !== 'computation' && (
-        <div className="grid grid-cols-1 gap-3">
-        {field.fieldType !== 'recaptcha' && <button
-          type="button"
-          onClick={() => setRulesOpen(true)}
-          className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 text-left transition-colors hover:border-[#cc785c]/70 hover:bg-[#efe9de]"
-        >
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-medium text-[#141413]">Rules</span>
-            <span className="rounded bg-white px-2 py-0.5 text-xs text-[#6c6a64]">
-              {field.validationRules ? 'Configured' : 'None'}
-            </span>
-          </div>
-          <p className="mt-1 text-xs text-[#8e8b82]">Allowed characters, lengths, ranges, and messages.</p>
-        </button>}
-
-        <button
-          type="button"
-          onClick={() => setLogicOpen(true)}
-          className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 text-left transition-colors hover:border-[#cc785c]/70 hover:bg-[#efe9de]"
-        >
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-medium text-[#141413]">Logic</span>
-            <span className="rounded bg-white px-2 py-0.5 text-xs text-[#6c6a64]">
-              {conditions.length} {conditions.length === 1 ? 'rule' : 'rules'}
-            </span>
-          </div>
-          <p className="mt-1 text-xs text-[#8e8b82]">Show or hide this field when another field matches.</p>
-        </button>
-        </div>
-      )}
-
-      <Button type="button" variant="danger" onClick={onDelete}>
-        Delete Field
-      </Button>
+      <section className="rounded-xl border border-[#f0c2b8] bg-[#fff3ef] p-4">
+        <h4 className="text-sm font-medium text-[#9f3f35]">Remove this field</h4>
+        <p className="mt-1 text-xs leading-5 text-[#9f5b50]">This removes the field and its saved configuration from the draft.</p>
+        <Button type="button" variant="danger" size="sm" onClick={onDelete} className="mt-3">
+          <Trash2 size={14} /> Delete field
+        </Button>
+      </section>
 
       {rulesOpen && (
         <RulesDialog
@@ -3639,11 +3766,20 @@ function FieldGroup({ label, children }: { label: string; children: React.ReactN
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+  hint,
+}: {
+  label: string
+  children: React.ReactNode
+  hint?: string
+}) {
   return (
     <label className="flex flex-col gap-1.5">
       <span className="text-sm font-medium text-[#141413]">{label}</span>
       {children}
+      {hint && <span className="text-xs leading-5 text-[#8e8b82]">{hint}</span>}
     </label>
   )
 }

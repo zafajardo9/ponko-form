@@ -15,7 +15,10 @@ import {
   validateFieldRules,
   visibleFields,
 } from '../../lib/page-builder/conditions'
-import { applyComputedFieldValues, buildReferenceMap } from '../../lib/page-builder/references'
+import {
+  applyComputedFieldValues,
+  buildReferenceMap,
+} from '../../lib/page-builder/references'
 import type { FormPage, FormReference, PageField } from '../../lib/page-builder/types'
 import { Card } from '../ui/Card'
 import { Button } from '../ui/Button'
@@ -23,6 +26,7 @@ import { FieldRenderer } from '../form-builder/fields/FieldRenderer'
 import type { FieldValue } from '../form-builder/fields/FieldRenderer'
 import { PageProgressBar } from './PageProgressBar'
 import { PagePaymentStep } from './PagePaymentStep'
+import { PagePaymentPreview } from './PagePaymentPreview'
 import { RecaptchaField } from './RecaptchaField'
 import { createPublicSessionToken } from '../../lib/public-session-access'
 
@@ -413,8 +417,15 @@ export function PageFormView({
               <div className="mb-3 text-4xl">✓</div>
               <p className="whitespace-pre-wrap text-[#3d3d3a]">{finalContent}</p>
             </div>
-          ) : currentPage.hasPayment && !preview ? (
-            sessionId ? (
+          ) : currentPage.hasPayment ? (
+            preview ? (
+              <PagePaymentPreview
+                page={currentPage}
+                fields={allFields}
+                dataScope={{ ...referenceMap, ...computedData }}
+                references={references}
+              />
+            ) : sessionId ? (
               <PagePaymentStep
                 sessionId={sessionId}
                 clientToken={sessionClientToken}

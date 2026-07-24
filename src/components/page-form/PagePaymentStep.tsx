@@ -11,11 +11,16 @@ interface PagePaymentStepProps {
   onPaymentStatusChange?: (paid: boolean) => void
 }
 
-function formatMoney(amount: number, currency: string) {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency,
-  }).format(amount)
+export function formatMoney(amount: number, currency: string) {
+  const normalizedCurrency = currency.trim().toUpperCase() || 'USD'
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: normalizedCurrency,
+    }).format(amount)
+  } catch {
+    return `${normalizedCurrency} ${amount.toFixed(2)}`
+  }
 }
 
 /** Modal dialog explaining how each payment gateway works. */

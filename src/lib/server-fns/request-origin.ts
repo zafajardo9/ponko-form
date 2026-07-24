@@ -30,6 +30,16 @@ export function configuredDeploymentOrigin(env: DeploymentEnvironment = process.
   return 'http://localhost:3000'
 }
 
+export function paymentReturnOrigin(
+  requestOrigin: string,
+  env: DeploymentEnvironment = process.env,
+) {
+  const request = normalizedOrigin(requestOrigin) ?? 'http://localhost:3000'
+  if (request.startsWith('https://')) return request
+  const configured = configuredDeploymentOrigin(env)
+  return configured.startsWith('https://') ? configured : request
+}
+
 /** Prefer the deployment handling the action so preview/test deployments return to themselves. */
 export function publicRequestOrigin(): string {
   try {

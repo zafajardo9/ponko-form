@@ -42,7 +42,7 @@ describe('Xendit subscription gateway', () => {
     })
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(url).toBe('https://api.xendit.co/sessions')
-    expect(new Headers(init.headers).get('api-version')).toBe('2026-01-01')
+    expect(new Headers(init.headers).has('api-version')).toBe(false)
     const body = JSON.parse(String(init.body))
     expect(body).toMatchObject({
       session_type: 'SUBSCRIPTION',
@@ -56,6 +56,70 @@ describe('Xendit subscription gateway', () => {
         immediate_payment: true,
       },
     })
+  })
+
+  it('rejects non-HTTPS subscription return URLs before contacting Xendit', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await new XenditGateway().createSubscription({
+      amount: 250_000,
+      currency: 'PHP',
+      referenceId: 'ponkoform-payment-1',
+      customerReferenceId: 'pf10',
+      customerName: 'Ada Reyes',
+      customerEmail: 'ada@example.com',
+      description: 'Gym membership',
+      interval: 'MONTH',
+      intervalCount: 1,
+      anchorDate: '2026-08-28T00:00:00Z',
+      immediatePayment: false,
+      metadata: {},
+      returnUrl: 'http://localhost:3000/return',
+      cancelUrl: 'http://localhost:3000/cancel',
+    }, credentials)
+
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('public HTTPS return URLs'),
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps safe Xendit error details for provider diagnostics', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error_code: 'INVALID_URL',
+      message: 'success_return_url must be HTTPS',
+      secret_key: 'must-not-leak',
+    }), {
+      status: 400,
+      headers: {
+        'Content-Type': 'application/json',
+        'request-id': 'req-safe-123',
+      },
+    })))
+
+    const result = await new XenditGateway().createSubscription({
+      amount: 100,
+      currency: 'PHP',
+      referenceId: 'ref',
+      customerReferenceId: 'customer',
+      customerName: 'Test User',
+      customerEmail: 'test@example.com',
+      description: 'Test',
+      interval: 'MONTH',
+      intervalCount: 1,
+      anchorDate: '2026-08-01T00:00:00Z',
+      immediatePayment: true,
+      metadata: {},
+      returnUrl: 'https://example.com/ok',
+      cancelUrl: 'https://example.com/cancel',
+    }, credentials)
+
+    expect(result.error).toContain('INVALID_URL')
+    expect(result.error).toContain('success_return_url must be HTTPS')
+    expect(result.error).toContain('req-safe-123')
+    expect(JSON.stringify(result)).not.toContain('must-not-leak')
   })
 
   it('normalizes plan and cycle statuses for reconciliation', async () => {

@@ -106,6 +106,25 @@ function renderPageForm(
   )
 }
 
+function renderPageFormPreview(testPages: FormPage[]) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  })
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <PageFormView
+        title="Membership"
+        pages={testPages}
+        references={[]}
+        preview
+      />
+    </QueryClientProvider>,
+  )
+}
+
 function renderResumedPageForm(sessionStatus: 'in_progress' | 'completed') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   serverFns.getPageSessionData.mockResolvedValue({
@@ -295,6 +314,49 @@ describe('PageFormView session resilience', () => {
     renderPageForm([{ ...pages[0], hasPayment: true, fields: [] }, pages[1]])
 
     expect(screen.getByText('Preparing secure payment…')).toBeTruthy()
+  })
+
+  it('shows the configured subscription payment in form preview', () => {
+    const subscriptionPages = [
+      {
+        ...pages[0],
+        title: 'Membership payment',
+        hasPayment: true,
+        paymentGatewayId: 1,
+        paymentCurrency: 'PHP',
+        paymentComputation: {
+          mode: 'fixed' as const,
+          fixedAmount: 2500,
+          showBreakdown: true,
+        },
+        subscriptionConfig: {
+          enabled: true as const,
+          interval: 'monthly' as const,
+          intervalUnit: 'MONTH' as const,
+          intervalCount: 1,
+          trialPeriodDays: 14,
+          maxCycles: 12,
+          customerNameField: 'name',
+          customerEmailField: 'email',
+        },
+        fields: [],
+      },
+      pages[1],
+    ] as FormPage[]
+
+    renderPageFormPreview(subscriptionPages)
+
+    expect(screen.getByText('Subscription amount')).toBeTruthy()
+    expect(screen.getByText(/14-day trial/i)).toBeTruthy()
+    expect(screen.getByText(/ends after 12 billing cycles/i)).toBeTruthy()
+    expect(
+      (
+        screen.getByRole('button', {
+          name: 'Subscribe with Xendit',
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true)
+    expect(serverFns.getPagePaymentOptions).not.toHaveBeenCalled()
   })
 
   it('does not loop when an unpaid payment page reports its status', async () => {

@@ -29,6 +29,9 @@ async function main() {
     '0026_subscription_xendit.sql',
     '0027_submission_archiving.sql',
     '0028_table_query_indexes.sql',
+    '0029_flow_execution_client_token.sql',
+    '0030_legacy_submission_client_token.sql',
+    '0031_payment_checkout_key.sql',
   ]) {
     const migration = await readFile(resolve(import.meta.dirname, `../drizzle/${filename}`), 'utf8')
     for (const statement of migration.split('--> statement-breakpoint')) {

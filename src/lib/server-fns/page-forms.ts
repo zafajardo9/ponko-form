@@ -63,7 +63,7 @@ import {
 } from '../payments/subscriptions'
 import { assertFormOwner, uniqueVarName } from './flow-helpers'
 import { emailSurveyTokenHash, validEmailSurveyToken } from './email-survey-token'
-import { publicRequestOrigin } from './request-origin'
+import { paymentReturnOrigin, publicRequestOrigin } from './request-origin'
 import { ensurePageSubmissionDraft } from '../page-builder/submission-draft'
 import { claimPaymentCheckout } from '../payments/checkout-claim'
 
@@ -85,7 +85,16 @@ function sessionAccessWhere(sessionId: number, clientToken: string) {
 
 function paymentStartIssue(gatewaySlug: GatewaySlug, gatewayName: string, detail?: string | null) {
   const normalized = (detail ?? '').toLowerCase()
+  const returnUrlProblem =
+    normalized.includes('https return url') ||
+    normalized.includes('invalid_url')
+  const subscriptionCapabilityProblem =
+    normalized.includes('invalid_payment_channel') ||
+    normalized.includes('session_type_not_supported') ||
+    normalized.includes('request_forbidden')
   const configurationProblem =
+    returnUrlProblem ||
+    subscriptionCapabilityProblem ||
     normalized.includes('access token') ||
     normalized.includes('credential') ||
     normalized.includes('api key') ||
@@ -94,10 +103,18 @@ function paymentStartIssue(gatewaySlug: GatewaySlug, gatewayName: string, detail
 
   return {
     code: configurationProblem ? 'gateway_configuration' : 'gateway_unavailable',
-    title: `${gatewayName} could not open checkout`,
-    message: configurationProblem
-      ? `This payment method needs attention from the form owner. You can choose another payment method or try again later.`
-      : `We could not connect to ${gatewayName}. Your answers are safe—try again or choose another payment method.`,
+    title: returnUrlProblem
+      ? 'Subscription checkout needs an HTTPS form URL'
+      : subscriptionCapabilityProblem
+        ? `${gatewayName} subscriptions need account activation`
+        : `${gatewayName} could not open checkout`,
+    message: returnUrlProblem
+      ? 'The form owner must configure a public HTTPS APP_URL before Xendit can open subscription checkout.'
+      : subscriptionCapabilityProblem
+        ? `The form owner's ${gatewayName} account needs an active payment channel that supports recurring merchant-initiated payments.`
+        : configurationProblem
+          ? `This payment method needs attention from the form owner. You can choose another payment method or try again later.`
+          : `We could not connect to ${gatewayName}. Your answers are safe—try again or choose another payment method.`,
     gatewaySlug,
     retryable: true,
   }
@@ -1146,7 +1163,10 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
     }
     const customer = subscriptionConfig ? subscriptionCustomer(subscriptionConfig, computedSessionData) : null
 
-    const origin = publicRequestOrigin()
+    const requestOrigin = publicRequestOrigin()
+    const origin = subscriptionConfig
+      ? paymentReturnOrigin(requestOrigin)
+      : requestOrigin
     const base = pagePaymentReturnUrl(
       origin,
       session.id,

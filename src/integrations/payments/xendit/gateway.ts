@@ -27,6 +27,59 @@ function optionalString(value: unknown) {
   return typeof value === 'string' && value ? value : undefined
 }
 
+function safeProviderText(value: unknown, maximumLength: number) {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim()
+  return normalized ? normalized.slice(0, maximumLength) : undefined
+}
+
+async function xenditFailure(response: Response, operation: string) {
+  const requestId = safeProviderText(response.headers.get('request-id'), 100)
+  let code: string | undefined
+  let message: string | undefined
+  try {
+    const payload = asRecord(await response.json())
+    code = safeProviderText(payload.error_code, 80)
+    message = safeProviderText(payload.message, 300)
+    if (!message && Array.isArray(payload.errors)) {
+      message = payload.errors
+        .map((entry) => {
+          const error = asRecord(entry)
+          const path = safeProviderText(error.path, 120)
+          const detail = safeProviderText(error.message, 180)
+          return [path, detail].filter(Boolean).join(': ')
+        })
+        .filter(Boolean)
+        .join('; ')
+        .slice(0, 300) || undefined
+    }
+  } catch {
+    // Xendit may return an empty or non-JSON response for upstream failures.
+  }
+  const detail = [code, message].filter(Boolean).join(' — ')
+  return [
+    `${operation} failed (${response.status})`,
+    detail || undefined,
+    requestId ? `request ${requestId}` : undefined,
+  ].filter(Boolean).join(': ')
+}
+
+function isHttpsUrl(value: string) {
+  try {
+    return new URL(value).protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+function xenditGivenNames(value: string) {
+  return value
+    .replace(/[^\p{L}\p{N} ]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 50)
+}
+
 function majorToMinor(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) ? Math.round(value * 100) : 0
 }
@@ -139,12 +192,21 @@ export class XenditGateway extends PaymentGateway {
     credentials?: GatewayCredentials,
   ): Promise<SubscriptionResult> {
     try {
+      if (!isHttpsUrl(request.returnUrl) || !isHttpsUrl(request.cancelUrl)) {
+        return {
+          success: false,
+          paymentUrl: null,
+          paymentSessionId: null,
+          subscriptionPlanId: null,
+          providerStatus: null,
+          error: 'Xendit subscription checkout requires public HTTPS return URLs. Configure APP_URL with an HTTPS deployment or tunnel URL.',
+        }
+      }
       const response = await fetch('https://api.xendit.co/sessions', {
         method: 'POST',
         headers: {
           Authorization: this.authHeader(credentials),
           'Content-Type': 'application/json',
-          'api-version': XENDIT_SUBSCRIPTION_API_VERSION,
         },
         body: JSON.stringify({
           reference_id: request.referenceId,
@@ -157,7 +219,7 @@ export class XenditGateway extends PaymentGateway {
             reference_id: request.customerReferenceId,
             type: 'INDIVIDUAL',
             email: request.customerEmail,
-            individual_detail: { given_names: request.customerName },
+            individual_detail: { given_names: xenditGivenNames(request.customerName) },
           },
           locale: 'en',
           description: request.description,
@@ -188,7 +250,7 @@ export class XenditGateway extends PaymentGateway {
           paymentSessionId: null,
           subscriptionPlanId: null,
           providerStatus: null,
-          error: `Xendit subscription checkout failed (${response.status})`,
+          error: await xenditFailure(response, 'Xendit subscription checkout'),
         }
       }
       const session = asRecord(await response.json())
@@ -220,10 +282,9 @@ export class XenditGateway extends PaymentGateway {
     const response = await fetch(`https://api.xendit.co/sessions/${encodeURIComponent(paymentSessionId)}`, {
       headers: {
         Authorization: this.authHeader(credentials),
-        'api-version': XENDIT_SUBSCRIPTION_API_VERSION,
       },
     })
-    if (!response.ok) throw new Error(`Xendit subscription session verification failed (${response.status})`)
+    if (!response.ok) throw new Error(await xenditFailure(response, 'Xendit subscription session verification'))
     const session = asRecord(await response.json())
     const providerStatus = String(session.status ?? 'UNKNOWN').toUpperCase()
     const status = providerStatus === 'COMPLETED'

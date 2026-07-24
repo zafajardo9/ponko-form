@@ -44,6 +44,7 @@ export async function withTimeout<T>(
       operation: label,
       elapsedMs: Date.now() - startedAt,
       category: errorCategory(error),
+      message: error instanceof Error ? error.message : String(error),
       vercelRegion: process.env.VERCEL_REGION ?? process.env.VERCEL_REGION_ID ?? 'local',
       ...context,
     })

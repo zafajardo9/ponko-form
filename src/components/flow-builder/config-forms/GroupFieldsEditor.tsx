@@ -33,6 +33,18 @@ import type { FlowVariable, GroupedField } from '../../../lib/flow-engine/types'
  */
 
 const FIELD_TYPES = ['text', 'email', 'number', 'textarea', 'select', 'checkbox', 'radio', 'date', 'time', 'datetime'] as const
+const FIELD_TYPE_LABELS: Record<string, string> = {
+  text: 'Short text',
+  email: 'Email',
+  number: 'Number',
+  textarea: 'Long text',
+  select: 'Dropdown',
+  checkbox: 'Checkboxes',
+  radio: 'Single choice',
+  date: 'Date',
+  time: 'Time',
+  datetime: 'Date and time',
+}
 const OPTION_TYPES = ['select', 'checkbox', 'radio']
 const TEXT_TYPES = ['text', 'email', 'number', 'textarea', 'date', 'time', 'datetime']
 
@@ -157,7 +169,7 @@ export function GroupFieldsEditor({
                   </span>
                 </span>
                 <span className="flex-none rounded bg-[#efe9de] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[#8e8b82]">
-                  {field.fieldType}
+                  {FIELD_TYPE_LABELS[field.fieldType] ?? field.fieldType}
                 </span>
                 {field.required && (
                   <span className="flex-none text-[10px] font-medium text-[#cc785c]">required</span>
@@ -185,7 +197,7 @@ export function GroupFieldsEditor({
                   >
                     {FIELD_TYPES.map((t) => (
                       <option key={t} value={t}>
-                        {t}
+                        {FIELD_TYPE_LABELS[t]}
                       </option>
                     ))}
                   </Select>
@@ -211,7 +223,8 @@ export function GroupFieldsEditor({
                 )}
 
                 <Toggle
-                  label="Required"
+                  label="Answer required"
+                  description="People must answer before they can continue."
                   checked={Boolean(field.required)}
                   onChange={(c) => patchField(field.id, { required: c })}
                 />
@@ -226,7 +239,7 @@ export function GroupFieldsEditor({
                   </Field>
                 )}
 
-                <Field label="Bind to variable" hint="Stores this field's answer for later nodes.">
+                <Field label="Answer variable" hint="Stores this answer for later logic, calculations, and payments.">
                   <VariableSelect
                     value={field.bindToVariable}
                     variables={variables}

@@ -64,22 +64,31 @@ export function VariableSelect({
 
 export function Toggle({
   label,
+  description,
   checked,
   onChange,
 }: {
   label: string
+  description?: string
   checked: boolean
   onChange: (checked: boolean) => void
 }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between rounded-lg border border-[#e6dfd8] bg-[#faf9f5] px-3 py-2.5">
-      <span className="text-sm font-medium text-[#141413]">{label}</span>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="h-4 w-4 accent-[#cc785c]"
-      />
+    <label className="flex cursor-pointer items-start justify-between gap-4 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] px-3 py-2.5 transition-colors hover:border-[#cc785c]/60">
+      <span>
+        <span className="block text-sm font-medium text-[#141413]">{label}</span>
+        {description && <span className="mt-0.5 block text-xs leading-5 text-[#8e8b82]">{description}</span>}
+      </span>
+      <span className="relative mt-0.5 inline-flex flex-none">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          className="peer sr-only"
+        />
+        <span className="h-6 w-11 rounded-full bg-[#d8cec3] transition-colors peer-checked:bg-[#cc785c] peer-focus-visible:ring-2 peer-focus-visible:ring-[#cc785c]/30 peer-focus-visible:ring-offset-2" />
+        <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5" />
+      </span>
     </label>
   )
 }

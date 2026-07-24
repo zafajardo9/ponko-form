@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { configuredDeploymentOrigin } from './request-origin'
+import {
+  configuredDeploymentOrigin,
+  paymentReturnOrigin,
+} from './request-origin'
 
 describe('configured deployment origin', () => {
   it('supports explicit, Render, and scheme-less Vercel URLs', () => {
@@ -14,5 +17,14 @@ describe('configured deployment origin', () => {
     expect(configuredDeploymentOrigin({ APP_URL: '://invalid', VERCEL_URL: 'valid.vercel.app' }))
       .toBe('https://valid.vercel.app')
     expect(configuredDeploymentOrigin({})).toBe('http://localhost:3000')
+  })
+
+  it('uses a configured HTTPS origin for provider callbacks from localhost', () => {
+    expect(paymentReturnOrigin('http://localhost:3000', {
+      APP_URL: 'https://forms.example',
+    })).toBe('https://forms.example')
+    expect(paymentReturnOrigin('https://preview.example', {
+      APP_URL: 'https://forms.example',
+    })).toBe('https://preview.example')
   })
 })
