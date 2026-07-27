@@ -106,4 +106,20 @@ describe("FormCard", () => {
       shareButton.disabled,
     ).toBe(true);
   });
+
+  it("reports card selection changes", () => {
+    const onSelectionChange = vi.fn();
+    render(
+      <FormCard
+        form={publishedForm}
+        onDelete={vi.fn()}
+        onShare={vi.fn()}
+        selected={false}
+        onSelectionChange={onSelectionChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Client intake" }));
+    expect(onSelectionChange).toHaveBeenCalledWith(17, true);
+  });
 });

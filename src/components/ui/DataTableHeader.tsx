@@ -32,7 +32,7 @@ export function DataTableHeader({
   if (!sortable || !sortKey) {
     return (
       <th
-        className={`px-4 py-3 ${alignClass} font-medium text-[#6c6a64]`}
+        className={`px-4 py-4 ${alignClass} text-[13px] font-semibold uppercase tracking-[0.02em] text-[#716d66]`}
         style={width ? { width } : undefined}
       >
         {header}
@@ -42,7 +42,7 @@ export function DataTableHeader({
 
   return (
     <th
-      className={`px-4 py-3 ${alignClass} font-medium text-[#6c6a64]`}
+      className={`px-4 py-4 ${alignClass} text-[13px] font-semibold uppercase tracking-[0.02em] text-[#716d66]`}
       style={width ? { width } : undefined}
       aria-sort={isActive ? (direction === "asc" ? "ascending" : "descending") : "none"}
     >

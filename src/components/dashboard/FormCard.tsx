@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ComponentType } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   BarChart3,
+  Check,
   CreditCard,
   Eye,
   FilePenLine,
@@ -24,6 +25,8 @@ interface FormCardProps {
   };
   onDelete: (id: number) => void;
   onShare: (id: number) => void;
+  selected?: boolean;
+  onSelectionChange?: (id: number, selected: boolean) => void;
 }
 
 const workspaceSections: {
@@ -62,7 +65,13 @@ const workspaceSections: {
   },
 ];
 
-export function FormCard({ form, onDelete, onShare }: FormCardProps) {
+export function FormCard({
+  form,
+  onDelete,
+  onShare,
+  selected = false,
+  onSelectionChange,
+}: FormCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const updatedAt = new Date(form.updatedAt);
@@ -90,10 +99,32 @@ export function FormCard({ form, onDelete, onShare }: FormCardProps) {
   }, [menuOpen]);
 
   return (
-    <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-[#e2dbd2] bg-[#faf9f5] shadow-[0_1px_2px_rgba(20,20,19,0.04)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-[#d7cdc2] hover:shadow-[0_12px_30px_rgba(20,20,19,0.08)] motion-reduce:transform-none motion-reduce:transition-none">
+    <article
+      className={`group relative flex h-full flex-col overflow-hidden rounded-2xl border bg-[#faf9f5] shadow-[0_1px_2px_rgba(20,20,19,0.04)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(20,20,19,0.08)] motion-reduce:transform-none motion-reduce:transition-none ${
+        selected
+          ? "border-[#cc785c] shadow-[0_0_0_3px_rgba(204,120,92,0.14)]"
+          : "border-[#e2dbd2] hover:border-[#d7cdc2]"
+      }`}
+    >
       <div className="flex min-h-36 flex-col px-5 pb-4 pt-5">
         <div className="flex items-start justify-between gap-4">
-          <Badge variant={form.status}>{form.status}</Badge>
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={selected}
+              aria-label={`Select ${form.title}`}
+              onClick={() => onSelectionChange?.(form.id, !selected)}
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-[background-color,border-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2 ${
+                selected
+                  ? "border-[#cc785c] bg-[#cc785c] text-white shadow-[0_2px_6px_rgba(204,120,92,0.28)]"
+                  : "border-[#d7cec5] bg-white text-transparent hover:border-[#bb8b79] hover:bg-[#fff8f4]"
+              }`}
+            >
+              <Check size={15} strokeWidth={3} aria-hidden="true" />
+            </button>
+            <Badge variant={form.status}>{form.status}</Badge>
+          </div>
 
           <div ref={menuRef} className="relative">
             <button
@@ -127,7 +158,7 @@ export function FormCard({ form, onDelete, onShare }: FormCardProps) {
         <Link
           to="/forms/$formId/edit"
           params={{ formId: String(form.id) }}
-          className="mt-4 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-4"
+          className="mt-3.5 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-4"
         >
           <h2 className="line-clamp-2 text-lg font-semibold leading-6 text-[#141413] transition-colors group-hover:text-[#9f5039]">
             {form.title}

@@ -6,6 +6,7 @@ import { DataTablePagination } from "./DataTablePagination";
 import { DataTableToolbar } from "./DataTableToolbar";
 import { DataTableEmpty } from "./DataTableEmpty";
 import { DataTableSkeleton } from "./DataTableSkeleton";
+import { Check, Minus } from "lucide-react";
 
 export {
   type DataTableProps,
@@ -38,6 +39,7 @@ export function DataTable<T>({
   onRowClick,
   onExportCsv,
   bulkActions,
+  selectionLabel = "row",
   clientSort = false,
   clientFilter = false,
   initialSort,
@@ -178,6 +180,19 @@ export function DataTable<T>({
 
   const displayPage = serverPage ?? clientPage;
 
+  useEffect(() => {
+    const availableKeys = new Set(
+      displayData.map((row, index) => getRowKey(row, index, keyField)),
+    );
+    setSelectedRows((previous) => {
+      const next = new Set(
+        [...previous].filter((key) => availableKeys.has(key)),
+      );
+      if (next.size === previous.size) return previous;
+      return next;
+    });
+  }, [displayData, keyField]);
+
   const handleSort = useCallback(
     (key: string) => {
       const col = columns.find((c) => c.key === key || c.sortKey === key);
@@ -261,7 +276,11 @@ export function DataTable<T>({
   }, [displayData, keyField]);
 
   const handleBulkAction = useCallback(
-    (action: { label: string; action: (rows: T[]) => void }) => {
+    (action: {
+      label: string;
+      action: (rows: T[]) => void;
+      tone?: "default" | "danger";
+    }) => {
       const selected = displayData.filter((row, i) =>
         selectedRows.has(getRowKey(row, i, keyField)),
       );
@@ -272,6 +291,9 @@ export function DataTable<T>({
 
   const visibleColumnList = columns.filter((c) => visibleColumns.has(c.key));
   const hasBulk = bulkActions && bulkActions.length > 0;
+  const allRowsSelected =
+    displayData.length > 0 && selectedRows.size === displayData.length;
+  const someRowsSelected = selectedRows.size > 0 && !allRowsSelected;
 
   return (
     <div className={`space-y-3 ${className ?? ""}`}>
@@ -302,8 +324,10 @@ export function DataTable<T>({
         onClearAllFilters={handleClearAllFilters}
         onExportCsv={onExportCsv}
         selectedCount={hasBulk ? selectedRows.size : undefined}
+        selectionLabel={selectionLabel}
         bulkActions={bulkActions}
         onBulkAction={handleBulkAction}
+        onClearSelection={() => setSelectedRows(new Set())}
       />
 
       {loading ? (
@@ -318,20 +342,17 @@ export function DataTable<T>({
           }
         />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-[#e6dfd8]">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-xl border border-[#e1d9cf] bg-[#faf9f5] shadow-[0_1px_2px_rgba(20,20,19,0.03)]">
+          <table className="w-max min-w-full table-fixed text-[15px]">
             <thead className="border-b border-[#e6dfd8] bg-[#f5f0e8]">
               <tr>
                 {hasBulk && (
-                  <th className="w-10 px-2 py-3">
-                    <input
-                      type="checkbox"
-                      checked={
-                        displayData.length > 0 &&
-                        selectedRows.size === displayData.length
-                      }
+                  <th className="w-14 px-3.5 py-4 text-left">
+                    <SelectionCheckbox
+                      checked={allRowsSelected}
+                      mixed={someRowsSelected}
+                      label={`Select all ${selectionLabel}s on this page`}
                       onChange={handleSelectAll}
-                      className="h-4 w-4 rounded border-[#e6dfd8] text-[#cc785c] focus:ring-[#cc785c]/20"
                     />
                   </th>
                 )}
@@ -359,13 +380,11 @@ export function DataTable<T>({
                     selected={selectedRows.has(rowKey)}
                   >
                     {hasBulk && (
-                      <td className="px-2 py-3">
-                        <input
-                          type="checkbox"
+                      <td className="w-14 px-3.5 py-4">
+                        <SelectionCheckbox
                           checked={selectedRows.has(rowKey)}
+                          label={`Select ${selectionLabel} ${index + 1}`}
                           onChange={() => handleRowSelect(rowKey)}
-                          onClick={(e) => e.stopPropagation()}
-                          className="h-4 w-4 rounded border-[#e6dfd8] text-[#cc785c] focus:ring-[#cc785c]/20"
                         />
                       </td>
                     )}
@@ -379,7 +398,12 @@ export function DataTable<T>({
                       return (
                         <td
                           key={col.key}
-                          className={`px-4 py-3 ${cellAlign}`}
+                          className={`px-4 py-4 align-middle leading-5 ${cellAlign} ${
+                            col.key === "submittedAt" ||
+                            col.key === "actions"
+                              ? ""
+                              : "truncate whitespace-nowrap"
+                          }`}
                           style={
                             col.key === "number"
                               ? { color: "#8e8b82" }
@@ -407,5 +431,43 @@ export function DataTable<T>({
         </div>
       )}
     </div>
+  );
+}
+
+function SelectionCheckbox({
+  checked,
+  mixed = false,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  mixed?: boolean;
+  label: string;
+  onChange: () => void;
+}) {
+  const active = checked || mixed;
+
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={mixed ? "mixed" : checked}
+      aria-label={label}
+      onClick={(event) => {
+        event.stopPropagation();
+        onChange();
+      }}
+      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-[background-color,border-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2 ${
+        active
+          ? "border-[#cc785c] bg-[#cc785c] text-white shadow-[0_2px_6px_rgba(204,120,92,0.25)]"
+          : "border-[#d7cec5] bg-white text-transparent hover:border-[#bb8b79] hover:bg-[#fff8f4]"
+      }`}
+    >
+      {mixed ? (
+        <Minus size={15} strokeWidth={3} aria-hidden="true" />
+      ) : (
+        <Check size={15} strokeWidth={3} aria-hidden="true" />
+      )}
+    </button>
   );
 }

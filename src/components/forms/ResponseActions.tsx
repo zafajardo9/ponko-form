@@ -17,7 +17,7 @@ export function ResponseRowActions({
   onDelete: () => void
 }) {
   const buttonClass =
-    'inline-flex h-8 w-8 items-center justify-center rounded-md text-[#6c6a64] transition-colors hover:bg-[#efe9de] hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] disabled:cursor-not-allowed disabled:opacity-40'
+    'inline-flex h-9 w-9 items-center justify-center rounded-lg text-[#6c6a64] transition-colors hover:bg-[#efe9de] hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] disabled:cursor-not-allowed disabled:opacity-40'
 
   return (
     <div
@@ -25,15 +25,15 @@ export function ResponseRowActions({
       onClick={(event) => event.stopPropagation()}
     >
       <button type="button" className={buttonClass} onClick={onView} aria-label="View response" title="View response">
-        <Eye size={15} aria-hidden="true" />
+        <Eye size={16} aria-hidden="true" />
       </button>
       {archived ? (
         <button type="button" className={buttonClass} onClick={onRestore} disabled={busy} aria-label="Restore response" title="Restore response">
-          <RotateCcw size={15} aria-hidden="true" />
+          <RotateCcw size={16} aria-hidden="true" />
         </button>
       ) : (
         <button type="button" className={buttonClass} onClick={onArchive} disabled={busy} aria-label="Archive response" title="Archive response">
-          <Archive size={15} aria-hidden="true" />
+          <Archive size={16} aria-hidden="true" />
         </button>
       )}
       <button
@@ -44,7 +44,7 @@ export function ResponseRowActions({
         aria-label="Delete response"
         title="Delete response"
       >
-        <Trash2 size={15} aria-hidden="true" />
+        <Trash2 size={16} aria-hidden="true" />
       </button>
     </div>
   )

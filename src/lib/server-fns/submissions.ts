@@ -269,3 +269,83 @@ export const deleteSubmission = createServerFn({
 
     return deleted;
   });
+
+/** Bulk-archive multiple submissions in one call. */
+export const bulkArchiveSubmissions = createServerFn({
+  method: "POST",
+  strict: false,
+})
+  .validator(
+    (data: { formId: number; submissionIds: number[]; archived: boolean }) =>
+      data,
+  )
+  .handler(async ({ data }) => {
+    const { userId } = await auth();
+    if (!userId) throw new Error("Unauthorized");
+
+    if (data.submissionIds.length === 0) return { count: 0 };
+
+    await requireOwnedSubmissions(data.formId, data.submissionIds, userId);
+
+    const result = await db
+      .update(formSubmissions)
+      .set({ archivedAt: data.archived ? new Date() : null })
+      .where(
+        and(
+          eq(formSubmissions.formId, data.formId),
+          inArray(formSubmissions.id, data.submissionIds),
+        ),
+      );
+
+    return { count: result.rowCount ?? 0 };
+  });
+
+/** Bulk-delete multiple submissions in one call. */
+export const bulkDeleteSubmissions = createServerFn({
+  method: "POST",
+  strict: false,
+})
+  .validator((data: { formId: number; submissionIds: number[] }) => data)
+  .handler(async ({ data }) => {
+    const { userId } = await auth();
+    if (!userId) throw new Error("Unauthorized");
+
+    if (data.submissionIds.length === 0) return { count: 0 };
+
+    await requireOwnedSubmissions(data.formId, data.submissionIds, userId);
+
+    const result = await db
+      .delete(formSubmissions)
+      .where(
+        and(
+          eq(formSubmissions.formId, data.formId),
+          inArray(formSubmissions.id, data.submissionIds),
+        ),
+      );
+
+    return { count: result.rowCount ?? 0 };
+  });
+
+/** Verify that the user owns all of the given submission IDs. */
+async function requireOwnedSubmissions(
+  formId: number,
+  submissionIds: number[],
+  clerkUserId: string,
+) {
+  const owned = await db
+    .select({ id: formSubmissions.id })
+    .from(formSubmissions)
+    .innerJoin(forms, eq(forms.id, formSubmissions.formId))
+    .innerJoin(profiles, eq(profiles.id, forms.profileId))
+    .where(
+      and(
+        eq(formSubmissions.formId, formId),
+        inArray(formSubmissions.id, submissionIds),
+        eq(profiles.clerkId, clerkUserId),
+      ),
+    );
+
+  if (owned.length !== submissionIds.length) {
+    throw new Error("One or more responses not found");
+  }
+}

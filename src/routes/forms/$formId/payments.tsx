@@ -9,6 +9,7 @@ import {
   getPaymentRecoveryLink,
   replaceExpiredPaymentLink,
   emailPaymentRecoveryLink,
+  bulkVerifyPayments,
   type PaymentViewRow,
 } from "../../../lib/server-fns/payments-view";
 import { Badge } from "../../../components/ui/Badge";
@@ -137,6 +138,18 @@ function PaymentsPage() {
     onError: (error) => setRecoveryMessage((error as Error).message),
   });
 
+  // Bulk verify mutation
+  const bulkVerifyMut = useMutation({
+    mutationFn: (paymentIds: number[]) =>
+      bulkVerifyPayments({ data: { formId: Number(formId), paymentIds } }),
+    onSuccess: async (result) => {
+      setRecoveryMessage(`${result.verified} payment(s) verified.`);
+      await queryClient.invalidateQueries({ queryKey: ["form-payments", formId] });
+    },
+    onError: (error) =>
+      setRecoveryMessage((error as Error).message),
+  });
+
   // No payment flow configured for this form.
   if (
     !isLoading &&
@@ -211,6 +224,7 @@ function PaymentsPage() {
     {
       key: "invoice",
       header: "Invoice",
+      width: "150px",
       sortable: true,
       accessor: (payment) => (
         <span className="whitespace-nowrap font-mono text-xs text-[#57544d]">
@@ -224,6 +238,7 @@ function PaymentsPage() {
       sortable: true,
       filterable: true,
       filterType: "date-range",
+      width: "190px",
       accessor: (payment) => (
         <span className="whitespace-nowrap text-[#6c6a64]">
           {new Date(payment.createdAt).toLocaleDateString("en-US", {
@@ -242,6 +257,7 @@ function PaymentsPage() {
       sortable: true,
       filterable: true,
       filterType: "number-range",
+      width: "140px",
       accessor: (payment) => (
         <span className="whitespace-nowrap font-medium text-[#141413]">
           {formatAmount(payment.amount, payment.currency)}
@@ -260,6 +276,7 @@ function PaymentsPage() {
         { label: "One-time", value: "one_time" },
         { label: "Subscription", value: "subscription" },
       ],
+      width: "130px",
       accessor: (payment) =>
         payment.paymentKind === "subscription" ? "Subscription" : "One-time",
     },
@@ -267,6 +284,7 @@ function PaymentsPage() {
       key: "subscriber",
       header: "Subscriber",
       sortable: true,
+      width: "210px",
       accessor: (payment) =>
         payment.paymentKind === "subscription" ? (
           <div className="max-w-[180px]">
@@ -300,6 +318,7 @@ function PaymentsPage() {
         { label: "Deactivated subscription", value: "subscription:deactivated" },
         { label: "Ended subscription", value: "subscription:completed" },
       ],
+      width: "140px",
       accessor: (payment) =>
         payment.paymentKind === "subscription"
           ? subscriptionStatusBadge(payment.subscriptionStatus)
@@ -315,6 +334,7 @@ function PaymentsPage() {
         { label: "Xendit", value: "xendit" },
         { label: "PayPal", value: "paypal" },
       ],
+      width: "120px",
       accessor: (payment) => payment.gatewayName,
     },
     {
@@ -341,6 +361,7 @@ function PaymentsPage() {
       key: "details",
       header: "",
       align: "right",
+      width: "110px",
       accessor: () => (
         <span className="whitespace-nowrap font-medium text-[#cc785c]">
           Details →
@@ -356,6 +377,7 @@ function PaymentsPage() {
       active="payments"
       title="Payments"
       count={totalCount}
+      wide
       description={
         hasPaymentFlow
           ? "All payment transactions processed through this form's flow."
@@ -366,6 +388,7 @@ function PaymentsPage() {
         columns={paymentColumns}
         data={payments}
         keyField="id"
+        selectionLabel="payment"
         totalCount={totalCount}
         page={page}
         pageSize={pageSize}
@@ -393,6 +416,13 @@ function PaymentsPage() {
         onSearchChange={setSearchInput}
         onRowClick={setSelected}
         initialSort={{ key: "createdAt", dir: "desc" }}
+        bulkActions={[
+          {
+            label: "Verify",
+            action: (selected: PaymentViewRow[]) =>
+              bulkVerifyMut.mutate(selected.map((p) => p.id)),
+          },
+        ]}
       />
 
       {selectedPayment && (

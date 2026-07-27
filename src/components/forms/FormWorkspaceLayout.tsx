@@ -11,6 +11,7 @@ interface FormWorkspaceLayoutProps {
   description?: ReactNode
   titleAdornment?: ReactNode
   actions?: ReactNode
+  wide?: boolean
   children: ReactNode
 }
 
@@ -28,10 +29,15 @@ export function FormWorkspaceLayout({
   description,
   titleAdornment,
   actions,
+  wide = false,
   children,
 }: FormWorkspaceLayoutProps) {
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:py-12">
+    <main
+      className={`mx-auto w-full px-4 py-8 sm:px-6 lg:px-8 lg:py-12 ${
+        wide ? 'max-w-[1600px]' : 'max-w-7xl'
+      }`}
+    >
       <div className="mb-5">
         <FormSectionNav formId={formId} active={active} />
       </div>

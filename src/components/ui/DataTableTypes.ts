@@ -45,7 +45,12 @@ export interface DataTableProps<T> {
   // Actions
   onRowClick?: (row: T) => void;
   onExportCsv?: () => void;
-  bulkActions?: { label: string; action: (rows: T[]) => void }[];
+  bulkActions?: {
+    label: string;
+    action: (rows: T[]) => void;
+    tone?: "default" | "danger";
+  }[];
+  selectionLabel?: string;
 
   // Sort/filter override for client-side
   clientSort?: boolean;

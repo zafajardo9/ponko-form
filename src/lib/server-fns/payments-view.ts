@@ -428,6 +428,42 @@ export const verifyFormPayment = createServerFn({ method: "POST", strict: false 
     return result;
   });
 
+/** Bulk-verify multiple payments in one call. */
+export const bulkVerifyPayments = createServerFn({ method: "POST", strict: false })
+  .validator((data: { formId: number; paymentIds: number[] }) => data)
+  .handler(async ({ data }) => {
+    const { userId } = await auth();
+    if (!userId) throw new Error("Unauthorized");
+
+    if (data.paymentIds.length === 0) return { verified: 0, results: [] };
+
+    const results: { id: number; status: string }[] = [];
+    let verified = 0;
+
+    for (const paymentId of data.paymentIds) {
+      try {
+        const { payment } = await ownedPayment(
+          data.formId,
+          paymentId,
+          userId,
+        );
+        const result = await reconcilePayment({
+          paymentId,
+          source: "manual",
+        });
+        if (payment.pageSessionId && result.status === "completed") {
+          await completePaidPageSubmission(payment.pageSessionId);
+        }
+        results.push({ id: paymentId, status: result.status });
+        verified++;
+      } catch {
+        results.push({ id: paymentId, status: "error" });
+      }
+    }
+
+    return { verified, results };
+  });
+
 async function ownedPayment(formId: number, paymentId: number, clerkId: string) {
   const [row] = await db.select({
     payment: payments,

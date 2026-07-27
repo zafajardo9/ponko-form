@@ -362,6 +362,88 @@ export const updateForm = createServerFn({ method: 'POST' })
     return form
   })
 
+function normalizedFormIds(ids: number[]) {
+  const uniqueIds = [...new Set(ids)]
+  if (
+    uniqueIds.length === 0 ||
+    uniqueIds.length > 100 ||
+    uniqueIds.some((id) => !Number.isInteger(id) || id <= 0)
+  ) {
+    throw new Error('Select between 1 and 100 valid forms')
+  }
+  return uniqueIds
+}
+
+async function assertOwnedFormIds(ids: number[], userId: string) {
+  const owned = await db
+    .select({ id: forms.id })
+    .from(forms)
+    .where(
+      and(
+        inArray(forms.id, ids),
+        inArray(forms.profileId, ownedProfileIds(userId)),
+      ),
+    )
+  if (owned.length !== ids.length) {
+    throw new Error('One or more selected forms are unavailable')
+  }
+}
+
+export const bulkUpdateForms = createServerFn({ method: 'POST' })
+  .validator((data: { ids: number[]; status: 'draft' | 'published' }) => {
+    if (data.status !== 'draft' && data.status !== 'published') {
+      throw new Error('Select a valid form status')
+    }
+    return {
+      ids: normalizedFormIds(data.ids),
+      status: data.status,
+    }
+  })
+  .handler(async ({ data }) => {
+    const { userId } = await auth()
+    if (!userId) throw new Error('Unauthorized')
+    await assertOwnedFormIds(data.ids, userId)
+
+    const updated = await db
+      .update(forms)
+      .set({ status: data.status, updatedAt: new Date() })
+      .where(
+        and(
+          inArray(forms.id, data.ids),
+          inArray(forms.profileId, ownedProfileIds(userId)),
+        ),
+      )
+      .returning({ id: forms.id })
+
+    if (updated.length !== data.ids.length) {
+      throw new Error('One or more selected forms could not be updated')
+    }
+    return { updated: updated.length, ids: updated.map((form) => form.id) }
+  })
+
+export const bulkDeleteForms = createServerFn({ method: 'POST' })
+  .validator((data: { ids: number[] }) => ({ ids: normalizedFormIds(data.ids) }))
+  .handler(async ({ data }) => {
+    const { userId } = await auth()
+    if (!userId) throw new Error('Unauthorized')
+    await assertOwnedFormIds(data.ids, userId)
+
+    const deleted = await db
+      .delete(forms)
+      .where(
+        and(
+          inArray(forms.id, data.ids),
+          inArray(forms.profileId, ownedProfileIds(userId)),
+        ),
+      )
+      .returning({ id: forms.id })
+
+    if (deleted.length !== data.ids.length) {
+      throw new Error('One or more selected forms could not be deleted')
+    }
+    return { deleted: deleted.length, ids: deleted.map((form) => form.id) }
+  })
+
 export const deleteForm = createServerFn({ method: 'POST' })
   .validator((data: { id: number }) => data)
   .handler(async ({ data }) => {

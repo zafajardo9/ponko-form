@@ -5,12 +5,14 @@ import {
   ResponseRowActions,
 } from "../../../components/forms/ResponseActions";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { requireAuth } from "../../../lib/server-fns/auth";
 import {
   getSubmissions,
   setSubmissionArchived,
   deleteSubmission,
+  bulkArchiveSubmissions,
+  bulkDeleteSubmissions,
 } from "../../../lib/server-fns/submissions";
 import type { ResponseColumn } from "../../../lib/server-fns/submissions";
 import { submissionCsvDownloadUrl } from "../../../lib/submissions/csv";
@@ -162,6 +164,84 @@ function SubmissionsPage() {
     },
   });
 
+  // Bulk mutations
+  const bulkArchiveMutation = useMutation({
+    mutationFn: ({ submissionIds, archived }: { submissionIds: number[]; archived: boolean }) =>
+      bulkArchiveSubmissions({ data: { formId: Number(formId), submissionIds, archived } }),
+    onSuccess: async (_result, variables) => {
+      setActionMessage(
+        variables.archived
+          ? `${_result.count} response(s) archived.`
+          : `${_result.count} response(s) restored.`,
+      );
+      if (pageSize > 1 && variables.submissionIds.length >= rows.length && page > 1) setPage(page - 1);
+      await queryClient.invalidateQueries({ queryKey: ["submissions", formId] });
+    },
+    onError: (error) => {
+      setActionMessage(error instanceof Error ? error.message : "Bulk archive failed.");
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (submissionIds: number[]) =>
+      bulkDeleteSubmissions({ data: { formId: Number(formId), submissionIds } }),
+    onSuccess: async (_result, variables) => {
+      setActionMessage(`${_result.count} response(s) deleted.`);
+      if (pageSize > 1 && variables.length >= rows.length && page > 1) setPage(page - 1);
+      await queryClient.invalidateQueries({ queryKey: ["submissions", formId] });
+    },
+    onError: (error) => {
+      setActionMessage(error instanceof Error ? error.message : "Bulk delete failed.");
+    },
+  });
+
+  // Build bulk actions based on current view
+  const bulkActions = useMemo(() => {
+    const deleteSelected = {
+      label: "Delete",
+      tone: "danger" as const,
+      action: (selected: SubmissionRow[]) => {
+        const ids = selected.map((row) => row.id);
+        if (ids.length === 0) return;
+        if (
+          !window.confirm(
+            `Permanently delete ${ids.length} selected ${
+              ids.length === 1 ? "response" : "responses"
+            }? This cannot be undone.`,
+          )
+        ) {
+          return;
+        }
+        bulkDeleteMutation.mutate(ids);
+      },
+    };
+
+    if (responseView === "active") {
+      return [
+        {
+          label: "Archive",
+          action: (selected: SubmissionRow[]) => {
+            const ids = selected.map((r) => r.id);
+            if (ids.length === 0) return;
+            bulkArchiveMutation.mutate({ submissionIds: ids, archived: true });
+          },
+        },
+        deleteSelected,
+      ];
+    }
+    return [
+      {
+        label: "Restore",
+        action: (selected: SubmissionRow[]) => {
+          const ids = selected.map((r) => r.id);
+          if (ids.length === 0) return;
+          bulkArchiveMutation.mutate({ submissionIds: ids, archived: false });
+        },
+      },
+      deleteSelected,
+    ];
+  }, [responseView, bulkArchiveMutation, bulkDeleteMutation]);
+
   // Build column definitions
   const submissionColumns: DataTableColumn<SubmissionRow>[] = [
     {
@@ -169,7 +249,7 @@ function SubmissionsPage() {
       header: "#",
       accessor: (_row, idx) => (page - 1) * pageSize + idx + 1,
       sortable: false,
-      width: "60px",
+      width: "48px",
       hideable: false,
     },
     {
@@ -181,7 +261,7 @@ function SubmissionsPage() {
       sortKey: "submitted_at",
       filterable: true,
       filterType: "date-range",
-      width: "170px",
+      width: "160px",
     },
     {
       key: "status",
@@ -189,7 +269,7 @@ function SubmissionsPage() {
       accessor: (row) => <ResponseStatusBadge status={row.status} />,
       sortable: true,
       sortKey: "status",
-      width: "130px",
+      width: "148px",
       filterable: true,
       filterType: "select",
       filterOptions: [
@@ -210,7 +290,13 @@ function SubmissionsPage() {
         filterType: "text",
         hideable: true,
         defaultHidden: false,
-        width: "minmax(120px, 1fr)",
+        width: /email/i.test(col.label)
+          ? "190px"
+          : /full\s*name/i.test(col.label)
+            ? "170px"
+            : /name/i.test(col.label)
+              ? "104px"
+              : "148px",
       }),
     ),
     ...(hasPaymentData
@@ -234,7 +320,7 @@ function SubmissionsPage() {
               { label: "Failed", value: "failed" },
               { label: "None", value: "none" },
             ],
-            width: "100px",
+            width: "112px",
           } satisfies DataTableColumn<SubmissionRow>,
         ]
       : []),
@@ -259,7 +345,7 @@ function SubmissionsPage() {
       sortable: false,
       hideable: false,
       align: "right",
-      width: "132px",
+      width: "128px",
     },
   ];
 
@@ -305,6 +391,7 @@ function SubmissionsPage() {
       active="responses"
       title="Responses"
       count={totalCount}
+      wide
       actions={
         <>
           {hasPaymentData && (
@@ -324,7 +411,7 @@ function SubmissionsPage() {
         </>
       }
     >
-      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-4 flex min-h-10 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div
           className="inline-flex w-fit rounded-lg border border-[#e6dfd8] bg-[#f5f0e8] p-0.5"
           role="group"
@@ -362,6 +449,7 @@ function SubmissionsPage() {
         columns={submissionColumns}
         data={rows}
         keyField="id"
+        selectionLabel="response"
         totalCount={totalCount}
         page={page}
         pageSize={pageSize}
@@ -383,6 +471,7 @@ function SubmissionsPage() {
         initialSort={{ key: "submitted_at", dir: "desc" }}
         searchValue={searchInput}
         onSearchChange={setSearchInput}
+        bulkActions={bulkActions}
       />
 
       {/* Response Dialog */}
