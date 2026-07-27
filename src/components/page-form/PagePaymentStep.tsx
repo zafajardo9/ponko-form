@@ -138,11 +138,13 @@ export function PagePaymentStep({
   const [pendingGateway, setPendingGateway] = useState<string | null>(null)
   const [guideOpen, setGuideOpen] = useState(false)
   const [paymentIssue, setPaymentIssue] = useState<{
+    code?: string
     title: string
     message: string
     reference: string
     gatewaySlug: string
     retryable: boolean
+    debugDetail?: string
   } | null>(null)
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['page-payment-options', sessionId, pageId],
@@ -192,9 +194,23 @@ export function PagePaymentStep({
         window.location.href = result.paymentUrl
         return
       }
-      if (result.issue) setPaymentIssue(result.issue)
+      if (result.issue) {
+        console.error('[PonkoForm payment] Checkout creation failed', {
+          reference: result.issue.reference,
+          gateway: result.issue.gatewaySlug,
+          category: result.issue.code,
+          detail: result.issue.debugDetail ?? 'See server logs for provider details.',
+        })
+        setPaymentIssue(result.issue)
+      }
     },
-    onError: () => setPendingGateway(null),
+    onError: (error) => {
+      setPendingGateway(null)
+      console.error(
+        '[PonkoForm payment] Checkout request failed before the provider returned a result',
+        error,
+      )
+    },
   })
 
   if (isLoading) {

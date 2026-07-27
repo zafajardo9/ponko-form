@@ -248,7 +248,7 @@ Prefer composing small, focused components over large monolithic ones. Example: 
 ## 7. Testing
 
 - **Framework:** Vitest (configured in `vitest.config.ts`)
-- **Run:** `npm run test`
+- **Run:** `pnpm run test`
 - Test files co-located with source files as `*.test.ts` or `*.test.tsx`
 - Currently minimal test coverage — core engine tests are highest priority
 
@@ -267,7 +267,7 @@ Prefer composing small, focused components over large monolithic ones. Example: 
 | Issue | Solution |
 |---|---|
 | `npm install` fails on Vercel | `.npmrc` has `legacy-peer-deps=true` — this is intentional |
-| `npm install` fails locally | Try `npm install` (with `.npmrc`) or `pnpm install` — both work |
+| `npm install` fails locally | Try `pnpm install` (primary) or `npm install` (with `.npmrc`) — pnpm is the declared package manager |
 | `server.preset: 'vercel'` doesn't exist | TanStack Start v1 doesn't support it. Use `api/index.ts` instead |
 | `dist/server/server.js` not found after build | Check that the Vercel `outputDirectory` is `dist/client` |
 | Money shows as `10000` instead of `100.00` | Values are stored as centavos (`10000` = ₱100.00). Format at display time. |

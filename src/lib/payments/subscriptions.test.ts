@@ -20,8 +20,24 @@ describe('subscription configuration', () => {
     })).toMatchObject({ intervalUnit: 'MONTH', intervalCount: 3, maxCycles: 8 })
   })
 
-  it('moves unsupported month-end anchors to the next valid day', () => {
-    expect(subscriptionAnchorDate(0, new Date('2026-07-31T10:00:00Z')).toISOString())
+  it('anchors zero-trial enrollment on the next cycle and preserves trial delays', () => {
+    expect(subscriptionAnchorDate({
+      trialPeriodDays: 0,
+      intervalUnit: 'MONTH',
+      intervalCount: 1,
+    }, new Date('2026-07-15T10:00:00Z')).toISOString())
+      .toBe('2026-08-15T10:00:00.000Z')
+    expect(subscriptionAnchorDate({
+      trialPeriodDays: 0,
+      intervalUnit: 'WEEK',
+      intervalCount: 1,
+    }, new Date('2026-07-15T10:00:00Z')).toISOString())
+      .toBe('2026-07-22T10:00:00.000Z')
+    expect(subscriptionAnchorDate({
+      trialPeriodDays: 14,
+      intervalUnit: 'MONTH',
+      intervalCount: 1,
+    }, new Date('2026-07-15T10:00:00Z')).toISOString())
       .toBe('2026-08-01T10:00:00.000Z')
   })
 

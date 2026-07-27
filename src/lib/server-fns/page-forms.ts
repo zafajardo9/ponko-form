@@ -1217,7 +1217,7 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
           subscriptionMaxCycles: subscriptionConfig?.maxCycles,
           subscriptionTrialDays: subscriptionConfig?.trialPeriodDays,
           subscriptionAnchorDate: subscriptionConfig
-            ? subscriptionAnchorDate(subscriptionConfig.trialPeriodDays)
+            ? subscriptionAnchorDate(subscriptionConfig)
             : null,
           gatewayResponse: { environment: credentials.mode ?? 'sandbox' },
         }
@@ -1279,7 +1279,7 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
       respondentName: customer?.name ?? reusablePayment?.respondentName,
       respondentEmail: customer?.email ?? reusablePayment?.respondentEmail,
       subscriptionAnchorDate: subscriptionConfig
-        ? subscriptionAnchorDate(subscriptionConfig.trialPeriodDays)
+        ? subscriptionAnchorDate(subscriptionConfig)
         : reusablePayment?.subscriptionAnchorDate,
     }).where(eq(payments.id, payment.id))
     await db.update(formSubmissionSessions).set({
@@ -1288,7 +1288,7 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
       updatedAt: new Date(),
     }).where(eq(formSubmissionSessions.id, session.id))
     const metadata = { pageSessionId: String(session.id), pageId: String(page.id), paymentId: String(payment.id) }
-    const anchorDate = subscriptionConfig ? subscriptionAnchorDate(subscriptionConfig.trialPeriodDays) : null
+    const anchorDate = subscriptionConfig ? subscriptionAnchorDate(subscriptionConfig) : null
     const createOperation: Promise<PaymentResult | SubscriptionResult> = subscriptionConfig
       ? gateway.createSubscription({
           amount: Math.round(amountMajor * 100),
@@ -1340,12 +1340,17 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
         gateway: data.gatewaySlug,
         category: issue.code,
         correlationId: `page-${session.id}`,
+        detail: result.error ?? 'Gateway creation failed',
       })
       return {
         paymentUrl: null,
         issue: {
           ...issue,
           reference: `PAY-${String(payment.id).padStart(6, '0')}`,
+          // Gateway adapters sanitize provider responses before they reach this
+          // boundary. Keep the detail out of the respondent UI, but make it
+          // available to developers inspecting the browser console.
+          debugDetail: result.error ?? 'Gateway creation failed',
         },
       }
     }

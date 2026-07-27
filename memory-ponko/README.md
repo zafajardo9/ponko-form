@@ -24,17 +24,18 @@
 | **Core Feature** | Flow Builder — visual workflow engine (React Flow) with 8 node types |
 | **Auth** | Clerk (TanStack React Start integration), TanStack Start SSR middleware |
 | **Database** | PostgreSQL via Neon (serverless). Drizzle ORM with schema in `src/db/schema.ts` |
-| **Package Manager** | npm (with `.npmrc legacy-peer-deps=true` due to Vite peer dep conflicts); pnpm also supported |
+| **Package Manager** | pnpm | v10.34.5; `.npmrc` with `legacy-peer-deps=true` for Vite compat |
 | **Deploy** | Vercel (Node.js serverless via `api/index.ts` + Vercel serverless functions) |
 
 ### Running the project
 
 ```bash
-npm install
-npm run dev        # → http://localhost:3000
-npm run build      # Production build
-npm run db:seed-flow          # Seed Payment Plan sample flow
-npm run db:seed-service-flow  # Seed Service Order sample flow
+pnpm install
+pnpm run dev        # → http://localhost:3000
+pnpm run build      # Production build
+pnpm run db:seed-flow          # Seed Payment Plan sample flow
+pnpm run db:seed-service-flow  # Seed Service Order sample flow
+pnpm run db:seed-form-templates # Seed built-in form templates
 ```
 
 ---

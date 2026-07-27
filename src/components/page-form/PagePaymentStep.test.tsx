@@ -30,11 +30,13 @@ function renderPaymentStep() {
 
 describe('PagePaymentStep recovery', () => {
   beforeEach(() => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
     serverFns.ensurePagePaymentDraft.mockResolvedValue({ submissionId: 1 })
   })
   afterEach(() => {
     cleanup()
     vi.clearAllMocks()
+    vi.restoreAllMocks()
     vi.useRealTimers()
   })
 
@@ -90,6 +92,7 @@ describe('PagePaymentStep recovery', () => {
         reference: 'PAY-000005',
         gatewaySlug: 'paypal',
         retryable: true,
+        debugDetail: 'PayPal checkout failed (400): INVALID_REQUEST',
       },
     })
     renderPaymentStep()
@@ -97,6 +100,13 @@ describe('PagePaymentStep recovery', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Pay with PayPal' }))
 
     expect((await screen.findByRole('alert')).textContent).toContain('PayPal could not open checkout')
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      '[PonkoForm payment] Checkout creation failed',
+      expect.objectContaining({
+        reference: 'PAY-000005',
+        detail: 'PayPal checkout failed (400): INVALID_REQUEST',
+      }),
+    )
     expect(screen.getByText(/PAY-000005/)).toBeTruthy()
     expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy()
     expect(screen.getByText(/select another payment method/i)).toBeTruthy()

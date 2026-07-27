@@ -325,11 +325,14 @@ Two complementary documents in `docs/`:
 
 | File | Lines (approx) | Why It Matters |
 |---|---|---|
-| `src/db/schema.ts` | ~365 | All database table definitions (actual: 365 lines) |
+| `src/db/schema.ts` | ~880 | All database table definitions |
 | `src/lib/flow-engine/types.ts` | ~150 | Flow-related TypeScript types |
-| `src/lib/flow-engine/FlowEngine.ts` | ~250 | Core execution engine |
+| `src/lib/flow-engine/FlowEngine.ts` | ~350 | Core execution engine |
 | `src/lib/flow-engine/FlowValidator.ts` | ~150 | Flow graph validation |
 | `src/lib/flow-engine/ExpressionEvaluator.ts` | ~80 | Math expression evaluator |
+| `src/lib/flow-engine/safe-expression.ts` | ~70 | Safe expression parser/validator |
+| `src/lib/flow-engine/submission-draft.ts` | ~50 | Draft submission save/restore |
+| `src/lib/flow-engine/server-data.ts` | ~40 | Server-side data helpers |
 | `src/lib/flow-engine/TemplateInterpolator.ts` | ~60 | `{{var}}` template replacement |
 | `src/lib/flow-engine/path-utils.ts` | ~100 | Graph traversal utilities |
 | `src/lib/theme.ts` | ~117 | Per-form theming (FormTheme, themeVars, accent presets) |
@@ -338,7 +341,8 @@ Two complementary documents in `docs/`:
 | `src/components/flow-builder/NodeConfigPanel.tsx` | ~500 | Right-side config panel |
 | `src/components/flow-builder/FlowListBuilder.tsx` | ~400 | List view with sortable nodes |
 | `src/components/flow-builder/FlowCanvas.tsx` | ~110 | React Flow canvas wrapper |
-| `src/components/flow-builder/FlowPreviewPanel.tsx` | ~340 | Preview panel |
-| `src/components/flow-execution/` | ~500 | Runtime flow components for respondents |
+| `src/components/flow-builder/FlowCanvasWorkspace.tsx` | ~350 | Canvas workspace + preview |
+| `src/components/flow-execution/` | ~600 | Runtime flow components for respondents |
+| `src/components/flow-execution/GroupStepView.tsx` | ~80 | Group node field layout |
 | `src/components/flow-builder/config-forms/` | ~400 | Per-node-type config forms (9 files) |
 | `src/components/flow-builder/nodes/` | ~80 | Custom React Flow node renderers (2 files) |

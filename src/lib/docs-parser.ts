@@ -1,18 +1,17 @@
-import { readdir, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+// Docs are imported at build time via Vite's import.meta.glob.
+// This eliminates the need for runtime filesystem access and works
+// on all deployment targets (Vercel, Node, etc.).
+import type { DocMeta, DocData } from './docs-parser-types'
 
-export interface DocMeta {
-  slug: string
-  title: string
-  description: string
-  headings: { level: number; text: string; id: string }[]
-}
+// Re-export types for consumers
+export type { DocMeta, DocData } from './docs-parser-types'
 
-export interface DocData extends DocMeta {
-  content: string
-}
-
-const DOCS_DIR = join(process.cwd(), 'docs')
+// Import all markdown files from the docs/ directory at build time.
+const docModules = import.meta.glob<string>('/docs/*.md', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+})
 
 /** Extract the first H1 from markdown content and return it as the title. */
 function extractTitle(md: string): string {
@@ -63,33 +62,29 @@ function extractHeadings(md: string): { level: number; text: string; id: string 
   return headings
 }
 
-/** Convert slug to filename — find the file in docs/ whose stem matches. */
-async function resolveSlug(slug: string): Promise<string | null> {
-  const files = await readdir(DOCS_DIR)
-  const match = files.find((f) => f.endsWith('.md') && f.replace(/\.md$/, '') === slug)
-  return match ? join(DOCS_DIR, match) : null
+/** Convert a file path like '/docs/flow-builder-guide.md' to a slug like 'flow-builder-guide' */
+function pathToSlug(path: string): string {
+  const filename = path.split('/').pop() ?? ''
+  return filename.replace(/\.md$/, '')
 }
 
 /**
  * List all docs with their metadata (no content).
  * Used for the docs index page.
  */
-export async function getDocsList(): Promise<DocMeta[]> {
-  const files = await readdir(DOCS_DIR)
+export function getDocsList(): DocMeta[] {
   const docs: DocMeta[] = []
 
-  for (const file of files) {
-    if (!file.endsWith('.md') || file === 'README.md') continue
-
-    const slug = file.replace(/\.md$/, '')
-    const fullPath = join(DOCS_DIR, file)
-    const md = await readFile(fullPath, 'utf-8')
+  for (const [path, content] of Object.entries(docModules)) {
+    const slug = pathToSlug(path)
+    // Skip README — it's the docs index, not a content doc
+    if (slug === 'README') continue
 
     docs.push({
       slug,
-      title: extractTitle(md),
-      description: extractDescription(md),
-      headings: extractHeadings(md),
+      title: extractTitle(content),
+      description: extractDescription(content),
+      headings: extractHeadings(content),
     })
   }
 
@@ -100,17 +95,17 @@ export async function getDocsList(): Promise<DocMeta[]> {
  * Get a single doc's complete data (metadata + content).
  * Used for the individual doc page.
  */
-export async function getDoc(slug: string): Promise<DocData | null> {
-  const fullPath = await resolveSlug(slug)
-  if (!fullPath) return null
-
-  const md = await readFile(fullPath, 'utf-8')
-
-  return {
-    slug,
-    title: extractTitle(md),
-    description: extractDescription(md),
-    headings: extractHeadings(md),
-    content: md,
+export function getDoc(slug: string): DocData | null {
+  for (const [path, content] of Object.entries(docModules)) {
+    if (pathToSlug(path) === slug) {
+      return {
+        slug,
+        title: extractTitle(content),
+        description: extractDescription(content),
+        headings: extractHeadings(content),
+        content,
+      }
+    }
   }
+  return null
 }

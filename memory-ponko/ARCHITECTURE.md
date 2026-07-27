@@ -34,7 +34,7 @@ PonkoForm is a **multi-tenant form builder with flow automation and payment inte
 | **Auth** | Clerk | `@clerk/tanstack-react-start` v1.3 |
 | **Expression Engine** | math.js | v15 — sandboxed, no eval |
 | **Drag & Sort** | dnd-kit | `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` |
-| **Package Manager** | npm | Uses `.npmrc` with `legacy-peer-deps=true` |
+| **Package Manager** | pnpm | v10.34.5; `.npmrc` with `legacy-peer-deps=true` for compatibility |
 | **Deployment** | Vercel | Node.js serverless functions via `api/index.ts` |
 
 ### Tailwind CSS Custom Colors
@@ -83,7 +83,12 @@ ponkoform/
 ├── public/                       # Static assets
 ├── scripts/                      # Standalone utility scripts
 │   ├── seed-flow.ts              #   Seeds Payment Plan flow
-│   └── seed-service-flow.ts      #   Seeds Service Order flow
+│   ├── seed-service-flow.ts      #   Seeds Service Order flow
+│   ├── seed-form-templates.ts    #   Seeds built-in form templates
+│   ├── migrate.ts                #   Drizzle migration runner
+│   ├── check-schema.ts           #   Schema validation
+│   ├── prepare-database.ts       #   DB prep for deploy
+│   └── reconcile-payments.ts     #   Payment reconciliation
 ├── src/
 │   ├── components/
 │   │   ├── dashboard/            # Dashboard page components
@@ -99,7 +104,7 @@ ponkoform/
 │   │   │   ├── FlowCanvas.tsx     #   React Flow canvas wrapper
 │   │   │   ├── FlowListBuilder.tsx#   List view — sortable node rows
 │   │   │   ├── FlowPalette.tsx    #   Canvas palette items
-│   │   │   ├── FlowPreviewPanel.tsx # Preview panel
+│   │   │   ├── FlowCanvasWorkspace.tsx # Canvas workspace (replaces FlowPreviewPanel)
 │   │   │   ├── FlowToolbar.tsx    #   Top toolbar
 │   │   │   ├── FlowValidationBadge.tsx
 │   │   │   ├── NodeConfigPanel.tsx#   Right sidebar — node config
@@ -124,9 +129,11 @@ ponkoform/
 │   │   │   ├── FlowExecutionContainer.tsx
 │   │   │   ├── FlowStepRenderer.tsx
 │   │   │   ├── FlowProgressBar.tsx
+│   │   │   ├── GroupStepView.tsx  #   Group node field layout
 │   │   │   ├── CalculatorDisplay.tsx
 │   │   │   ├── PaymentStep.tsx
 │   │   │   ├── InvoicePDF.tsx     #   PDF receipt (@react-pdf/renderer)
+│   │   │   ├── InvoiceDownloadButton.tsx # Download invoice button
 │   │   │   └── invoice.ts         #   Invoice data builder
 │   │   ├── public-form/          # Public (anonymous) form view
 │   │   │   └── PublicFormView.tsx
@@ -153,12 +160,15 @@ ponkoform/
 │   │   │   ├── xendit/gateway.ts #   Xendit payment gateway
 │   │   │   └── paypal/gateway.ts #   PayPal payment gateway
 │   │   └── tanstack-query/       # TanStack Query client setup
-│   │   ├── lib/
+│   │   ├── lib/                   # Utility libraries
 │   │   │   ├── flow-engine/          # Flow Builder core engine
 │   │   │   │   ├── FlowEngine.ts     #   Client-side runtime engine
 │   │   │   │   ├── FlowValidator.ts  #   Flow validation logic
 │   │   │   │   ├── TemplateInterpolator.ts # {{var}} replacement
 │   │   │   │   ├── ExpressionEvaluator.ts  # math.js expression eval
+│   │   │   │   ├── safe-expression.ts #   Safe expression parser/validator
+│   │   │   │   ├── submission-draft.ts #   Draft submission save/restore
+│   │   │   │   ├── server-data.ts    #   Server-side data helpers
 │   │   │   │   ├── path-utils.ts     #   Graph traversal utilities
 │   │   │   │   ├── index.ts          #   Barrel exports
 │   │   │   │   └── types.ts          #   Flow-related TypeScript types
@@ -179,7 +189,8 @@ ponkoform/
 │   │   │   │   └── fields.ts         #   Form field CRUD
 │   │   │   ├── integrations/         # Gateway credential resolution
 │   │   │   │   ├── credentials.ts    #   Decrypt + resolve per-user creds
-│   │   │   │   └── types.ts          #   Integration config types
+│   │   │   │   ├── types.ts          #   Integration config types
+│   │   │   │   └── recaptcha.ts      #   reCAPTCHA verification
 │   │   │   ├── theme.ts              # Per-form theming (FormTheme, themeVars, accent presets)
 │   │   │   ├── crypto.ts             # AES-256-GCM encrypt/decrypt for secrets
 │   │   │   ├── form-utils.ts         # Form helpers
@@ -188,14 +199,22 @@ ponkoform/
 │   │   ├── __root.tsx            #   Root layout
 │   │   ├── index.tsx             #   Landing page
 │   │   ├── dashboard/
-│   │   │   ├── index.tsx         #   Dashboard (My Forms)
-│   │   │   └── settings.tsx      #   Integration settings (creds)
+│   │   │   └── index.tsx         #   Dashboard (My Forms)
+│   │   ├── settings/
+│   │   │   ├── index.tsx         #   Settings page
+│   │   │   └── integrations.tsx  #   Integrations hub
+│   │   ├── integrations/
+│   │   │   └── google/
+│   │   │       └── callback.tsx  #   Google OAuth callback
 │   │   ├── forms/
+│   │   │   ├── index.tsx         #   Form listing
 │   │   │   ├── new.tsx           #   Create new form
 │   │   │   ├── $formId/
 │   │   │   │   ├── edit.tsx      #   Form editor (flow builder)
 │   │   │   │   ├── flow.tsx      #   Flow builder route
-│   │   │   │   └── submissions.tsx #  View form submissions
+│   │   │   │   ├── submissions.tsx # View form submissions
+│   │   │   │   ├── payments.tsx  #   Payment history
+│   │   │   │   └── invoicing.tsx #   Invoice config
 │   │   │   ├── submit/
 │   │   │   │   └── $formId.tsx   #   Public form submission
 │   │   │   ├── embed/

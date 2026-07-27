@@ -66,9 +66,20 @@ export function validateSubscriptionBindings(
   }
 }
 
-export function subscriptionAnchorDate(trialPeriodDays: number, now = new Date()) {
+export function subscriptionAnchorDate(
+  config: Pick<SubscriptionConfig, 'trialPeriodDays' | 'intervalUnit' | 'intervalCount'>,
+  now = new Date(),
+) {
   const anchor = new Date(now)
-  anchor.setUTCDate(anchor.getUTCDate() + Math.max(0, trialPeriodDays))
+  if (config.trialPeriodDays > 0) {
+    anchor.setUTCDate(anchor.getUTCDate() + config.trialPeriodDays)
+  } else if (config.intervalUnit === 'WEEK') {
+    // A zero-trial subscription charges immediately. Its anchor is the next
+    // recurring charge, not the checkout creation time.
+    anchor.setUTCDate(anchor.getUTCDate() + (7 * config.intervalCount))
+  } else {
+    anchor.setUTCMonth(anchor.getUTCMonth() + config.intervalCount)
+  }
   // Xendit's recurring anchor supports month dates through day 28. Move a
   // 29th–31st target to the next month's first day, keeping the adjustment to
   // at most three days and never producing a past anchor.
