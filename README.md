@@ -51,6 +51,11 @@ repository, and provide the secret values requested by the Blueprint:
 - `CLERK_SECRET_KEY`
 - `CREDENTIALS_ENCRYPTION_KEY`
 
+`DATABASE_URL` may point to either Neon or a standard PostgreSQL database such
+as Render Postgres. The correct driver is selected automatically. If the
+database is behind a custom proxy, set the optional `DATABASE_DRIVER` to either
+`neon-http` or `postgres`.
+
 The build installs the frozen pnpm lockfile, compiles the application, applies
 the idempotent database migrations, validates the schema, and seeds built-in
 form templates. The start command only starts the Render server, keeping free

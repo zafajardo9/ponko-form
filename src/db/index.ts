@@ -1,7 +1,10 @@
 import { neon } from '@neondatabase/serverless'
-import { drizzle } from 'drizzle-orm/neon-http'
+import { drizzle as drizzleNeon, type NeonHttpDatabase } from 'drizzle-orm/neon-http'
+import { drizzle as drizzlePostgres } from 'drizzle-orm/node-postgres'
+import { Pool } from 'pg'
 
 import * as schema from './schema.ts'
+import { resolveDatabaseDriver } from './driver.ts'
 
 const databaseUrl = process.env.DATABASE_URL
 
@@ -9,6 +12,21 @@ if (!databaseUrl) {
   throw new Error('DATABASE_URL is required to initialize the database client')
 }
 
-const sql = neon(databaseUrl)
+const driver = resolveDatabaseDriver(databaseUrl)
 
-export const db = drizzle({ client: sql, schema })
+// Keep Neon HTTP for serverless deployments, while allowing Render's regular
+// PostgreSQL URLs to use a long-lived connection pool.
+export const db = (
+  driver === 'neon-http'
+    ? drizzleNeon({ client: neon(databaseUrl), schema })
+    : drizzlePostgres({
+        client: new Pool({
+          connectionString: databaseUrl,
+          max: 10,
+          idleTimeoutMillis: 30_000,
+          connectionTimeoutMillis: 10_000,
+          allowExitOnIdle: true,
+        }),
+        schema,
+      })
+) as unknown as NeonHttpDatabase<typeof schema>

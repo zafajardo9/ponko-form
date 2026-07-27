@@ -1,6 +1,8 @@
 import { config } from 'dotenv'
 import { resolve } from 'node:path'
 import { neon } from '@neondatabase/serverless'
+import { Pool } from 'pg'
+import { resolveDatabaseDriver } from '../src/db/driver'
 
 config({ path: [resolve(import.meta.dirname, '../.env.local'), resolve(import.meta.dirname, '../.env')] })
 
@@ -10,8 +12,7 @@ async function main() {
   const databaseUrl = process.env.DATABASE_URL
   if (!databaseUrl) throw new Error('DATABASE_URL not set')
 
-  const sql = neon(databaseUrl)
-  const [compatibility] = await sql`
+  const query = `
     SELECT
       EXISTS (
         SELECT 1
@@ -25,7 +26,7 @@ async function main() {
         FROM pg_indexes
         WHERE schemaname = 'public'
           AND tablename = 'form_submission_sessions'
-          AND indexname = ${REQUIRED_INDEX}
+          AND indexname = $1
       ) AS has_client_token_index,
       EXISTS (
         SELECT 1 FROM information_schema.tables
@@ -107,6 +108,25 @@ async function main() {
         AS has_replace_page_form
   `
 
+  const driver = resolveDatabaseDriver(databaseUrl)
+  let compatibility: Record<string, boolean> | undefined
+  if (driver === 'neon-http') {
+    const [row] = await neon(databaseUrl).query(query, [REQUIRED_INDEX])
+    compatibility = row as Record<string, boolean> | undefined
+  } else {
+    const pool = new Pool({
+      connectionString: databaseUrl,
+      max: 1,
+      connectionTimeoutMillis: 10_000,
+    })
+    try {
+      const result = await pool.query(query, [REQUIRED_INDEX])
+      compatibility = result.rows[0] as Record<string, boolean> | undefined
+    } finally {
+      await pool.end()
+    }
+  }
+
   if (
     !compatibility?.has_client_token ||
     !compatibility?.has_client_token_index ||
@@ -134,7 +154,7 @@ async function main() {
     )
   }
 
-  console.log('Database schema compatibility check passed.')
+  console.log(`Database schema compatibility check passed with ${driver}.`)
 }
 
 main().catch((error) => {
