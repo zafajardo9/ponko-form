@@ -56,10 +56,10 @@ as Render Postgres. The correct driver is selected automatically. If the
 database is behind a custom proxy, set the optional `DATABASE_DRIVER` to either
 `neon-http` or `postgres`.
 
-The build installs the frozen pnpm lockfile, compiles the application, applies
-the idempotent database migrations, validates the schema, and seeds built-in
-form templates. The start command only starts the Render server, keeping free
-tier cold starts fast. Health checks use `/api/health`.
+The build installs the frozen pnpm lockfile, compiles the Nitro Node server,
+applies the idempotent database migrations, validates the schema, and seeds
+built-in form templates. The start command only starts the generated server,
+keeping free tier cold starts fast. Health checks use `/api/health`.
 
 In Clerk, allow the generated `https://<service-name>.onrender.com` domain. For
 Xendit, configure the webhook URL shown in **Settings → Integrations** after the
