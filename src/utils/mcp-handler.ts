@@ -37,7 +37,7 @@ export async function handleMcpRequest(
       },
     })
   } catch (error) {
-    console.error('MCP handler error:', error)
+    console.error('[ponkoform-mcp] Request handling failed', error)
 
     // Return a JSON-RPC error response
     return Response.json(

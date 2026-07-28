@@ -1,4 +1,4 @@
-import { Field, VariableSelect, TextField, type ConfigFormProps } from './controls'
+import { Field, VariableSelect, TextField, type ConfigFormProps } from './Controls'
 import { Button } from '../../ui/Button'
 
 /**

@@ -14,12 +14,12 @@ import {
   Lightbulb,
   WalletCards,
 } from "lucide-react";
-import { requireAuth } from "../../lib/server-fns/auth";
+import { requireAuth } from "@/lib/server-fns/auth";
 import {
   getDashboardOverview,
   saveDashboardCurrency,
-} from "../../lib/server-fns/dashboard";
-import type { FormAnalyticsRecord } from "../../lib/dashboard-analytics";
+} from "@/lib/server-fns/dashboard";
+import type { FormAnalyticsRecord } from "@/lib/dashboard-analytics";
 import {
   completionRate,
   fillDashboardDateGaps,
@@ -27,18 +27,18 @@ import {
   formatDashboardMoney,
   majorToMinor,
   minorToMajor,
-} from "../../lib/dashboard-analytics";
+} from "@/lib/dashboard-analytics";
 import {
   buildDashboardInsights,
   downloadDashboardReport,
-} from "../../lib/dashboard-report";
+} from "@/lib/dashboard-report";
 import {
   DASHBOARD_CURRENCIES,
   type DashboardCurrency,
-} from "../../lib/currency-conversion";
-import { TimeSeriesChart } from "../../components/dashboard/TimeSeriesChart";
-import { PerformanceReportDialog } from "../../components/dashboard/PerformanceReportDialog";
-import { Button } from "../../components/ui/Button";
+} from "@/lib/currency-conversion";
+import { TimeSeriesChart } from "@/components/dashboard/TimeSeriesChart";
+import { PerformanceReportDialog } from "@/components/dashboard/PerformanceReportDialog";
+import { Button } from "@/components/ui/Button";
 
 function StatCard({
   label,
@@ -216,7 +216,7 @@ function DashboardPage() {
         target === "overview" ? null : target,
       );
     } catch (downloadError) {
-      console.error(downloadError);
+      console.error('[ponkoform-dashboard] Failed to download dashboard report', downloadError);
       setExportError("The PDF could not be prepared. Please try again.");
     } finally {
       setDownloading(false);
@@ -415,10 +415,11 @@ function DashboardPage() {
                 </div>
                 <button
                   type="button"
-                  className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-[#efbba8] hover:text-white"
+                  className="group mt-5 inline-flex h-9 items-center gap-2 rounded-md border border-white/15 bg-white/8 px-3.5 text-sm font-medium text-[#f5d3c6] transition-colors hover:border-white/25 hover:bg-white/12 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#efbba8] focus-visible:ring-offset-2 focus-visible:ring-offset-[#252522]"
                   onClick={() => setReportTarget("overview")}
                 >
-                  See the explained report <ArrowRight size={15} />
+                  See the explained report
+                  <ArrowRight size={15} className="transition-transform group-hover:translate-x-0.5" />
                 </button>
               </div>
             </section>

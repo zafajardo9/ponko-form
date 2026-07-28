@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Field, Select, VariableSelect, type ConfigFormProps } from './controls'
+import { Field, Select, VariableSelect, type ConfigFormProps } from './Controls'
 import { SUPPORTED_CURRENCIES } from '../../../integrations/payments/currencies'
 import { getGatewayCurrencySupport } from '../../../lib/server-fns/gateways'
 import { getIntegrationSettings } from '../../../lib/server-fns/integrations'

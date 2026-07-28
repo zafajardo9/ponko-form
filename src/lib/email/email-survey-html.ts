@@ -1,5 +1,5 @@
-import type { PageFieldOption } from './page-builder/types'
-import { SVG_STAR_MARKER } from './page-builder/satisfaction'
+import type { PageFieldOption } from '../page-builder/types'
+import { SVG_STAR_MARKER } from '../page-builder/satisfaction'
 
 function escapeHtml(value: string) {
   return value

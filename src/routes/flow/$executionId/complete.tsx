@@ -1,14 +1,14 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { getCompletionData } from '../../../lib/server-fns/flow-executions'
-import { TemplateInterpolator } from '../../../lib/flow-engine/TemplateInterpolator'
-import { Card } from '../../../components/ui/Card'
-import { Button } from '../../../components/ui/Button'
-import { buildInvoice } from '../../../components/flow-execution/invoice'
-import { InvoiceDownloadButton } from '../../../components/flow-execution/InvoiceDownloadButton'
-import { themeVars, type FormTheme } from '../../../lib/theme'
-import type { FlowVariable, FlowVariableType } from '../../../lib/flow-engine/types'
-import { isValidPublicSessionToken } from '../../../lib/public-session-access'
+import { getCompletionData } from '@/lib/server-fns/flow-executions'
+import { TemplateInterpolator } from '@/lib/flow-engine/TemplateInterpolator'
+import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
+import { buildInvoice } from '@/components/flow-execution/InvoiceUtils'
+import { InvoiceDownloadButton } from '@/components/flow-execution/InvoiceDownloadButton'
+import { themeVars, type FormTheme } from '@/lib/theme'
+import type { FlowVariable, FlowVariableType } from '@/lib/flow-engine/types'
+import { isValidPublicSessionToken } from '@/lib/public-session-access'
 
 export const Route = createFileRoute('/flow/$executionId/complete')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -29,13 +29,15 @@ function CompletePage() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['completion', executionId, Boolean(executionClientToken)],
-    queryFn: () =>
-      getCompletionData({
+    queryFn: () => {
+      if (!executionClientToken) throw new Error('Missing execution token')
+      return getCompletionData({
         data: {
           executionId: Number(executionId),
-          clientToken: executionClientToken!,
+          clientToken: executionClientToken,
         },
-      }),
+      })
+    },
     enabled: Boolean(executionClientToken),
   })
 

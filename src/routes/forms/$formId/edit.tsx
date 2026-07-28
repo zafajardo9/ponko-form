@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, ChevronUp } from "lucide-react";
 import {
   lazy,
   Suspense,
@@ -10,19 +11,19 @@ import {
   useCallback,
   type CSSProperties,
 } from "react";
-import { requireAuth } from "../../../lib/server-fns/auth";
+import { requireAuth } from "@/lib/server-fns/auth";
 import {
   getEditorForm,
   updateForm,
-} from "../../../lib/server-fns/forms";
+} from "@/lib/server-fns/forms";
 import {
   ensurePageForm,
   type SavedPageForm,
-} from "../../../lib/server-fns/page-forms";
+} from "@/lib/server-fns/page-forms";
 import {
   applySavedPageForm,
   type EditorFormData,
-} from "../../../lib/editor-cache";
+} from "@/lib/editor-cache";
 import {
   addFlowNode,
   updateFlowNode,
@@ -34,27 +35,31 @@ import {
   removeNodeFromPath,
   reorderPath,
   moveFieldIntoGroup,
-} from "../../../lib/server-fns/flow-nodes";
+} from "@/lib/server-fns/flow-nodes";
 import {
   createFlowVariable,
   updateFlowVariable,
   deleteFlowVariable,
-} from "../../../lib/server-fns/flow-variables";
-import { getActiveGateways } from "../../../lib/server-fns/gateways";
-import { FlowToolbar } from "../../../components/flow-builder/FlowToolbar";
-import { Button } from "../../../components/ui/Button";
-import { Badge } from "../../../components/ui/Badge";
-import { PreviewDialog } from "../../../components/ui/PreviewDialog";
-import { FormSectionNav } from "../../../components/forms/FormSectionNav";
-import { ShareDialog } from "../../../components/dashboard/ShareDialog";
-import { SettingsDialog } from "../../../components/flow-builder/SettingsDialog";
-import { themeVars, type FormTheme } from "../../../lib/theme";
-import type { FormPage, FormReference } from "../../../lib/page-builder/types";
-import { FlowValidator } from "../../../lib/flow-engine/FlowValidator";
+} from "@/lib/server-fns/flow-variables";
+import { getActiveGateways } from "@/lib/server-fns/gateways";
+import { FlowToolbar } from "@/components/flow-builder/FlowToolbar";
+import {
+  Button,
+  navigationBackIconClass,
+  navigationButtonClass,
+} from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { PreviewDialog } from "@/components/ui/PreviewDialog";
+import { FormSectionNav } from "@/components/forms/FormSectionNav";
+import { ShareDialog } from "@/components/dashboard/ShareDialog";
+import { SettingsDialog } from "@/components/flow-builder/SettingsDialog";
+import { themeVars, type FormTheme } from "@/lib/theme";
+import type { FormPage, FormReference } from "@/lib/page-builder/types";
+import { FlowValidator } from "@/lib/flow-engine/FlowValidator";
 import {
   linearizePrimaryPath,
   primaryOutgoingEdge,
-} from "../../../lib/flow-engine/path-utils";
+} from "@/lib/flow-engine/path-utils";
 import type {
   FlowNode,
   FlowEdge,
@@ -63,53 +68,53 @@ import type {
   FlowVariableType,
   FlowValidationError,
   GroupedField,
-} from "../../../lib/flow-engine/types";
-import type { FlowCanvasWorkspaceHandle } from "../../../components/flow-builder/FlowCanvasWorkspace";
+} from "@/lib/flow-engine/types";
+import type { FlowCanvasWorkspaceHandle } from "@/components/flow-builder/FlowCanvasWorkspace";
 
 const PageFormView = lazy(() =>
-  import("../../../components/page-form/PageFormView").then((module) => ({
+  import("@/components/page-form/PageFormView").then((module) => ({
     default: module.PageFormView,
   })),
 );
 
 const PageBuilderWorkspace = lazy(() =>
-  import("../../../components/page-builder/PageBuilderWorkspace").then(
+  import("@/components/page-builder/PageBuilderWorkspace").then(
     (module) => ({ default: module.PageBuilderWorkspace }),
   ),
 );
 
 const FlowCanvasWorkspace = lazy(() =>
-  import("../../../components/flow-builder/FlowCanvasWorkspace").then(
+  import("@/components/flow-builder/FlowCanvasWorkspace").then(
     (module) => ({ default: module.FlowCanvasWorkspace }),
   ),
 );
 
 const BuilderPalette = lazy(() =>
-  import("../../../components/flow-builder/BuilderPalette").then((module) => ({
+  import("@/components/flow-builder/BuilderPalette").then((module) => ({
     default: module.BuilderPalette,
   })),
 );
 
 const FlowListBuilder = lazy(() =>
-  import("../../../components/flow-builder/FlowListBuilder").then((module) => ({
+  import("@/components/flow-builder/FlowListBuilder").then((module) => ({
     default: module.FlowListBuilder,
   })),
 );
 
 const NodeConfigPanel = lazy(() =>
-  import("../../../components/flow-builder/NodeConfigPanel").then((module) => ({
+  import("@/components/flow-builder/NodeConfigPanel").then((module) => ({
     default: module.NodeConfigPanel,
   })),
 );
 
 const VariablesManager = lazy(() =>
-  import("../../../components/flow-builder/VariablesManager").then((module) => ({
+  import("@/components/flow-builder/VariablesManager").then((module) => ({
     default: module.VariablesManager,
   })),
 );
 
 const FlowPreviewModal = lazy(() =>
-  import("../../../components/ui/FlowPreviewModal").then((module) => ({
+  import("@/components/ui/FlowPreviewModal").then((module) => ({
     default: module.FlowPreviewModal,
   })),
 );
@@ -146,6 +151,7 @@ function UnifiedEditorPage() {
   const queryClient = useQueryClient();
 
   const [view, setView] = useState<View>("list");
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [showVariables, setShowVariables] = useState(false);
   const [validateOpen, setValidateOpen] = useState(false);
@@ -183,6 +189,10 @@ function UnifiedEditorPage() {
   });
 
   const flowId = flowData?.flow.id ?? null;
+  function requireFlowId() {
+    if (flowId == null) throw new Error("The flow is not ready yet");
+    return flowId;
+  }
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["editor-form", formId] });
   const invalidateFormMetadata = () =>
@@ -327,7 +337,7 @@ function UnifiedEditorPage() {
     }) =>
       addFlowNode({
         data: {
-          flowId: flowId!,
+          flowId: requireFlowId(),
           type: vars.type,
           positionX: vars.positionX,
           positionY: vars.positionY,
@@ -343,19 +353,19 @@ function UnifiedEditorPage() {
       afterNodeId: number;
       fieldType?: string;
       label?: string;
-    }) => insertNodeInPath({ data: { flowId: flowId!, ...vars } }),
+    }) => insertNodeInPath({ data: { flowId: requireFlowId(), ...vars } }),
     onSuccess: invalidate,
   });
 
   const removeNodeMutation = useMutation({
     mutationFn: (nodeId: number) =>
-      removeNodeFromPath({ data: { flowId: flowId!, nodeId } }),
+      removeNodeFromPath({ data: { flowId: requireFlowId(), nodeId } }),
     ...optimistic<number>((draft, nodeId) => spliceNodeOut(draft, nodeId)),
   });
 
   const reorderMutation = useMutation({
     mutationFn: (orderedNodeIds: number[]) =>
-      reorderPath({ data: { flowId: flowId!, orderedNodeIds } }),
+      reorderPath({ data: { flowId: requireFlowId(), orderedNodeIds } }),
     ...optimistic<number[]>((draft, orderedNodeIds) => {
       const idSet = new Set(orderedNodeIds);
       // Drop edges internal to the reordered set, then rebuild the chain.
@@ -379,7 +389,7 @@ function UnifiedEditorPage() {
 
   const moveFieldToGroupMutation = useMutation({
     mutationFn: (vars: { nodeId: number; groupId: number }) =>
-      moveFieldIntoGroup({ data: { flowId: flowId!, ...vars } }),
+      moveFieldIntoGroup({ data: { flowId: requireFlowId(), ...vars } }),
     ...optimistic<{ nodeId: number; groupId: number }>(
       (draft, { nodeId, groupId }) => {
         const node = draft.nodes.find((n) => n.id === nodeId);
@@ -407,13 +417,13 @@ function UnifiedEditorPage() {
 
   const addEdgeMutation = useMutation({
     mutationFn: (vars: { sourceNodeId: number; targetNodeId: number }) =>
-      addFlowEdge({ data: { flowId: flowId!, ...vars } }),
+      addFlowEdge({ data: { flowId: requireFlowId(), ...vars } }),
     onSuccess: invalidate,
   });
 
   const deleteNodeMutation = useMutation({
     mutationFn: (nodeId: number) =>
-      deleteFlowNode({ data: { flowId: flowId!, nodeId } }),
+      deleteFlowNode({ data: { flowId: requireFlowId(), nodeId } }),
     ...optimistic<number>((draft, nodeId) => {
       // Canvas delete: drop the node and every edge touching it.
       draft.nodes = draft.nodes.filter((n) => n.id !== nodeId);
@@ -425,14 +435,14 @@ function UnifiedEditorPage() {
 
   const deleteEdgeMutation = useMutation({
     mutationFn: (edgeId: number) =>
-      deleteFlowEdge({ data: { flowId: flowId!, edgeId } }),
+      deleteFlowEdge({ data: { flowId: requireFlowId(), edgeId } }),
     onSuccess: invalidate,
   });
 
   const saveLayoutMutation = useMutation({
     mutationFn: (
       layout: { id: number; positionX: number; positionY: number }[],
-    ) => saveFlowLayout({ data: { flowId: flowId!, nodes: layout } }),
+    ) => saveFlowLayout({ data: { flowId: requireFlowId(), nodes: layout } }),
   });
 
   const updateNodeMutation = useMutation({
@@ -440,7 +450,7 @@ function UnifiedEditorPage() {
       nodeId: number;
       config?: Record<string, unknown>;
       label?: string;
-    }) => updateFlowNode({ data: { flowId: flowId!, ...vars } }),
+    }) => updateFlowNode({ data: { flowId: requireFlowId(), ...vars } }),
     ...optimistic<{
       nodeId: number;
       config?: Record<string, unknown>;
@@ -460,7 +470,7 @@ function UnifiedEditorPage() {
       type: FlowVariableType;
       defaultValue?: string;
       description?: string;
-    }) => createFlowVariable({ data: { flowId: flowId!, ...v } }),
+    }) => createFlowVariable({ data: { flowId: requireFlowId(), ...v } }),
     onSuccess: invalidate,
   });
   const updateVarMutation = useMutation({
@@ -470,12 +480,12 @@ function UnifiedEditorPage() {
       type?: FlowVariableType;
       defaultValue?: string | null;
       description?: string | null;
-    }) => updateFlowVariable({ data: { flowId: flowId!, ...vars } }),
+    }) => updateFlowVariable({ data: { flowId: requireFlowId(), ...vars } }),
     onSuccess: invalidate,
   });
   const deleteVarMutation = useMutation({
     mutationFn: (varId: number) =>
-      deleteFlowVariable({ data: { flowId: flowId!, varId } }),
+      deleteFlowVariable({ data: { flowId: requireFlowId(), varId } }),
     onSuccess: invalidate,
   });
 
@@ -485,9 +495,10 @@ function UnifiedEditorPage() {
     const { ordered } = linearizePrimaryPath(flowData.nodes, flowData.edges);
     if (ordered.length === 0) return null;
     const byId = new Map(flowData.nodes.map((n) => [n.id, n]));
-    const termIndex = ordered.findIndex((id) =>
-      TERMINAL_TYPES.has(byId.get(id)!.type),
-    );
+    const termIndex = ordered.findIndex((id) => {
+      const node = byId.get(id);
+      return node ? TERMINAL_TYPES.has(node.type) : false;
+    });
     if (termIndex > 0) return ordered[termIndex - 1];
     if (termIndex === 0) return ordered[0]; // only start? insert after start
     return ordered[ordered.length - 1];
@@ -566,68 +577,112 @@ function UnifiedEditorPage() {
   return (
     <div className="flex h-[calc(100dvh-64px)] min-h-0 flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex flex-col gap-3 border-b border-[#e6dfd8] bg-[#faf9f5] px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
-          <Link
-            to="/forms"
-            className="flex-none text-sm text-[#6c6a64] hover:text-[#141413]"
-          >
-            ← Forms
-          </Link>
-          <span className="flex-none text-[#e6dfd8]">/</span>
-          <span className="min-w-0 max-w-[65vw] truncate text-sm font-medium text-[#141413] sm:max-w-none">
-            {form?.title ?? "Loading…"}
-          </span>
-          {form && (
-            <Badge variant={form.status as "draft" | "published"}>
-              {form.status}
-            </Badge>
-          )}
+      <div
+        id="editor-toolbar"
+        className="flex flex-none flex-col border-b border-[#e6dfd8] bg-[#faf9f5] shadow-[0_1px_0_rgba(20,20,19,0.02)]"
+      >
+        <div className="flex min-h-10 items-center px-4 py-1 sm:px-6">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
+            <Link
+              to="/forms"
+              className={`${navigationButtonClass} h-8 flex-none px-2.5`}
+            >
+              <ArrowLeft size={15} className={navigationBackIconClass} />
+              Forms
+            </Link>
+            <span className="min-w-0 max-w-[65vw] truncate text-sm font-medium text-[#141413] sm:max-w-none">
+              {form?.title ?? "Loading…"}
+            </span>
+            {form && (
+              <Badge variant={form.status as "draft" | "published"}>
+                {form.status}
+              </Badge>
+            )}
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <FormSectionNav formId={formId} active="build" />
-
-          {/* Variables & Valid live in the build sub-toolbar (shown in both
-              List and Canvas); only page-level actions remain in the header. */}
-          <button
-            onClick={() => {
-              setPreviewOpen(true);
-              setSelectedNodeId(null);
-              setShowVariables(false);
-            }}
-            className="flex-none rounded-md border border-[#e6dfd8] bg-[#f5f0e8] px-3 py-1.5 text-sm text-[#6c6a64] transition-colors hover:bg-[#e8e0d2] hover:text-[#141413]"
-          >
-            Preview
-          </button>
-
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className="inline-flex flex-none items-center gap-1.5 rounded-md border border-[#e6dfd8] bg-[#f5f0e8] px-3 py-1.5 text-sm text-[#6c6a64] transition-colors hover:bg-[#e8e0d2] hover:text-[#141413]"
-          >
-            <span className="text-xs">⚙</span> Settings
-          </button>
-
-          {isPublished && (
-            <button
-              onClick={() => setShareOpen(true)}
-              className="inline-flex flex-none items-center gap-1.5 rounded-md border border-[#e6dfd8] bg-[#f5f0e8] px-3 py-1.5 text-sm text-[#6c6a64] transition-colors hover:bg-[#e8e0d2] hover:text-[#141413]"
+        <div
+          id="editor-toolbar-actions"
+          aria-hidden={headerCollapsed}
+          inert={headerCollapsed}
+          className={`grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+            headerCollapsed
+              ? "grid-rows-[0fr] opacity-0"
+              : "grid-rows-[1fr] opacity-100"
+          }`}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <div
+              className={`flex flex-col gap-2 border-t border-[#e6dfd8] bg-[#f7f4ee] px-4 py-2 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transform-none motion-reduce:transition-none sm:px-6 lg:flex-row lg:items-center lg:justify-between ${
+                headerCollapsed ? "-translate-y-1" : "translate-y-0"
+              }`}
             >
-              <span className="text-xs">↗</span> Share
-            </button>
-          )}
+              <FormSectionNav formId={formId} active="build" />
 
-          <Button
-            variant={isPublished ? "secondary" : "primary"}
-            size="sm"
-            onClick={() =>
-              publishMutation.mutate(isPublished ? "draft" : "published")
-            }
-            disabled={publishMutation.isPending}
-            className="flex-none"
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Variables & Valid live in the build sub-toolbar (shown in
+                    both List and Canvas); these are page-level actions. */}
+                <button
+                  onClick={() => {
+                    setPreviewOpen(true);
+                    setSelectedNodeId(null);
+                    setShowVariables(false);
+                  }}
+                  className="flex-none rounded-md border border-[#e6dfd8] bg-white px-3 py-1.5 text-sm text-[#6c6a64] transition-colors hover:bg-[#efe9de] hover:text-[#141413]"
+                >
+                  Preview
+                </button>
+
+                <button
+                  onClick={() => setSettingsOpen(true)}
+                  className="inline-flex flex-none items-center gap-1.5 rounded-md border border-[#e6dfd8] bg-white px-3 py-1.5 text-sm text-[#6c6a64] transition-colors hover:bg-[#efe9de] hover:text-[#141413]"
+                >
+                  <span className="text-xs">⚙</span> Settings
+                </button>
+
+                {isPublished && (
+                  <button
+                    onClick={() => setShareOpen(true)}
+                    className="inline-flex flex-none items-center gap-1.5 rounded-md border border-[#e6dfd8] bg-white px-3 py-1.5 text-sm text-[#6c6a64] transition-colors hover:bg-[#efe9de] hover:text-[#141413]"
+                  >
+                    <span className="text-xs">↗</span> Share
+                  </button>
+                )}
+
+                <Button
+                  variant={isPublished ? "secondary" : "primary"}
+                  size="sm"
+                  onClick={() =>
+                    publishMutation.mutate(isPublished ? "draft" : "published")
+                  }
+                  disabled={publishMutation.isPending}
+                  className="flex-none"
+                >
+                  {isPublished ? "Unpublish" : "Publish"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex h-6 items-center justify-center bg-[#faf9f5]">
+          <button
+            type="button"
+            onClick={() => setHeaderCollapsed((collapsed) => !collapsed)}
+            aria-label={headerCollapsed ? "Show editor toolbar" : "Minimize editor toolbar"}
+            aria-controls="editor-toolbar-actions"
+            aria-expanded={!headerCollapsed}
+            title={headerCollapsed ? "Show editor toolbar" : "Minimize editor toolbar"}
+            className="group flex h-5 w-12 items-center justify-center rounded-md text-[#8e8b82] transition-[background-color,color,transform] duration-150 hover:bg-[#efe9de] hover:text-[#141413] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-1 motion-reduce:transition-none"
           >
-            {isPublished ? "Unpublish" : "Publish"}
-          </Button>
+            <ChevronUp
+              size={16}
+              aria-hidden="true"
+              className={`transition-transform duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+                headerCollapsed ? "rotate-180" : "rotate-0"
+              }`}
+            />
+          </button>
         </div>
       </div>
 

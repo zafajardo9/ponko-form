@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { and, eq, desc } from 'drizzle-orm'
-import { db } from '../../db/index'
-import { withTimeout } from '../../db/with-timeout'
+import { db } from '@/db/index'
+import { withTimeout } from '@/db/with-timeout'
 import {
   flows,
   flowNodes,
@@ -12,10 +12,10 @@ import {
   formSubmissions,
   payments,
   paymentGateways,
-} from '../../db/schema'
+} from '@/db/schema'
 import { loadIntegrationConfigs } from '../integrations/credentials'
-import { paymentRegistry } from '../../integrations/payments/index'
-import type { GatewayCredentials } from '../../integrations/payments/types'
+import { paymentRegistry } from '@/integrations/payments/index'
+import type { GatewayCredentials } from '@/integrations/payments/types'
 import type { FlowNode, FlowEdge, FlowVariable } from '../flow-engine/types'
 import { reconcilePayment } from '../payments/reconciliation'
 import { publicRequestOrigin } from './request-origin'
@@ -25,6 +25,8 @@ import {
 } from '../public-session-access'
 import { ensureFlowSubmissionDraft } from '../flow-engine/submission-draft'
 import { claimPaymentCheckout } from '../payments/checkout-claim'
+import { paymentAmountMinor } from './validation'
+export { paymentAmountMinor } from './validation'
 
 /**
  * Real payment server functions (end-user, public — no auth).
@@ -201,11 +203,9 @@ export const initiatePayment = createServerFn({ method: 'POST', strict: false })
     const currency = (config.currency as string) ?? 'USD'
     if (!amountVar) throw new Error('Payment step has no amount configured')
 
-    const amountMajor = Number((execution.variables as Record<string, unknown>)?.[amountVar] ?? 0)
-    if (!Number.isFinite(amountMajor) || amountMajor <= 0) {
-      throw new Error('Nothing to pay — the amount is zero or invalid')
-    }
-    const amountMinor = Math.round(amountMajor * 100)
+    const amountMinor = paymentAmountMinor(
+      (execution.variables as Record<string, unknown>)?.[amountVar],
+    )
 
     const gateway = paymentRegistry.get(data.gatewaySlug)
     if (!gateway) throw new Error(`Unknown gateway: ${data.gatewaySlug}`)

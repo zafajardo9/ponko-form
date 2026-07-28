@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Field, textInputClass, type ConfigFormProps } from './controls'
+import { Field, textInputClass, type ConfigFormProps } from './Controls'
 
 /** Config form for a Redirect node: a URL template with a variable picker. */
 export function RedirectConfig({ nodeId, config, variables, onChange }: ConfigFormProps) {

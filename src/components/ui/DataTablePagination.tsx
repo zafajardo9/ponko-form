@@ -1,3 +1,9 @@
+import { ArrowLeft, ArrowRight } from 'lucide-react'
+import {
+  navigationBackIconClass,
+  navigationForwardIconClass,
+} from './Button'
+
 interface DataTablePaginationProps {
   page: number
   pageSize: number
@@ -46,9 +52,10 @@ export function DataTablePagination({
         <button
           disabled={page <= 1 || loading}
           onClick={() => onPageChange(page - 1)}
-          className="text-sm text-[#cc785c] disabled:opacity-40 hover:text-[#a9583e]"
+          className="group/nav inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dedbd5] bg-white px-2.5 text-sm font-medium text-[#57544d] transition-colors hover:border-[#c9b4a8] hover:bg-[#f7f2ec] hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          ← Previous
+          <ArrowLeft size={14} className={navigationBackIconClass} />
+          Previous
         </button>
         <span className="text-sm text-[#6c6a64]">
           Page {page} of {totalPages}
@@ -56,9 +63,10 @@ export function DataTablePagination({
         <button
           disabled={page >= totalPages || loading}
           onClick={() => onPageChange(page + 1)}
-          className="text-sm text-[#cc785c] disabled:opacity-40 hover:text-[#a9583e]"
+          className="group/nav inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dedbd5] bg-white px-2.5 text-sm font-medium text-[#57544d] transition-colors hover:border-[#c9b4a8] hover:bg-[#f7f2ec] hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Next →
+          Next
+          <ArrowRight size={14} className={navigationForwardIconClass} />
         </button>
       </div>
     </div>

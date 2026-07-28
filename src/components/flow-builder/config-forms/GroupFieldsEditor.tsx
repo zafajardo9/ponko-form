@@ -14,7 +14,7 @@ import {
   Calendar,
   Clock,
 } from 'lucide-react'
-import { Field, Select, VariableSelect, Toggle, TextField } from './controls'
+import { Field, Select, VariableSelect, Toggle, TextField } from './Controls'
 import { OptionsEditor } from './OptionsEditor'
 import type { FlowVariable, GroupedField } from '../../../lib/flow-engine/types'
 

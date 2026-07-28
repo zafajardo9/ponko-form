@@ -1,24 +1,29 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { FormWorkspaceLayout } from "../../../components/forms/FormWorkspaceLayout";
+import { ArrowLeft, CreditCard } from "lucide-react";
+import { FormWorkspaceLayout } from "@/components/forms/FormWorkspaceLayout";
 import {
   ResponseActionDialog,
   ResponseRowActions,
-} from "../../../components/forms/ResponseActions";
+} from "@/components/forms/ResponseActions";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { requireAuth } from "../../../lib/server-fns/auth";
+import { requireAuth } from "@/lib/server-fns/auth";
 import {
   getSubmissions,
   setSubmissionArchived,
   deleteSubmission,
   bulkArchiveSubmissions,
   bulkDeleteSubmissions,
-} from "../../../lib/server-fns/submissions";
-import type { ResponseColumn } from "../../../lib/server-fns/submissions";
-import { submissionCsvDownloadUrl } from "../../../lib/submissions/csv";
-import { Badge } from "../../../components/ui/Badge";
-import { DataTable } from "../../../components/ui/DataTable";
-import type { DataTableColumn } from "../../../components/ui/DataTableTypes";
+} from "@/lib/server-fns/submissions";
+import type { ResponseColumn } from "@/lib/server-fns/submissions";
+import { submissionCsvDownloadUrl } from "@/lib/submissions/csv";
+import { Badge } from "@/components/ui/Badge";
+import { DataTable } from "@/components/ui/DataTable";
+import type { DataTableColumn } from "@/components/ui/DataTableTypes";
+import {
+  navigationBackIconClass,
+  navigationButtonClass,
+} from "@/components/ui/Button";
 
 export const Route = createFileRoute("/forms/$formId/submissions")({
   beforeLoad: ({ location }) => requireAuth({ data: { returnTo: location.href } }),
@@ -398,15 +403,19 @@ function SubmissionsPage() {
             <Link
               to="/forms/$formId/payments"
               params={{ formId }}
-              className="text-sm text-[#cc785c] hover:text-[#a9583e]"
+              className={navigationButtonClass}
             >
-              View Payments →
+              <CreditCard size={15} aria-hidden="true" />
+              View payments
             </Link>
           )}
-          <Link to="/forms/$formId/edit" params={{ formId }}>
-            <span className="text-sm text-[#cc785c] hover:text-[#a9583e]">
-              ← Back to builder
-            </span>
+          <Link
+            to="/forms/$formId/edit"
+            params={{ formId }}
+            className={navigationButtonClass}
+          >
+            <ArrowLeft size={15} className={navigationBackIconClass} />
+            Back to builder
           </Link>
         </>
       }

@@ -1,7 +1,8 @@
 import { useState } from 'react'
+import { ArrowLeft } from 'lucide-react'
 import type { GroupedField } from '../../lib/flow-engine/types'
 import { FieldRenderer, type FieldConfig, type FieldValue } from '../form-builder/fields/FieldRenderer'
-import { Button } from '../ui/Button'
+import { Button, navigationBackIconClass } from '../ui/Button'
 
 /**
  * GroupStepView
@@ -96,8 +97,9 @@ export function GroupStepView({
 
       <div className="flex items-center justify-between">
         {canGoBack ? (
-          <Button variant="text-link" size="sm" onClick={onBack}>
-            ← Back
+          <Button variant="navigation" size="sm" onClick={onBack}>
+            <ArrowLeft size={14} className={navigationBackIconClass} />
+            Back
           </Button>
         ) : (
           <span />

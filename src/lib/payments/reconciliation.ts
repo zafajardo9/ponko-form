@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
-import { db } from '../../db/index'
+import { db } from '@/db/index'
 import {
   flowExecutions,
   flows,
@@ -11,8 +11,8 @@ import {
   paymentGateways,
   payments,
   subscriptionCycles,
-} from '../../db/schema'
-import { paymentRegistry } from '../../integrations/payments/index'
+} from '@/db/schema'
+import { paymentRegistry } from '@/integrations/payments/index'
 import type {
   GatewayCredentials,
   PaymentDetails,
@@ -20,7 +20,7 @@ import type {
   SubscriptionCycleDetails,
   SubscriptionCycleStatus,
   SubscriptionPlanStatus,
-} from '../../integrations/payments/types'
+} from '@/integrations/payments/types'
 import {
   loadIntegrationConfigs,
   paypalCredentialsForEnvironment,
@@ -412,7 +412,9 @@ export async function reconcileSubscriptionPayment(input: {
 }) {
   const context = await subscriptionContext(input.paymentId, input.expectedProfileId)
   const { payment, gateway, credentials, environment } = context
-  const session = await gateway.getSubscriptionSession(payment.gatewayPaymentId!, credentials)
+  const gatewayPaymentId = payment.gatewayPaymentId
+  if (!gatewayPaymentId) throw new Error('Subscription payment has no gateway reference')
+  const session = await gateway.getSubscriptionSession(gatewayPaymentId, credentials)
   const planId = session.subscriptionPlanId ?? payment.subscriptionPlanId ?? undefined
   const plan = planId ? await gateway.getSubscriptionPlan(planId, credentials) : null
   const subscriptionStatus = nextSubscriptionPlanStatus(
@@ -427,7 +429,7 @@ export async function reconcileSubscriptionPayment(input: {
   const sanitizedPayload = sanitizePaymentPayload(input.payload ?? plan?.raw ?? session.raw)
   const key = eventKey({
     gatewayEventId: input.gatewayEventId,
-    gatewayPaymentId: payment.gatewayPaymentId!,
+    gatewayPaymentId,
     eventType: input.eventType ?? 'subscription.verification',
     providerStatus,
     providerTimestamp: input.providerTimestamp,
@@ -475,7 +477,9 @@ export async function reconcileSubscriptionPayment(input: {
       }
       const nextCycle = cycles
         .filter((cycle) => ['scheduled', 'pending', 'retrying'].includes(cycle.status) && cycle.scheduledAt)
-        .sort((left, right) => new Date(left.scheduledAt!).getTime() - new Date(right.scheduledAt!).getTime())[0]
+        .sort((left, right) =>
+          new Date(left.scheduledAt ?? 0).getTime() - new Date(right.scheduledAt ?? 0).getTime(),
+        )[0]
       if (nextCycle?.scheduledAt) {
         await db.update(payments).set({ subscriptionNextChargeAt: new Date(nextCycle.scheduledAt) })
           .where(eq(payments.id, payment.id))
@@ -512,11 +516,15 @@ export async function reconcileSubscriptionWebhook(input: {
   const { payment } = context
   const data = webhookRecord(input.payload)
   const providerStatus = String(data.status ?? 'UNKNOWN').toUpperCase()
+  const subscriptionReference = payment.subscriptionPlanId ?? payment.gatewayPaymentId
+  if (!subscriptionReference) {
+    throw new Error('Subscription payment has no gateway reference')
+  }
   const key = eventKey({
     gatewayEventId: input.gatewayEventId,
     gatewayPaymentId: input.kind === 'cycle'
       ? String(data.id ?? data.cycle_id ?? payment.subscriptionPlanId)
-      : payment.subscriptionPlanId ?? payment.gatewayPaymentId!,
+      : subscriptionReference,
     eventType: input.eventType,
     providerStatus,
     providerTimestamp: input.providerTimestamp,

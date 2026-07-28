@@ -1,5 +1,5 @@
 import { Button } from '../../ui/Button'
-import { TextField } from './controls'
+import { TextField } from './Controls'
 
 /**
  * OptionsEditor

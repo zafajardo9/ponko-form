@@ -14,40 +14,8 @@ import { getRecaptchaConfigForForm } from '../integrations/recaptcha'
 import { hydratePages, loadFormReferences } from '../page-builder/server-data'
 import { loadFlow } from '../flow-engine/server-data'
 import { assertFormOwner } from './flow-helpers'
-
-type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | { [key: string]: JsonValue }
-
-function jsonObject(value: unknown): Record<string, JsonValue> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-
-  return Object.fromEntries(
-    Object.entries(value).flatMap(([key, item]) => {
-      if (item === undefined || typeof item === 'function' || typeof item === 'symbol') {
-        return []
-      }
-      return [[key, jsonValue(item)]]
-    }),
-  )
-}
-
-function jsonValue(value: unknown): JsonValue {
-  if (
-    value === null ||
-    typeof value === 'string' ||
-    typeof value === 'boolean'
-  ) {
-    return value
-  }
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null
-  if (Array.isArray(value)) return value.map(jsonValue)
-  return jsonObject(value)
-}
+import { jsonObject } from './validation'
+export { jsonObject } from './validation'
 
 async function ensureProfile(clerkId: string) {
   const [profile] = await db

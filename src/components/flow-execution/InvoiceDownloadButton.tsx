@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { InvoiceModel } from './invoice'
+import type { InvoiceModel } from './InvoiceUtils'
 
 interface InvoiceDownloadButtonProps {
   invoice: InvoiceModel

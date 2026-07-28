@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { auth } from "@clerk/tanstack-react-start/server";
-import { db } from "../../db/index";
+import { db } from "@/db/index";
 import {
   payments,
   paymentGateways,
@@ -13,16 +13,16 @@ import {
   paymentEvents,
   profiles,
   subscriptionCycles,
-} from "../../db/schema";
+} from "@/db/schema";
 import { eq, desc, asc, and, or, sql, type SQL } from "drizzle-orm";
 import { reconcilePayment } from "../payments/reconciliation";
-import { paymentRegistry } from "../../integrations/payments";
+import { paymentRegistry } from "@/integrations/payments";
 import {
   loadIntegrationConfigs,
   paypalCredentialsForEnvironment,
   xenditCredentialsForEnvironment,
 } from "../integrations/credentials";
-import type { GatewayCredentials } from "../../integrations/payments/types";
+import type { GatewayCredentials } from "@/integrations/payments/types";
 import { paymentReminderMessage } from "../email/resend";
 import { sendTransactionalEmail } from "../email/transactional";
 import { publicRequestOrigin } from "./request-origin";

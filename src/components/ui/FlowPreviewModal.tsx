@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { FlowEngine, type StepInput } from "../../lib/flow-engine/FlowEngine";
 import type {
   FlowNode,
@@ -14,7 +15,7 @@ import {
 } from "../form-builder/fields/FieldRenderer";
 import { FlowProgressBar } from "../flow-execution/FlowProgressBar";
 import { GroupStepView } from "../flow-execution/GroupStepView";
-import { Button } from "./Button";
+import { Button, navigationBackIconClass } from "./Button";
 
 /**
  * FlowPreviewModal
@@ -84,10 +85,15 @@ export function FlowPreviewModal({
   }
 
   function next(input?: StepInput) {
+    const currentEngine = engineRef.current;
+    if (!currentEngine) {
+      setFieldError("The preview is not ready. Reset it and try again.");
+      return;
+    }
     setFieldError("");
-    const before = engine!.getVariableValues();
-    engine!.advance(input);
-    const after = engine!.getVariableValues();
+    const before = currentEngine.getVariableValues();
+    currentEngine.advance(input);
+    const after = currentEngine.getVariableValues();
     setChanged(diffChanged(before, after));
     setFieldValue("");
     setDecisionValue("");
@@ -95,7 +101,8 @@ export function FlowPreviewModal({
   }
 
   function handleBack() {
-    if (engine!.goBack()) {
+    const currentEngine = engineRef.current;
+    if (currentEngine?.goBack()) {
       setChanged(new Set());
       setFieldValue("");
       setDecisionValue("");
@@ -258,8 +265,9 @@ export function FlowPreviewModal({
         />
         <div className="flex items-center justify-between">
           {engine.getCurrentStepNumber() > 1 ? (
-            <Button variant="text-link" size="sm" onClick={handleBack}>
-              ← Back
+            <Button variant="navigation" size="sm" onClick={handleBack}>
+              <ArrowLeft size={14} className={navigationBackIconClass} />
+              Back
             </Button>
           ) : (
             <span />
@@ -322,8 +330,9 @@ export function FlowPreviewModal({
         </div>
         <div className="flex items-center justify-between">
           {engine.getCurrentStepNumber() > 1 ? (
-            <Button variant="text-link" size="sm" onClick={handleBack}>
-              ← Back
+            <Button variant="navigation" size="sm" onClick={handleBack}>
+              <ArrowLeft size={14} className={navigationBackIconClass} />
+              Back
             </Button>
           ) : (
             <span />

@@ -52,12 +52,6 @@ export function TopNav() {
                 Forms
               </Link>
               <Link
-                to="/settings"
-                className={navLinkClass}
-              >
-                Settings
-              </Link>
-              <Link
                 to="/settings/integrations"
                 className={navLinkClass}
               >
@@ -155,7 +149,6 @@ function MobileNavigation() {
             </p>
             <MobileNavLink to="/dashboard" onSelect={close}>Dashboard</MobileNavLink>
             <MobileNavLink to="/forms" onSelect={close}>Forms</MobileNavLink>
-            <MobileNavLink to="/settings" onSelect={close}>Settings</MobileNavLink>
             <MobileNavLink to="/settings/integrations" onSelect={close}>Integrations</MobileNavLink>
             <div className="my-2 h-px bg-[#e6dfd8]" />
           </Show>
@@ -180,7 +173,7 @@ function MobileNavLink({
   onSelect,
   children,
 }: {
-  to: '/dashboard' | '/forms' | '/settings' | '/settings/integrations' | '/docs'
+  to: '/dashboard' | '/forms' | '/settings/integrations' | '/docs'
   onSelect: () => void
   children: React.ReactNode
 }) {

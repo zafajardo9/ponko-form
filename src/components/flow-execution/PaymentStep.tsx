@@ -30,18 +30,22 @@ export function PaymentStep({
 
   const { data: options, isLoading } = useQuery({
     queryKey: ['payment-options', String(executionId)],
-    queryFn: () =>
-      getPaymentOptions({
-        data: { executionId: executionId!, clientToken },
-      }),
+    queryFn: () => {
+      if (executionId == null) throw new Error('Missing flow execution')
+      return getPaymentOptions({
+        data: { executionId, clientToken },
+      })
+    },
     enabled: executionId != null,
   })
 
   const initiate = useMutation({
-    mutationFn: (gatewaySlug: 'paypal' | 'xendit') =>
-      initiatePayment({
-        data: { executionId: executionId!, clientToken, gatewaySlug },
-      }),
+    mutationFn: (gatewaySlug: 'paypal' | 'xendit') => {
+      if (executionId == null) throw new Error('Missing flow execution')
+      return initiatePayment({
+        data: { executionId, clientToken, gatewaySlug },
+      })
+    },
     onSuccess: ({ paymentUrl }) => {
       setRedirecting(true)
       window.location.href = paymentUrl

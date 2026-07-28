@@ -1,6 +1,6 @@
 import { Show } from "@clerk/tanstack-react-start";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, Check, RefreshCw } from "lucide-react";
+import { ArrowRight, Check, MousePointer2, RefreshCw } from "lucide-react";
 import {
   FEATURE_GROUPS,
   INTEGRATIONS,
@@ -17,8 +17,8 @@ import {
 
 const focusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2";
-const primaryButton = `inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-primary-active ${focusRing}`;
-const secondaryButton = `inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-hairline bg-canvas px-6 py-3 text-sm font-medium text-ink transition-colors hover:bg-surface-soft ${focusRing}`;
+const primaryButton = `group/button inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-primary px-6 py-3 text-sm font-medium text-white shadow-[0_8px_24px_rgba(169,88,62,0.18)] transition-[transform,background-color,box-shadow] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:bg-primary-active hover:shadow-[0_12px_30px_rgba(169,88,62,0.26)] active:translate-y-0 active:scale-[0.98] ${focusRing}`;
+const secondaryButton = `group/button inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-hairline bg-canvas px-6 py-3 text-sm font-medium text-ink transition-[transform,background-color,border-color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:border-primary/35 hover:bg-surface-soft active:translate-y-0 active:scale-[0.98] ${focusRing}`;
 
 function SectionHeading({
   eyebrow,
@@ -54,24 +54,42 @@ function SectionHeading({
 
 function HeroSection() {
   return (
-    <section className="overflow-hidden bg-canvas">
-      <div className="mx-auto grid max-w-6xl items-center gap-14 px-6 py-16 sm:py-24 lg:grid-cols-2 lg:py-28">
-        <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-hairline bg-surface-card px-3.5 py-1.5 text-xs font-medium text-muted">
-            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-            Five form templates, ready to use
+    <section className="hero-stage relative isolate overflow-hidden bg-canvas">
+      <div className="hero-grid absolute inset-0 -z-20" aria-hidden="true" />
+      <div className="hero-orbit hero-orbit-one absolute -right-36 top-10 -z-10 h-[32rem] w-[32rem] rounded-full border border-primary/15" aria-hidden="true" />
+      <div className="hero-orbit hero-orbit-two absolute -right-12 top-44 -z-10 h-[18rem] w-[18rem] rounded-full border border-primary/20" aria-hidden="true" />
+      <div className="mx-auto grid min-h-[calc(100svh-4.5rem)] max-w-7xl items-center gap-14 px-6 py-16 sm:py-20 lg:grid-cols-[0.88fr_1.12fr] lg:gap-16 lg:py-24">
+        <div className="hero-copy relative z-10">
+          <div className="hero-enter hero-enter-one inline-flex items-center gap-2 rounded-full border border-primary/20 bg-canvas/90 px-3.5 py-1.5 text-xs font-medium text-muted shadow-[0_8px_30px_rgba(20,20,19,0.05)] backdrop-blur-sm">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-30" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+            </span>
+            From form to paid, in one flow
           </div>
-          <h1 className="mt-7 max-w-xl font-[var(--font-display)] text-5xl font-normal leading-[1.02] tracking-[-0.025em] text-ink sm:text-6xl lg:text-[4.5rem]">
-            Build forms that keep every response—and payment—connected.
+          <h1 className="hero-enter hero-enter-two mt-7 max-w-2xl font-[var(--font-display)] text-5xl font-normal leading-[0.96] tracking-[-0.035em] text-ink sm:text-6xl lg:text-[4.9rem]">
+            Forms that do more than{" "}
+            <span className="relative whitespace-nowrap text-primary">
+              collect answers.
+              <svg
+                aria-hidden="true"
+                className="absolute -bottom-1 left-0 h-2 w-full overflow-visible text-primary/45"
+                preserveAspectRatio="none"
+                viewBox="0 0 300 8"
+              >
+                <path className="hero-scribble" d="M2 5.5C76 1.5 209 1 298 4" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+              </svg>
+            </span>
           </h1>
-          <p className="mt-6 max-w-xl text-lg leading-8 text-muted">
-            Create responsive, multi-page forms without code. Add conditional fields,
-            collect payments, and manage the results from one clear workspace.
+          <p className="hero-enter hero-enter-three mt-7 max-w-xl text-lg leading-8 text-muted">
+            Design the journey, route each response, and collect payment without
+            stitching together five different tools.
           </p>
-          <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+          <div className="hero-enter hero-enter-four mt-9 flex flex-col gap-3 sm:flex-row">
             <Show when="signed-out">
               <a href="/sign-up/" className={primaryButton}>
-                Start building free <ArrowRight size={16} />
+                Start building free
+                <ArrowRight className="transition-transform duration-200 group-hover/button:translate-x-1" size={16} />
               </a>
               <a href="#how-it-works" className={secondaryButton}>
                 See how it works
@@ -79,16 +97,32 @@ function HeroSection() {
             </Show>
             <Show when="signed-in">
               <Link to="/forms" className={primaryButton}>
-                Go to my forms <ArrowRight size={16} />
+                Go to my forms
+                <ArrowRight className="transition-transform duration-200 group-hover/button:translate-x-1" size={16} />
               </Link>
               <Link to="/forms/new" className={secondaryButton}>
                 Browse templates
               </Link>
             </Show>
           </div>
-          <p className="mt-4 text-sm text-muted-soft">No credit card required to get started.</p>
+          <div className="hero-enter hero-enter-five mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-soft">
+            <span className="flex items-center gap-1.5">
+              <Check size={13} className="text-primary" aria-hidden="true" />
+              No credit card
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Check size={13} className="text-primary" aria-hidden="true" />
+              Five ready-made templates
+            </span>
+            <span className="flex items-center gap-1.5">
+              <MousePointer2 size={13} className="text-primary" aria-hidden="true" />
+              Try the preview
+            </span>
+          </div>
         </div>
-        <HeroFormMockup />
+        <div className="hero-enter hero-enter-visual relative">
+          <HeroFormMockup />
+        </div>
       </div>
     </section>
   );
@@ -276,26 +310,44 @@ function IntegrationsSection() {
 
 function RespondentExperienceSection() {
   return (
-    <section className="overflow-hidden bg-surface-card py-20 sm:py-28">
-      <div className="mx-auto grid max-w-6xl items-center gap-14 px-6 lg:grid-cols-[0.8fr_1.2fr]">
-        <div>
+    <section id="respondent-experience" className="relative overflow-hidden border-y border-hairline bg-surface-card py-20 sm:py-28">
+      <div className="absolute -left-24 top-1/2 h-72 w-72 -translate-y-1/2 rounded-full border border-primary/10" aria-hidden="true" />
+      <div className="absolute -left-10 top-1/2 h-44 w-44 -translate-y-1/2 rounded-full border border-primary/15" aria-hidden="true" />
+      <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-6 lg:grid-cols-[0.72fr_1.28fr] lg:gap-20">
+        <div className="max-w-xl">
           <SectionHeading
             eyebrow="Respondent experience"
-            title="A form that fits the screen in front of it"
-            description="The same published form adapts across phones and desktop browsers. Page progress, fields, and payment steps stay clear without a separate mobile layout."
+            title="One form. Every screen. No compromises."
+            description="Publish once and give every respondent a focused journey. PonkoForm reshapes the same fields, progress, and actions for the screen they are already using."
           />
-          <ul className="mt-7 space-y-3 text-sm text-muted">
-            {["Responsive page layouts", "Clear progress between steps", "Focused, accessible form controls"].map(
-              (item) => (
-                <li key={item} className="flex items-center gap-2.5">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/15 text-primary">
-                    <Check size={12} aria-hidden="true" />
-                  </span>
-                  {item}
-                </li>
-              ),
-            )}
+          <ul className="mt-8 grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+            {[
+              ["Responsive by default", "Layout and spacing adapt automatically."],
+              ["Progress stays visible", "Respondents always know where they are."],
+              ["Touch-ready controls", "Comfortable targets on smaller screens."],
+            ].map(([title, description]) => (
+              <li
+                key={title}
+                className="group flex gap-3 rounded-xl border border-transparent p-3 transition-[transform,background-color,border-color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:translate-x-1 hover:border-hairline hover:bg-canvas/65 motion-reduce:transform-none motion-reduce:transition-none"
+              >
+                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary transition-transform duration-200 group-hover:scale-110">
+                  <Check size={13} aria-hidden="true" />
+                </span>
+                <span>
+                  <span className="block text-sm font-medium text-ink">{title}</span>
+                  <span className="mt-1 block text-xs leading-5 text-muted">{description}</span>
+                </span>
+              </li>
+            ))}
           </ul>
+          <div className="mt-8 flex items-center gap-3 border-t border-hairline pt-5 text-xs text-muted-soft">
+            <span className="flex -space-x-1.5" aria-hidden="true">
+              <span className="h-6 w-6 rounded-full border-2 border-surface-card bg-primary/35" />
+              <span className="h-6 w-6 rounded-full border-2 border-surface-card bg-warning/35" />
+              <span className="h-6 w-6 rounded-full border-2 border-surface-card bg-success/35" />
+            </span>
+            Preview both layouts before you publish
+          </div>
         </div>
         <ResponsiveFormsMockup />
       </div>
@@ -395,8 +447,8 @@ export function HomePage() {
       <main className="min-h-screen bg-canvas">
         <HeroSection />
         <TrustBar />
-        <FeaturesSection />
         <WorkflowSection />
+        <FeaturesSection />
         <PaymentReliabilitySection />
         <IntegrationsSection />
         <RespondentExperienceSection />

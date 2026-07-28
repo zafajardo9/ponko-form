@@ -17,16 +17,12 @@ import {
 import { dispatchSubmissionEmails } from "../invoicing/delivery";
 import { sanitizeLegacySubmission } from "../legacy-submission";
 import { isValidPublicSessionToken } from "../public-session-access";
+import { normalizeSubmissionPageSize } from "./validation";
+export { normalizeSubmissionPageSize } from "./validation";
 export type { ResponseColumn } from "../submissions/response-columns";
 
 function paymentStatusPriority(status: string) {
   return status === 'refunded' ? 4 : status === 'completed' ? 3 : status === 'pending' ? 2 : 1
-}
-
-const allowedPageSizes = new Set([10, 25, 50, 100]);
-
-export function normalizeSubmissionPageSize(value?: number) {
-  return value && allowedPageSizes.has(value) ? value : 25;
 }
 
 export const submitFormResponse = createServerFn({
@@ -85,7 +81,7 @@ export const submitFormResponse = createServerFn({
       .limit(1))[0];
     if (!submission) throw new Error("Could not record form response");
     await dispatchSubmissionEmails(submission.id).catch((error) => {
-      console.error(`[submission:${submission.id}] Email dispatch failed`, error);
+      console.error(`[ponkoform-flow-submission:${submission.id}] Email dispatch failed`, error);
     });
     return { success: true };
   });

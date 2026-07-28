@@ -4,7 +4,7 @@ import {
   TextField,
   textAreaClass,
   type ConfigFormProps,
-} from "./controls";
+} from "./Controls";
 import { TemplateInterpolator } from '../../../lib/flow-engine/TemplateInterpolator'
 import type { FlowVariableType } from '../../../lib/flow-engine/types'
 

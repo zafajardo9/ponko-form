@@ -2,7 +2,7 @@ import { Handle, Position, type NodeProps, type NodeTypes } from '@xyflow/react'
 import { NodeShell, type FlowNodeData } from './NodeShell'
 import { FlowValidationBadge } from '../FlowValidationBadge'
 import { GroupFieldsEditor } from '../config-forms/GroupFieldsEditor'
-import { TextField } from '../config-forms/controls'
+import { TextField } from '../config-forms/Controls'
 import type { FlowVariable, GroupedField } from '../../../lib/flow-engine/types'
 
 /**

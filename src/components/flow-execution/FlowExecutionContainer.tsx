@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useMutation } from '@tanstack/react-query'
-import { FlowEngine, type StepInput } from '../../lib/flow-engine/FlowEngine'
-import type { FlowNode, FlowEdge, FlowVariable } from '../../lib/flow-engine/types'
+import { FlowEngine, type StepInput } from '@/lib/flow-engine/FlowEngine'
+import type { FlowNode, FlowEdge, FlowVariable } from '@/lib/flow-engine/types'
 import {
   startFlowExecution,
   advanceExecution,
   completeExecution,
-} from '../../lib/server-fns/flow-executions'
-import { getResumeData } from '../../lib/server-fns/payments'
-import { themeVars, type FormTheme } from '../../lib/theme'
+} from '@/lib/server-fns/flow-executions'
+import { getResumeData } from '@/lib/server-fns/payments'
+import { themeVars, type FormTheme } from '@/lib/theme'
 import { Card } from '../ui/Card'
 import { FlowStepRenderer } from './FlowStepRenderer'
-import { createPublicSessionToken } from '../../lib/public-session-access'
+import { createPublicSessionToken } from '@/lib/public-session-access'
 
 /**
  * FlowExecutionContainer
@@ -127,8 +127,12 @@ export function FlowExecutionContainer({
           executionIdRef.current = data.execution.id
           setMeta({ title: data.title, description: data.description })
           setThemeState((data.theme ?? null) as FormTheme | null)
+          const currentNodeId = data.execution.currentNodeId
+          if (currentNodeId == null) {
+            throw new Error('The saved flow has no current step.')
+          }
           const engine = FlowEngine.restore(data.nodes, data.edges, data.variables, {
-            currentNodeId: data.execution.currentNodeId!,
+            currentNodeId,
             variables: (data.execution.variables as Record<string, unknown>) ?? {},
             history: (data.execution.history as any[]) ?? [],
             completed: false,
@@ -179,12 +183,14 @@ export function FlowExecutionContainer({
     const snap = engine.getSnapshot()
     const step = engine.getCurrentStep()
 
-    completeMut.mutateAsync({ executionId: id, variables: snap.variables, history: snap.history }).then(
-      () => {
-        if (step.nodeType === 'redirect' && step.redirectUrl) {
+    void completeMut
+      .mutateAsync({ executionId: id, variables: snap.variables, history: snap.history })
+      .then(() => {
+        const redirectUrl = step.nodeType === 'redirect' ? step.redirectUrl : null
+        if (redirectUrl) {
           // Redirect nodes navigate to their constructed URL after a brief pause.
           setTimeout(() => {
-            window.location.href = step.redirectUrl!
+            window.location.href = redirectUrl
           }, 1500)
         } else {
           // Otherwise show the dedicated completion / receipt page.
@@ -194,8 +200,12 @@ export function FlowExecutionContainer({
             search: { executionClientToken },
           })
         }
-      },
-    )
+      })
+      .catch((completionError: unknown) => {
+        completedRef.current = false
+        console.error('[ponkoform-flow] Failed to complete flow execution', completionError)
+        setError('We could not finish this form. Your progress is still saved; please try again.')
+      })
   }
 
   function handleNext(input?: StepInput) {

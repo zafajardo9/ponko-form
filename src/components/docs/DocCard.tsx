@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { DocMeta } from "../../lib/docs-parser";
-import { ArrowRight, FileText, BookOpen, Zap, BookMarked, CreditCard } from "lucide-react";
+import { FileText, BookOpen, Zap, BookMarked, CreditCard } from "lucide-react";
 
 /**
  * DocCard
@@ -67,12 +67,8 @@ export function DocCard({ doc }: DocCardProps) {
         </p>
       </div>
 
-      <div className="mt-5 flex items-center justify-between border-t border-[#e6dfd8] pt-4">
+      <div className="mt-5 border-t border-[#e6dfd8] pt-4">
         <span className="text-xs text-[#8e8b82]">{meta.time} read</span>
-        <div className="flex items-center gap-1 text-xs font-medium text-[#cc785c]">
-          <span>Open guide</span>
-          <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
-        </div>
       </div>
     </Link>
   );

@@ -123,21 +123,24 @@ async function buildFlowFromFields(formId: number): Promise<number> {
     ...fieldPlans.map((plan) => fieldNodeByVariable.get(plan.variableName)),
     summaryNode?.id,
   ]
-  if (orderedNodeIds.some((id) => id === undefined)) {
+  if (!startNode || orderedNodeIds.some((id) => id === undefined)) {
     throw new Error('Unable to create the legacy form flow')
   }
+  const completeNodeIds = orderedNodeIds.filter(
+    (id): id is number => id !== undefined,
+  )
 
   await db.insert(flowEdges).values(
-    orderedNodeIds.slice(0, -1).map((sourceNodeId, index) => ({
+    completeNodeIds.slice(0, -1).map((sourceNodeId, index) => ({
       flowId: flow.id,
-      sourceNodeId: sourceNodeId!,
-      targetNodeId: orderedNodeIds[index + 1]!,
+      sourceNodeId,
+      targetNodeId: completeNodeIds[index + 1],
     })),
   )
 
   await db
     .update(flows)
-    .set({ startNodeId: startNode!.id, updatedAt: new Date() })
+    .set({ startNodeId: startNode.id, updatedAt: new Date() })
     .where(eq(flows.id, flow.id))
 
   return flow.id

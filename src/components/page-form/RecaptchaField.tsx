@@ -83,7 +83,13 @@ export function RecaptchaField({ label, required, siteKey, error, preview, onCha
           },
         })
       })
-      .catch(() => setLoadError('Google reCAPTCHA could not load. Check your connection and retry.'))
+      .catch((recaptchaError: unknown) => {
+        loader = null
+        console.error('[ponkoform-recaptcha] Google reCAPTCHA failed to load', recaptchaError)
+        if (!cancelled) {
+          setLoadError('Google reCAPTCHA could not load. Check your connection and retry.')
+        }
+      })
     return () => {
       cancelled = true
       if (widgetIdRef.current != null && window.grecaptcha) window.grecaptcha.reset(widgetIdRef.current)

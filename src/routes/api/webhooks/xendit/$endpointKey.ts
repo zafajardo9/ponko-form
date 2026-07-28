@@ -1,13 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { getIntegrationByWebhookEndpoint, normalizeXenditConfig } from '../../../../lib/integrations/credentials'
-import type { XenditConfig } from '../../../../lib/integrations/types'
+import { getIntegrationByWebhookEndpoint, normalizeXenditConfig } from '@/lib/integrations/credentials'
+import type { XenditConfig } from '@/lib/integrations/types'
 import {
   paymentByGatewayReference,
   reconcilePayment,
   reconcileSubscriptionWebhook,
-} from '../../../../lib/payments/reconciliation'
-import { validXenditWebhookToken, xenditWebhookIdentity } from '../../../../lib/payments/xendit-webhook'
-import { completePaidPageSubmission } from '../../../../lib/page-builder/complete-submission'
+} from '@/lib/payments/reconciliation'
+import { validXenditWebhookToken, xenditWebhookIdentity } from '@/lib/payments/xendit-webhook'
+import { completePaidPageSubmission } from '@/lib/page-builder/complete-submission'
 
 const MAX_BODY_BYTES = 256_000
 

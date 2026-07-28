@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildEmailSurveyHtml, emailSurveyRatingUrl } from './email-survey-html'
+import { buildEmailSurveyHtml, emailSurveyRatingUrl } from './email/email-survey-html'
 
 describe('email survey HTML', () => {
   it('builds encoded tokenized rating links without forms or scripts', () => {

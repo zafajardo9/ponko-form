@@ -1,13 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { finalizePayment } from '../../lib/server-fns/payments'
-import { finalizePagePayment } from '../../lib/server-fns/page-forms'
-import { FlowExecutionContainer } from '../../components/flow-execution/FlowExecutionContainer'
-import { PageFormView } from '../../components/page-form/PageFormView'
-import { Button } from '../../components/ui/Button'
-import { paymentVerificationPhase } from '../../lib/payment-verification'
-import { isValidPublicSessionToken } from '../../lib/public-session-access'
+import { finalizePayment } from '@/lib/server-fns/payments'
+import { finalizePagePayment } from '@/lib/server-fns/page-forms'
+import { FlowExecutionContainer } from '@/components/flow-execution/FlowExecutionContainer'
+import { PageFormView } from '@/components/page-form/PageFormView'
+import { Button } from '@/components/ui/Button'
+import { paymentVerificationPhase } from '@/lib/payment-verification'
+import { isValidPublicSessionToken } from '@/lib/public-session-access'
 
 /**
  * Payment return route.
@@ -50,20 +50,26 @@ function PaymentReturnPage() {
   const executionAccessValid = !executionId || Boolean(executionClientToken)
 
   const finalize = useMutation({
-    mutationFn: () =>
-      pageSessionId
-        ? finalizePagePayment({
+    mutationFn: () => {
+      if (pageSessionId) {
+        if (!pageClientToken) throw new Error('Missing page payment token')
+        return finalizePagePayment({
             data: {
               sessionId: pageSessionId,
-              clientToken: pageClientToken!,
+              clientToken: pageClientToken,
             },
           })
-        : finalizePayment({
+      }
+      if (!executionId || !executionClientToken) {
+        throw new Error('Missing flow payment access')
+      }
+      return finalizePayment({
             data: {
-              executionId: executionId!,
-              clientToken: executionClientToken!,
+              executionId,
+              clientToken: executionClientToken,
             },
-          }),
+          })
+    },
     onSuccess: (data) => {
       const nextPhase = paymentVerificationPhase(data)
       if (nextPhase !== 'done') {
@@ -153,19 +159,21 @@ function PaymentReturnPage() {
 
   // phase === 'done' — resume the flow with the verified outcome.
   if (pageSessionId) {
+    if (!pageClientToken) return null
     return (
       <PageFormView
         resumeSessionId={pageSessionId}
-        resumeClientToken={pageClientToken!}
+        resumeClientToken={pageClientToken}
       />
     )
   }
 
+  if (!executionId || !executionClientToken) return null
   return (
     <FlowExecutionContainer
       resume={{
-        executionId: executionId!,
-        clientToken: executionClientToken!,
+        executionId,
+        clientToken: executionClientToken,
         paymentResult: result,
       }}
     />

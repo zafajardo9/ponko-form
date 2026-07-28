@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as FormsIndexRouteImport } from './routes/forms/index'
 import { Route as DocsIndexRouteImport } from './routes/docs/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
@@ -43,11 +42,6 @@ const McpRoute = McpRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsIndexRoute = SettingsIndexRouteImport.update({
-  id: '/settings/',
-  path: '/settings/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FormsIndexRoute = FormsIndexRouteImport.update({
@@ -178,7 +172,6 @@ export interface FileRoutesByFullPath {
   '/dashboard/': typeof DashboardIndexRoute
   '/docs/': typeof DocsIndexRoute
   '/forms/': typeof FormsIndexRoute
-  '/settings/': typeof SettingsIndexRoute
   '/api/internal/reconcile-payments': typeof ApiInternalReconcilePaymentsRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
@@ -205,7 +198,6 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardIndexRoute
   '/docs': typeof DocsIndexRoute
   '/forms': typeof FormsIndexRoute
-  '/settings': typeof SettingsIndexRoute
   '/api/internal/reconcile-payments': typeof ApiInternalReconcilePaymentsRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
@@ -233,7 +225,6 @@ export interface FileRoutesById {
   '/dashboard/': typeof DashboardIndexRoute
   '/docs/': typeof DocsIndexRoute
   '/forms/': typeof FormsIndexRoute
-  '/settings/': typeof SettingsIndexRoute
   '/api/internal/reconcile-payments': typeof ApiInternalReconcilePaymentsRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
@@ -262,7 +253,6 @@ export interface FileRouteTypes {
     | '/dashboard/'
     | '/docs/'
     | '/forms/'
-    | '/settings/'
     | '/api/internal/reconcile-payments'
     | '/flow/$executionId/complete'
     | '/forms/$formId/edit'
@@ -289,7 +279,6 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/docs'
     | '/forms'
-    | '/settings'
     | '/api/internal/reconcile-payments'
     | '/flow/$executionId/complete'
     | '/forms/$formId/edit'
@@ -316,7 +305,6 @@ export interface FileRouteTypes {
     | '/dashboard/'
     | '/docs/'
     | '/forms/'
-    | '/settings/'
     | '/api/internal/reconcile-payments'
     | '/flow/$executionId/complete'
     | '/forms/$formId/edit'
@@ -344,7 +332,6 @@ export interface RootRouteChildren {
   DashboardIndexRoute: typeof DashboardIndexRoute
   DocsIndexRoute: typeof DocsIndexRoute
   FormsIndexRoute: typeof FormsIndexRoute
-  SettingsIndexRoute: typeof SettingsIndexRoute
   ApiInternalReconcilePaymentsRoute: typeof ApiInternalReconcilePaymentsRoute
   FlowExecutionIdCompleteRoute: typeof FlowExecutionIdCompleteRoute
   FormsFormIdEditRoute: typeof FormsFormIdEditRoute
@@ -373,13 +360,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings/': {
-      id: '/settings/'
-      path: '/settings'
-      fullPath: '/settings/'
-      preLoaderRoute: typeof SettingsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forms/': {
@@ -552,7 +532,6 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardIndexRoute: DashboardIndexRoute,
   DocsIndexRoute: DocsIndexRoute,
   FormsIndexRoute: FormsIndexRoute,
-  SettingsIndexRoute: SettingsIndexRoute,
   ApiInternalReconcilePaymentsRoute: ApiInternalReconcilePaymentsRoute,
   FlowExecutionIdCompleteRoute: FlowExecutionIdCompleteRoute,
   FormsFormIdEditRoute: FormsFormIdEditRoute,

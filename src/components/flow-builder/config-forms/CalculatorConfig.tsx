@@ -4,7 +4,7 @@ import {
   VariableSelect,
   textAreaClass,
   type ConfigFormProps,
-} from "./controls";
+} from "./Controls";
 import { ExpressionEvaluator } from "../../../lib/flow-engine/ExpressionEvaluator";
 import type {
   FlowVariable,

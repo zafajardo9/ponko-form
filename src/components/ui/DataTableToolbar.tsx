@@ -59,6 +59,9 @@ export function DataTableToolbar<T>({
   const [activeFilterColumn, setActiveFilterColumn] = useState<string | null>(null)
 
   const filterableColumns = columns.filter((c) => c.filterable)
+  const activeFilterDefinition = activeFilterColumn
+    ? filterableColumns.find((column) => column.key === activeFilterColumn)
+    : undefined
 
   const filterLabels: Record<string, string> = {}
   for (const col of filterableColumns) {
@@ -215,13 +218,9 @@ export function DataTableToolbar<T>({
                 </div>
               )}
 
-              {activeFilterColumn && (
+              {activeFilterColumn && activeFilterDefinition && (
                 <DataTableFilterPanel
-                  column={
-                    filterableColumns.find(
-                      (c) => c.key === activeFilterColumn,
-                    )!
-                  }
+                  column={activeFilterDefinition}
                   value={
                     activeFilters[activeFilterColumn] as string | undefined
                   }

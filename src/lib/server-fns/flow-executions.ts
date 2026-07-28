@@ -232,7 +232,7 @@ export const completeExecution = createServerFn({ method: 'POST', strict: false 
       .returning()
 
     await dispatchSubmissionEmails(submission.id).catch((error) => {
-      console.error(`[submission:${submission.id}] Email dispatch failed`, error)
+      console.error(`[ponkoform-flow-execution:${submission.id}] Email dispatch failed`, error)
     })
 
     if (!updated) throw new Error('Execution not found')

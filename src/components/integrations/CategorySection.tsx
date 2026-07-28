@@ -1,5 +1,5 @@
 import { ProviderCard } from './ProviderCard'
-import { PROVIDER_FORMS, CATEGORIES } from './providerForms'
+import { PROVIDER_FORMS, CATEGORIES } from './ProviderForms'
 import type { ProviderSlug, IntegrationStatus } from '../../lib/integrations/types'
 
 interface CategorySectionProps {

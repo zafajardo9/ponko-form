@@ -1,11 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { listDocs, loadDoc } from "../../lib/server-fns/docs";
-import { MarkdownRenderer } from "../../components/docs/MarkdownRenderer";
-import { DocSidebar } from "../../components/docs/DocSidebar";
-import type { DocMeta, DocData } from "../../lib/docs-parser";
+import { listDocs, loadDoc } from "@/lib/server-fns/docs";
+import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer";
+import { DocSidebar } from "@/components/docs/DocSidebar";
+import type { DocMeta, DocData } from "@/lib/docs-parser";
 import { ArrowLeft, Copy, Check, BookOpen, ChevronRight, Clock } from "lucide-react";
+import {
+  navigationBackIconClass,
+  navigationButtonClass,
+} from "../../components/ui/Button";
 
 export const Route = createFileRoute("/docs/$slug")({
   component: DocPage,
@@ -83,9 +87,10 @@ function DocPage() {
         </p>
         <Link
           to="/docs"
-          className="mt-6 inline-flex items-center gap-1.5 text-sm text-[#cc785c] hover:text-[#a9583e]"
+          className={`${navigationButtonClass} mt-6`}
         >
-          <ArrowLeft size={14} /> Browse all docs
+          <ArrowLeft size={14} className={navigationBackIconClass} />
+          Browse all docs
         </Link>
       </div>
     );

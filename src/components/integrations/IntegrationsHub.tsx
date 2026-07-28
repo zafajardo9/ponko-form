@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getIntegrations, saveIntegration, deleteIntegrationByProvider } from '../../lib/server-fns/integrations'
 import { CategorySection } from './CategorySection'
 import { IntegrationModal } from './IntegrationModal'
-import { PROVIDER_FORMS, CATEGORIES } from './providerForms'
+import { PROVIDER_FORMS, CATEGORIES } from './ProviderForms'
 import type { ProviderSlug } from '../../lib/integrations/types'
 
 export function IntegrationsHub() {

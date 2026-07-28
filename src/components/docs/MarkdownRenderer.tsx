@@ -44,12 +44,13 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
     if (!hasSupportedCode) return;
 
     let cancelled = false;
-    void import("./syntax-highlighter")
+    void import("./SyntaxHighlighter")
       .then(async ({ highlightCodeBlocks }) => {
         if (cancelled) return;
         await highlightCodeBlocks(root);
       })
-      .catch(() => {
+      .catch((highlightError: unknown) => {
+        console.error('[ponkoform-docs] Syntax highlighting failed to load', highlightError);
         // The escaped source remains readable if a highlighting chunk cannot load.
       });
     return () => {

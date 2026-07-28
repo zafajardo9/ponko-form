@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '../ui/Button'
-import { Field, Select, textInputClass } from './config-forms/controls'
+import { Field, Select, textInputClass } from './config-forms/Controls'
 import type { FlowVariable, FlowVariableType } from '../../lib/flow-engine/types'
 
 const TYPES: FlowVariableType[] = ['string', 'number', 'boolean', 'money', 'date', 'time', 'datetime']

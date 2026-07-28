@@ -146,7 +146,7 @@ export async function completePageSubmissionRecord(
     .where(eq(formSubmissionSessions.id, session.id))
     .returning()
   await dispatchSubmissionEmails(submission.id).catch((error) => {
-    console.error(`[submission:${submission.id}] Email dispatch failed`, error)
+    console.error(`[ponkoform-page-submission:${submission.id}] Email dispatch failed`, error)
   })
   return { session: updated, submission }
 }

@@ -63,7 +63,8 @@ export function buildAutoLayout(
   const queue: number[] = [start.id];
   for (let cursor = 0; cursor < queue.length; cursor += 1) {
     const id = queue[cursor];
-    const currentLevel = level.get(id)!;
+    const currentLevel = level.get(id);
+    if (currentLevel == null) continue;
     for (const targetId of outgoing.get(id) ?? []) {
       if (!level.has(targetId)) {
         level.set(targetId, currentLevel + 1);

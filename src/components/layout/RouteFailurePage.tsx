@@ -55,7 +55,7 @@ export function RouteFailurePage(props: FailurePageProps) {
             {isNotFound && (
               <Link
                 to="/docs"
-                className={`inline-flex min-h-11 items-center justify-center rounded-md px-5 py-3 text-sm font-medium text-muted transition-colors hover:text-ink ${focusRing}`}
+                className={`inline-flex min-h-11 items-center justify-center rounded-md border border-hairline bg-surface-soft px-5 py-3 text-sm font-medium text-ink transition-colors hover:bg-surface-cream-strong ${focusRing}`}
               >
                 Browse documentation
               </Link>

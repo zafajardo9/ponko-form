@@ -1,17 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { requireAuth } from "../../lib/server-fns/auth";
+import { requireAuth } from "@/lib/server-fns/auth";
 import {
   bulkDeleteForms,
   bulkUpdateForms,
   deleteForm,
   getForms,
-} from "../../lib/server-fns/forms";
-import { FormCard } from "../../components/dashboard/FormCard";
-import { EmptyState } from "../../components/dashboard/EmptyState";
-import { ShareDialog } from "../../components/dashboard/ShareDialog";
-import { Button } from "../../components/ui/Button";
+} from "@/lib/server-fns/forms";
+import { FormCard } from "@/components/dashboard/FormCard";
+import { EmptyState } from "@/components/dashboard/EmptyState";
+import { ShareDialog } from "@/components/dashboard/ShareDialog";
+import { Button } from "@/components/ui/Button";
 import {
   CheckSquare2,
   FileCheck2,

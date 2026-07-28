@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
-import { requireAuth } from "../../../lib/server-fns/auth";
+import { requireAuth } from "@/lib/server-fns/auth";
 import {
   getFormPayments,
   getPaymentActivity,
@@ -11,13 +12,17 @@ import {
   emailPaymentRecoveryLink,
   bulkVerifyPayments,
   type PaymentViewRow,
-} from "../../../lib/server-fns/payments-view";
-import { Badge } from "../../../components/ui/Badge";
-import { FormWorkspaceLayout } from "../../../components/forms/FormWorkspaceLayout";
+} from "@/lib/server-fns/payments-view";
+import { Badge } from "@/components/ui/Badge";
+import { FormWorkspaceLayout } from "@/components/forms/FormWorkspaceLayout";
 import {
   DataTable,
   type DataTableColumn,
-} from "../../../components/ui/DataTable";
+} from "@/components/ui/DataTable";
+import {
+  navigationBackIconClass,
+  navigationButtonClass,
+} from "@/components/ui/Button";
 
 export const Route = createFileRoute("/forms/$formId/payments")({
   beforeLoad: ({ location }) => requireAuth({ data: { returnTo: location.href } }),
@@ -76,10 +81,12 @@ function PaymentsPage() {
   const formTitle = data?.formTitle;
   const activityQuery = useQuery({
     queryKey: ["payment-activity", formId, selected?.id],
-    queryFn: () =>
-      getPaymentActivity({
-        data: { formId: Number(formId), paymentId: selected!.id },
-      }),
+    queryFn: () => {
+      if (!selected) throw new Error("Select a payment");
+      return getPaymentActivity({
+        data: { formId: Number(formId), paymentId: selected.id },
+      });
+    },
     enabled: selected != null,
   });
   const selectedPayment =
@@ -176,9 +183,10 @@ function PaymentsPage() {
           <Link
             to="/forms/$formId/edit"
             params={{ formId }}
-            className="mt-4 inline-block text-sm text-[#cc785c] hover:text-[#a9583e]"
+            className={`${navigationButtonClass} mt-5`}
           >
-            ← Back to builder
+            <ArrowLeft size={15} className={navigationBackIconClass} />
+            Back to builder
           </Link>
         </div>
       </FormWorkspaceLayout>
@@ -363,8 +371,8 @@ function PaymentsPage() {
       align: "right",
       width: "110px",
       accessor: () => (
-        <span className="whitespace-nowrap font-medium text-[#cc785c]">
-          Details →
+        <span className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-[#a9583e]">
+          Details <ChevronRight size={14} aria-hidden="true" />
         </span>
       ),
     },

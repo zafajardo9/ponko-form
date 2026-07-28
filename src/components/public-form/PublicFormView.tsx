@@ -1,15 +1,15 @@
 import { lazy, Suspense, useEffect, useState, type CSSProperties } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { getPublicForm, getPublicFormRuntime } from '../../lib/server-fns/forms'
-import { submitFormResponse } from '../../lib/server-fns/submissions'
-import { getEmailSurveyPrefill } from '../../lib/server-fns/email-surveys'
+import { getPublicForm, getPublicFormRuntime } from '@/lib/server-fns/forms'
+import { submitFormResponse } from '@/lib/server-fns/submissions'
+import { getEmailSurveyPrefill } from '@/lib/server-fns/email-surveys'
 import { FieldRenderer } from '../form-builder/fields/FieldRenderer'
-import { validateForm } from '../../lib/form-utils'
+import { validateForm } from '@/lib/form-utils'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
-import { themeVars, type FormTheme } from '../../lib/theme'
+import { themeVars, type FormTheme } from '@/lib/theme'
 import type { FieldConfig, FieldValue } from '../form-builder/fields/FieldRenderer'
-import { createPublicSessionToken } from '../../lib/public-session-access'
+import { createPublicSessionToken } from '@/lib/public-session-access'
 import { FormLoadingIndicator } from './FormLoadingIndicator'
 
 const FlowExecutionContainer = lazy(() =>
@@ -67,9 +67,14 @@ export function PublicFormView({
   const hasEmailSurveyLink = Boolean(emailSurveyToken && emailSurveyRating)
   const emailSurveyQuery = useQuery({
     queryKey: ['email-survey-prefill', publicId, emailSurveyToken, emailSurveyRating],
-    queryFn: () => getEmailSurveyPrefill({
-      data: { publicId, token: emailSurveyToken!, rating: emailSurveyRating! },
-    }),
+    queryFn: () => {
+      if (!emailSurveyToken || !emailSurveyRating) {
+        throw new Error('Missing email survey access')
+      }
+      return getEmailSurveyPrefill({
+        data: { publicId, token: emailSurveyToken, rating: emailSurveyRating },
+      })
+    },
     enabled: hasEmailSurveyLink,
     retry: false,
   })
@@ -90,7 +95,10 @@ export function PublicFormView({
 
   const runtimeQuery = useQuery({
     queryKey: ['public-form-runtime', String(resolvedFormId ?? publicId)],
-    queryFn: () => getPublicFormRuntime({ data: { formId: resolvedFormId! } }),
+    queryFn: () => {
+      if (!hasResolvedFormId) throw new Error('Missing form identifier')
+      return getPublicFormRuntime({ data: { formId: resolvedFormId } })
+    },
     enabled: hasResolvedFormId,
     retry: 2,
     retryDelay: (attempt) => Math.min(750 * 2 ** attempt, 3_000),
@@ -101,14 +109,16 @@ export function PublicFormView({
   const pageForm = runtime?.kind === 'page' ? runtime : null
 
   const submitMutation = useMutation({
-    mutationFn: (formData: Record<string, unknown>) =>
-      submitFormResponse({
+    mutationFn: (formData: Record<string, unknown>) => {
+      if (!hasResolvedFormId) throw new Error('Missing form identifier')
+      return submitFormResponse({
         data: {
-          formId: resolvedFormId!,
+          formId: resolvedFormId,
           clientToken: submissionClientToken,
           formData,
         },
-      }),
+      })
+    },
     onSuccess: () => setSubmitted(true),
   })
 
@@ -203,11 +213,11 @@ export function PublicFormView({
     )
   }
 
-  if (pageForm?.pages?.length) {
+  if (pageForm?.pages?.length && hasResolvedFormId) {
     return (
       <Suspense fallback={<RuntimeLoadingScreen outerClass={outerClass} wrapperClass={wrapperClass} themed={themed} title={form.title} />}>
         <PageFormView
-          formId={resolvedFormId!}
+          formId={resolvedFormId}
           title={form.title}
           description={form.description}
           pages={pageForm.pages}
@@ -215,8 +225,8 @@ export function PublicFormView({
           recaptchaSiteKey={pageForm.recaptchaSiteKey}
           theme={theme}
           embed={embed}
-          emailSurvey={emailSurveyQuery.data?.valid ? {
-            token: emailSurveyToken!,
+          emailSurvey={emailSurveyQuery.data?.valid && emailSurveyToken ? {
+            token: emailSurveyToken,
             rating: emailSurveyQuery.data.rating,
             bindVariable: emailSurveyQuery.data.bindVariable,
           } : undefined}

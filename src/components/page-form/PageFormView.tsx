@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { themeVars, type FormTheme } from '../../lib/theme'
+import { themeVars, type FormTheme } from '@/lib/theme'
 import {
   advancePageSession,
   completePageSubmission,
   getPageSessionData,
   startPageSession,
-} from '../../lib/server-fns/page-forms'
+} from '@/lib/server-fns/page-forms'
 import {
   isFieldVisible,
   missingAddressParts,
@@ -14,12 +14,12 @@ import {
   sanitizeFieldValue,
   validateFieldRules,
   visibleFields,
-} from '../../lib/page-builder/conditions'
+} from '@/lib/page-builder/conditions'
 import {
   applyComputedFieldValues,
   buildReferenceMap,
-} from '../../lib/page-builder/references'
-import type { FormPage, FormReference, PageField } from '../../lib/page-builder/types'
+} from '@/lib/page-builder/references'
+import type { FormPage, FormReference, PageField } from '@/lib/page-builder/types'
 import { Card } from '../ui/Card'
 import { Button } from '../ui/Button'
 import { FieldRenderer } from '../form-builder/fields/FieldRenderer'
@@ -28,7 +28,7 @@ import { PageProgressBar } from './PageProgressBar'
 import { PagePaymentStep } from './PagePaymentStep'
 import { PagePaymentPreview } from './PagePaymentPreview'
 import { RecaptchaField } from './RecaptchaField'
-import { createPublicSessionToken } from '../../lib/public-session-access'
+import { createPublicSessionToken } from '@/lib/public-session-access'
 import { FormLoadingIndicator } from '../public-form/FormLoadingIndicator'
 
 interface PageFormViewProps {
@@ -97,16 +97,22 @@ export function PageFormView({
   const startedRef = useRef(false)
   const submissionQueuedRef = useRef<Record<string, unknown> | null>(null)
   const failedSubmissionRef = useRef<Record<string, unknown> | null>(null)
+  function requireSessionId() {
+    if (sessionId == null) throw new Error('The form session is not ready yet')
+    return sessionId
+  }
 
   const resumeQuery = useQuery({
     queryKey: ['page-session', resumeSessionId],
-    queryFn: () =>
-      getPageSessionData({
+    queryFn: () => {
+      if (resumeSessionId == null) throw new Error('Missing form session')
+      return getPageSessionData({
         data: {
-          sessionId: resumeSessionId!,
+          sessionId: resumeSessionId,
           clientToken: sessionClientToken,
         },
-      }),
+      })
+    },
     enabled: !!resumeSessionId && !!resumeClientToken,
   })
 
@@ -180,7 +186,7 @@ export function PageFormView({
     mutationFn: (vars: { currentPageIndex: number; collectedData: Record<string, unknown> }) =>
       advancePageSession({
         data: {
-          sessionId: sessionId!,
+          sessionId: requireSessionId(),
           clientToken: sessionClientToken,
           ...vars,
         },
@@ -191,7 +197,7 @@ export function PageFormView({
     mutationFn: (collectedData: Record<string, unknown>) =>
       completePageSubmission({
         data: {
-          sessionId: sessionId!,
+          sessionId: requireSessionId(),
           clientToken: sessionClientToken,
           collectedData,
         },

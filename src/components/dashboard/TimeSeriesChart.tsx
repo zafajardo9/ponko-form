@@ -94,7 +94,10 @@ export function TimeSeriesChart({
   const linePath = points
     .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
     .join(" ");
-  const areaPath = `${linePath} L ${points.at(-1)!.x} ${plotBottom} L ${points[0].x} ${plotBottom} Z`;
+  const firstPoint = points[0];
+  const lastPoint = points.at(-1);
+  if (!firstPoint || !lastPoint) return null;
+  const areaPath = `${linePath} L ${lastPoint.x} ${plotBottom} L ${firstPoint.x} ${plotBottom} Z`;
 
   return (
     <div className="relative h-full min-h-56 w-full">

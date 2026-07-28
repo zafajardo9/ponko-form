@@ -1,4 +1,4 @@
-import { Field, Select, VariableSelect, Toggle, TextField, type ConfigFormProps } from './controls'
+import { Field, Select, VariableSelect, Toggle, TextField, type ConfigFormProps } from './Controls'
 import { OptionsEditor } from './OptionsEditor'
 
 const FIELD_TYPES = [

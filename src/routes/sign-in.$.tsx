@@ -10,6 +10,24 @@ export const Route = createFileRoute('/sign-in/$')({
   component: Page,
 })
 
+const signInAppearance = {
+  elements: {
+    card: 'rounded-md border border-[#e6dfd8] bg-white shadow-none',
+    headerTitle: 'text-[#141413]',
+    headerSubtitle: 'text-[#6c6a64]',
+    formFieldInput: 'rounded-md border border-[#e6dfd8] bg-white text-[#141413] focus:ring-[#cc785c] focus:border-[#cc785c]',
+    formButtonPrimary:
+      'rounded-md bg-[#cc785c] hover:bg-[#a9583e] border-none shadow-none',
+    formFieldLabel: 'text-[#141413]',
+    footerActionLink: 'text-[#cc785c] hover:text-[#a9583e]',
+    socialButtonsBlockButton:
+      'rounded-md border border-[#e6dfd8] bg-white text-[#141413] hover:bg-[#faf9f5] shadow-none',
+    socialButtonsBlockButtonText: 'font-medium',
+    dividerLine: 'bg-[#e6dfd8]',
+    dividerText: 'text-[#6c6a64]',
+  },
+};
+
 function Page() {
   const { redirect_url } = Route.useSearch()
   return (
@@ -73,7 +91,12 @@ function Page() {
             Create one free
           </Link>
         </div>
-        <SignIn routing="path" path="/sign-in" forceRedirectUrl={redirect_url} />
+        <SignIn
+          routing="path"
+          path="/sign-in"
+          forceRedirectUrl={redirect_url}
+          appearance={signInAppearance}
+        />
       </div>
     </div>
   )

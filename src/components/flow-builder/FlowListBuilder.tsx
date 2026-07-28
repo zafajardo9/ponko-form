@@ -28,7 +28,7 @@ import {
   isPureLinear,
 } from "../../lib/flow-engine/path-utils";
 import { GroupFieldsEditor } from "./config-forms/GroupFieldsEditor";
-import { TextField } from "./config-forms/controls";
+import { TextField } from "./config-forms/Controls";
 import {
   Play,
   Square,
@@ -181,13 +181,19 @@ export function FlowListBuilder({
         (n.config.title as string) || n.label || `Field Group #${n.id}`,
     }));
 
-  const orderedNodes = ordered.map((id) => byId.get(id)!).filter(Boolean);
+  const orderedNodes = ordered.flatMap((id) => {
+    const node = byId.get(id);
+    return node ? [node] : [];
+  });
   const startNode = orderedNodes.find((n) => n.type === "start") ?? null;
   const middle = orderedNodes.filter(
     (n) => n.type !== "start" && !TERMINAL.has(n.type),
   );
   const terminals = orderedNodes.filter((n) => TERMINAL.has(n.type));
-  const offPathNodes = offPath.map((id) => byId.get(id)!).filter(Boolean);
+  const offPathNodes = offPath.flatMap((id) => {
+    const node = byId.get(id);
+    return node ? [node] : [];
+  });
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -423,13 +429,13 @@ function NodeRow(props: NodeRowProps) {
                 <p className="px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-[#8e8b82]">
                   Move into…
                 </p>
-                {moveTargets!.map((t) => (
+                {moveTargets?.map((t) => (
                   <button
                     key={t.id}
                     onClick={(e) => {
                       e.stopPropagation();
                       setMoveOpen(false);
-                      onMoveToGroup!(t.id);
+                      onMoveToGroup?.(t.id);
                     }}
                     className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[#141413] hover:bg-[#f5f0e8]"
                   >

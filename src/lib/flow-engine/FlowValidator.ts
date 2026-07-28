@@ -69,7 +69,8 @@ export class FlowValidator {
     visited.add(startNode.id)
 
     while (queue.length > 0) {
-      const currentId = queue.shift()!
+      const currentId = queue.shift()
+      if (currentId == null) break
       const outgoing = edges.filter((e) => e.sourceNodeId === currentId)
       for (const edge of outgoing) {
         if (!visited.has(edge.targetNodeId)) {

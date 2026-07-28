@@ -1,14 +1,14 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, FilePlus2 } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { useState } from 'react'
-import { requireAuth } from '../../lib/server-fns/auth'
-import { createForm, createFormFromTemplate, getFormTemplates } from '../../lib/server-fns/forms'
-import type { FormTemplateRecord } from '../../lib/form-templates/types'
-import { TemplateCard } from '../../components/forms/TemplateCard'
-import { TemplatePreview } from '../../components/forms/TemplatePreview'
-import { Button } from '../../components/ui/Button'
-import { Input } from '../../components/ui/Input'
+import { requireAuth } from '@/lib/server-fns/auth'
+import { createForm, createFormFromTemplate, getFormTemplates } from '@/lib/server-fns/forms'
+import type { FormTemplateRecord } from '@/lib/form-templates/types'
+import { ScratchTemplateCard, TemplateCard } from '@/components/forms/TemplateCard'
+import { TemplatePreview } from '@/components/forms/TemplatePreview'
+import { Button, navigationBackIconClass, navigationButtonClass } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 
 export const Route = createFileRoute('/forms/new')({
   beforeLoad: ({ location }) => requireAuth({ data: { returnTo: location.href } }),
@@ -110,42 +110,35 @@ function NewFormPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f5f1]">
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
-        <div className="max-w-3xl">
+    <div className="min-h-screen bg-[#faf9f5]">
+      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
+        <div className="max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8e8b82]">Forms</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#141413] sm:text-4xl">Create a new form</h1>
-          <p className="mt-3 text-base leading-7 text-[#6c6a64]">Start with a proven structure or create a blank form. Every template is fully editable after creation.</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#141413] sm:text-4xl">Choose a starting point</h1>
+          <p className="mt-3 text-base leading-7 text-[#6c6a64]">Use a template or begin with a blank form. You can change every page and field later.</p>
         </div>
 
-        <button type="button" onClick={selectScratch} className="group mt-9 flex w-full items-center justify-between gap-5 rounded-xl border border-[#d6d1ca] bg-[#141413] p-5 text-left text-white shadow-sm transition hover:bg-[#2d2c29] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2 sm:p-6">
-          <div className="flex items-center gap-4">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white/10"><FilePlus2 size={20} /></span>
-            <div>
-              <h2 className="font-semibold">Start from scratch</h2>
-              <p className="mt-1 text-sm text-white/65">A blank form with an input page and confirmation page.</p>
-            </div>
-          </div>
-          <span className="hidden text-sm font-semibold text-white/80 transition group-hover:translate-x-0.5 sm:block">Select →</span>
-        </button>
-
-        <div className="mt-12 flex items-end justify-between border-b border-[#dcd8d1] pb-4">
-          <div><h2 className="text-xl font-semibold text-[#141413]">Templates</h2><p className="mt-1 text-sm text-[#77736c]">Prebuilt forms for common workflows.</p></div>
+        <div className="mt-10 flex items-end justify-between border-b border-[#dcd8d1] pb-4">
+          <div><h2 className="text-lg font-semibold text-[#141413]">Templates</h2><p className="mt-1 text-sm text-[#77736c]">Select one to continue.</p></div>
           {!templatesQuery.isLoading && <span className="text-xs text-[#8e8b82]">{templates.length} available</span>}
         </div>
 
-        {templatesQuery.isLoading ? (
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" role="status" aria-label="Loading form templates">
-            {[1, 2, 3, 4, 5].map((item) => <div key={item} className="h-56 animate-pulse rounded-xl border border-[#dedbd5] bg-white" />)}
-          </div>
-        ) : templatesQuery.isError ? (
-          <div className="mt-5 rounded-xl border border-[#e3c5bd] bg-[#fff7f5] p-5 text-sm text-[#8a4034]">Templates could not be loaded. You can still start from scratch.</div>
-        ) : templates.length === 0 ? (
-          <div className="mt-5 rounded-xl border border-dashed border-[#cfc9c0] p-10 text-center text-sm text-[#77736c]">No templates are available yet. Start from scratch to create your form.</div>
-        ) : (
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {templates.map((template) => <TemplateCard key={template.id} template={template} onClick={() => selectTemplate(template)} />)}
-          </div>
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ScratchTemplateCard onClick={selectScratch} />
+          {templatesQuery.isLoading ? (
+            <>
+              {[1, 2, 3, 4, 5].map((item) => <div key={item} className="min-h-52 animate-pulse rounded-lg border border-[#dedbd5] bg-white" />)}
+            </>
+          ) : (
+            templates.map((template) => <TemplateCard key={template.id} template={template} onClick={() => selectTemplate(template)} />)
+          )}
+        </div>
+        {templatesQuery.isLoading && <p className="sr-only" role="status">Loading form templates</p>}
+        {templatesQuery.isError && (
+          <div className="mt-4 rounded-lg border border-[#e3c5bd] bg-[#fff7f5] p-4 text-sm text-[#8a4034]">Templates could not be loaded. You can still start from scratch.</div>
+        )}
+        {!templatesQuery.isLoading && !templatesQuery.isError && templates.length === 0 && (
+          <p className="mt-4 text-sm text-[#77736c]">No saved templates are available yet.</p>
         )}
       </div>
     </div>
@@ -156,7 +149,10 @@ function CreationShell({ title, description, onBack, children }: { title: string
   return (
     <div className="min-h-screen bg-[#f7f5f1]">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
-        <button type="button" onClick={onBack} className="flex items-center gap-2 text-sm font-medium text-[#6c6a64] hover:text-[#141413]"><ArrowLeft size={16} /> Back to templates</button>
+        <button type="button" onClick={onBack} className={navigationButtonClass}>
+          <ArrowLeft size={15} className={navigationBackIconClass} />
+          Back to templates
+        </button>
         <div className="mb-8 mt-7 max-w-3xl"><h1 className="text-3xl font-semibold tracking-tight text-[#141413]">{title}</h1><p className="mt-2 text-[#6c6a64]">{description}</p></div>
         {children}
       </div>

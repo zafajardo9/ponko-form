@@ -1,4 +1,4 @@
-import type { InvoiceModel } from './invoice'
+import type { InvoiceModel } from './InvoiceUtils'
 
 /**
  * Small, dependency-free PDF writer for the respondent invoice. Keeping the

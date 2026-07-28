@@ -8,7 +8,7 @@ import { CalculatorConfig } from './config-forms/CalculatorConfig'
 import { PaymentConfig } from './config-forms/PaymentConfig'
 import { SummaryConfig } from './config-forms/SummaryConfig'
 import { RedirectConfig } from './config-forms/RedirectConfig'
-import { TextField } from './config-forms/controls'
+import { TextField } from './config-forms/Controls'
 
 const TYPE_LABELS: Record<string, string> = {
   start: 'Start',

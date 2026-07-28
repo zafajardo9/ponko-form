@@ -1,4 +1,4 @@
-import { Field, TextField, type ConfigFormProps } from './controls'
+import { Field, TextField, type ConfigFormProps } from './Controls'
 import { GroupFieldsEditor } from './GroupFieldsEditor'
 import type { GroupedField } from '../../../lib/flow-engine/types'
 

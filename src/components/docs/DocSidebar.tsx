@@ -1,6 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import type { DocMeta } from "../../lib/docs-parser";
 import { ArrowLeft, BookOpen } from "lucide-react";
+import {
+  navigationBackIconClass,
+  navigationButtonClass,
+} from "../ui/Button";
 
 /**
  * DocSidebar
@@ -25,9 +29,10 @@ export function DocSidebar({
       <div className="sticky top-24 flex max-h-[calc(100vh-7rem)] flex-col gap-6 overflow-y-auto pr-2">
         <Link
           to="/docs"
-          className="flex items-center gap-1.5 text-sm text-[#8e8b82] transition-colors hover:text-[#141413]"
+          className={`${navigationButtonClass} self-start`}
         >
-          <ArrowLeft size={14} /> All docs
+          <ArrowLeft size={14} className={navigationBackIconClass} />
+          All docs
         </Link>
 
         <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-4">

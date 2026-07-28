@@ -1,8 +1,8 @@
 import { createServerFn } from '@tanstack/react-start'
 import { auth } from '@clerk/tanstack-react-start/server'
 import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm'
-import { db } from '../../db/index'
-import { withTimeout } from '../../db/with-timeout'
+import { db } from '@/db/index'
+import { withTimeout } from '@/db/with-timeout'
 import {
   fieldConditions,
   emailSurveyInvitations,
@@ -13,14 +13,14 @@ import {
   forms,
   paymentGateways,
   payments,
-} from '../../db/schema'
-import { paymentRegistry } from '../../integrations/payments/index'
+} from '@/db/schema'
+import { paymentRegistry } from '@/integrations/payments/index'
 import { reconcilePayment } from '../payments/reconciliation'
 import type {
   GatewayCredentials,
   PaymentResult,
   SubscriptionResult,
-} from '../../integrations/payments/types'
+} from '@/integrations/payments/types'
 import { loadIntegrationConfigs } from '../integrations/credentials'
 import {
   getRecaptchaConfigForForm,
@@ -1255,6 +1255,7 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
           gatewaySlug: data.gatewaySlug,
           retryable: true,
           reference: `PAY-${String(checkout.payment.id).padStart(6, '0')}`,
+          debugDetail: undefined,
         },
       }
     }
@@ -1268,6 +1269,7 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
           gatewaySlug: data.gatewaySlug,
           retryable: false,
           reference: `PAY-${String(checkout.payment.id).padStart(6, '0')}`,
+          debugDetail: undefined,
         },
       }
     }
@@ -1289,18 +1291,22 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
     }).where(eq(formSubmissionSessions.id, session.id))
     const metadata = { pageSessionId: String(session.id), pageId: String(page.id), paymentId: String(payment.id) }
     const anchorDate = subscriptionConfig ? subscriptionAnchorDate(subscriptionConfig) : null
-    const createOperation: Promise<PaymentResult | SubscriptionResult> = subscriptionConfig
+    if (subscriptionConfig && (!customer || !anchorDate)) {
+      throw new Error('Subscription customer details are unavailable')
+    }
+    const createOperation: Promise<PaymentResult | SubscriptionResult> =
+      subscriptionConfig && customer && anchorDate
       ? gateway.createSubscription({
           amount: Math.round(amountMajor * 100),
           currency: page.paymentCurrency,
           referenceId: `${externalId}-${Date.now()}`.slice(0, 64),
           customerReferenceId: `pf${form.id}s${session.id}`,
-          customerName: customer!.name,
-          customerEmail: customer!.email,
+          customerName: customer.name,
+          customerEmail: customer.email,
           description: `${form.title} subscription`.slice(0, 1000),
           interval: subscriptionConfig.intervalUnit,
           intervalCount: subscriptionConfig.intervalCount,
-          anchorDate: anchorDate!.toISOString(),
+          anchorDate: anchorDate.toISOString(),
           totalRecurrence: subscriptionConfig.maxCycles,
           immediatePayment: subscriptionConfig.trialPeriodDays === 0,
           metadata,

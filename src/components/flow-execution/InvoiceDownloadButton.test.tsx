@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { InvoiceDownloadButton } from './InvoiceDownloadButton'
-import type { InvoiceModel } from './invoice'
+import type { InvoiceModel } from './InvoiceUtils'
 
 const generateInvoicePdf = vi.hoisted(() => vi.fn())
 

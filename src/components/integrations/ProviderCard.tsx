@@ -1,4 +1,4 @@
-import { PROVIDER_FORMS, type ProviderFormConfig } from './providerForms'
+import { PROVIDER_FORMS, type ProviderFormConfig } from './ProviderForms'
 import type { ProviderSlug } from '../../lib/integrations/types'
 
 interface ProviderCardProps {

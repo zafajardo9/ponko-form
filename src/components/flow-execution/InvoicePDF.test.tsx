@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { generateInvoicePdf } from './InvoicePDF'
-import type { InvoiceModel } from './invoice'
+import type { InvoiceModel } from './InvoiceUtils'
 
 const invoice: InvoiceModel = {
   issuer: 'PonkoForm',

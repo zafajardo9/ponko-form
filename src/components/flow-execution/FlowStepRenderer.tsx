@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
+import { ArrowLeft } from 'lucide-react'
 import type { FlowStep, StepInput } from '../../lib/flow-engine/FlowEngine'
 import type { GroupedField } from '../../lib/flow-engine/types'
 import { FieldRenderer, type FieldConfig, type FieldOption, type FieldValue } from '../form-builder/fields/FieldRenderer'
-import { Button } from '../ui/Button'
+import { Button, navigationBackIconClass } from '../ui/Button'
 import { FlowProgressBar } from './FlowProgressBar'
 import { GroupStepView } from './GroupStepView'
 import { PaymentStep } from './PaymentStep'
@@ -102,8 +103,9 @@ export function FlowStepRenderer({
           currency={(config.currency as string) ?? 'USD'}
         />
         {canGoBack && (
-          <Button variant="text-link" size="sm" onClick={onBack}>
-            ← Back
+          <Button variant="navigation" size="sm" onClick={onBack}>
+            <ArrowLeft size={14} className={navigationBackIconClass} />
+            Back
           </Button>
         )}
       </div>
@@ -231,8 +233,9 @@ function StepNav({
   return (
     <div className="flex items-center justify-between">
       {canGoBack ? (
-        <Button variant="text-link" size="sm" onClick={onBack}>
-          ← Back
+        <Button variant="navigation" size="sm" onClick={onBack}>
+          <ArrowLeft size={14} className={navigationBackIconClass} />
+          Back
         </Button>
       ) : (
         <span />

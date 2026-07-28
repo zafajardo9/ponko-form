@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
 /**
@@ -6,6 +7,11 @@ import { defineConfig } from 'vitest/config'
  * default Node environment; component tests opt into jsdom per file.
  */
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   test: {
     globals: false,
     environment: 'node',

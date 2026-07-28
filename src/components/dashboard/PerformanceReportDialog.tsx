@@ -8,8 +8,8 @@ import {
   Lightbulb,
   X,
 } from "lucide-react";
-import type { DashboardOverview, DashboardStats } from "../../lib/server-fns/dashboard";
-import type { FormAnalyticsRecord } from "../../lib/dashboard-analytics";
+import type { DashboardOverview, DashboardStats } from "@/lib/server-fns/dashboard";
+import type { FormAnalyticsRecord } from "@/lib/dashboard-analytics";
 import {
   completionRate,
   fillDashboardDateGaps,
@@ -17,11 +17,11 @@ import {
   formatDashboardMoney,
   majorToMinor,
   minorToMajor,
-} from "../../lib/dashboard-analytics";
+} from "@/lib/dashboard-analytics";
 import {
   buildDashboardInsights,
   selectedFormSummary,
-} from "../../lib/dashboard-report";
+} from "@/lib/dashboard-report";
 import { Button } from "../ui/Button";
 import { TimeSeriesChart } from "./TimeSeriesChart";
 

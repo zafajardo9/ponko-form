@@ -8,6 +8,7 @@ import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { lazy, Suspense } from "react";
 
+import { ErrorBoundary } from "../components/layout/ErrorBoundary";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
 import { isBarePublicPath } from "../lib/public-route";
 
@@ -85,11 +86,13 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 
 function ApplicationShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  if (isBarePublicPath(pathname)) return children;
+  if (isBarePublicPath(pathname)) return <ErrorBoundary key={pathname}>{children}</ErrorBoundary>;
   return (
-    <Suspense fallback={<ShellLoading />}>
-      <AuthenticatedAppShell>{children}</AuthenticatedAppShell>
-    </Suspense>
+    <ErrorBoundary key={pathname}>
+      <Suspense fallback={<ShellLoading />}>
+        <AuthenticatedAppShell>{children}</AuthenticatedAppShell>
+      </Suspense>
+    </ErrorBoundary>
   )
 }
 

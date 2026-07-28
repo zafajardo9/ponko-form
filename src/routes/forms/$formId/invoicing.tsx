@@ -2,19 +2,19 @@ import { useEffect, useMemo, useState } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Send, Settings2 } from 'lucide-react'
-import { requireAuth } from '../../../lib/server-fns/auth'
+import { requireAuth } from '@/lib/server-fns/auth'
 import {
   getInvoicingView,
   retryEmailDelivery,
   saveInvoicingConfig,
   sendTestTemplate,
   type InvoicingTemplateKind,
-} from '../../../lib/server-fns/invoicing'
-import { FormWorkspaceLayout } from '../../../components/forms/FormWorkspaceLayout'
-import { InvoiceTemplateBuilder } from '../../../components/invoicing/InvoiceTemplateBuilder'
-import { DeliveryHistory } from '../../../components/invoicing/DeliveryHistory'
-import { Badge } from '../../../components/ui/Badge'
-import type { ConfirmationConfigDraft, InvoiceConfigDraft } from '../../../lib/invoicing/types'
+} from '@/lib/server-fns/invoicing'
+import { FormWorkspaceLayout } from '@/components/forms/FormWorkspaceLayout'
+import { InvoiceTemplateBuilder } from '@/components/invoicing/InvoiceTemplateBuilder'
+import { DeliveryHistory } from '@/components/invoicing/DeliveryHistory'
+import { Badge } from '@/components/ui/Badge'
+import type { ConfirmationConfigDraft, InvoiceConfigDraft } from '@/lib/invoicing/types'
 
 export const Route = createFileRoute('/forms/$formId/invoicing')({
   beforeLoad: ({ location }) => requireAuth({ data: { returnTo: location.href } }),
