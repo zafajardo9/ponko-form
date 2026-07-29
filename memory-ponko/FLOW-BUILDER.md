@@ -1,14 +1,15 @@
 # Flow Builder — Deep Dive
 
 > Part of [`memory-ponko/`](README.md) — System Memory
+> **Verified against:** `main` at `7d2cbe3` on 2026-07-28.
 
 ---
 
 ## 1. What Is the Flow Builder?
 
-The Flow Builder transforms a linear form into a **visual workflow graph**. Form creators connect nodes on a canvas to build multi-step, branching, calculator-enabled, payment-integrated experiences.
+The Flow Builder stores a **visual workflow graph** for forms that need step-by-step input, branching, calculation, payment, and redirect behavior. Creators can edit the primary path as a sortable list or edit the full graph on a canvas.
 
-A form with a flow runs the step-by-step experience for respondents. A form *without* a flow behaves as a classic single-page linear form.
+A form with a `flows` row uses the flow runtime. A form without a flow uses the Page Builder runtime; legacy `form_fields` data is retained for backward compatibility.
 
 ---
 
@@ -30,13 +31,15 @@ A form with a flow runs the step-by-step experience for respondents. A form *wit
 | Node | Incoming Edges | Outgoing Edges |
 |---|---|---|
 | Start | 0 | Exactly 1 |
-| Form Field | 1+ | Exactly 1 |
-| Field Group | 1+ | Exactly 1 |
-| Decision | 1+ | One per branch |
-| Calculator | 1+ | Exactly 1 |
-| Payment | 1+ | 1 (success) or 2 (success + failure) |
-| Summary | 1+ | 0 (terminal) |
-| Redirect | 1+ | 0 (terminal) |
+| Form Field | Reachable from Start | Exactly 1 |
+| Field Group | Reachable from Start | Exactly 1 |
+| Decision | Reachable from Start | At least one connection per configured branch |
+| Calculator | Reachable from Start | Exactly 1 |
+| Payment | Reachable from Start | 1 (success) or 2 (success + failure) |
+| Summary | Reachable from Start | 0 (terminal) |
+| Redirect | Reachable from Start | 0 (terminal) |
+
+The current validator enforces reachability and outgoing-edge counts; it does not independently enforce a numeric incoming-edge minimum.
 
 ---
 
@@ -51,7 +54,7 @@ Variables are the **typed data backbone** of every flow. They are declared in th
 | `string` | Text | Raw text | No |
 | `number` | Number | Locale-formatted (e.g., `1,200`) | Yes |
 | `boolean` | `true`/`false` | `true` / `false` | No |
-| `money` | Integer (centavos) | `₱1,200.00` (2 decimals) | Yes (auto-rounded) |
+| `money` | Major-unit number during execution | `1200` → `₱1,200.00` | Yes (auto-rounded to 2 decimals) |
 | `date` | ISO string (`YYYY-MM-DD`) | Locale-formatted (e.g., `Jan 15, 2026`) | No |
 | `time` | ISO string (`HH:mm`) | Locale-formatted (e.g., `2:30 PM`) | No |
 | `datetime` | ISO string (`YYYY-MM-DDTHH:mm`) | Locale-formatted (e.g., `Jan 15, 2026, 2:30 PM`) | No |
@@ -72,7 +75,7 @@ A variable **cannot be deleted** while any node references it. The UI shows "Use
 
 ## 4. Expression Engine
 
-Calculator expressions use [math.js](https://mathjs.org) in a **sandboxed scope** — no access to `eval`, `Function`, `window`, `document`, or global objects.
+Calculator expressions use the tokenizer, parser, and AST evaluator in `safe-expression.ts`. The grammar cannot express property access, assignment, constructors, or global-object access, and it never executes JavaScript through `eval` or `Function`.
 
 ### Syntax
 
@@ -80,7 +83,7 @@ Calculator expressions use [math.js](https://mathjs.org) in a **sandboxed scope*
 VARIABLE_REF  = '{{' IDENTIFIER '}}'
 IDENTIFIER    = [a-zA-Z_][a-zA-Z0-9_]*  (must match a declared variable)
 
-Operators:  +  -  *  /  ^  ( )
+Operators:  +  -  *  /  %  ^  **  >  >=  <  <=  ==  !=  &&  ||  and  or  !  not
 Ternary:    condition ? value_if_true : value_if_false
 ```
 
@@ -88,6 +91,8 @@ Ternary:    condition ? value_if_true : value_if_false
 
 | Function | Purpose | Example |
 |---|---|---|
+| `if(condition, yes, no)` | Conditional value | `if({{qty}} > 10, 50, 100)` |
+| `contains(value, expected)` | String substring or array membership | `contains({{services}}, "design")` |
 | `round(x, decimals?)` | Round a number | `round({{total}}, 2)` |
 | `sum(a, b, ...)` | Sum values | `sum({{price1}}, {{price2}}, ...)` |
 | `min(a, b, ...)` | Minimum | `min({{a}}, {{b}})` |
@@ -95,7 +100,9 @@ Ternary:    condition ? value_if_true : value_if_false
 | `abs(x)` | Absolute | `abs({{difference}})` |
 | `equalText(a, b)` | **String** comparison | `equalText({{plan}}, "full")` |
 
-> ⚠️ math.js `==` does NOT compare strings correctly. Use `equalText()` for string comparisons, or better — use a Decision node instead of a Calculator for string routing.
+`==` and `!=` intentionally do not compare strings. Use `equalText()` for text equality, `contains()` for membership/substring checks, or a Decision node for routing.
+
+Safety limits are 10,000 source characters, 1,000 tokens, parse depth 100, and 500 AST nodes. A calculator must produce a finite number.
 
 ### Common Expression Patterns
 
@@ -133,7 +140,7 @@ Decision (sourceVariable: "payment_plan")
 
 ## 6. Payment Integration
 
-Payment nodes display an amount and gateway button. Published forms run **real checkout** against the creator's configured gateway (PayPal / Xendit), using the per-user encrypted credentials in `integration_settings`. **Preview** mode still simulates payments client-side (no charges).
+Payment nodes display an amount and let the respondent choose among compatible connected gateways. Published forms run **real checkout** with registered PayPal/Xendit implementations and encrypted per-owner credentials. The normalized `integrations` table is primary, with `integration_settings` as a legacy fallback. **Preview** mode simulates payments client-side.
 
 ### Payment Node Config
 
@@ -141,9 +148,11 @@ Payment nodes display an amount and gateway button. Published forms run **real c
 {
   "amountVariable": "total_cost",
   "currency": "PHP",
-  "gatewayId": 1
+  "gatewayId": null
 }
 ```
+
+`gatewayId` is retained in the config shape for compatibility, but current checkout resolves the respondent's choice from the owner's connected gateways and currency support.
 
 ### Success/Failure Paths
 
@@ -155,7 +164,7 @@ The Payment node supports two outgoing edges:
 
 For published forms, the runtime uses a **redirect → verify → resume** architecture:
 
-1. The Payment step calls `src/lib/server-fns/payments.ts` to create a real charge/order at the gateway and persist a `payments` row linked to the current `flow_execution_id` (the `form_submissions` row doesn't exist yet).
+1. The Payment step calls `src/lib/server-fns/payments.ts`, converts the major-unit flow amount to integer minor units, creates a gateway checkout, and persists a `payments` row linked to the current execution. A draft `form_submissions` row may already exist so payment and later completion share one response record.
 2. The respondent is redirected to the gateway's hosted checkout.
 3. The gateway redirects back to `src/routes/forms/payment-return.tsx`, which verifies the payment server-side.
 4. On success, `FlowEngine.restore` rehydrates the execution from `flow_executions` and resumes at the next node; the `payments` row's `form_submission_id` is backfilled at completion.
@@ -168,7 +177,7 @@ During Preview, the creator can click "Simulate success" or "Simulate failure" t
 
 ## 7. Runtime Engine (`FlowEngine.ts`)
 
-The `FlowEngine` class is the heart of flow execution, used both in Preview mode (client-side) and in production (server-side).
+`FlowEngine` is the deterministic in-memory graph runner used by preview and the respondent UI. Production progress is persisted through server functions in `flow-executions.ts`; the class itself is not a server-only engine.
 
 ### Key Methods
 
@@ -222,12 +231,14 @@ The `FlowValidator` checks a flow graph for correctness:
 
 | Rule | Error Message |
 |---|---|
-| Flow must have exactly one Start node | "Flow must have a Start node" |
-| All nodes must be connected to the graph | "Unconnected nodes found" |
-| Decision branch count must match edge count | "Decision node has N edges but M branches" |
-| Calculator expressions must reference declared variables | "Calculator references undeclared variable" |
-| Form Field must bind to a declared variable | "Form Field binds to undeclared variable" |
-| Flow must end in a terminal node | "No terminal node found" |
+| A Start node must exist | `Flow must have exactly one Start node.` |
+| Every non-Start node must be reachable from Start | Node-specific `is not reachable from Start` error |
+| Graph must be acyclic | `Flow contains a cycle...` |
+| Node configuration must be present | Node-specific field/config errors |
+| Referenced flow variables must be declared | Node-specific undeclared-variable errors |
+| Outgoing edge count must fit the node type | Node-specific connection error |
+
+Summary and Redirect nodes are terminal and must have no outgoing edge. The validator does not emit a separate “no terminal node” rule; an acyclic reachable graph with valid outgoing counts necessarily ends at a terminal node.
 
 ---
 
@@ -243,7 +254,7 @@ The `FlowValidator` checks a flow graph for correctness:
 
 ## 10. UI Architecture (Editor)
 
-The form editor at `/forms/:formId/edit` has three views:
+The unified form editor at `/forms/:formId/edit` shows either the Page Builder or the flow editor. Flow mode has two views:
 
 ### Canvas View (React Flow)
 
@@ -256,12 +267,12 @@ The config-forms directory contains one file per node type:
 - `GroupConfig.tsx` — group title + `GroupFieldsEditor.tsx` for inline fields
 - `DecisionConfig.tsx` — source variable + branch options + `OptionsEditor.tsx`
 - `CalculatorConfig.tsx` — expression input with variable autocomplete
-- `PaymentConfig.tsx` — amount variable, currency, gateway selector
+- `PaymentConfig.tsx` — amount variable and currency (`gatewayId` remains a compatibility field; respondent gateway choice is resolved at checkout)
 - `SummaryConfig.tsx` — title + template with `{{var}}` interpolation
 - `RedirectConfig.tsx` — URL template with `{{var}}` interpolation
 
 Additional builder panels accessible from the toolbar:
-- **`SettingsDialog.tsx`** — Flow-level settings (title, redirect URL, etc.)
+- **`SettingsDialog.tsx`** — Form metadata and theme settings
 - **`VariablesManager.tsx`** — Declare, edit, and delete flow variables
 - **`VariableDialog.tsx`** — Add/edit single variable (name, type, default)
 
@@ -308,6 +319,8 @@ Start → [Name] → [Email] → [Phone] → [Address] → [Select Services]
 
 15 variables, 12 nodes, 11 edges, 17 services in catalog.
 
+This older seed emits `SUM_FEES(...)` and `SUM_DEPOSITS(...)` expressions, but the current `FlowEngine` does not register those custom functions. Treat it as catalog/migration fixture data until the expressions are rewritten with supported `contains()`/`if()` terms or the runtime deliberately supplies scoped custom functions.
+
 ---
 
 ## 12. Docs
@@ -330,19 +343,19 @@ Two complementary documents in `docs/`:
 | `src/lib/flow-engine/FlowEngine.ts` | ~350 | Core execution engine |
 | `src/lib/flow-engine/FlowValidator.ts` | ~150 | Flow graph validation |
 | `src/lib/flow-engine/ExpressionEvaluator.ts` | ~80 | Math expression evaluator |
-| `src/lib/flow-engine/safe-expression.ts` | ~70 | Safe expression parser/validator |
+| `src/lib/flow-engine/safe-expression.ts` | ~420 | Safe expression tokenizer, parser, limits, and evaluator |
 | `src/lib/flow-engine/submission-draft.ts` | ~50 | Draft submission save/restore |
 | `src/lib/flow-engine/server-data.ts` | ~40 | Server-side data helpers |
 | `src/lib/flow-engine/TemplateInterpolator.ts` | ~60 | `{{var}}` template replacement |
 | `src/lib/flow-engine/path-utils.ts` | ~100 | Graph traversal utilities |
 | `src/lib/theme.ts` | ~117 | Per-form theming (FormTheme, themeVars, accent presets) |
 | `src/lib/crypto.ts` | ~40 | AES-256-GCM encrypt/decrypt for integration secrets |
-| `src/routes/forms/$formId/edit.tsx` | ~700 | Form editor page (largest file) |
+| `src/routes/forms/$formId/edit.tsx` | Unified page/flow editor route |
 | `src/components/flow-builder/NodeConfigPanel.tsx` | ~500 | Right-side config panel |
 | `src/components/flow-builder/FlowListBuilder.tsx` | ~400 | List view with sortable nodes |
 | `src/components/flow-builder/FlowCanvas.tsx` | ~110 | React Flow canvas wrapper |
 | `src/components/flow-builder/FlowCanvasWorkspace.tsx` | ~350 | Canvas workspace + preview |
 | `src/components/flow-execution/` | ~600 | Runtime flow components for respondents |
 | `src/components/flow-execution/GroupStepView.tsx` | ~80 | Group node field layout |
-| `src/components/flow-builder/config-forms/` | ~400 | Per-node-type config forms (9 files) |
+| `src/components/flow-builder/config-forms/` | Per-node-type config forms and shared `Controls.tsx` |
 | `src/components/flow-builder/nodes/` | ~80 | Custom React Flow node renderers (2 files) |

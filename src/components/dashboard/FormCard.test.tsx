@@ -35,45 +35,99 @@ const publishedForm = {
   status: "published" as const,
   description: "Collect project details and deposits.",
   updatedAt: new Date(),
+  hasPayment: true,
 };
 
 describe("FormCard", () => {
   afterEach(cleanup);
 
-  it("connects every creator action to the form workspace", () => {
+  it("keeps workspace navigation inside the card action menu", () => {
     render(
       <FormCard
         form={publishedForm}
         onDelete={vi.fn()}
+        onPreview={vi.fn()}
         onShare={vi.fn()}
       />,
     );
 
     expect(
+      screen.queryByRole("link", { name: "Responses for Client intake" }),
+    ).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "More actions for Client intake" }),
+    );
+
+    expect(
       screen
-        .getByRole("link", { name: "Builder for Client intake" })
+        .getByRole("menuitem", { name: "Builder for Client intake" })
         .getAttribute("href"),
     ).toBe("/forms/17/edit");
     expect(
       screen
-        .getByRole("link", { name: "Responses for Client intake" })
+        .getByRole("menuitem", { name: "Responses for Client intake" })
         .getAttribute("href"),
     ).toBe("/forms/17/submissions");
     expect(
       screen
-        .getByRole("link", { name: "Payments for Client intake" })
+        .getByRole("menuitem", { name: "Payments for Client intake" })
         .getAttribute("href"),
     ).toBe("/forms/17/payments");
     expect(
       screen
-        .getByRole("link", { name: "Invoicing for Client intake" })
+        .getByRole("menuitem", { name: "Invoicing for Client intake" })
         .getAttribute("href"),
     ).toBe("/forms/17/invoicing");
+  });
+
+  it("hides payment and invoicing actions when the form has no payment path", () => {
+    render(
+      <FormCard
+        form={{ ...publishedForm, hasPayment: false }}
+        onDelete={vi.fn()}
+        onPreview={vi.fn()}
+        onShare={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "More actions for Client intake" }),
+    );
+
     expect(
-      screen
-        .getByRole("link", { name: "Preview Client intake" })
-        .getAttribute("href"),
-    ).toBe("/forms/17/edit?preview=true");
+      screen.getByRole("menuitem", { name: "Builder for Client intake" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("menuitem", { name: "Responses for Client intake" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("menuitem", { name: "Payments for Client intake" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("menuitem", { name: "Invoicing for Client intake" }),
+    ).toBeNull();
+  });
+
+  it("opens preview without navigating to the builder", () => {
+    const onPreview = vi.fn();
+    render(
+      <FormCard
+        form={publishedForm}
+        onDelete={vi.fn()}
+        onPreview={onPreview}
+        onShare={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Preview Client intake" }),
+    );
+
+    expect(onPreview).toHaveBeenCalledWith(17);
+    expect(
+      screen.queryByRole("link", { name: "Preview Client intake" }),
+    ).toBeNull();
   });
 
   it("opens sharing for a published form", () => {
@@ -82,6 +136,7 @@ describe("FormCard", () => {
       <FormCard
         form={publishedForm}
         onDelete={vi.fn()}
+        onPreview={vi.fn()}
         onShare={onShare}
       />,
     );
@@ -95,6 +150,7 @@ describe("FormCard", () => {
       <FormCard
         form={{ ...publishedForm, status: "draft" }}
         onDelete={vi.fn()}
+        onPreview={vi.fn()}
         onShare={vi.fn()}
       />,
     );
@@ -113,6 +169,7 @@ describe("FormCard", () => {
       <FormCard
         form={publishedForm}
         onDelete={vi.fn()}
+        onPreview={vi.fn()}
         onShare={vi.fn()}
         selected={false}
         onSelectionChange={onSelectionChange}

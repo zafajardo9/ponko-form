@@ -38,6 +38,7 @@ The [`memory-ponko/`](memory-ponko/) directory contains everything you need to u
 |---|---|
 | [`docs/flow-builder-guide.md`](docs/flow-builder-guide.md) | Complete technical reference — node types, variables, expressions, runtime, API |
 | [`docs/flow-form-guide.md`](docs/flow-form-guide.md) | Tutorial & computation handbook — step-by-step building, patterns, troubleshooting |
+| [`docs/current-system.md`](docs/current-system.md) | Verified current capabilities, integration maturity, routes, and deployment |
 
 ## Deploy to Render
 
@@ -91,5 +92,56 @@ pnpm test                 # Run tests
 | **Database** | PostgreSQL (Neon) + Drizzle ORM |
 | **Auth** | [Clerk](https://clerk.com) |
 | **Flow Canvas** | [React Flow](https://xyflow.com) |
-| **Expression Engine** | [math.js](https://mathjs.org) |
+| **Expression Engine** | In-house safe tokenizer/parser/AST evaluator |
 | **Deployment** | Render (long-running Node.js web service) |
+
+## Deploy to Cloudflare
+
+PonkoForm uses server-side rendering, server functions, webhooks, and a
+PostgreSQL database, so deploy it as a full-stack **Cloudflare Worker** rather
+than as a static Pages site. Cloudflare manages both products from the
+**Workers & Pages** dashboard.
+
+The repository includes the Cloudflare Vite integration and
+[`wrangler.jsonc`](wrangler.jsonc). The normal `pnpm build` remains the
+Node/Nitro build used by Render; Cloudflare has its own commands:
+
+```bash
+pnpm run dev:cloudflare
+pnpm run build:cloudflare
+pnpm run preview:cloudflare
+pnpm run deploy:cloudflare
+```
+
+For a Git-connected deployment, create a Worker from this repository and use:
+
+| Setting | Value |
+|---|---|
+| Build command | `pnpm run build:cloudflare` |
+| Deploy command | `pnpm exec wrangler deploy` |
+| Non-production deploy command | `pnpm exec wrangler versions upload` |
+| Root directory | `/` |
+
+Add `VITE_CLERK_PUBLISHABLE_KEY` as a **build variable**, because Vite embeds
+that public key in the browser bundle. Under **Settings → Variables & Secrets**,
+add these runtime secrets:
+
+- `DATABASE_URL` — use a Neon PostgreSQL URL so the Worker uses the HTTP driver
+- `VITE_CLERK_PUBLISHABLE_KEY`
+- `CLERK_PUBLISHABLE_KEY`
+- `CLERK_SECRET_KEY`
+- `CREDENTIALS_ENCRYPTION_KEY`
+
+Add `APP_URL` as a runtime variable containing the final `https://...` URL.
+Payment, email, and scheduled reconciliation secrets from `.env.example` are
+optional and should be added only when those integrations are enabled.
+
+Before the first deployment, apply the database migrations from a trusted
+machine or CI environment:
+
+```bash
+pnpm run db:prepare
+```
+
+Finally, allow the Worker/custom domain in Clerk. Never commit `.env`,
+`.env.local`, or the generated `dist/` directory.

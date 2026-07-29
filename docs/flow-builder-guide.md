@@ -1,6 +1,7 @@
 # Flow Builder — Knowledge Base
 
 > **Complete reference for the PonkoForm Flow Builder.** Covers everything from node types and variables to the runtime engine and database schema.
+> Verified against `main` at `7d2cbe3` on 2026-07-28.
 
 ---
 
@@ -10,12 +11,12 @@
 
 1. [Node Types Reference](#1-node-types-reference)
 2. [Variables System](#2-variables-system)
-3. [Expression & Calculator Guide](#3-expression--calculator-guide)
+3. [Expression & Calculator Guide](#3-expression-calculator-guide)
 4. [Payment Flows](#4-payment-flows)
 5. [Flow Validation](#5-flow-validation)
 6. [Testing with Preview](#6-testing-with-preview)
-7. [Publishing & Respondent Experience](#7-publishing--respondent-experience)
-8. [Converting a Linear Form](#8-converting-a-linear-form)
+7. [Publishing & Respondent Experience](#7-publishing-respondent-experience)
+8. [Creating or Migrating a Flow](#8-creating-or-migrating-a-flow)
 
 ### Developer Reference (data model & architecture)
 
@@ -24,7 +25,7 @@
 11. [Runtime Engine Architecture](#11-runtime-engine-architecture)
 12. [Server Functions API](#12-server-functions-api)
 13. [UI Component Tree](#13-ui-component-tree)
-14. [Routes & Navigation](#14-routes--navigation)
+14. [Routes & Navigation](#14-routes-navigation)
 15. [Validation Rules Reference](#15-validation-rules-reference)
 16. [Backward Compatibility](#16-backward-compatibility)
 
@@ -173,7 +174,7 @@ The redirect happens after a ~1.5 second pause so the respondent sees a brief "R
 | Property | Description |
 |---|---|
 | **Name** | Unique `snake_case` identifier (e.g., `total_cost`, `payment_plan`) |
-| **Type** | `string`, `number`, `boolean`, or `money` |
+| **Type** | `string`, `number`, `boolean`, `money`, `date`, `time`, or `datetime` |
 | **Default Value** | Optional — used if the variable is read before being assigned |
 | **Description** | Optional human-readable note for documentation |
 
@@ -194,13 +195,13 @@ The redirect happens after a ~1.5 second pause so the respondent sees a brief "R
 |---|---|---|---|
 | `string` | Raw text | Form field binds to variable | `{{variable_name}}` in templates/expressions |
 | `number` | `1,234.56` | Calculator computes, or form field stores number | `{{variable_name}}` in expressions |
-| `money` | `₱1,234.00` (currency-aware) | Calculator computes (in minor units, e.g., `150000` = ₱1,500.00) | In templates: `{{var}}` formats automatically |
-| `boolean` | `true` / `false` | Checkbox or decision automatically | Conditionals: `if({{var}} == 'true', ...)` |
+| `money` | `1,234.00` with the template/node currency context | Calculator uses major units (`1500` = ₱1,500.00) | Payment boundary converts to integer minor units |
+| `boolean` | `true` / `false` | Checkbox or decision automatically | Conditionals: `if({{var}}, 1, 0)` |
 
 ### 2.4 Best Practices
 
 - **Declare before using:** Create the variable before binding a form field or calculator to it
-- **Money = integer:** Store ₱1,500.00 as `150000` (centavos), never as `1500.00`
+- **Money uses major units in flows:** Use `1500` for ₱1,500.00 and round calculated results to two decimals. Persisted payment rows store `150000` centavos.
 - **Descriptive names:** Use `total_cost`, not `tc`
 - **Defaults for testing:** Set a default value for the first variable in a calculation chain so Preview mode works without filling every field
 
@@ -216,7 +217,7 @@ Calculators support standard arithmetic with variables referenced as `{{variable
 {{subtotal}} * 1.12          → add 12% VAT
 ({{price}} + {{shipping}})    → parentheses for grouping
 round({{total}} / 6, 2)      → divide and round
-if({{age}} >= 18, 'adult', 'minor')  → conditional
+if({{age}} >= 18, 1, 0)       → numeric conditional
 contains({{items}}, 'premium') → string contains check
 ```
 
@@ -225,7 +226,7 @@ contains({{items}}, 'premium') → string contains check
 | Function | Signature | Description | Example |
 |---|---|---|---|
 | `round` | `round(value, decimals?)` | Rounds to N decimal places | `round({{total}} / 6, 2)` |
-| `if` | `if(condition, trueVal, falseVal)` | Ternary conditional | `if({{age}} >= 18, 'adult', 'minor')` |
+| `if` | `if(condition, trueVal, falseVal)` | Conditional numeric selection | `if({{age}} >= 18, 1, 0)` |
 | `contains` | `contains(str, substr)` | String contains check | `contains({{items}}, 'premium')` |
 
 ### 3.3 Common Expressions
@@ -236,9 +237,9 @@ contains({{items}}, 'premium') → string contains check
 | Add 12% VAT | `{{subtotal}} * 1.12` |
 | Apply 10% discount | `{{total}} * 0.9` |
 | Monthly payment (6 months) | `round({{total}} / 6, 2)` |
-| Conditional discount | `if({{is_member}} == 'yes', {{total}} * 0.85, {{total}})` |
+| Conditional discount | `if(equalText({{member_status}}, 'yes'), {{total}} * 0.85, {{total}})` |
 | Total with fee + deposit | `{{fee_total}} + {{vat}} + {{deposit_total}}` |
-| Nested tier pricing | `if({{tier}} == 'gold', 100, if({{tier}} == 'silver', 50, 25))` |
+| Nested tier pricing | `if(equalText({{tier}}, 'gold'), 100, if(equalText({{tier}}, 'silver'), 50, 25))` |
 
 ### 3.4 Testing Expressions
 
@@ -370,27 +371,18 @@ Each completed flow run creates two database records:
 
 ---
 
-## 8. Converting a Linear Form
+## 8. Creating or Migrating a Flow
 
-### When to Convert
+New forms currently start as page forms. The unified editor does not expose a creator-facing **Convert to Flow** action.
 
-Any existing linear form can be converted to a flow form. This is useful when a simple form has grown complex and needs branching or calculations.
+The owner-gated `ensureFlow({ formId })` server function remains available to create a flow from legacy `form_fields`, or a blank Start → Summary graph when no legacy fields exist. Use it only from an intentional migration or future product workflow; adding a `flows` row changes which public runtime the form uses.
 
-### Conversion Process
+Before migrating a live form:
 
-1. On the dashboard, click the **•••** menu on a form card
-2. Select **Convert to Flow**
-3. The system creates a Start → FormField (for each existing field) → Summary flow
-4. Open the form editor — the new flow is ready for you to add decisions, calculators, and payments
-
-### What Changes
-
-| Aspect | Before (Linear) | After (Flow) |
-|---|---|---|
-| Fields | All on one page | One step per field |
-| Submission | Single POST | Step-by-step with execution tracking |
-| URL | Same form URL | Same URL (the system detects the flow at runtime) |
-| Existing submissions | Unaffected | Remain as classic submissions |
+1. Decide how page fields, conditions, computation, and payments map to flow nodes and variables.
+2. Preserve the form's public ID so the share URL stays stable.
+3. Validate the generated DAG and test both payment/decision branches.
+4. Confirm how historical response columns will be presented beside new flow submissions.
 
 ---
 
@@ -557,7 +549,9 @@ erDiagram
 type FlowNodeType = 'start' | 'form_field' | 'group' | 'decision'
   | 'calculator' | 'payment' | 'summary' | 'redirect'
 
-type FlowVariableType = 'string' | 'number' | 'boolean' | 'money'
+type FlowVariableType =
+  | 'string' | 'number' | 'boolean' | 'money'
+  | 'date' | 'time' | 'datetime'
 
 type ExecutionStatus = 'in_progress' | 'payment_pending'
   | 'payment_failed' | 'completed' | 'cancelled'
@@ -593,19 +587,20 @@ interface FlowVariable {
 
 interface FlowStep {
   nodeId: number
-  nodeType: FlowNodeType
+  nodeType: string
   config: Record<string, unknown>
-  label: string | null
-  /** Calculator: redirects to the auto-computed result */
-  autoResult?: unknown
-  /** Redirect: the constructed URL */
+  label: string
+  expectsInput: boolean
+  isPayment: boolean
+  isTerminal: boolean
+  renderedOutput?: string
   redirectUrl?: string
 }
 
 interface StepInput {
-  formValue?: string | string[]
+  formValue?: unknown
   decisionValue?: string
-  groupValues?: Record<string, string | string[]>
+  groupValues?: Record<string, unknown>
   paymentResult?: { success: boolean; gatewayPaymentId?: string }
 }
 ```
@@ -651,12 +646,12 @@ The FlowEngine is a **client-side runtime** that walks through the flow graph on
 
 ### 11.2 ExpressionEvaluator (`src/lib/flow-engine/ExpressionEvaluator.ts`)
 
-Evaluates calculator expressions using math.js. Handles:
+Resolves `{{variable}}` placeholders and evaluates the AST produced by `safe-expression.ts`. It never executes JavaScript and supports:
 
 - Variable substitution: `{{var_name}}` → actual value
-- Arithmetic: `+`, `-`, `*`, `/`, `()`
-- Functions: `round()`, `if()`, `contains()`
-- Type coercion: variables are auto-cast to numbers for expressions
+- Arithmetic/comparison/logical operators documented in the user reference
+- `if`, `contains`, `round`, `sum`, `min`, `max`, `abs`, and `equalText`
+- Complexity limits and a finite-number result requirement
 
 ### 11.3 TemplateInterpolator (`src/lib/flow-engine/TemplateInterpolator.ts`)
 
@@ -682,7 +677,6 @@ All server functions live in `src/lib/server-fns/` and are exposed as `createSer
 |---|---|---|---|
 | `getFlow` | GET | `{ formId }` | Fetch flow + nodes + edges + variables |
 | `ensureFlow` | POST | `{ formId }` | Create a default flow if none exists |
-| `updateFlowStartNode` | POST | `{ formId, startNodeId }` | Update the start node reference |
 
 ### 12.2 Node & Edge CRUD (`flow-nodes.ts`)
 
@@ -713,28 +707,28 @@ Public endpoints (no auth — called by respondents):
 
 | Function | Method | Input | Description |
 |---|---|---|---|
-| `startFlowExecution` | POST | `{ flowId }` | Create a new execution with default variable values |
-| `advanceExecution` | POST | `{ executionId, currentNodeId, variables, history }` | Persist the current snapshot |
-| `completeExecution` | POST | `{ executionId, variables, history }` | Mark completed, create form submission |
-| `getCompletionData` | GET | `{ executionId }` | Fetch all data for the receipt page |
-| `getExecutionState` | GET | `{ executionId }` | Fetch current execution state (for refresh/resume) |
+| `startFlowExecution` | POST | `{ flowId, clientToken }` | Create a published-flow execution with defaults |
+| `advanceExecution` | POST | `{ executionId, clientToken, currentNodeId, variables, history }` | Persist an owned snapshot |
+| `completeExecution` | POST | `{ executionId, clientToken, variables, history }` | Complete and create/update the submission |
+| `getCompletionData` | GET | `{ executionId, clientToken }` | Fetch owned receipt data |
+| `getExecutionState` | GET | `{ executionId, clientToken }` | Refresh/resume an owned execution |
 
 ### 12.5 Payments (`payments.ts`)
 
 | Function | Method | Input | Description |
 |---|---|---|---|
-| `getPaymentOptions` | GET | `{ executionId }` | Available gateways + amount for the payment step |
-| `initiatePayment` | POST | `{ executionId, gatewaySlug }` | Create gateway order, record pending payment |
-| `finalizePayment` | POST | `{ executionId }` | Verify payment on return from gateway |
-| `getResumeData` | GET | `{ executionId }` | Everything needed to resume after payment redirect |
-| `getFormPayments` | GET | `{ formId }` | All payment transactions for a form (auth required) |
+| `getPaymentOptions` | GET | `{ executionId, clientToken }` | Compatible connected gateways + amount |
+| `initiatePayment` | POST | `{ executionId, clientToken, gatewaySlug }` | Create checkout and a pending payment |
+| `finalizePayment` | POST | `{ executionId, clientToken }` | Reconcile payment on return |
+| `getResumeData` | GET | `{ executionId, clientToken }` | Owned execution + flow definition for restore |
+| `getFormPayments` | GET | `{ formId, ...query }` | Authenticated paginated payment view (`payments-view.ts`) |
 
 ### 12.6 Submissions (`submissions.ts`)
 
 | Function | Method | Input | Description |
 |---|---|---|---|
-| `submitFormResponse` | POST | `{ formId, formData }` | Submit a linear form response |
-| `getSubmissions` | GET | `{ formId, page }` | List submissions with payment status map |
+| `submitFormResponse` | POST | `{ formId, formData, ... }` | Legacy flat-form submission boundary |
+| `getSubmissions` | GET | `{ formId, ...query }` | Paginated creator response view |
 
 ---
 
@@ -763,8 +757,9 @@ Public endpoints (no auth — called by respondents):
 | `FlowExecutionContainer.tsx` | Parent — drives engine, manages state, handles resume |
 | `FlowStepRenderer.tsx` | Renders the current step (form field, payment, summary, etc.) |
 | `PaymentStep.tsx` | Inline payment UI — amount display, gateway selection, pay button |
-| `invoice.ts` | Pure invoice model (no React dependencies — safe for SSR) |
-| `InvoicePDF.tsx` | @react-pdf/renderer wrapper for PDF download |
+| `InvoiceUtils.ts` | Pure invoice model and formatting helpers |
+| `InvoicePDF.ts` | jsPDF-based PDF generation |
+| `InvoiceDownloadButton.tsx` | Respondent PDF download action |
 
 ### 13.3 Shared UI (`src/components/ui/`)
 
@@ -785,20 +780,21 @@ Public endpoints (no auth — called by respondents):
 | Route | Component | Purpose |
 |---|---|---|
 | `/dashboard` | `DashboardPage` | Form list |
-| `/dashboard/settings` | `SettingsPage` | Gateway + email settings |
 | `/forms/new` | `NewFormPage` | Create form |
-| `/forms/$formId/edit` | `UnifiedEditorPage` | Flow builder (List + Canvas) |
+| `/forms/$formId/edit` | `UnifiedEditorPage` | Page Builder or Flow List/Canvas |
 | `/forms/$formId/submissions` | `SubmissionsPage` | Response list with payment status |
 | `/forms/$formId/payments` | `PaymentsPage` | Payment transactions table |
-| `/flow/$executionId/complete` | `CompletePage` | Receipt/invoice after completion |
+| `/forms/$formId/invoicing` | Invoicing route | Email templates and delivery history |
+| `/settings/integrations` | Integrations route | Provider credentials and status |
 
 ### Public Routes (no auth)
 
 | Route | Component | Purpose |
 |---|---|---|
-| `/forms/submit/$formId` | `PublicFormView` | Public form submission |
-| `/forms/embed/$formId` | `EmbedFormPage` | Embedded form (transparent) |
+| `/forms/submit/$publicId` | `PublicFormView` | Public form submission |
+| `/forms/embed/$publicId` | `EmbedFormPage` | Embedded form (transparent) |
 | `/forms/payment-return` | `PaymentReturnPage` | Gateway redirect handler (resume after payment) |
+| `/flow/$executionId/complete` | `CompletePage` | Token-protected flow receipt |
 
 ---
 
@@ -806,15 +802,14 @@ Public endpoints (no auth — called by respondents):
 
 | Rule | Check | Error Message |
 |---|---|---|
-| Start | Exactly 1 | "Flow must have exactly one Start node" |
-| Terminal | ≥ 1 | "Flow has no terminal node (Summary or Redirect)" |
-| Connectivity | All nodes reachable | "Unconnected nodes found" |
-| Decision branches | Branch count matches edges | "Decision node has N branches but M edges" |
-| FormField binding | bindToVariable is set | "Form field 'X' has no variable binding" |
-| Calculator expression | Expression is not empty | "Calculator node has no expression" |
-| Calculator target | Target variable exists | "Calculator target variable 'X' is not declared" |
-| Payment amount | Amount variable exists | "Payment node has no amount variable configured" |
-| Redirect URL | URL is not empty | "Redirect node has no URL template" |
+| Start | At least one Start exists; Start has exactly one outgoing edge | Missing/config error |
+| Connectivity | Every non-Start node reachable from Start | Node-specific reachability error |
+| Cycles | Graph must be a DAG | Cycle error |
+| Decision branches | Outgoing connections ≥ configured branches | Node-specific connection error |
+| FormField/Group binding | Any configured binding names a declared variable | Undeclared-variable error |
+| Calculator | Target exists and expression is present | Node-specific configuration error |
+| Payment | Amount variable exists; 1–2 outgoing edges | Node-specific configuration error |
+| Summary/Redirect | Required content is present; 0 outgoing edges | Node-specific configuration error |
 
 ---
 
@@ -822,24 +817,24 @@ Public endpoints (no auth — called by respondents):
 
 ### 16.1 Form Type Detection
 
-At the route level, the system detects whether a form is flow-powered or linear:
+`PublicFormView` selects flow versus page runtime from the loaded public form:
 
 ```typescript
 const [flow] = await db.select().from(flows).where(eq(flows.formId, formId)).limit(1)
 if (flow) {
   // Render FlowExecutionContainer
 } else {
-  // Render classic linear form (all fields on one page)
+  // Render PageFormView
 }
 ```
 
-### 16.2 Linear → Flow Conversion
+### 16.2 Page/Legacy → Flow Migration
 
-Converting a linear form creates a Start → FormField nodes → Summary flow. Existing form fields become `form_field` nodes preserving their order, labels, types, and required flags.
+`ensureFlow` can build Start → FormField nodes → Summary from legacy `form_fields`. There is no current Page Builder conversion UI, and page-specific conditions/computation do not automatically map through this legacy helper.
 
 ### 16.3 Existing Submissions
 
-Submissions made before conversion remain as classic single-page submissions. New submissions after conversion go through the flow engine.
+Historical submissions remain in `form_submissions`. Response-column helpers combine page, flow, and legacy sources so mixed history can still be presented.
 
 ---
 

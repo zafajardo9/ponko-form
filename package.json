@@ -8,11 +8,16 @@
   },
   "scripts": {
     "dev": "vite dev --port 3000",
+    "dev:cloudflare": "vite dev --mode cloudflare --port 3000",
     "build": "vite build",
+    "build:cloudflare": "vite build --mode cloudflare",
     "build:render": "pnpm run build && pnpm run db:prepare",
     "build:deploy": "pnpm run db:prepare && pnpm run build",
     "start": "node .output/server/index.mjs",
     "preview": "vite preview",
+    "preview:cloudflare": "vite preview --mode cloudflare",
+    "deploy:cloudflare": "pnpm run build:cloudflare && wrangler deploy",
+    "cf-typegen": "wrangler types",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
@@ -64,6 +69,7 @@
     "node": ">=22.0.0"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.48.0",
     "@rolldown/plugin-babel": "^0.2.3",
     "@tanstack/devtools-event-client": "latest",
     "@tanstack/devtools-vite": "latest",
@@ -82,7 +88,8 @@
     "react-grab": "^0.1.48",
     "typescript": "^6.0.2",
     "vite": "^8.0.0",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.5",
+    "wrangler": "^4.115.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

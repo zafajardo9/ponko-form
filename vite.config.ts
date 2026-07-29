@@ -3,34 +3,41 @@ import { devtools } from "@tanstack/devtools-vite";
 
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import { nitro } from "nitro/vite";
+import { cloudflare } from "@cloudflare/vite-plugin";
 
 import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from "node:url";
 
-const config = defineConfig({
-  resolve: {
-    tsconfigPaths: true,
-    alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
-    },
-  },
-  plugins: [
-    devtools({
-      consolePiping: {
-        enabled: false,
+const config = defineConfig(({ mode }) => {
+  const isCloudflare = mode === "cloudflare";
+
+  return {
+    resolve: {
+      tsconfigPaths: true,
+      alias: {
+        "@": fileURLToPath(new URL("./src", import.meta.url)),
       },
-    }),
-    tailwindcss(),
-    tanstackStart(),
-    // server.js is Render's Node process wrapper, not a web-standard Nitro
-    // handler. Disable Nitro's root server-file auto-detection so TanStack
-    // Start's SSR service becomes the Vercel function entry.
-    nitro({ serverEntry: false }),
-    viteReact(),
-    babel({ presets: [reactCompilerPreset()] }),
-  ],
+    },
+    plugins: [
+      ...(isCloudflare
+        ? [cloudflare({ viteEnvironment: { name: "ssr" } })]
+        : []),
+      devtools({
+        consolePiping: {
+          enabled: false,
+        },
+      }),
+      tailwindcss(),
+      tanstackStart(),
+      // Keep the Node/Nitro output for Render and use Cloudflare's native
+      // Workers runtime only for the dedicated Cloudflare build mode.
+      ...(!isCloudflare ? [nitro({ serverEntry: false })] : []),
+      viteReact(),
+      babel({ presets: [reactCompilerPreset()] }),
+    ],
+  };
 });
 
 export default config;

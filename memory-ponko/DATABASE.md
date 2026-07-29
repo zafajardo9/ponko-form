@@ -1,12 +1,13 @@
 # PonkoForm Database Schema
 
 > Part of [`memory-ponko/`](README.md) — System Memory
+> **Verified against:** `src/db/schema.ts` at `7d2cbe3` on 2026-07-28.
 
 ---
 
 ## 1. Overview
 
-- **Database:** PostgreSQL (Neon serverless)
+- **Database:** PostgreSQL. The runtime supports Neon HTTP and standard `pg`; driver selection lives in `src/db/driver.ts`.
 - **ORM:** Drizzle ORM v0.45
 - **Schema location:** `src/db/schema.ts` (880 lines)
 - **Migration tool:** Drizzle Kit (`drizzle-kit generate` / `drizzle-kit migrate`)
@@ -20,7 +21,7 @@
 ```mermaid
 erDiagram
     profiles ||--o| integrationSettings : "configures"
-    profiles ||--o| integrations : "configures (normalized)"
+    profiles ||--o{ integrations : "configures (normalized)"
     profiles ||--o{ forms : "owns"
     profiles ||--o{ formTemplates : "owns"
     forms ||--o| flows : "has one (optional)"
@@ -114,7 +115,7 @@ A newer normalized table for per-user provider credentials — one row per `(pro
 
 ### 3.2 `forms`
 
-A form created by a user. Can be a linear form or have a flow attached.
+A form created by a user. The current editor uses either Page Builder data or one attached flow; legacy flat fields remain supported by the schema.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -204,13 +205,13 @@ A respondent's submission of a form.
 |---|---|---|
 | `id` | `serial` PK | |
 | `form_id` | `integer` NOT NULL → `forms.id` (CASCADE) | |
-| `client_token` | `varchar(64)` | Browser-fingerprint dedup token |
+| `client_token` | `varchar(64)` | Opaque client token used for idempotency/public ownership checks |
 | `status` | `submission_status` enum DEFAULT `'completed'` | `'pending_payment'`, `'incomplete'`, `'completed'`, `'payment_failed'` |
 | `form_data` | `jsonb` NOT NULL | All field values; for flow runs, also `__executionPath` |
 | `submitted_at` | `timestamp` DEFAULT now | |
 | `archived_at` | `timestamp` | Soft-delete timestamp |
 
-**Indexes:** `index(form_submissions_form_id_idx)` on `form_id`, `index(form_submissions_form_archived_idx)` on `(form_id, archived_at)`, `unique(form_submissions_form_client_token_idx)` on `(form_id, client_token)`
+**Indexes:** `index(form_submissions_form_id_idx)` on `form_id`, `index(form_submissions_form_archived_idx)` on `(form_id, archived_at)`, `index(form_submissions_form_archived_submitted_idx)` on `(form_id, archived_at, submitted_at)`, `unique(form_submissions_form_client_token_idx)` on `(form_id, client_token)`
 
 ### 3.4a `email_survey_invitations`
 
@@ -239,7 +240,7 @@ Multi-page submission sessions — tracks in-progress respondent sessions across
 | `id` | `serial` PK | |
 | `form_id` | `integer` NOT NULL → `forms.id` (CASCADE) | |
 | `form_submission_id` | `integer` → `form_submissions.id` (SET NULL) | Backfilled on completion |
-| `client_token` | `varchar(64)` | Browser-fingerprint session key |
+| `client_token` | `varchar(64)` | Opaque public session ownership/idempotency token |
 | `email_survey_invitation_id` | `integer` → `email_survey_invitations.id` (SET NULL) | |
 | `current_page_index` | `integer` DEFAULT 0 | Which page the respondent is on |
 | `collected_data` | `jsonb` DEFAULT `{}` | Accumulated field values |
@@ -653,7 +654,7 @@ Records a single run of a flow by a respondent.
 | `completed_at` | `timestamp` | |
 | `created_at` | `timestamp` DEFAULT now | |
 
-**Indexes:** `index(flow_executions_flow_id_idx)` on `flow_id`
+**Indexes:** `index(flow_executions_flow_id_idx)` on `flow_id`, `unique(flow_executions_client_token_idx)` on `client_token`
 
 ---
 
@@ -712,3 +713,4 @@ pnpm run payments:reconcile
 - The `varchar` enums (like `flow_nodes.type`) use `.$type<>()` in Drizzle for compile-time safety without creating database enum types.
 - Drizzle camelCase column names (`positionX`, `sourceNodeId`, `formSubmissionId`) auto-map to snake_case in PostgreSQL (`position_x`, `source_node_id`, `form_submission_id`).
 - **Two integrations tables** coexist: `integration_settings` (legacy, column-per-provider) and `integrations` (new, normalized one-row-per-provider). See `src/lib/server-fns/integrations.ts`.
+- Treat `src/db/schema.ts` as authoritative for columns and indexes. Update this document in the same change as a schema migration.

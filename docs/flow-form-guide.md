@@ -9,13 +9,13 @@
 ## Table of Contents
 
 1. [What Is a Flow Form?](#1-what-is-a-flow-form)
-2. [Building Blocks — Nodes, Variables & Edges](#2-building-blocks--nodes-variables--edges)
+2. [Building Blocks — Nodes, Variables & Edges](#2-building-blocks-nodes-variables-edges)
 3. [Tutorial 1: Payment Plan Flow](#3-tutorial-1-payment-plan-flow)
 4. [Tutorial 2: Multi-Service Order Flow](#4-tutorial-2-multi-service-order-flow)
 5. [Computation Patterns](#5-computation-patterns)
-6. [Decision & Branching Patterns](#6-decision--branching-patterns)
+6. [Decision & Branching Patterns](#6-decision-branching-patterns)
 7. [Payment Integration](#7-payment-integration)
-8. [Testing & Debugging](#8-testing--debugging)
+8. [Testing & Debugging](#8-testing-debugging)
 9. [Troubleshooting](#9-troubleshooting)
 
 ---
@@ -30,7 +30,7 @@ A **flow form** is a multi-step, interactive experience — think of it as a min
 4. **May pay** via integrated checkout
 5. **Gets a receipt** or confirmation
 
-> **Flow form vs. linear form:** A linear form shows all fields on one page, same for everyone. A flow form guides each respondent on their own unique journey.
+> **Flow form vs. page form:** A page form moves through ordered pages and can show/hide fields. A flow form uses a graph to guide each respondent through a branch-specific journey.
 
 ### What Can You Build?
 
@@ -86,10 +86,10 @@ Variables are the **memory** of your flow. Every answer, every calculation resul
 |---|---|---|
 | `string` | Text | `"Juan Dela Cruz"`, `"full"`, `"yes"` |
 | `number` | Plain numbers | `5`, `100`, `0.5` |
-| `money` | Currency amounts | `150000` (stored as cents — represents ₱1,500.00) |
+| `money` | Currency amounts in major units during flow execution | `1500` represents ₱1,500.00 |
 | `boolean` | True/false | `true`, `false` |
 
-> **Money is stored in the smallest currency unit** (cents, centavos, sen). ₱1,500.00 is stored as `150000`. When displayed, it auto-formats as `₱1,500.00`. **Never use decimals for money** — use integers and let the system format it.
+> **Flow variables use major units.** ₱1,500.00 is `1500` while the flow runs. Calculators round money targets to two decimals. When checkout begins, PonkoForm converts the amount to integer minor units (`150000` centavos) for the payment record and gateway.
 
 #### Variable Lifecycle
 
@@ -134,11 +134,11 @@ First, declare these variables in the **Variables Manager** (click "Variables" i
 | Variable | Type | Default | Description |
 |---|---|---|---|
 | `payment_plan` | string | `full` | Selected plan |
-| `subtotal` | money | `10000` | Base price (₱100.00) |
+| `subtotal` | money | `10000` | Base price (₱10,000.00) |
 | `amount_due` | money | — | Final amount to charge |
 | `payment_ref` | string | — | Gateway reference (auto-filled) |
 
-> **Tip:** Setting `subtotal`'s default to `10000` means you can test without filling in a field for it. Change it later to whatever your base price should be.
+> **Tip:** Setting `subtotal` to `10000` means ₱10,000.00 in the current runtime. Change it to the major-unit price you actually intend to charge.
 
 ### Step 2: Build the Node Chain
 
@@ -234,8 +234,8 @@ Your final flow should look like:
 ### Step 5: Test It
 
 1. Click **Preview**
-2. Pick "Full Payment" → the total should be `₱112.00` (₱100 × 1.12)
-3. Go back, pick "Installment" → the monthly should be `₱18.67` (₱112 ÷ 6)
+2. Pick "Full Payment" → the total should be `₱11,200.00` (₱10,000 × 1.12)
+3. Go back, pick "Installment" → the monthly should be `₱1,866.67` (₱11,200 ÷ 6)
 4. Verify the payment step shows the correct amount
 
 ---
@@ -348,18 +348,18 @@ This section covers every calculation pattern you'll need. Each pattern includes
 ### 5.2 Conditional / Ternary
 
 ```
-if({{variable}} == 'value', result_if_true, result_if_false)
+if(equalText({{variable}}, 'value'), result_if_true, result_if_false)
 ```
 
 **Example:** Discount for students
 ```
-if({{user_type}} == 'student', {{total}} * 0.9, {{total}})
+if(equalText({{user_type}}, 'student'), {{total}} * 0.9, {{total}})
 ```
 Gives 10% off if the respondent is a student, otherwise charges full price.
 
 **Nested conditional (multi-branch):**
 ```
-if({{tier}} == 'premium', 100, if({{tier}} == 'standard', 50, 25))
+if(equalText({{tier}}, 'premium'), 100, if(equalText({{tier}}, 'standard'), 50, 25))
 ```
 
 ### 5.3 Multi-Step Computations
@@ -392,7 +392,7 @@ Each calculator stores its result in a different variable. The next calculator r
 | Function | What It Does | Example |
 |---|---|---|
 | `round(x, n)` | Rounds x to n decimal places | `round({{total}} / 6, 2)` |
-| `if(cond, a, b)` | Returns `a` if true, `b` if false | `if({{age}} >= 18, 'adult', 'minor')` |
+| `if(cond, a, b)` | Returns `a` if true, `b` if false; calculator result must be numeric | `if({{age}} >= 18, 1, 0)` |
 | `contains(str, substr)` | Checks if string contains substring | `contains({{items}}, 'premium')` |
 
 ---
@@ -565,7 +565,7 @@ This lets you verify your expression before any respondent sees it.
 | Subtract | `{{total}} - {{discount}}` |
 | Divide into parts | `{{amount}} / {{parts}}` |
 | Round money | `round({{value}}, 2)` |
-| Conditional discount | `if({{is_member}} == 'yes', {{total}} * 0.85, {{total}})` |
+| Conditional discount | `if(equalText({{member_status}}, 'yes'), {{total}} * 0.85, {{total}})` |
 | String contains check | `contains({{items}}, 'premium')` |
-| Nested conditional | `if({{tier}} == 'gold', 100, if({{tier}} == 'silver', 50, 25))` |
+| Nested conditional | `if(equalText({{tier}}, 'gold'), 100, if(equalText({{tier}}, 'silver'), 50, 25))` |
 | Percentage of total | `({{part}} / {{total}}) * 100` |

@@ -1,322 +1,218 @@
 # PonkoForm Architecture
 
 > Part of [`memory-ponko/`](README.md) — System Memory
+> **Verified against:** `main` at `7d2cbe3` on 2026-07-28.
 
----
+## 1. System Overview
 
-## 1. High-Level Overview
+PonkoForm is a multi-tenant form platform. Authenticated creators build, publish, share, embed, and inspect forms. Respondents use public routes without a PonkoForm account.
 
-PonkoForm is a **multi-tenant form builder with flow automation and payment integration**. Form creators build forms on a dashboard; respondents submit data through them. The unique feature is the **Flow Builder** — a visual workflow engine that turns linear forms into multi-step, branching, calculator-enabled, payment-integrated experiences.
+There are two persisted form experiences:
 
-### User Roles
+| Mode | Persistence | Editor | Public renderer | Best for |
+|---|---|---|---|---|
+| **Page form** | `form_pages`, `form_page_fields`, `field_conditions`, `form_references` | `PageBuilderWorkspace` | `PageFormView` | Linear multi-page forms, conditions, priced options, subscriptions |
+| **Flow form** | `flows`, `flow_nodes`, `flow_edges`, `flow_variables` | List or Canvas flow workspace | `FlowExecutionContainer` | Branching journeys, graph decisions, calculators, redirects |
 
-| Role | What They Do |
-|---|---|
-| **Form Creator** | Logged-in user who builds and publishes forms via the dashboard |
-| **Respondent** | Anonymous or known user who fills out a published form |
-| **System** | Handles auth, persistence, payment simulation, routing |
+A form has at most one flow. A form without a flow is ensured to have page-form data by the unified editor. Older `form_fields` and `form_payment_configs` remain for compatibility, but new forms are created through page-form templates or from scratch.
 
----
+## 2. Runtime Boundaries
 
-## 2. Tech Stack
+```text
+Authenticated creator
+  └─ /forms/$formId/edit
+       ├─ page form → PageBuilderWorkspace
+       └─ flow form → FlowListBuilder or FlowCanvasWorkspace
 
-| Layer | Technology | Version / Notes |
-|---|---|---|
-| **Framework** | [TanStack Start](https://tanstack.com/start) (React Router + SSR) | v1.168 — wraps Vinxi/Nitro |
-| **UI Library** | React 19 | — |
-| **Build Tool** | Vite 8 | Configured via `vite.config.ts` |
-| **Styling** | Tailwind CSS 4 | `@tailwindcss/vite` plugin, custom colors (see below) |
-| **Icons** | Lucide React | v0.577 |
-| **Flow Canvas** | React Flow (xyflow) | v12 — `@xyflow/react` |
-| **Drag & Drop** | dnd-kit | Reordering nodes in list view |
-| **Database ORM** | Drizzle ORM | v0.45 — schema in `src/db/schema.ts` |
-| **Database** | PostgreSQL (Neon serverless) | — |
-| **Auth** | Clerk | `@clerk/tanstack-react-start` v1.3 |
-| **Expression Engine** | math.js | v15 — sandboxed, no eval |
-| **Drag & Sort** | dnd-kit | `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` |
-| **Package Manager** | pnpm | v10.34.5; `.npmrc` with `legacy-peer-deps=true` for compatibility |
-| **Deployment** | Vercel | Node.js serverless functions via `api/index.ts` |
+Anonymous respondent
+  ├─ /forms/submit/$publicId
+  └─ /forms/embed/$publicId
+       └─ PublicFormView
+            ├─ page form → PageFormView + persisted page session
+            └─ flow form → FlowExecutionContainer + persisted flow execution
 
-### Tailwind CSS Custom Colors
-
-The design system uses a bespoke palette rather than Tailwind's default. Key tokens:
-
-| Token | Hex | Usage |
-|---|---|---|
-| `ink` | `#141413` | Primary text |
-| `muted` | `#6c6a64` | Secondary/muted text |
-| `muted-soft` | `#8e8b82` | Soft text, icons |
-| `primary` | `#cc785c` | Primary accent, links, selected state |
-| `primary-active` | `#a9583e` | Hover/active primary |
-| `error` | `#c64545` | Error text, delete buttons |
-| `surface-card` | `#efe9de` | Card backgrounds |
-| `surface-soft` | `#f5f0e8` | Soft backgrounds |
-| `surface-cream` | `#faf9f5` | Page/app background |
-| `surface-cream-strong` | `#e8e0d2` | Active surface |
-| `border-subtle` | `#e6dfd8` | Borders, dividers |
-
-Usage: `text-[#141413]` not `text-ink` (custom tokens aren't mapped to Tailwind's default palette — they use arbitrary values).
-
----
-
-## 3. Directory Structure
-
+Hosted checkout
+  └─ /forms/payment-return
+       ├─ verifies or reconciles gateway state
+       └─ resumes the page session or flow execution
 ```
+
+Internal numeric `forms.id` values are used on authenticated creator routes. Public and embed routes use `forms.public_id`.
+
+## 3. Technology
+
+| Layer | Current technology |
+|---|---|
+| Framework/runtime | TanStack Start with Nitro Node output |
+| UI | React 19 |
+| Routing | TanStack Router file routes |
+| Server state | TanStack Query |
+| Build | Vite 8 |
+| Styling | Tailwind CSS 4 through `@tailwindcss/vite` |
+| Authentication | Clerk via `@clerk/tanstack-react-start` |
+| Database | PostgreSQL; Neon HTTP or `pg` driver selected from the database URL/config |
+| ORM/migrations | Drizzle ORM and Drizzle Kit |
+| Flow canvas | `@xyflow/react` |
+| Sorting/dragging | dnd-kit |
+| Expressions | `src/lib/flow-engine/safe-expression.ts` |
+| Email | Resend HTTP API and Nodemailer SMTP |
+| PDF/invoice download | jsPDF-based invoice utilities |
+| Deployment | Render long-running Node web service |
+| Package/runtime | pnpm 10.34.5; Node.js 22+ |
+
+Do not describe the expression system as `math.js`: that dependency is not installed. The parser accepts a deliberately small language and evaluates an AST without property access, assignment, constructors, or global-object access.
+
+## 4. Source Layout
+
+```text
 ponkoform/
-├── api/                          # Vercel serverless function entry
-│   └── index.ts                  #   Imports dist/server/server.js, bridges Node↔Fetch
-├── db/                           # SQL init scripts
-│   └── init.sql
-├── docs/                         # User & developer documentation
-│   ├── README.md                 #   Docs index
-│   ├── flow-builder-guide.md     #   Complete knowledge base (reference)
-│   ├── flow-form-guide.md        #   Tutorial & computation handbook
-│   └── implementation-plan.md    #   Original sprint plan
-├── drizzle/                      # Drizzle Kit generated migrations
-│   └── meta/
-├── memory-ponko/                 # System memory (this directory)
-│   ├── README.md                 #   Entry point
-│   ├── ARCHITECTURE.md           #   This file
-│   ├── DATABASE.md               #   Schema reference
-│   ├── CONVENTIONS.md            #   Coding conventions
-│   └── FLOW-BUILDER.md           #   Flow Builder deep dive
+├── docs/                         # Markdown shown by the in-app docs viewer
+├── drizzle/                      # Ordered SQL migrations and Drizzle metadata
+├── feature-plan/                 # Feature specifications and gap analyses
+├── memory-ponko/                 # Maintainer/agent system memory
+├── plans/                        # Implementation and cleanup plans
 ├── public/                       # Static assets
-├── scripts/                      # Standalone utility scripts
-│   ├── seed-flow.ts              #   Seeds Payment Plan flow
-│   ├── seed-service-flow.ts      #   Seeds Service Order flow
-│   ├── seed-form-templates.ts    #   Seeds built-in form templates
-│   ├── migrate.ts                #   Drizzle migration runner
-│   ├── check-schema.ts           #   Schema validation
-│   ├── prepare-database.ts       #   DB prep for deploy
-│   └── reconcile-payments.ts     #   Payment reconciliation
+├── scripts/                      # Migration, schema, seed, and reconciliation jobs
 ├── src/
 │   ├── components/
-│   │   ├── dashboard/            # Dashboard page components
-│   │   │   ├── FormCard.tsx       #   Form card with actions menu
-│   │   │   ├── EmptyState.tsx     #   Empty state placeholder
-│   │   │   └── ShareDialog.tsx    #   Share link/embed dialog
-│   │   ├── docs/                 # Documentation viewer
-│   │   │   ├── DocCard.tsx        #   Doc listing card
-│   │   │   ├── DocSidebar.tsx     #   Doc sidebar nav
-│   │   │   └── MarkdownRenderer.tsx # Markdown → HTML renderer
-│   │   ├── flow-builder/         # Flow Builder components
-│   │   │   ├── BuilderPalette.tsx #   Left sidebar — palette
-│   │   │   ├── FlowCanvas.tsx     #   React Flow canvas wrapper
-│   │   │   ├── FlowListBuilder.tsx#   List view — sortable node rows
-│   │   │   ├── FlowPalette.tsx    #   Canvas palette items
-│   │   │   ├── FlowCanvasWorkspace.tsx # Canvas workspace (replaces FlowPreviewPanel)
-│   │   │   ├── FlowToolbar.tsx    #   Top toolbar
-│   │   │   ├── FlowValidationBadge.tsx
-│   │   │   ├── NodeConfigPanel.tsx#   Right sidebar — node config
-│   │   │   ├── VariablesManager.tsx  # Variables manager panel
-│   │   │   ├── VariableDialog.tsx #   Add/edit variable dialog
-│   │   │   ├── SettingsDialog.tsx #   Flow-level settings (title, description, etc.)
-│   │   │   ├── config-forms/      #   Per-node-type config forms
-│   │   │   │   ├── FormFieldConfig.tsx
-│   │   │   │   ├── GroupFieldsEditor.tsx
-│   │   │   │   ├── OptionsEditor.tsx
-│   │   │   │   ├── GroupConfig.tsx
-│   │   │   │   ├── DecisionConfig.tsx
-│   │   │   │   ├── CalculatorConfig.tsx
-│   │   │   │   ├── PaymentConfig.tsx
-│   │   │   │   ├── SummaryConfig.tsx
-│   │   │   │   ├── RedirectConfig.tsx
-│   │   │   │   └── controls.tsx   #   Shared form controls (dropdowns, inputs)
-│   │   │   └── nodes/            #   Custom React Flow node renderers
-│   │   │       ├── index.tsx      #   Node type → renderer map
-│   │   │       └── NodeShell.tsx  #   Shared node wrapper (handles, labels, colors)
-│   │   ├── flow-execution/       # Runtime components for respondents
-│   │   │   ├── FlowExecutionContainer.tsx
-│   │   │   ├── FlowStepRenderer.tsx
-│   │   │   ├── FlowProgressBar.tsx
-│   │   │   ├── GroupStepView.tsx  #   Group node field layout
-│   │   │   ├── CalculatorDisplay.tsx
-│   │   │   ├── PaymentStep.tsx
-│   │   │   ├── InvoicePDF.tsx     #   PDF receipt (@react-pdf/renderer)
-│   │   │   ├── InvoiceDownloadButton.tsx # Download invoice button
-│   │   │   └── invoice.ts         #   Invoice data builder
-│   │   ├── public-form/          # Public (anonymous) form view
-│   │   │   └── PublicFormView.tsx
-│   │   ├── form-builder/         # Linear form builder (legacy)
-│   │   ├── ui/                   # Shared UI primitives
-│   │   │   ├── Button.tsx
-│   │   │   ├── Badge.tsx
-│   │   │   ├── Input.tsx
-│   │   │   ├── Card.tsx
-│   │   │   ├── PreviewDialog.tsx
-│   │   │   └── FlowPreviewModal.tsx
-│   │   └── header/               # App header
+│   │   ├── dashboard/            # Form cards, sharing, reports, charts
+│   │   ├── docs/                 # Markdown documentation UI
+│   │   ├── flow-builder/         # Flow list/canvas editor and node configuration
+│   │   ├── flow-execution/       # Respondent flow runtime and receipt download
+│   │   ├── form-builder/         # Shared field renderer split by field type
+│   │   ├── forms/                # Creator workspace navigation and tables
+│   │   ├── integrations/         # Integration catalog and configuration UI
+│   │   ├── invoicing/            # Email/invoice template builder and delivery history
+│   │   ├── page-builder/         # Page editor, logic, calculations, references
+│   │   ├── page-form/            # Respondent page-form runtime
+│   │   ├── public-form/          # Runtime mode selection and loading shell
+│   │   └── ui/                   # Reusable UI primitives and data table
 │   ├── db/
-│   │   ├── index.ts              # Drizzle client (db) — import from here
-│   │   └── schema.ts             # Drizzle schema — ALL tables
+│   │   ├── schema.ts             # Authoritative schema
+│   │   ├── driver.ts             # Database-driver selection
+│   │   └── index.ts              # Shared database access
 │   ├── integrations/
-│   │   ├── clerk/                # Clerk provider setup
-│   │   ├── payments/             # Payment gateway implementations
-│   │   │   ├── base.ts           #   Abstract gateway interface
-│   │   │   ├── types.ts          #   Payment gateway types
-│   │   │   ├── currencies.ts     #   Supported currency definitions
-│   │   │   ├── registry.ts       #   Gateway registry (slug→gateway map)
-│   │   │   ├── index.ts          #   Barrel exports
-│   │   │   ├── xendit/gateway.ts #   Xendit payment gateway
-│   │   │   └── paypal/gateway.ts #   PayPal payment gateway
-│   │   └── tanstack-query/       # TanStack Query client setup
-│   │   ├── lib/                   # Utility libraries
-│   │   │   ├── flow-engine/          # Flow Builder core engine
-│   │   │   │   ├── FlowEngine.ts     #   Client-side runtime engine
-│   │   │   │   ├── FlowValidator.ts  #   Flow validation logic
-│   │   │   │   ├── TemplateInterpolator.ts # {{var}} replacement
-│   │   │   │   ├── ExpressionEvaluator.ts  # math.js expression eval
-│   │   │   │   ├── safe-expression.ts #   Safe expression parser/validator
-│   │   │   │   ├── submission-draft.ts #   Draft submission save/restore
-│   │   │   │   ├── server-data.ts    #   Server-side data helpers
-│   │   │   │   ├── path-utils.ts     #   Graph traversal utilities
-│   │   │   │   ├── index.ts          #   Barrel exports
-│   │   │   │   └── types.ts          #   Flow-related TypeScript types
-│   │   │   ├── server-fns/           # TanStack Start server functions
-│   │   │   │   ├── auth.ts           #   Auth helpers
-│   │   │   │   ├── forms.ts          #   Form CRUD (+ public getPublicForm)
-│   │   │   │   ├── flows.ts          #   Flow CRUD
-│   │   │   │   ├── flow-nodes.ts     #   Node & Edge CRUD
-│   │   │   │   ├── flow-variables.ts #   Variable CRUD
-│   │   │   │   ├── flow-executions.ts#   Execution CRUD
-│   │   │   │   ├── flow-helpers.ts   #   Shared flow server-fn helpers
-│   │   │   │   ├── submissions.ts    #   Form submission CRUD
-│   │   │   │   ├── gateways.ts       #   Payment gateway CRUD
-│   │   │   │   ├── payments.ts       #   Real PayPal/Xendit checkout + verify
-│   │   │   │   ├── payments-view.ts  #   Payment listing/viewing server fns
-│   │   │   │   ├── integrations.ts   #   Per-user encrypted credential CRUD
-│   │   │   │   ├── docs.ts           #   Docs server fns
-│   │   │   │   └── fields.ts         #   Form field CRUD
-│   │   │   ├── integrations/         # Gateway credential resolution
-│   │   │   │   ├── credentials.ts    #   Decrypt + resolve per-user creds
-│   │   │   │   ├── types.ts          #   Integration config types
-│   │   │   │   └── recaptcha.ts      #   reCAPTCHA verification
-│   │   │   ├── theme.ts              # Per-form theming (FormTheme, themeVars, accent presets)
-│   │   │   ├── crypto.ts             # AES-256-GCM encrypt/decrypt for secrets
-│   │   │   ├── form-utils.ts         # Form helpers
-│   │   │   └── docs-parser.ts        # Docs markdown parser
-│   ├── routes/                   # File-based routing (TanStack Router)
-│   │   ├── __root.tsx            #   Root layout
-│   │   ├── index.tsx             #   Landing page
-│   │   ├── dashboard/
-│   │   │   └── index.tsx         #   Dashboard (My Forms)
-│   │   ├── settings/
-│   │   │   ├── index.tsx         #   Settings page
-│   │   │   └── integrations.tsx  #   Integrations hub
-│   │   ├── integrations/
-│   │   │   └── google/
-│   │   │       └── callback.tsx  #   Google OAuth callback
-│   │   ├── forms/
-│   │   │   ├── index.tsx         #   Form listing
-│   │   │   ├── new.tsx           #   Create new form
-│   │   │   ├── $formId/
-│   │   │   │   ├── edit.tsx      #   Form editor (flow builder)
-│   │   │   │   ├── flow.tsx      #   Flow builder route
-│   │   │   │   ├── submissions.tsx # View form submissions
-│   │   │   │   ├── payments.tsx  #   Payment history
-│   │   │   │   └── invoicing.tsx #   Invoice config
-│   │   │   ├── submit/
-│   │   │   │   └── $formId.tsx   #   Public form submission
-│   │   │   ├── embed/
-│   │   │   │   └── $formId.tsx   #   Embedded form view
-│   │   │   └── payment-return.tsx #  Gateway redirect-back + verify
-│   │   ├── flow/
-│   │   │   └── $executionId/
-│   │   │       └── complete.tsx  #   Flow completion receipt
-│   │   ├── docs/
-│   │   │   ├── index.tsx         #   Docs index
-│   │   │   └── $slug.tsx         #   Individual doc page
-│   │   ├── mcp.ts                #   MCP server endpoint
-│   │   ├── sign-in.$.tsx         #   Clerk sign-in
-│   │   └── sign-up.$.tsx         #   Clerk sign-up
-│   ├── styles.css                # Global styles, Tailwind import, per-form theme vars
-├── .npmrc                        # legacy-peer-deps=true
-├── vercel.json                   # Vercel deployment config
-├── vite.config.ts                # Vite config (TanStack Start + Tailwind + React Compiler)
-├── drizzle.config.ts             # Drizzle Kit config
-├── neon-vite-plugin.ts           # Neon DB plugin
-├── vitest.config.ts              # Vitest config
-├── tsconfig.json                 # TypeScript config (strict, noEmit, bundler)
-├── package.json                  # Dependencies & scripts (npm or pnpm)
-└── README.md                     # Project README
+│   │   ├── clerk/                # Clerk provider and user header
+│   │   └── payments/             # Gateway contract, registry, PayPal, Xendit
+│   ├── lib/
+│   │   ├── email/                # Resend/SMTP and transactional dispatch
+│   │   ├── flow-engine/          # Flow engine, validator, expression parser
+│   │   ├── form-templates/       # Built-in template catalog and creation plans
+│   │   ├── integrations/         # Encrypted credential access and reCAPTCHA
+│   │   ├── invoicing/            # Template and delivery-domain logic
+│   │   ├── page-builder/         # Page runtime, conditions, computation, completion
+│   │   ├── server/               # Server-only support such as currency rates
+│   │   ├── server-fns/           # TanStack Start server-function boundary
+│   │   └── submissions/          # CSV and response-column helpers
+│   ├── routes/                   # File-based authenticated, public, and API routes
+│   └── styles.css                # Global design tokens and styles
+├── render.yaml                   # Render Blueprint
+├── package.json
+└── vite.config.ts
 ```
 
----
+## 5. Creator Experience
 
-## 4. Key Design Decisions
+### Unified editor
 
-### 4.1 Flow Forms vs Linear Forms
+`src/routes/forms/$formId/edit.tsx` loads the form, optional flow, and optional page form in one request through `getEditorForm`.
 
-A **linear form** renders all fields on one page (traditional model). A **flow form** uses a graph of connected nodes (Start → Form Fields → Decisions → Calculators → Payment → Summary). The system detects which mode to use at runtime:
+- When flow data exists, the editor offers List and Canvas views, node configuration, variables, validation, and flow preview.
+- When no flow exists, `ensurePageForm` creates the page-form structure and `PageBuilderWorkspace` edits pages, fields, references, conditions, computation, payment, and final-page behavior.
+- `/forms/$formId/flow` is a compatibility redirect to the unified editor.
+- The workspace navigation links to Build, Responses, Payments, and Invoicing.
 
-- If a form has a `flow` record → **step-by-step flow experience**
-- If no flow → **classic linear form** (backward compatible)
+### Creation
 
-This is checked in the public form submission route (`/forms/submit/:formId`).
+`/forms/new` lets a creator start from scratch or copy a built-in/user template. A scratch form is initialized as a page form when the editor opens.
 
-### 4.2 One Flow Per Form
+### Publication and sharing
 
-Each form can have **at most one flow** (enforced by a `unique` constraint on `flows.formId`). Deleting the flow reverts the form to linear mode.
+Draft forms can be previewed by their owner. Published forms receive a public share URL based on `public_id`; the share dialog also supplies iframe embed markup.
 
-### 4.3 Client-Side Preview, Server-Side Production
+## 6. Respondent Data Lifecycles
 
-- **Preview mode** runs the `FlowEngine` entirely in-browser (no server calls, no data persisted)
-- **Published forms** execute via the server — each step persists to the `flow_executions` table
+### Page form
 
-### 4.4 Deploy on Vercel via Serverless Functions
+1. `PublicFormView` loads the published form runtime by public ID.
+2. `PageFormView` starts or restores a `form_submission_sessions` row using an opaque client token.
+3. Each page validates fields, verifies reCAPTCHA when configured, merges collected data, and advances the session.
+4. A payment page may create a pending `payments` row and redirect to hosted checkout.
+5. Completion creates/updates `form_submissions`, links the payment, marks the session complete, and dispatches configured respondent email.
 
-TanStack Start outputs `dist/server/server.js` (a Web Fetch-API handler). Vercel runs this via `api/index.ts` which wraps it in Node.js `(req, res)` handler. Static assets are served from `dist/client/`.
+### Flow form
 
-### 4.5 Peer Dependency Conflicts
+1. The runtime starts a `flow_executions` row with declared defaults.
+2. The client engine navigates the graph while server functions persist the current node, variables, and history.
+3. Calculator nodes auto-run; decisions select an edge; user-facing nodes wait for input.
+4. Payment nodes create a pending payment linked to the execution, then resume after gateway return.
+5. Completion creates a `form_submissions` row, links it to the execution/payment, and renders the summary or redirect result.
 
-`vite-plugin-neon-new@0.8.0` only declares support for Vite 6/7 but works fine with Vite 8. The `.npmrc` with `legacy-peer-deps=true` suppresses this.
+Opaque client tokens protect anonymous resume operations. Do not expose an unrestricted numeric execution/session ID as the only public access credential.
 
-### 4.6 Per-Form Theming
+## 7. Payments, Email, and Integrations
 
-Each form can have a `theme` (stored as JSONB on the `forms` table) that customizes the respondent-facing form's appearance: primary accent color, background color, and corner radius (sharp/rounded/pill). Theme values propagate through CSS custom properties (`--ponko-*`) defined in `src/lib/theme.ts`. Un-themed forms fall back to the house palette. Creators choose from curated accent presets or enter custom hex values.
+### Operational payment providers
 
----
+- **PayPal:** one-time hosted checkout, sandbox/live credentials, multi-currency subject to PayPal support.
+- **Xendit:** one-time hosted checkout in PHP plus page-form subscriptions. Xendit events arrive at a per-owner unguessable webhook route.
 
-## 5. Authentication Flow
+Stripe, PayMongo, and Maya appear in the integration configuration catalog, but no payment gateway implementation is registered for them. The payment registry in `src/integrations/payments/index.ts` is authoritative.
 
-1. Clerk handles auth at the app root via `<ClerkProvider>` in `src/integrations/clerk/provider.tsx`
-2. Protected routes use `requireAuth()` in their `beforeLoad` handler (TanStack Router middleware)
-3. Server functions call `auth()` from `@clerk/tanstack-react-start/server` to verify the user server-side
-4. Profiles table maps Clerk user IDs (`clerk_id`) to internal profile IDs
+Payment status is recovered from return verification, Xendit webhooks, creator verification actions, and the protected reconciliation job. `payment_events` provides idempotent audit history.
 
----
+### Email
 
-## 6. Data Flow — Form Submission (Flow Mode)
+Respondent confirmation and invoice email use `src/lib/email/transactional.ts`. Resend is preferred when configured; SMTP is the fallback. `email_delivery_logs` snapshots the template and tracks attempts/status. There is no creator-notification email workflow in the current implementation.
 
-```
-Respondent opens /forms/submit/:formId
-  → Route loader calls getForm() + getFlow() + getActiveGateways()
-  → If flow exists → render FlowExecutionContainer
-  → FlowExecutionContainer loads FlowEngine (server-side)
-  → Each step:
-      1. Engine determines current node type
-      2. Respondent interacts (fills field, picks branch, clicks pay)
-      3. Engine advances to next node, evaluates calculators automatically
-      4. All variable values tracked in execution context
-  → On terminal node (Summary/Redirect):
-      → Creates formSubmission record (formData = all variables)
-      → Updates flowExecution.status = 'completed'
-      → Shows completion receipt at /flow/:executionId/complete
-```
+### Integration catalog versus runtime support
 
----
-
-## 7. Key Files to Know
-
-| File | Why It Matters |
+| Provider/category | Current state |
 |---|---|
-| `src/db/schema.ts` | Single source of truth for ALL database tables |
-| `src/lib/flow-engine/FlowEngine.ts` | Heart of the flow runtime |
-| `src/lib/flow-engine/types.ts` | All flow-related TypeScript types |
-| `src/lib/theme.ts` | Per-form theming system (FormTheme, themeVars, accent presets) |
-| `src/lib/crypto.ts` | AES-256-GCM encrypt/decrypt for integration secrets |
-| `src/routes/forms/$formId/edit.tsx` | The big editor page — palette, canvas, list, config, preview |
-| `src/components/flow-builder/` | All builder UI components |
-| `api/index.ts` | Vercel serverless entry point |
-| `vite.config.ts` | Build configuration, plugins |
-| `vercel.json` | Deployment configuration |
+| Xendit, PayPal | Operational payment processing |
+| SMTP, Resend | Operational respondent transactional email |
+| reCAPTCHA | Operational respondent verification |
+| Google Sheets | Credential/OAuth flow exists; automatic submission sync is not implemented |
+| Stripe, PayMongo, Maya | Configuration UI/storage only; not registered payment gateways |
+| Gemini, Google Calendar, Calendly, ImageKit, Cloudinary | Configuration UI/storage only |
+
+Secrets are encrypted at rest with AES-256-GCM using `CREDENTIALS_ENCRYPTION_KEY`. The normalized `integrations` table is primary; `integration_settings` remains as a legacy fallback during migration.
+
+## 8. Deployment and Operations
+
+Render is the maintained deployment path:
+
+- Blueprint: `render.yaml`
+- Build: `pnpm install --frozen-lockfile && pnpm run build:render`
+- Start: `pnpm run start`
+- Output: `.output/server/index.mjs`
+- Health check: `/api/health`
+- Database prep: migrations, schema validation, built-in template seed
+- Reconciliation endpoint: `/api/internal/reconcile-payments`, protected by `CRON_SECRET`
+
+Required production secrets are `DATABASE_URL`, Clerk publishable/secret keys, and `CREDENTIALS_ENCRYPTION_KEY`. `CRON_SECRET` is required if the reconciliation endpoint is scheduled. Provider credentials are normally connected per creator in Settings, with limited environment fallbacks for PayPal and Xendit.
+
+`vercel.json` remains in the repository, but the old `api/index.ts` Vercel bridge was removed. Do not document Vercel serverless as the current production architecture.
+
+## 9. Key Contracts
+
+| Contract | Authoritative source |
+|---|---|
+| Tables, enums, JSON columns, indexes | `src/db/schema.ts` |
+| Page builder/runtime types | `src/lib/page-builder/types.ts` |
+| Flow types and node configuration | `src/lib/flow-engine/types.ts` |
+| Flow behavior | `FlowEngine.ts`, `FlowValidator.ts`, `safe-expression.ts` |
+| Public mode selection | `src/components/public-form/PublicFormView.tsx` |
+| Unified editor mode selection | `src/routes/forms/$formId/edit.tsx` |
+| Supported payment gateways | `src/integrations/payments/index.ts` |
+| Integration catalog and credential shapes | `src/lib/integrations/types.ts`, `ProviderForms.ts` |
+| Deployment | `render.yaml`, `package.json`, `vite.config.ts` |
+
+## 10. Known Product Boundaries
+
+- Flow graphs must be acyclic.
+- Flow subscriptions are not implemented; subscriptions are page-form/Xendit/PHP only.
+- Refund status can be represented, but refunds are processed in the gateway dashboard.
+- Configuring an integration does not imply a runtime sync or automation exists.
+- File-upload values are currently stored as submitted values/data URLs; ImageKit and Cloudinary runtime upload are not implemented.
+- Dashboard analytics provide aggregate and time-series data, not visitor/funnel analytics.

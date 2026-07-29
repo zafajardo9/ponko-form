@@ -1,146 +1,102 @@
 # Getting Started with PonkoForm
 
-> **Build your first flow form in ~10 minutes.**
-
----
+> **Build and publish a simple multi-page contact form in about 10 minutes.**
 
 ## What You'll Build
 
-A simple **contact + redirect form** that:
-1. Asks for a name and email
-2. Asks what they're interested in
-3. Shows a confirmation message
+A contact form that:
 
-No payments, no calculations — just the basics to learn the workflow.
+1. collects a name and email;
+2. asks what the respondent needs;
+3. shows a final confirmation;
+4. can be shared as a link or embedded on a site.
 
----
+This tutorial uses the Page Builder, which is the default for new forms.
 
-## Step 1: Create a New Form
+## Step 1: Create a Form
 
-1. Go to your **Dashboard**
-2. Click **"New Form"**
-3. Enter a title: `Quick Contact Form`
-4. Click **Create**
+1. Sign in and open **Forms**.
+2. Select **New Form**.
+3. Choose **Start from scratch**, or select **Contact Intake** to begin from a template.
+4. Enter `Quick Contact Form`.
+5. Select **Create & open editor**.
 
-You'll land in the **Form Editor** — this is where everything happens.
+A blank form is initialized with page-form data when the editor opens. Templates are copied into an independent form, so later edits do not change the original template.
 
----
+## Step 2: Know the Editor
 
-## Step 2: Understand the Layout
+The unified editor changes its workspace based on the form's stored mode:
 
-The form editor has three main areas:
+- New and template forms show the **Page Builder**.
+- Existing flow forms show **List** and **Canvas** flow views.
+- The header provides Preview, settings/theme, Share, and publish controls.
+- Form navigation links to Build, Responses, Payments, and Invoicing.
 
-```
- ┌─────────────────────────────────────────────────┐
- │  ← Dashboard  │  My Form  │ [draft]              │
- │  [ Build ] [ Responses ] [ Payments ]             │
- ├─────────────────────────────────────────────────┤
- │                                                   │
- │   Palette      │   Flow Builder (List/Canvas)    │
- │   ┌───────┐    │                                  │
- │   │ Text  │    │   Start                         │
- │   │ Email │    │     │                            │
- │   │ Select│    │   Form Field                     │
- │   │ ...   │    │     │                            │
- │   └───────┘    │   Summary                       │
- │                │                                  │
- │                │                                  │
- └─────────────────────────────────────────────────┘
-```
+For this tutorial, stay in the Page Builder.
 
-- **Left Palette:** Drag nodes onto your flow
-- **Center:** Your flow — the visual graph of steps
-- **Right Panel:** Configuration for the selected node
+## Step 3: Build the Contact Page
 
----
+Create or select the first non-final page and name it `Contact Details`.
 
-## Step 3: Build Your First Flow
+Add these fields:
 
-Every flow starts with a **Start** node and ends with a **Summary** or **Redirect** node. Let's connect three nodes.
+| Field | Label | Binding | Required |
+|---|---|---|---:|
+| Text | Full Name | `full_name` | Yes |
+| Email | Email Address | `email` | Yes |
+| Select | What can we help with? | `interest` | Yes |
+| Long Text | Tell us more | `message` | No |
 
-### Add a Form Field
+For the Select field, add options such as:
 
-1. From the palette, click **"Text"** — a `form_field` node appears in your flow
-2. Click the new node to open its configuration (right panel)
-3. Set the **Label** to `Your Name`
-4. Leave **Required** checked
-5. In **Bind to Variable**, type `full_name` (this is where the answer will be stored)
+- General question → `general`
+- Project inquiry → `project`
+- Support → `support`
 
-Now add an **Email** field:
-1. Click **"Email"** from the palette
-2. Click the node, set Label to `Email Address`
-3. Bind to variable: `email`
+Bindings are stable keys used in stored response data, conditions, computations, and templates. Use short snake_case names and keep them unique within the form.
 
-### Add a Select Field
+## Step 4: Configure the Final Page
 
-1. Click **"Select"** from the palette
-2. Set Label to `How did you hear about us?`
-3. Bind to variable: `referral_source`
-4. Add options:
-   - `Social Media` → `social`
-   - `Friend` → `friend`
-   - `Search Engine` → `search`
-   - `Other` → `other`
+Add or select a final page, then:
 
-### Add a Summary
+1. Set the title to `Thank You`.
+2. Enter a confirmation such as `Thanks! Your response has been recorded.`
+3. Leave the redirect empty for now.
 
-1. From the palette's logic section, click **"Summary"**
-2. Click the summary node, set Title to `Thanks!`
-3. In the Template field, write:
-   ```
-   Thanks {{full_name}}! We'll reach out to you at {{email}}.
-   Referral source: {{referral_source}}
-   ```
-4. Variables wrapped in `{{double braces}}` are replaced with the respondent's answers
+A final page completes the response. You can use a final redirect instead when respondents should continue to another site.
 
-### Connect Everything
+## Step 5: Preview and Validate
 
-Your flow should look like this:
+1. Select **Preview**.
+2. Fill out the required fields.
+3. Move through each page and confirm the final message appears.
+4. Test narrow/mobile sizing if the form will be embedded.
 
-```
-  Start
-    │
-  Your Name (text)
-    │
-  Email Address (email)
-    │
-  How did you hear? (select)
-    │
-  Thanks! (summary)
-```
+Preview does not charge real payment methods. When a form contains payment, use sandbox/test credentials before publishing.
 
-Edges (connecting lines) are created automatically when you click palette items. You can also drag from the dot on the right side of a node to the dot on the left side of another node.
+## Step 6: Publish and Share
 
----
+1. Select **Publish**.
+2. Open **Share**.
+3. Copy the public URL or the iframe embed code.
 
-## Step 4: Test with Preview
+The shared URL uses the form's public ID, not its internal creator-facing numeric ID. Draft forms are not available as normal public submissions.
 
-Before publishing, test your form:
+## Step 7: Review Responses
 
-1. Click **"Preview"** in the top toolbar
-2. The preview modal opens — fill in the fields
-3. On the last step, you should see your summary template with the values you entered
-4. Close the preview
+After a test submission:
 
-> **Tip:** Check the **"Skip required fields"** checkbox at the bottom of each field step to quickly skim through without filling everything.
+1. Open **Responses** to inspect submitted field values.
+2. Use filters, archive/bulk actions, or CSV export as needed.
+3. If the form accepts payment, use **Payments** for transaction state and recovery actions.
+4. Use **Invoicing** to configure respondent confirmation/invoice email after connecting Resend or SMTP.
 
----
+## Where to Go Next
 
-## Step 5: Publish & Share
-
-1. Click **"Publish"** (top-right of the editor)
-2. Once published, click **"Share"** to get the shareable link
-3. You can also copy the embed code to add the form to your website
-
----
-
-## What's Next?
-
-| Topic | Guide |
+| Goal | Guide |
 |---|---|
-| **Add calculations** (totals, VAT) | [Computation Patterns](flow-form-guide.md#5-computation-patterns) |
-| **Branch based on answers** (decisions) | [Decision & Branching Patterns](flow-form-guide.md#6-decision--branching-patterns) |
-| **Collect payments** | [Payments Guide](payments-guide.md) |
-| **Build a multi-service order form** | [Tutorial 2: Service Order Flow](flow-form-guide.md#4-tutorial-2-multi-service-order-flow) |
-| **All node types explained** | [Node Types Reference](flow-builder-guide.md#3-node-types-reference) |
-| **Fix issues** | [Troubleshooting](flow-form-guide.md#9-troubleshooting) |
+| Add page conditions, references, or computed fields | [AI Knowledge Bank — Page Builder](AI-KNOWLEDGE-BANK.md#9-page-builder-mechanics) |
+| Understand branching flow forms | [Flow Form Guide](flow-form-guide.md) |
+| Configure PayPal or Xendit | [Payments Guide](payments-guide.md) |
+| See exactly what is implemented | [Current System Overview](current-system.md) |
+| Work on the codebase | [System Memory](../memory-ponko/README.md) |

@@ -2,7 +2,17 @@ import { createServerFn } from '@tanstack/react-start'
 import { auth } from '@clerk/tanstack-react-start/server'
 import { randomBytes } from 'node:crypto'
 import { db } from '../../db/index'
-import { formFields, formPageFields, formPages, formTemplates, forms, profiles } from '../../db/schema'
+import {
+  flowNodes,
+  flows,
+  formFields,
+  formPageFields,
+  formPages,
+  formPaymentConfigs,
+  formTemplates,
+  forms,
+  profiles,
+} from '../../db/schema'
 import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import type { FormTheme } from '../theme'
 import type { TemplatePageData } from '../form-templates/types'
@@ -58,11 +68,52 @@ export const getForms = createServerFn({ method: 'GET' }).handler(async () => {
   const { userId } = await auth()
   if (!userId) throw new Error('Unauthorized')
 
-  return db
+  const ownedForms = await db
     .select()
     .from(forms)
     .where(inArray(forms.profileId, ownedProfileIds(userId)))
     .orderBy(desc(forms.updatedAt))
+
+  if (ownedForms.length === 0) return []
+
+  const formIds = ownedForms.map((form) => form.id)
+  const [paymentPages, paymentConfigs, paymentNodes] = await Promise.all([
+    db
+      .select({ formId: formPages.formId })
+      .from(formPages)
+      .where(
+        and(
+          inArray(formPages.formId, formIds),
+          eq(formPages.hasPayment, true),
+        ),
+      ),
+    db
+      .select({ formId: formPaymentConfigs.formId })
+      .from(formPaymentConfigs)
+      .where(inArray(formPaymentConfigs.formId, formIds)),
+    db
+      .select({ formId: flows.formId })
+      .from(flows)
+      .innerJoin(
+        flowNodes,
+        and(
+          eq(flowNodes.flowId, flows.id),
+          eq(flowNodes.type, 'payment'),
+        ),
+      )
+      .where(inArray(flows.formId, formIds)),
+  ])
+
+  const paymentFormIds = new Set([
+    ...paymentPages.map((page) => page.formId),
+    ...paymentConfigs.map((config) => config.formId),
+    ...paymentNodes.map((node) => node.formId),
+  ])
+
+  return ownedForms.map((form) => ({
+    ...form,
+    hasPayment: paymentFormIds.has(form.id),
+  }))
 })
 
 /**

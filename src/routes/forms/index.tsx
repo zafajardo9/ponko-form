@@ -10,9 +10,11 @@ import {
 } from "@/lib/server-fns/forms";
 import { FormCard } from "@/components/dashboard/FormCard";
 import { EmptyState } from "@/components/dashboard/EmptyState";
+import { FormPreviewDialog } from "@/components/dashboard/FormPreviewDialog";
 import { ShareDialog } from "@/components/dashboard/ShareDialog";
 import { Button } from "@/components/ui/Button";
 import {
+  AlertCircle,
   CheckSquare2,
   FileCheck2,
   FilePenLine,
@@ -27,12 +29,20 @@ export const Route = createFileRoute("/forms/")({
 
 function FormsPage() {
   const queryClient = useQueryClient();
+  const [previewFormId, setPreviewFormId] = useState<number | null>(null);
   const [shareFormId, setShareFormId] = useState<number | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
   const [bulkError, setBulkError] = useState<string | null>(null);
 
-  const { data: forms = [], isLoading } = useQuery({
+  const {
+    data: forms = [],
+    error: formsError,
+    isError: formsFailed,
+    isFetching: formsFetching,
+    isLoading,
+    refetch: refetchForms,
+  } = useQuery({
     queryKey: ["forms"],
     queryFn: () => getForms(),
   });
@@ -127,6 +137,7 @@ function FormsPage() {
   const selected = [...selectedIds];
   const allSelected = forms.length > 0 && selectedIds.size === forms.length;
   const bulkPending = bulkStatusMutation.isPending || bulkDeleteMutation.isPending;
+  const previewForm = forms.find((form) => form.id === previewFormId);
   const shareForm = forms.find((form) => form.id === shareFormId);
 
   return (
@@ -146,9 +157,34 @@ function FormsPage() {
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="h-[318px] animate-pulse rounded-2xl bg-[#efe9de]"
+              className="h-[220px] animate-pulse rounded-2xl bg-[#efe9de]"
             />
           ))}
+        </div>
+      ) : formsFailed ? (
+        <div
+          role="alert"
+          className="mx-auto flex max-w-lg flex-col items-center rounded-2xl border border-[#e3c5bd] bg-[#fff8f5] px-6 py-10 text-center"
+        >
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#f5e4dc] text-[#a9583e]">
+            <AlertCircle size={20} aria-hidden="true" />
+          </span>
+          <h2 className="mt-4 text-lg font-semibold text-[#141413]">
+            We couldn&apos;t load your forms
+          </h2>
+          <p className="mt-1 max-w-sm text-sm leading-6 text-[#6c6a64]">
+            {formsError instanceof Error
+              ? formsError.message
+              : "Something interrupted the request. Your forms are still safe."}
+          </p>
+          <Button
+            type="button"
+            className="mt-5"
+            disabled={formsFetching}
+            onClick={() => void refetchForms()}
+          >
+            {formsFetching ? "Trying again…" : "Try again"}
+          </Button>
         </div>
       ) : forms.length === 0 ? (
         <EmptyState />
@@ -274,6 +310,7 @@ function FormsPage() {
                 key={form.id}
                 form={form}
                 onDelete={handleDelete}
+                onPreview={(id) => setPreviewFormId(id)}
                 onShare={(id) => setShareFormId(id)}
                 selected={selectedIds.has(form.id)}
                 onSelectionChange={setFormSelected}
@@ -281,6 +318,14 @@ function FormsPage() {
             ))}
           </div>
         </>
+      )}
+
+      {previewFormId != null && previewForm && (
+        <FormPreviewDialog
+          formId={previewForm.id}
+          title={previewForm.title}
+          onClose={() => setPreviewFormId(null)}
+        />
       )}
 
       {shareFormId != null && shareForm?.publicId && (

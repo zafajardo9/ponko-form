@@ -1,56 +1,34 @@
 # PonkoForm Documentation
 
-> **Welcome!** Whether you're building your first flow form or troubleshooting a complex computation, you're in the right place.
+> User guides and codebase-aligned technical references. Current-state docs were verified on 2026-07-28.
 
----
+## Start Here
 
-## 🚀 Quick Start
+| Guide | Purpose |
+|---|---|
+| [**Getting Started**](getting-started.md) | Create, preview, publish, and share a page form |
+| [**Current System Overview**](current-system.md) | What is operational today, what is configuration-only, and where it lives |
+| [**Payments Guide**](payments-guide.md) | PayPal/Xendit setup, one-time checkout, Xendit subscriptions, recovery |
 
-New here? Start with these:
-
-| Guide | What You'll Build | Time |
-|---|---|---|
-| [**Getting Started**](getting-started.md) | Your first flow form from scratch | ~10 min |
-| [**Tutorial: Payment Plan**](flow-form-guide.md#3-tutorial-1-payment-plan-flow) | A form with branch + calculator + payment | ~15 min |
-| [**Tutorial: Service Order**](flow-form-guide.md#4-tutorial-2-multi-service-order-flow) | A multi-service order form with catalog | ~20 min |
-
----
-
-## 📖 User Guides
-
-For form creators who want to understand how things work.
+## Builder Guides
 
 | Guide | What It Covers |
 |---|---|
-| [**Flow Form Guide**](flow-form-guide.md) | Complete tutorial handbook — nodes, variables, computation patterns, branching, testing |
-| [**Payments Guide**](payments-guide.md) | Setting up payment gateways, payment nodes, viewing transactions, refunds |
-| [**Node Types Reference**](flow-builder-guide.md#node-types) | Every node type explained — config fields, behavior, examples |
-| [**Expression & Calculator Guide**](flow-form-guide.md#5-computation-patterns) | Writing expressions, using variables, arithmetic, ternary, rounding |
-| [**Troubleshooting**](flow-form-guide.md#9-troubleshooting) | Common issues and how to fix them |
+| [**Flow Form Guide**](flow-form-guide.md) | Flow nodes, variables, computation patterns, branching, testing |
+| [**Flow Builder Reference**](flow-builder-guide.md) | Graph data model, engine, server functions, routes, validation |
+| [**AI Knowledge Bank**](AI-KNOWLEDGE-BANK.md) | Page and flow systems, fields, payments, email, analytics, routes, schema |
 
----
-
-## 🔧 Developer Reference
-
-For developers contributing to the codebase or building integrations.
-
-| Guide | What It Covers |
-|---|---|
-| [**Architecture & Data Model**](flow-builder-guide.md#11-database-schema) | Database schema, types, runtime engine |
-| [**Server Functions API**](flow-builder-guide.md#14-server-functions-api) | Backend API reference for all flow CRUD operations |
-| [**Runtime Engine**](flow-builder-guide.md#13-runtime-engine-architecture) | How FlowEngine executes steps, ExpressionEvaluator, TemplateInterpolator |
-| [**UI Component Tree**](flow-builder-guide.md#15-ui-component-tree) | Component hierarchy and file map |
-| [**Validation Rules**](flow-builder-guide.md#17-validation-rules-reference) | All validation rules, what triggers each error |
-
----
-
-## ⚙️ Admin
+## Project Context
 
 | Document | Audience |
 |---|---|
-| [**Implementation Plan**](implementation-plan.md) | Project roadmap, sprints, effort estimates |
-| [**Naming Philosophy**](naming-philosophy.md) | Why "PonkoForm"? Brand story and positioning |
+| [**Implementation Status & Roadmap**](implementation-plan.md) | Maintainers deciding what is complete versus next |
+| [**Naming Philosophy**](naming-philosophy.md) | Internal brand story and positioning |
+| [**System Memory**](../memory-ponko/README.md) | Developers and AI agents modifying the codebase |
 
----
+## Documentation Contract
 
-> **Tip:** Can't find what you're looking for? Search the docs using your editor's file search or check the [system memory](../memory-ponko/README.md) for a complete architectural overview.
+- `src/db/schema.ts` is authoritative for persistence.
+- Registered gateway code is authoritative for payment support; an integration card alone is not a working integration.
+- `src/routes/` is authoritative for URLs and authentication boundaries.
+- Update these docs when a route, schema, builder mode, field/node type, integration lifecycle, or deployment workflow changes.

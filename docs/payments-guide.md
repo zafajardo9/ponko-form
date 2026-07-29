@@ -1,6 +1,7 @@
 # Payments Guide
 
 > **Accept one-time payments through flow or page-builder forms, and Xendit subscriptions through page-builder forms.** Connect your own gateway and track transactions in PonkoForm.
+> Verified against `main` at `7d2cbe3` on 2026-07-28.
 
 ---
 
@@ -26,7 +27,7 @@ PonkoForm uses a **bring-your-own-gateway** model. You connect your own payment 
 
 Before any form can accept payments, you need to connect at least one payment gateway in **Settings**.
 
-1. Go to **Dashboard → Settings** (top-right avatar menu)
+1. Go to **Settings → Integrations** (route: `/settings/integrations`)
 2. Scroll to the **Payment Gateways** section
 3. Choose a gateway:
 
@@ -44,8 +45,10 @@ Before any form can accept payments, you need to connect at least one payment ga
 
 | Field | What to Enter |
 |---|---|
+| **Environment** | Test/sandbox while validating; live for real charges |
 | **Secret Key** | From your Xendit Dashboard → Settings → API Keys |
-| **Webhook Token** | Optional — for real-time payment notifications |
+| **Public Key** | Optional Xendit public key |
+| **Webhook Token** | Required verification token from Xendit Webhook Settings |
 
 > Xendit supports **PHP** only. If your form uses a different currency, the system will warn you.
 
@@ -98,6 +101,17 @@ The **Calculator** runs before **Payment** to ensure the amount is ready. When t
 1. The amount to be charged
 2. A list of available payment methods (based on which gateways you've connected)
 3. A **"Pay"** button that redirects them to the gateway's checkout page
+
+### Page Builder Payments
+
+For a page form, enable payment in the page settings rather than adding a flow node. Configure:
+
+- one-time or Xendit subscription payment;
+- currency and compatible connected gateway;
+- amount mode: field, priced options, number-field sum, fixed amount, or formula;
+- the fields/references used by the selected computation.
+
+Use major-unit values in form calculations (for example, `1500` for ₱1,500). PonkoForm converts the final amount to integer minor units when creating the payment record and gateway checkout.
 
 ---
 

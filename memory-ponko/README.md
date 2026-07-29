@@ -1,43 +1,60 @@
 # PonkoForm — System Memory
 
-> **Purpose:** This directory contains the system-level knowledge an AI or developer needs before scanning or modifying the PonkoForm codebase. Read these files first to understand the project's architecture, conventions, data model, and key features.
+> **Purpose:** Codebase-grounded context for developers and AI agents working on PonkoForm.
+> **Verified against:** `main` at `7d2cbe3` on 2026-07-28.
 
----
-
-## File Index
+## Read Order
 
 | File | What It Covers |
 |---|---|
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | High-level system architecture, tech stack, directory layout, and key design decisions |
-| [`DATABASE.md`](DATABASE.md) | Full database schema, entity relationships, table details, and migration workflow |
-| [`CONVENTIONS.md`](CONVENTIONS.md) | Coding patterns, naming conventions, styling rules, and code review guidelines |
-| [`FLOW-BUILDER.md`](FLOW-BUILDER.md) | Deep dive into the Flow Builder feature — node types, expression engine, runtime, validation |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Current system shape, runtime boundaries, deployment, integrations, and source map |
+| [`DATABASE.md`](DATABASE.md) | PostgreSQL schema, relationships, indexes, migrations, and persistence rules |
+| [`CONVENTIONS.md`](CONVENTIONS.md) | TypeScript, React, server-function, database, testing, and styling patterns |
+| [`FLOW-BUILDER.md`](FLOW-BUILDER.md) | Flow graph model, variables, expression language, validation, execution, and payments |
 
----
+User-facing and extended technical guides live in [`../docs/`](../docs/README.md). When memory and code disagree, `src/db/schema.ts`, route files, server functions, and tests are authoritative.
 
-## Quick Reference
+## Current System at a Glance
 
-| Aspect | Summary |
+| Aspect | Current implementation |
 |---|---|
-| **Project** | PonkoForm — a form builder with flow automation, payments, and multi-tenant support |
-| **Stack** | TanStack Start + React 19, Vite 8, Tailwind CSS 4, Drizzle ORM, Neon/Postgres, Clerk Auth |
-| **Core Feature** | Flow Builder — visual workflow engine (React Flow) with 8 node types |
-| **Auth** | Clerk (TanStack React Start integration), TanStack Start SSR middleware |
-| **Database** | PostgreSQL via Neon (serverless). Drizzle ORM with schema in `src/db/schema.ts` |
-| **Package Manager** | pnpm | v10.34.5; `.npmrc` with `legacy-peer-deps=true` for Vite compat |
-| **Deploy** | Vercel (Node.js serverless via `api/index.ts` + Vercel serverless functions) |
+| **Product** | Multi-tenant form builder with page forms, branching flow forms, payments, subscriptions, invoicing, and respondent email |
+| **Builders** | Page Builder for linear multi-page forms; Flow Builder for node-graph journeys |
+| **Editor** | Unified route at `/forms/$formId/edit`; `/forms/$formId/flow` redirects there |
+| **Public runtime** | `/forms/submit/$publicId` and `/forms/embed/$publicId`; selects page or flow runtime from persisted form data |
+| **Stack** | TanStack Start, React 19, Vite 8, Tailwind CSS 4, TanStack Query, Drizzle ORM, PostgreSQL, Clerk |
+| **Flow canvas** | `@xyflow/react`; list reordering uses dnd-kit |
+| **Expressions** | In-house tokenizer/parser/evaluator in `safe-expression.ts`; no JavaScript `eval` and no `math.js` dependency |
+| **Payments** | Working PayPal and Xendit one-time payments; Xendit/PHP subscriptions on page forms |
+| **Email** | Resend preferred, SMTP fallback; confirmation and invoice templates with delivery logs |
+| **Integrations** | 14 providers can be represented in the hub; only a subset has operational runtime behavior—see `ARCHITECTURE.md` |
+| **Deploy** | Render Node web service using Nitro output; health check at `/api/health` |
+| **Package manager** | pnpm 10.34.5; Node.js 22+ |
 
-### Running the project
+## Common Commands
 
 ```bash
 pnpm install
-pnpm run dev        # → http://localhost:3000
-pnpm run build      # Production build
-pnpm run db:seed-flow          # Seed Payment Plan sample flow
-pnpm run db:seed-service-flow  # Seed Service Order sample flow
-pnpm run db:seed-form-templates # Seed built-in form templates
+pnpm dev
+pnpm build
+pnpm test
+
+pnpm db:generate
+pnpm db:migrate
+pnpm db:check
+pnpm db:prepare
+pnpm payments:reconcile
 ```
 
----
+`pnpm db:prepare` prepares the database, validates the schema, and seeds built-in form templates. The sample flow seeds remain available as `db:seed-flow` and `db:seed-service-flow`.
 
-> 🔑 **For AI agents:** Start with [`ARCHITECTURE.md`](ARCHITECTURE.md) for the big picture, then [`DATABASE.md`](DATABASE.md) to understand the data model, then [`FLOW-BUILDER.md`](FLOW-BUILDER.md) for the core feature. [`CONVENTIONS.md`](CONVENTIONS.md) is essential before writing any code.
+## Documentation Maintenance Rule
+
+Update system memory in the same change when one of these contracts changes:
+
+- a route, public identifier, or authentication boundary;
+- a database table, enum, index, or JSON configuration shape;
+- a builder mode, node type, field type, or expression rule;
+- a working integration, payment lifecycle, email lifecycle, or deployment command.
+
+Add a new verification date only after checking the corresponding implementation, not just another document.

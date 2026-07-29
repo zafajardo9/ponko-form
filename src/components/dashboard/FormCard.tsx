@@ -22,8 +22,10 @@ interface FormCardProps {
     status: "draft" | "published";
     description: string | null;
     updatedAt: Date | string;
+    hasPayment: boolean;
   };
   onDelete: (id: number) => void;
+  onPreview: (id: number) => void;
   onShare: (id: number) => void;
   selected?: boolean;
   onSelectionChange?: (id: number, selected: boolean) => void;
@@ -38,6 +40,7 @@ const workspaceSections: {
     | "/forms/$formId/payments"
     | "/forms/$formId/invoicing";
   icon: ComponentType<LucideProps>;
+  paymentOnly?: boolean;
 }[] = [
   {
     label: "Builder",
@@ -56,24 +59,28 @@ const workspaceSections: {
     description: "Track charges",
     to: "/forms/$formId/payments",
     icon: CreditCard,
+    paymentOnly: true,
   },
   {
     label: "Invoicing",
     description: "Manage receipts",
     to: "/forms/$formId/invoicing",
     icon: ReceiptText,
+    paymentOnly: true,
   },
 ];
 
 export function FormCard({
   form,
   onDelete,
+  onPreview,
   onShare,
   selected = false,
   onSelectionChange,
 }: FormCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
   const updatedAt = new Date(form.updatedAt);
   const canShare = form.status === "published";
 
@@ -87,12 +94,21 @@ export function FormCard({
     }
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setMenuOpen(false);
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        menuButtonRef.current?.focus();
+      }
     }
 
+    const focusFrame = requestAnimationFrame(() => {
+      menuRef.current
+        ?.querySelector<HTMLElement>('[role="menuitem"]')
+        ?.focus();
+    });
     document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
     return () => {
+      cancelAnimationFrame(focusFrame);
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
@@ -100,7 +116,7 @@ export function FormCard({
 
   return (
     <article
-      className={`group relative flex h-full flex-col overflow-hidden rounded-2xl border bg-[#faf9f5] shadow-[0_1px_2px_rgba(20,20,19,0.04)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(20,20,19,0.08)] motion-reduce:transform-none motion-reduce:transition-none ${
+      className={`group relative flex h-full flex-col rounded-2xl border bg-[#faf9f5] shadow-[0_1px_2px_rgba(20,20,19,0.04)] transition-[border-color,box-shadow,transform] duration-200 focus-within:z-20 hover:z-10 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(20,20,19,0.08)] motion-reduce:transform-none motion-reduce:transition-none ${
         selected
           ? "border-[#cc785c] shadow-[0_0_0_3px_rgba(204,120,92,0.14)]"
           : "border-[#e2dbd2] hover:border-[#d7cdc2]"
@@ -128,9 +144,11 @@ export function FormCard({
 
           <div ref={menuRef} className="relative">
             <button
+              ref={menuButtonRef}
               type="button"
               aria-label={`More actions for ${form.title}`}
               aria-expanded={menuOpen}
+              aria-haspopup="menu"
               onClick={() => setMenuOpen((open) => !open)}
               className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8e8b82] transition-colors hover:bg-[#efe9de] hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2"
             >
@@ -138,9 +156,46 @@ export function FormCard({
             </button>
 
             {menuOpen ? (
-              <div className="absolute right-0 top-10 z-20 w-44 rounded-xl border border-[#e6dfd8] bg-white p-1.5 shadow-[0_12px_32px_rgba(20,20,19,0.14)]">
+              <div
+                role="menu"
+                aria-label={`${form.title} actions`}
+                className="absolute right-0 top-10 z-30 w-56 rounded-xl border border-[#e6dfd8] bg-white p-1.5 shadow-[0_16px_40px_rgba(20,20,19,0.16)]"
+              >
+                <p className="px-3 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#9a958d]">
+                  Workspace
+                </p>
+                {workspaceSections
+                  .filter((section) => !section.paymentOnly || form.hasPayment)
+                  .map((section) => {
+                    const Icon = section.icon;
+                    return (
+                      <Link
+                        key={section.label}
+                        role="menuitem"
+                        to={section.to}
+                        params={{ formId: String(form.id) }}
+                        aria-label={`${section.label} for ${form.title}`}
+                        onClick={() => setMenuOpen(false)}
+                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-[#f5f0e8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]"
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f3eee6] text-[#a9583e]">
+                          <Icon size={15} aria-hidden="true" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium text-[#282622]">
+                            {section.label}
+                          </span>
+                          <span className="block text-xs text-[#817d76]">
+                            {section.description}
+                          </span>
+                        </span>
+                      </Link>
+                    );
+                  })}
+                <div className="my-1.5 border-t border-[#ece6de]" />
                 <button
                   type="button"
+                  role="menuitem"
                   onClick={() => {
                     setMenuOpen(false);
                     onDelete(form.id);
@@ -173,16 +228,15 @@ export function FormCard({
             Updated {formatTimeAgo(updatedAt)}
           </span>
           <div className="flex items-center gap-2">
-            <Link
-              to="/forms/$formId/edit"
-              params={{ formId: String(form.id) }}
-              search={{ preview: true }}
+            <button
+              type="button"
               aria-label={`Preview ${form.title}`}
+              onClick={() => onPreview(form.id)}
               className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#ddd4ca] bg-white px-3 text-sm font-medium text-[#4f4c46] transition-colors hover:border-[#c8bbb0] hover:bg-[#f5f0e8] hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2"
             >
               <Eye size={15} aria-hidden="true" />
               Preview
-            </Link>
+            </button>
             <button
               type="button"
               disabled={!canShare}
@@ -205,38 +259,6 @@ export function FormCard({
           </div>
         </div>
       </div>
-
-      <nav
-        aria-label={`${form.title} workspace`}
-        className="grid grid-cols-2 border-t border-[#e6dfd8] bg-[#f3eee6]"
-      >
-        {workspaceSections.map((section, index) => {
-          const Icon = section.icon;
-          return (
-            <Link
-              key={section.label}
-              to={section.to}
-              params={{ formId: String(form.id) }}
-              aria-label={`${section.label} for ${form.title}`}
-              className={`flex min-w-0 items-center gap-2.5 px-4 py-3 transition-colors hover:bg-[#ebe4da] focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#cc785c] ${
-                index % 2 === 0 ? "border-r border-[#e2dbd2]" : ""
-              } ${index < 2 ? "border-b border-[#e2dbd2]" : ""}`}
-            >
-              <span className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-white text-[#b45f45] shadow-[0_1px_2px_rgba(20,20,19,0.06)]">
-                <Icon size={15} aria-hidden="true" />
-              </span>
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-medium text-[#282622]">
-                  {section.label}
-                </span>
-                <span className="block truncate text-[11px] leading-4 text-[#817d76]">
-                  {section.description}
-                </span>
-              </span>
-            </Link>
-          );
-        })}
-      </nav>
     </article>
   );
 }

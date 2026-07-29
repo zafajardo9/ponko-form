@@ -1,6 +1,7 @@
 # PonkoForm Coding Conventions
 
 > Part of [`memory-ponko/`](README.md) — System Memory
+> **Verified against:** `main` at `7d2cbe3` on 2026-07-28.
 
 ---
 
@@ -8,10 +9,11 @@
 
 ### 1.1 General Rules
 
-- **Functional components** with explicit prop interfaces. Always define a `Props` interface above the component.
-- **No default exports** — always use named exports.
+- Prefer **functional components**. Use a named props interface/type when it improves reuse or readability; inline prop types are acceptable for small private components.
+- Prefer **named exports** for application modules. Tooling configuration may use the default export its framework expects.
 - **Hooks** follow standard React patterns. TanStack Query for data fetching.
-- **Server Functions** (TanStack Start) use `createServerFn` with Zod validation.
+- **Server Functions** use `createServerFn` and the codebase's `.validator(...)` API. Most validators are typed pass-through/normalization functions; Zod is available but is not mandatory.
+- Use the `@/` alias for new cross-directory imports. Preserve nearby relative-import style when changing a small existing module.
 
 ### 1.2 Naming
 
@@ -23,7 +25,7 @@
 | Variables (DB/flow) | snake_case | `payment_plan`, `total_cost` |
 | Types/Interfaces | PascalCase | `FlowNodeProps`, `FlowValidationError` |
 | Files (components) | PascalCase | `FlowListBuilder.tsx` |
-| Files (utils) | camelCase | `path-utils.ts` |
+| Files (utils/server functions) | kebab-case | `path-utils.ts`, `flow-executions.ts` |
 | CSS classes | kebab-case (Tailwind) | `flex items-center gap-2` |
 
 ### 1.3 Props Interface Pattern
@@ -45,9 +47,9 @@ export function Button({ variant = 'primary', size = 'md', children, ...rest }: 
 ### 1.4 Import Order
 
 1. External libraries (React, TanStack, Clerk, etc.)
-2. Internal components (`../../components/...`)
-3. Internal utilities (`../../lib/...`)
-4. Types (`../../lib/flow-engine/types`)
+2. Internal components (`@/components/...`)
+3. Internal utilities (`@/lib/...`)
+4. Type-only imports (`import type ...`)
 5. Styles (rare — mostly Tailwind)
 
 ```tsx
@@ -55,9 +57,9 @@ import { useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { X, Edit, Trash2 } from 'lucide-react'
-import { Button } from '../ui/Button'
-import { getForms } from '../../lib/server-fns/forms'
-import type { FlowNode } from '../../lib/flow-engine/types'
+import { Button } from '@/components/ui/Button'
+import { getForms } from '@/lib/server-fns/forms'
+import type { FlowNode } from '@/lib/flow-engine/types'
 ```
 
 ---
@@ -84,7 +86,7 @@ The app uses a custom warm-toned palette with arbitrary values. Key tokens:
 | `bg-[#f5f0e8]` | #f5f0e8 | Soft section backgrounds |
 | `border-[#e6dfd8]` | #e6dfd8 | Borders, dividers |
 
-**Rule:** Always use these exact hex values. Don't invent new ones without reviewing the palette.
+Reuse the established warm palette and shared primitives. When a new semantic state genuinely needs another color, add it consistently and verify contrast rather than scattering one-off values.
 
 ### 2.3 Layout Patterns
 
@@ -120,7 +122,7 @@ import { forms } from '../../db/schema'
 import { eq } from 'drizzle-orm'
 
 export const getForm = createServerFn({ method: 'GET' })
-  .inputValidator((data: { id: number }) => data)
+  .validator((data: { id: number }) => data)
   .handler(async ({ data }) => {
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
@@ -135,12 +137,14 @@ export const getForm = createServerFn({ method: 'GET' })
 
 ### 3.2 Key Rules
 
-- Always import and call `auth()` (from `@clerk/tanstack-react-start/server`) for protected functions — **not** `getAuth()`.
-- Use **`.inputValidator()`** for input validation, with a plain function (e.g. `(data: { id: number }) => data`). The codebase does **not** use Zod here — `.validator()` is the wrong method name.
-- Import the db client from **`../../db/index`** (not `../../db` or `../db`).
+- Protected server functions either call `auth()` or reuse the domain helpers in `server-fns/auth.ts`. Always verify creator ownership of a form/resource, not only that a user is signed in.
+- Use **`.validator()`** for input validation and normalization. Several public/payment functions also set `strict: false` because they are called across the public server boundary.
+- Import the shared DB client from `src/db/index.ts` (normally `@/db` or a correct relative path).
 - Return plain objects (serializable)
 - Server functions are in `src/lib/server-fns/`, one file per domain entity
 - Mutation functions use `method: 'POST'`
+- Public respondent mutations must validate the form's publication state and opaque client token/session ownership where applicable.
+- Keep server-only dependencies inside `.handler()` or server-only modules so client bundles do not pull in database, crypto, Nodemailer, or Node APIs.
 
 ---
 
@@ -178,11 +182,11 @@ await db.delete(flows).where(eq(flows.formId, form.id))
 
 ### 4.3 Money Handling
 
-Always store money as **integers in the smallest currency unit**:
+Persisted payment amounts are **integers in the smallest currency unit**:
 - `1500000` = ₱15,000.00
 - `250000` = ₱2,500.00
 
-Never use `float` or `decimal` types for money. The Drizzle `money` variable type is still a number/ integer — formatting happens at display time.
+Never persist binary floats as gateway amounts. Flow `money` variables and page computation values are JavaScript numbers during calculation, then payment boundaries normalize to minor units.
 
 ---
 
@@ -190,10 +194,11 @@ Never use `float` or `decimal` types for money. The Drizzle `money` variable typ
 
 ### 5.1 Composition Over Configuration
 
-Prefer composing small, focused components over large monolithic ones. Example: the form editor at `edit.tsx` delegates to:
-- `BuilderPalette` (left)
-- `FlowCanvas` / `FlowListBuilder` (center, toggled by view)
-- `NodeConfigPanel` / `VariablesManager` (right)
+Prefer composing small, focused components over adding more inline UI to the unified editor or `PageBuilderWorkspace`.
+
+- Flow mode delegates to `BuilderPalette`, `FlowCanvasWorkspace`/`FlowListBuilder`, and `NodeConfigPanel`/`VariablesManager`.
+- Page mode delegates to `PageBuilderWorkspace`, which in turn uses separate settings, rules, computation, expression, and sorting components.
+- Shared field rendering belongs under `form-builder/fields/renderers/`; do not rebuild field behavior independently in each runtime.
 
 ### 5.2 State Management
 
@@ -218,8 +223,9 @@ Prefer composing small, focused components over large monolithic ones. Example: 
 | File | Purpose |
 |---|---|
 | `FlowEngine.ts` | Client-side execution engine. Steps through nodes, evaluates decisions, runs calculators, tracks variables. |
-| `FlowValidator.ts` | Validates a flow graph: checks for unconnected nodes, undeclared variables, mismatched branches, no terminal node, etc. |
-| `ExpressionEvaluator.ts` | Wraps math.js. Evaluates calculator expressions with variable substitution. |
+| `FlowValidator.ts` | Validates Start presence, reachability, cycles, variable/config references, and outgoing-edge counts. |
+| `ExpressionEvaluator.ts` | Resolves `{{variable}}` placeholders and evaluates the safe AST, requiring a finite numeric result. |
+| `safe-expression.ts` | Tokenizer, parser, complexity limits, operators, and safe built-in functions. |
 | `TemplateInterpolator.ts` | Replaces `{{variable}}` placeholders in Summary templates with actual values. |
 | `path-utils.ts` | Graph traversal: linearizes the primary path, finds branch-only nodes, checks if flow is pure-linear. |
 | `types.ts` | All flow-related TypeScript types (`FlowNode`, `FlowEdge`, `FlowVariable`, `FlowStep`, etc.). |
@@ -229,7 +235,7 @@ Prefer composing small, focused components over large monolithic ones. Example: 
 | File | Purpose |
 |---|---|
 | `src/lib/theme.ts` | Per-form theming system. `FormTheme` interface, `themeVars()` for CSS custom properties (`--ponko-*`), accent presets, color utilities (`darken`, `withAlpha`, `deriveSurface`). |
-| `src/lib/crypto.ts` | AES-256-GCM encrypt/decrypt. Used to protect `integration_settings` secret blobs (Xendit keys, PayPal secrets, SMTP passwords). |
+| `src/lib/crypto.ts` | AES-256-GCM encrypt/decrypt for normalized `integrations` rows and the legacy `integration_settings` fallback. |
 
 ### 6.3 Engine Execution Loop
 
@@ -250,14 +256,15 @@ Prefer composing small, focused components over large monolithic ones. Example: 
 - **Framework:** Vitest (configured in `vitest.config.ts`)
 - **Run:** `pnpm run test`
 - Test files co-located with source files as `*.test.ts` or `*.test.tsx`
-- Currently minimal test coverage — core engine tests are highest priority
+- Run targeted tests for the changed domain, then the full suite when practical.
+- Prefer behavior tests at public/server boundaries for authentication, anonymous access, payment idempotency, and validation.
 
 ---
 
 ## 8. Git & Pull Requests
 
-- **Branch naming:** `feature/*`, `fix/*`, `chore/*`
-- **Commit messages:** Descriptive present tense ("Add resizable right panel", "Fix Vercel deployment config")
+- **Branch naming:** use the repository/team convention for the current workflow.
+- **Commit messages:** descriptive present tense.
 - No conventional commits required
 
 ---
@@ -266,11 +273,12 @@ Prefer composing small, focused components over large monolithic ones. Example: 
 
 | Issue | Solution |
 |---|---|
-| `npm install` fails on Vercel | `.npmrc` has `legacy-peer-deps=true` — this is intentional |
-| `npm install` fails locally | Try `pnpm install` (primary) or `npm install` (with `.npmrc`) — pnpm is the declared package manager |
-| `server.preset: 'vercel'` doesn't exist | TanStack Start v1 doesn't support it. Use `api/index.ts` instead |
-| `dist/server/server.js` not found after build | Check that the Vercel `outputDirectory` is `dist/client` |
-| Money shows as `10000` instead of `100.00` | Values are stored as centavos (`10000` = ₱100.00). Format at display time. |
+| Local dependency versions drift | Use `pnpm install`; `pnpm-lock.yaml` and `packageManager` are authoritative |
+| Render does not start | Verify `.output/server/index.mjs` exists after `pnpm build` and use `pnpm start` |
+| Render schema is stale | Run `pnpm db:prepare`; it migrates, checks the schema, and seeds templates |
+| Persisted payment amount shows as `10000` | `payments.amount` is minor units (`10000` = ₱100.00); flow/page calculations use major-unit numbers before checkout conversion. |
 | Decision node always takes the same branch | Check `matchValue` in edge metadata — must exactly match the option's `value` |
-| Flow won't validate | "No terminal node" → add Summary/Redirect. "Unconnected nodes" → connect or remove them. |
+| Flow won't validate | Add/fix a terminal Summary/Redirect, connect unreachable nodes, remove cycles, and correct missing node config. |
+| Integration appears connected but does nothing | Check the runtime-support table in `ARCHITECTURE.md`; several providers currently store config only. |
+| Anonymous resume fails | Preserve and send the opaque client token; numeric execution/session IDs alone are insufficient. |
 | `@tanstack/*` packages with `"latest"` | These resolve to the latest published version. Pin to specific versions if stability is needed. |

@@ -1,7 +1,7 @@
 # AI Knowledge Bank — PonkoForm
 
 > **Comprehensive reference of all form fields, flow mechanics, and system behaviors.**
-> Last updated: 2026-07-24
+> Verified against `main` at `7d2cbe3` on 2026-07-28.
 
 ---
 
@@ -9,23 +9,23 @@
 
 1. [System Overview](#1-system-overview)
 2. [Form Field Types](#2-form-field-types)
-3. [Flow Builder — Node Types & Mechanics](#3-flow-builder--node-types--mechanics)
-4. [The Flow Engine — Runtime Mechanics](#4-the-flow-engine--runtime-mechanics)
+3. [Flow Builder — Node Types & Mechanics](#3-flow-builder-node-types-mechanics)
+4. [The Flow Engine — Runtime Mechanics](#4-the-flow-engine-runtime-mechanics)
 5. [Variables System](#5-variables-system)
-6. [Expression & Calculator Language](#6-expression--calculator-language)
+6. [Expression & Calculator Language](#6-expression-calculator-language)
 7. [Payment System](#7-payment-system)
 8. [Subscription System](#8-subscription-system)
 9. [Page Builder Mechanics](#9-page-builder-mechanics)
-10. [Field Conditions (Show/Hide Logic)](#10-field-conditions-showhide-logic)
+10. [Field Conditions (Show/Hide Logic)](#10-field-conditions-show-hide-logic)
 11. [Form References](#11-form-references)
 12. [Validation Rules](#12-validation-rules)
-13. [Invoicing & Email System](#13-invoicing--email-system)
-14. [Submission & Response System](#14-submission--response-system)
-15. [Dashboard & Analytics](#15-dashboard--analytics)
+13. [Invoicing & Email System](#13-invoicing-email-system)
+14. [Submission & Response System](#14-submission-response-system)
+15. [Dashboard & Analytics](#15-dashboard-analytics)
 16. [Public Form Experience](#16-public-form-experience)
 17. [Data Model Reference](#17-data-model-reference)
 18. [Route Structure](#18-route-structure)
-19. [Safety Limits & Constraints](#19-safety-limits--constraints)
+19. [Safety Limits & Constraints](#19-safety-limits-constraints)
 
 ---
 
@@ -38,15 +38,17 @@ PonkoForm is a flexible form creation tool (similar to Google Forms) with integr
 | **Page Builder** | Traditional linear multi-page forms with independent pages | Simple surveys, contact forms, linear workflows |
 | **Flow Builder** | Visual node-graph editor for branching logic, calculations, and conditional paths | Complex processes (payment plans, service calculators, branching apps) |
 
-**Tech Stack:** TanStack React Start + Clerk Auth + Neon (PostgreSQL) + Drizzle ORM
+**Tech Stack:** TanStack Start + React 19 + Clerk + PostgreSQL (Neon HTTP or standard `pg`) + Drizzle ORM
 
 **Payment Gateways:** Bring-your-own-gateway model — PayPal (multi-currency) and Xendit (PHP only), extensible via registry pattern.
+
+The Integrations hub also stores configuration for additional providers. Only PayPal/Xendit payments, Resend/SMTP respondent email, and reCAPTCHA are operational end to end; other provider cards may be configuration-only. See [Current System Overview](current-system.md#integration-status).
 
 ---
 
 ## 2. Form Field Types
 
-All 17 field types available in the form builder:
+All 18 field types represented by the database enum:
 
 ### Input Fields
 
@@ -149,7 +151,7 @@ Edges are **directed connections** between nodes. They control step ordering and
 **Form Field:**
 ```json
 {
-  "fieldType": "text",        // One of the 17 field types
+  "fieldType": "text",        // One of the 18 field types
   "label": "Your Name",
   "placeholder": "Enter name",
   "required": true,
@@ -238,7 +240,7 @@ Constructor(flowDef) → getCurrentStep() → advance(input) → getCurrentStep(
   - `number` / `money` → parsed via `parseFloat()`
   - `boolean` → converted from `"true"` / `"1"` / `"yes"`
   - `money` results are rounded to 2 decimal places after calculator evaluation
-- **Money type:** Stored in smallest currency unit (cents/centavos). ₱1,500.00 = `150000`.
+- **Money type:** Flow calculations hold major-unit values as JavaScript numbers and round money targets to two decimals. Payment records convert to integer minor units at the gateway boundary.
 - **Back navigation:** `goBack()` pops the history stack (requires at least 2 entries).
 - **Resume after payment redirect:** `FlowEngine.restore()` rebuilds the engine at the payment node position with preserved variables and history.
 
@@ -277,7 +279,7 @@ Persisted to DB via `startFlowExecution()`, `advanceExecution()`, `completeExecu
 |---|---|---|
 | `string` | Text | `"Juan Dela Cruz"` |
 | `number` | Plain numbers | `5`, `100`, `0.5` |
-| `money` | Currency (smallest unit) | `150000` = ₱1,500.00 |
+| `money` | Major-unit currency value during flow execution | `1500` = ₱1,500.00; payment persistence becomes `150000` centavos |
 | `boolean` | True/false | `true`, `false` |
 | `date` | Date values | ISO date strings |
 | `time` | Time values | Time strings |
@@ -298,7 +300,7 @@ Persisted to DB via `startFlowExecution()`, `advanceExecution()`, `completeExecu
 
 - Name variables in `snake_case` (e.g., `full_name`, `total_cost`)
 - Declare all variables **before** configuring nodes that reference them
-- Money variables: use integers, never decimals
+- Keep money calculations explicit and round where needed; the engine rounds money targets to two decimals and gateway records use integer minor units
 - Check for undefined variables in Calculator expressions — missing variables throw errors
 
 ---
@@ -336,7 +338,7 @@ The calculator uses a **custom safe expression parser** (`ExpressionEvaluator` +
 {{subtotal}} * 1.12                    // Add 12% VAT
 
 // Conditional
-{{plan}} == "premium" ? 5000 : 2000    // Premium vs basic pricing
+equalText({{plan}}, "premium") ? 5000 : 2000 // Premium vs basic pricing
 
 // Multi-step (chain calculators)
 // Calc 1: total = {{quantity}} * {{price}}
@@ -392,7 +394,7 @@ Bring-your-own-gateway — no platform fees. Money goes directly to your PayPal/
 - Respondent sees amount + available payment methods + "Pay Now" button
 - Success/failure routing via edges
 
-### 7.5 Payment Node (Page Builder - Legacy)
+### 7.5 Page Builder Payment
 
 - Page-level payment toggle (`hasPayment`)
 - `PaymentComputation` determines the amount:
@@ -462,11 +464,11 @@ Available on page-builder forms (flow-builder subscriptions planned separately).
 ### 9.2 Page Fields
 
 Each page field (`formPageFields` table):
-- `fieldType`: One of the 17 field types
+- `fieldType`: One of the 18 field types
 - `bindVariable`: Maps collected value to a variable key for later computation/display
 - `width`: `'full'` or `'half'` — responsive column layout
 - `validationRules`: See [Validation Rules](#12-validation-rules)
-- `conditions`: Conditional visibility rules (see [Field Conditions](#10-field-conditions-showhide-logic))
+- `conditions`: Conditional visibility rules (see [Field Conditions](#10-field-conditions-show-hide-logic))
 
 ### 9.3 Computation Field (Page Builder)
 
@@ -594,8 +596,8 @@ Per-form confirmation settings (`formConfirmationConfigs`):
 
 ### 13.4 Delivery Tracking
 
-`emailDeliveryLogs` table tracks every email sent:
-- Status: `pending`, `sent`, `failed`, `bounced`
+`emailDeliveryLogs` tracks every queued delivery:
+- Status: `queued`, `sending`, `sent`, `failed`
 - Provider, message ID, error messages, attempt count
 - Template snapshot preserved at send time
 
@@ -753,11 +755,11 @@ When `emailSurveyToken` + `emailSurveyRating` URL params are present:
 | `/dashboard` | Form dashboard with analytics |
 | `/forms` | Form listing |
 | `/forms/new` | Create new form |
-| `/forms/$formId/*` | Form editor (build, responses, payments, settings) |
-| `/settings` | Account settings (gateways, profile) |
+| `/forms/$formId/edit` | Unified page/flow editor |
+| `/forms/$formId/submissions` | Responses |
+| `/forms/$formId/payments` | Payments and recovery actions |
+| `/forms/$formId/invoicing` | Confirmation/invoice configuration and delivery history |
 | `/settings/integrations` | Third-party integrations |
-| `/flow/$executionId/*` | Flow execution detail |
-| `/integrations` | Integration management |
 | `/docs` | Documentation |
 
 ### Public Routes (no auth)
@@ -774,7 +776,10 @@ When `emailSurveyToken` + `emailSurveyRating` URL params are present:
 
 | Route | Description |
 |---|---|
-| `/api/*` | Webhook endpoints (Xendit, etc.) |
+| `/api/health` | Deployment health check |
+| `/api/webhooks/xendit/$endpointKey` | Verified Xendit callbacks |
+| `/api/internal/reconcile-payments` | `CRON_SECRET`-protected reconciliation |
+| `/api/forms/$formId/submissions-export` | Authenticated CSV export |
 | `/mcp` | MCP (Model Context Protocol) handler |
 
 ---
@@ -819,7 +824,7 @@ Not in the palette but available in-editor (pre-configured): Content, Media, Add
 ## Quick Reference Card
 
 ```
-FORM FIELDS (17):  text | email | number | textarea | select | checkbox | radio
+FORM FIELDS (18):  text | email | number | textarea | select | checkbox | radio
                    date | time | datetime | content | media | address | computation
                    file_upload | satisfaction | recaptcha | payment
 
