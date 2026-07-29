@@ -8,12 +8,12 @@ import {
   retryEmailDelivery,
   saveInvoicingConfig,
   sendTestTemplate,
-  type InvoicingTemplateKind,
 } from '@/lib/server-fns/invoicing'
 import { FormWorkspaceLayout } from '@/components/forms/FormWorkspaceLayout'
 import { InvoiceTemplateBuilder } from '@/components/invoicing/InvoiceTemplateBuilder'
 import { DeliveryHistory } from '@/components/invoicing/DeliveryHistory'
 import { Badge } from '@/components/ui/Badge'
+import { useToast } from '@/components/ui/Toast'
 import type { ConfirmationConfigDraft, InvoiceConfigDraft } from '@/lib/invoicing/types'
 
 export const Route = createFileRoute('/forms/$formId/invoicing')({
@@ -52,12 +52,12 @@ function LoadedInvoicingPage({
   data: Awaited<ReturnType<typeof getInvoicingView>>
 }) {
   const queryClient = useQueryClient()
+  const toast = useToast()
   const [invoice, setInvoice] = useState<InvoiceConfigDraft>(data.invoice)
-  const [confirmation, setConfirmation] = useState<ConfirmationConfigDraft>(data.confirmation)
+  const confirmation: ConfirmationConfigDraft = data.confirmation
   const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify({ invoice: data.invoice, confirmation: data.confirmation }))
   const [message, setMessage] = useState<string | null>(null)
   const [testEmail, setTestEmail] = useState('')
-  const [testKind, setTestKind] = useState<InvoicingTemplateKind>('invoice')
   const [retryingId, setRetryingId] = useState<number | null>(null)
   const currentSnapshot = useMemo(() => JSON.stringify({ invoice, confirmation }), [invoice, confirmation])
   const dirty = currentSnapshot !== savedSnapshot
@@ -76,29 +76,44 @@ function LoadedInvoicingPage({
     onSuccess: async () => {
       setSavedSnapshot(currentSnapshot)
       setMessage('Templates saved.')
+      toast.success('Invoice settings saved', 'Future verified payments will use the latest template.')
       await queryClient.invalidateQueries({ queryKey: ['invoicing-view', formId] })
     },
-    onError: (error) => setMessage(error instanceof Error ? error.message : 'Unable to save templates'),
+    onError: (error) => {
+      const detail = error instanceof Error ? error.message : 'Unable to save templates'
+      setMessage(detail)
+      toast.error('Invoice settings were not saved', detail)
+    },
   })
   const testMutation = useMutation({
     mutationFn: async () => {
       await saveInvoicingConfig({ data: { formId: Number(formId), invoice, confirmation } })
-      return sendTestTemplate({ data: { formId: Number(formId), kind: testKind, recipientEmail: testEmail } })
+      return sendTestTemplate({ data: { formId: Number(formId), kind: 'invoice', recipientEmail: testEmail } })
     },
     onSuccess: (result) => {
       setSavedSnapshot(currentSnapshot)
       setMessage(`Test accepted by ${result.provider}.`)
+      toast.success('Test invoice accepted', `${result.provider} accepted the email for delivery.`)
     },
-    onError: (error) => setMessage(error instanceof Error ? error.message : 'Unable to send test'),
+    onError: (error) => {
+      const detail = error instanceof Error ? error.message : 'Unable to send test'
+      setMessage(detail)
+      toast.error('Test invoice was not sent', detail)
+    },
   })
   const retryMutation = useMutation({
     mutationFn: (deliveryId: number) => retryEmailDelivery({ data: { formId: Number(formId), deliveryId } }),
     onMutate: (deliveryId) => setRetryingId(deliveryId),
     onSuccess: async () => {
       setMessage('Delivery retry completed.')
+      toast.success('Delivery retry completed')
       await queryClient.invalidateQueries({ queryKey: ['invoicing-view', formId] })
     },
-    onError: (error) => setMessage(error instanceof Error ? error.message : 'Unable to retry delivery'),
+    onError: (error) => {
+      const detail = error instanceof Error ? error.message : 'Unable to retry delivery'
+      setMessage(detail)
+      toast.error('Delivery retry failed', detail)
+    },
     onSettled: () => setRetryingId(null),
   })
   const hasEmailIntegration = data.emailAvailability.resend || data.emailAvailability.smtp
@@ -110,7 +125,7 @@ function LoadedInvoicingPage({
       active="invoicing"
       title="Invoicing"
       titleAdornment={<Badge variant={data.form.status}>{data.form.status}</Badge>}
-      description="Design the invoice and confirmation emails respondents receive after successful completion."
+      description="Design the invoice email respondents receive after a verified payment."
     >
       {!hasEmailIntegration && (
         <div className="mb-6 flex flex-col gap-3 rounded-xl border border-[#e2c49f] bg-[#fff8eb] px-5 py-4 text-sm text-[#79572e] sm:flex-row sm:items-center sm:justify-between">
@@ -130,18 +145,15 @@ function LoadedInvoicingPage({
 
       <InvoiceTemplateBuilder
         invoice={invoice}
-        confirmation={confirmation}
         variables={data.variables}
         hasPaymentPath={data.hasPaymentPath}
         hasEmailIntegration={hasEmailIntegration}
         numberingLocked={data.invoiceNumberingLocked}
         onInvoiceChange={(next) => { setInvoice(next); setMessage(null) }}
-        onConfirmationChange={(next) => { setConfirmation(next); setMessage(null) }}
       />
 
       <section className="my-6 flex flex-col gap-4 rounded-xl border border-[#e6dfd8] bg-white p-5 md:flex-row md:items-end">
         <div className="flex-1"><label className="mb-1.5 block text-sm font-medium text-[#141413]" htmlFor="test-email">Send a test email</label><input id="test-email" type="email" value={testEmail} onChange={(event) => setTestEmail(event.target.value)} placeholder="you@example.com" className="h-10 w-full rounded-md border border-[#e6dfd8] px-3 text-sm outline-none focus:border-[#cc785c] focus:ring-2 focus:ring-[#cc785c]/20" /></div>
-        <select aria-label="Test template kind" value={testKind} onChange={(event) => setTestKind(event.target.value as InvoicingTemplateKind)} className="h-10 rounded-md border border-[#e6dfd8] bg-white px-3 text-sm"><option value="invoice">Invoice template</option><option value="confirmation">Confirmation template</option></select>
         <button type="button" disabled={!hasEmailIntegration || !testEmail || testMutation.isPending} onClick={() => testMutation.mutate()} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#e6dfd8] px-4 text-sm font-medium text-[#141413] hover:bg-[#f5f0e8] disabled:opacity-40"><Send size={15} />{testMutation.isPending ? 'Sending…' : 'Save & send test'}</button>
       </section>
 

@@ -1,4 +1,9 @@
-import type { EmailDeliveryStatus, EmailTemplateKind, InvoiceLineItemField } from '../../db/schema'
+import type {
+  EmailDeliveryStatus,
+  EmailTemplateKind,
+  InvoiceLineItemField,
+  ResponseEmailTemplate,
+} from '../../db/schema'
 
 export type TemplateVariableCategory = 'respondent' | 'form' | 'payment' | 'system'
 
@@ -31,11 +36,14 @@ export interface ConfirmationConfigDraft {
   subjectTemplate: string
   bodyTemplate: string
   fromName: string
+  ccRecipients: string[]
+  templates: ResponseEmailTemplate[]
 }
 
 export interface DeliveryListItem {
   id: number
   templateKind: EmailTemplateKind
+  templateName: string | null
   recipientEmail: string
   invoiceNumber: string | null
   subject: string
@@ -61,4 +69,3 @@ export interface InvoiceTemplateContext {
   paymentId?: string
   invoiceNumber?: string
 }
-

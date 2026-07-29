@@ -7,6 +7,7 @@ export async function sendResendEmail(input: {
   html: string
   text: string
   fromName?: string | null
+  cc?: string[]
   idempotencyKey?: string
 }) {
   if (!input.config.fromEmail) throw new Error('Resend verified sender email is not configured')
@@ -21,6 +22,7 @@ export async function sendResendEmail(input: {
     body: JSON.stringify({
       from: `${senderName} <${input.config.fromEmail}>`,
       to: [input.recipient],
+      ...(input.cc?.length ? { cc: input.cc } : {}),
       subject: input.subject,
       html: input.html,
       text: input.text,

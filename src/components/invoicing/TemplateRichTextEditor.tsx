@@ -52,7 +52,10 @@ export function TemplateRichTextEditor({
   variables: TemplateVariable[]
 }) {
   const editorRef = useRef<HTMLDivElement>(null)
-  const lastHtml = useRef(value)
+  // Keep the live contentEditable DOM uncontrolled. Rendering `value` through
+  // React on every keystroke replaces its contents and moves the caret.
+  // `null` ensures the initial value is still written on mount.
+  const lastHtml = useRef<string | null>(null)
   const savedRange = useRef<Range | null>(null)
   const [toolbar, setToolbar] = useState(EMPTY_TOOLBAR)
 
@@ -114,6 +117,7 @@ export function TemplateRichTextEditor({
     if (!editor || value === lastHtml.current) return
     lastHtml.current = value
     editor.innerHTML = value || '<p></p>'
+    savedRange.current = null
   }, [value])
 
   useEffect(() => {
@@ -192,7 +196,6 @@ export function TemplateRichTextEditor({
         contentEditable
         suppressContentEditableWarning
         className="rich-text-content min-h-52 bg-white px-4 py-3 text-sm leading-6 text-[#141413] outline-none"
-        dangerouslySetInnerHTML={{ __html: value || '<p></p>' }}
         onInput={emitChange}
         onKeyUp={rememberSelection}
         onMouseUp={rememberSelection}

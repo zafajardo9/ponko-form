@@ -6,6 +6,7 @@ import {
   CreditCard,
   Eye,
   FilePenLine,
+  MailCheck,
   MoreHorizontal,
   ReceiptText,
   Share2,
@@ -37,6 +38,7 @@ const workspaceSections: {
   to:
     | "/forms/$formId/edit"
     | "/forms/$formId/submissions"
+    | "/forms/$formId/emails"
     | "/forms/$formId/payments"
     | "/forms/$formId/invoicing";
   icon: ComponentType<LucideProps>;
@@ -53,6 +55,12 @@ const workspaceSections: {
     description: "View entries",
     to: "/forms/$formId/submissions",
     icon: BarChart3,
+  },
+  {
+    label: "Response emails",
+    description: "Send confirmations",
+    to: "/forms/$formId/emails",
+    icon: MailCheck,
   },
   {
     label: "Payments",

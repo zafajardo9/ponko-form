@@ -183,6 +183,27 @@
       "when": 1784862000000,
       "tag": "0032_dashboard_currency",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1785295932704,
+      "tag": "0026_hard_stepford_cuckoos",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1785301200000,
+      "tag": "0034_response_email_cc",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1785304800000,
+      "tag": "0035_response_email_automations",
+      "breakpoints": true
     }
   ]
 }

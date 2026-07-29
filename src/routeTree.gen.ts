@@ -17,10 +17,13 @@ import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
 import { Route as SettingsIntegrationsRouteImport } from './routes/settings/integrations'
+import { Route as PayPublicIdRouteImport } from './routes/pay/$publicId'
 import { Route as FormsPaymentReturnRouteImport } from './routes/forms/payment-return'
 import { Route as FormsNewRouteImport } from './routes/forms/new'
 import { Route as DocsSlugRouteImport } from './routes/docs/$slug'
+import { Route as DashboardPaymentLinksRouteImport } from './routes/dashboard/payment-links'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as PayPublicIdSuccessRouteImport } from './routes/pay/$publicId/success'
 import { Route as IntegrationsGoogleCallbackRouteImport } from './routes/integrations/google/callback'
 import { Route as FormsSubmitFormIdRouteImport } from './routes/forms/submit/$formId'
 import { Route as FormsEmbedFormIdRouteImport } from './routes/forms/embed/$formId'
@@ -28,6 +31,7 @@ import { Route as FormsFormIdSubmissionsRouteImport } from './routes/forms/$form
 import { Route as FormsFormIdPaymentsRouteImport } from './routes/forms/$formId/payments'
 import { Route as FormsFormIdInvoicingRouteImport } from './routes/forms/$formId/invoicing'
 import { Route as FormsFormIdFlowRouteImport } from './routes/forms/$formId/flow'
+import { Route as FormsFormIdEmailsRouteImport } from './routes/forms/$formId/emails'
 import { Route as FormsFormIdEditRouteImport } from './routes/forms/$formId/edit'
 import { Route as FlowExecutionIdCompleteRouteImport } from './routes/flow/$executionId/complete'
 import { Route as ApiInternalReconcilePaymentsRouteImport } from './routes/api/internal/reconcile-payments'
@@ -74,6 +78,11 @@ const SettingsIntegrationsRoute = SettingsIntegrationsRouteImport.update({
   path: '/settings/integrations',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PayPublicIdRoute = PayPublicIdRouteImport.update({
+  id: '/pay/$publicId',
+  path: '/pay/$publicId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FormsPaymentReturnRoute = FormsPaymentReturnRouteImport.update({
   id: '/forms/payment-return',
   path: '/forms/payment-return',
@@ -89,10 +98,20 @@ const DocsSlugRoute = DocsSlugRouteImport.update({
   path: '/docs/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DashboardPaymentLinksRoute = DashboardPaymentLinksRouteImport.update({
+  id: '/dashboard/payment-links',
+  path: '/dashboard/payment-links',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
   getParentRoute: () => rootRouteImport,
+} as any)
+const PayPublicIdSuccessRoute = PayPublicIdSuccessRouteImport.update({
+  id: '/success',
+  path: '/success',
+  getParentRoute: () => PayPublicIdRoute,
 } as any)
 const IntegrationsGoogleCallbackRoute =
   IntegrationsGoogleCallbackRouteImport.update({
@@ -130,6 +149,11 @@ const FormsFormIdFlowRoute = FormsFormIdFlowRouteImport.update({
   path: '/forms/$formId/flow',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FormsFormIdEmailsRoute = FormsFormIdEmailsRouteImport.update({
+  id: '/forms/$formId/emails',
+  path: '/forms/$formId/emails',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FormsFormIdEditRoute = FormsFormIdEditRouteImport.update({
   id: '/forms/$formId/edit',
   path: '/forms/$formId/edit',
@@ -163,9 +187,11 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
   '/api/health': typeof ApiHealthRoute
+  '/dashboard/payment-links': typeof DashboardPaymentLinksRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/forms/new': typeof FormsNewRoute
   '/forms/payment-return': typeof FormsPaymentReturnRoute
+  '/pay/$publicId': typeof PayPublicIdRouteWithChildren
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
@@ -175,6 +201,7 @@ export interface FileRoutesByFullPath {
   '/api/internal/reconcile-payments': typeof ApiInternalReconcilePaymentsRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
+  '/forms/$formId/emails': typeof FormsFormIdEmailsRoute
   '/forms/$formId/flow': typeof FormsFormIdFlowRoute
   '/forms/$formId/invoicing': typeof FormsFormIdInvoicingRoute
   '/forms/$formId/payments': typeof FormsFormIdPaymentsRoute
@@ -182,6 +209,7 @@ export interface FileRoutesByFullPath {
   '/forms/embed/$formId': typeof FormsEmbedFormIdRoute
   '/forms/submit/$formId': typeof FormsSubmitFormIdRoute
   '/integrations/google/callback': typeof IntegrationsGoogleCallbackRoute
+  '/pay/$publicId/success': typeof PayPublicIdSuccessRoute
   '/api/forms/$formId/submissions-export': typeof ApiFormsFormIdSubmissionsExportRoute
   '/api/webhooks/xendit/$endpointKey': typeof ApiWebhooksXenditEndpointKeyRoute
 }
@@ -189,9 +217,11 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
   '/api/health': typeof ApiHealthRoute
+  '/dashboard/payment-links': typeof DashboardPaymentLinksRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/forms/new': typeof FormsNewRoute
   '/forms/payment-return': typeof FormsPaymentReturnRoute
+  '/pay/$publicId': typeof PayPublicIdRouteWithChildren
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
@@ -201,6 +231,7 @@ export interface FileRoutesByTo {
   '/api/internal/reconcile-payments': typeof ApiInternalReconcilePaymentsRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
+  '/forms/$formId/emails': typeof FormsFormIdEmailsRoute
   '/forms/$formId/flow': typeof FormsFormIdFlowRoute
   '/forms/$formId/invoicing': typeof FormsFormIdInvoicingRoute
   '/forms/$formId/payments': typeof FormsFormIdPaymentsRoute
@@ -208,6 +239,7 @@ export interface FileRoutesByTo {
   '/forms/embed/$formId': typeof FormsEmbedFormIdRoute
   '/forms/submit/$formId': typeof FormsSubmitFormIdRoute
   '/integrations/google/callback': typeof IntegrationsGoogleCallbackRoute
+  '/pay/$publicId/success': typeof PayPublicIdSuccessRoute
   '/api/forms/$formId/submissions-export': typeof ApiFormsFormIdSubmissionsExportRoute
   '/api/webhooks/xendit/$endpointKey': typeof ApiWebhooksXenditEndpointKeyRoute
 }
@@ -216,9 +248,11 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
   '/api/health': typeof ApiHealthRoute
+  '/dashboard/payment-links': typeof DashboardPaymentLinksRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/forms/new': typeof FormsNewRoute
   '/forms/payment-return': typeof FormsPaymentReturnRoute
+  '/pay/$publicId': typeof PayPublicIdRouteWithChildren
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
@@ -228,6 +262,7 @@ export interface FileRoutesById {
   '/api/internal/reconcile-payments': typeof ApiInternalReconcilePaymentsRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
+  '/forms/$formId/emails': typeof FormsFormIdEmailsRoute
   '/forms/$formId/flow': typeof FormsFormIdFlowRoute
   '/forms/$formId/invoicing': typeof FormsFormIdInvoicingRoute
   '/forms/$formId/payments': typeof FormsFormIdPaymentsRoute
@@ -235,6 +270,7 @@ export interface FileRoutesById {
   '/forms/embed/$formId': typeof FormsEmbedFormIdRoute
   '/forms/submit/$formId': typeof FormsSubmitFormIdRoute
   '/integrations/google/callback': typeof IntegrationsGoogleCallbackRoute
+  '/pay/$publicId/success': typeof PayPublicIdSuccessRoute
   '/api/forms/$formId/submissions-export': typeof ApiFormsFormIdSubmissionsExportRoute
   '/api/webhooks/xendit/$endpointKey': typeof ApiWebhooksXenditEndpointKeyRoute
 }
@@ -244,9 +280,11 @@ export interface FileRouteTypes {
     | '/'
     | '/mcp'
     | '/api/health'
+    | '/dashboard/payment-links'
     | '/docs/$slug'
     | '/forms/new'
     | '/forms/payment-return'
+    | '/pay/$publicId'
     | '/settings/integrations'
     | '/sign-in/$'
     | '/sign-up/$'
@@ -256,6 +294,7 @@ export interface FileRouteTypes {
     | '/api/internal/reconcile-payments'
     | '/flow/$executionId/complete'
     | '/forms/$formId/edit'
+    | '/forms/$formId/emails'
     | '/forms/$formId/flow'
     | '/forms/$formId/invoicing'
     | '/forms/$formId/payments'
@@ -263,6 +302,7 @@ export interface FileRouteTypes {
     | '/forms/embed/$formId'
     | '/forms/submit/$formId'
     | '/integrations/google/callback'
+    | '/pay/$publicId/success'
     | '/api/forms/$formId/submissions-export'
     | '/api/webhooks/xendit/$endpointKey'
   fileRoutesByTo: FileRoutesByTo
@@ -270,9 +310,11 @@ export interface FileRouteTypes {
     | '/'
     | '/mcp'
     | '/api/health'
+    | '/dashboard/payment-links'
     | '/docs/$slug'
     | '/forms/new'
     | '/forms/payment-return'
+    | '/pay/$publicId'
     | '/settings/integrations'
     | '/sign-in/$'
     | '/sign-up/$'
@@ -282,6 +324,7 @@ export interface FileRouteTypes {
     | '/api/internal/reconcile-payments'
     | '/flow/$executionId/complete'
     | '/forms/$formId/edit'
+    | '/forms/$formId/emails'
     | '/forms/$formId/flow'
     | '/forms/$formId/invoicing'
     | '/forms/$formId/payments'
@@ -289,6 +332,7 @@ export interface FileRouteTypes {
     | '/forms/embed/$formId'
     | '/forms/submit/$formId'
     | '/integrations/google/callback'
+    | '/pay/$publicId/success'
     | '/api/forms/$formId/submissions-export'
     | '/api/webhooks/xendit/$endpointKey'
   id:
@@ -296,9 +340,11 @@ export interface FileRouteTypes {
     | '/'
     | '/mcp'
     | '/api/health'
+    | '/dashboard/payment-links'
     | '/docs/$slug'
     | '/forms/new'
     | '/forms/payment-return'
+    | '/pay/$publicId'
     | '/settings/integrations'
     | '/sign-in/$'
     | '/sign-up/$'
@@ -308,6 +354,7 @@ export interface FileRouteTypes {
     | '/api/internal/reconcile-payments'
     | '/flow/$executionId/complete'
     | '/forms/$formId/edit'
+    | '/forms/$formId/emails'
     | '/forms/$formId/flow'
     | '/forms/$formId/invoicing'
     | '/forms/$formId/payments'
@@ -315,6 +362,7 @@ export interface FileRouteTypes {
     | '/forms/embed/$formId'
     | '/forms/submit/$formId'
     | '/integrations/google/callback'
+    | '/pay/$publicId/success'
     | '/api/forms/$formId/submissions-export'
     | '/api/webhooks/xendit/$endpointKey'
   fileRoutesById: FileRoutesById
@@ -323,9 +371,11 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   McpRoute: typeof McpRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  DashboardPaymentLinksRoute: typeof DashboardPaymentLinksRoute
   DocsSlugRoute: typeof DocsSlugRoute
   FormsNewRoute: typeof FormsNewRoute
   FormsPaymentReturnRoute: typeof FormsPaymentReturnRoute
+  PayPublicIdRoute: typeof PayPublicIdRouteWithChildren
   SettingsIntegrationsRoute: typeof SettingsIntegrationsRoute
   SignInSplatRoute: typeof SignInSplatRoute
   SignUpSplatRoute: typeof SignUpSplatRoute
@@ -335,6 +385,7 @@ export interface RootRouteChildren {
   ApiInternalReconcilePaymentsRoute: typeof ApiInternalReconcilePaymentsRoute
   FlowExecutionIdCompleteRoute: typeof FlowExecutionIdCompleteRoute
   FormsFormIdEditRoute: typeof FormsFormIdEditRoute
+  FormsFormIdEmailsRoute: typeof FormsFormIdEmailsRoute
   FormsFormIdFlowRoute: typeof FormsFormIdFlowRoute
   FormsFormIdInvoicingRoute: typeof FormsFormIdInvoicingRoute
   FormsFormIdPaymentsRoute: typeof FormsFormIdPaymentsRoute
@@ -404,6 +455,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsIntegrationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pay/$publicId': {
+      id: '/pay/$publicId'
+      path: '/pay/$publicId'
+      fullPath: '/pay/$publicId'
+      preLoaderRoute: typeof PayPublicIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/forms/payment-return': {
       id: '/forms/payment-return'
       path: '/forms/payment-return'
@@ -425,12 +483,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard/payment-links': {
+      id: '/dashboard/payment-links'
+      path: '/dashboard/payment-links'
+      fullPath: '/dashboard/payment-links'
+      preLoaderRoute: typeof DashboardPaymentLinksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/health': {
       id: '/api/health'
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/pay/$publicId/success': {
+      id: '/pay/$publicId/success'
+      path: '/success'
+      fullPath: '/pay/$publicId/success'
+      preLoaderRoute: typeof PayPublicIdSuccessRouteImport
+      parentRoute: typeof PayPublicIdRoute
     }
     '/integrations/google/callback': {
       id: '/integrations/google/callback'
@@ -481,6 +553,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FormsFormIdFlowRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/forms/$formId/emails': {
+      id: '/forms/$formId/emails'
+      path: '/forms/$formId/emails'
+      fullPath: '/forms/$formId/emails'
+      preLoaderRoute: typeof FormsFormIdEmailsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/forms/$formId/edit': {
       id: '/forms/$formId/edit'
       path: '/forms/$formId/edit'
@@ -519,13 +598,27 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface PayPublicIdRouteChildren {
+  PayPublicIdSuccessRoute: typeof PayPublicIdSuccessRoute
+}
+
+const PayPublicIdRouteChildren: PayPublicIdRouteChildren = {
+  PayPublicIdSuccessRoute: PayPublicIdSuccessRoute,
+}
+
+const PayPublicIdRouteWithChildren = PayPublicIdRoute._addFileChildren(
+  PayPublicIdRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   McpRoute: McpRoute,
   ApiHealthRoute: ApiHealthRoute,
+  DashboardPaymentLinksRoute: DashboardPaymentLinksRoute,
   DocsSlugRoute: DocsSlugRoute,
   FormsNewRoute: FormsNewRoute,
   FormsPaymentReturnRoute: FormsPaymentReturnRoute,
+  PayPublicIdRoute: PayPublicIdRouteWithChildren,
   SettingsIntegrationsRoute: SettingsIntegrationsRoute,
   SignInSplatRoute: SignInSplatRoute,
   SignUpSplatRoute: SignUpSplatRoute,
@@ -535,6 +628,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiInternalReconcilePaymentsRoute: ApiInternalReconcilePaymentsRoute,
   FlowExecutionIdCompleteRoute: FlowExecutionIdCompleteRoute,
   FormsFormIdEditRoute: FormsFormIdEditRoute,
+  FormsFormIdEmailsRoute: FormsFormIdEmailsRoute,
   FormsFormIdFlowRoute: FormsFormIdFlowRoute,
   FormsFormIdInvoicingRoute: FormsFormIdInvoicingRoute,
   FormsFormIdPaymentsRoute: FormsFormIdPaymentsRoute,

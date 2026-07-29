@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PageBuilderWorkspace } from './PageBuilderWorkspace'
+import { ToastProvider } from '../ui/Toast'
 import type { FormPage } from '../../lib/page-builder/types'
 
 vi.mock('../../lib/server-fns/page-forms', () => ({
@@ -69,13 +70,15 @@ function renderBuilder(builderPages = pages) {
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <PageBuilderWorkspace
-        formId={10}
-        pages={builderPages}
-        references={[]}
-        gateways={[]}
-        onChanged={vi.fn()}
-      />
+      <ToastProvider>
+        <PageBuilderWorkspace
+          formId={10}
+          pages={builderPages}
+          references={[]}
+          gateways={[]}
+          onChanged={vi.fn()}
+        />
+      </ToastProvider>
     </QueryClientProvider>,
   )
 }

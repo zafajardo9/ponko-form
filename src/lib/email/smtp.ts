@@ -41,6 +41,7 @@ export async function sendSmtpEmail(input: {
   html: string
   text: string
   fromName?: string | null
+  cc?: string[]
 }) {
   const security = smtpTransportSecurity(input.config)
   const transport = nodemailer.createTransport({
@@ -57,6 +58,7 @@ export async function sendSmtpEmail(input: {
     const result = await transport.sendMail({
       from: { name: fromName, address: input.config.fromEmail },
       to: input.recipient,
+      ...(input.cc?.length ? { cc: input.cc } : {}),
       subject: input.subject,
       html: input.html,
       text: input.text,

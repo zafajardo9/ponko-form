@@ -58,6 +58,31 @@ describe('TemplateRichTextEditor', () => {
     expect(onChange).toHaveBeenLastCalledWith('<h1>Updated invoice</h1>')
   })
 
+  it('preserves live typing when the parent echoes the edited value', () => {
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <TemplateRichTextEditor
+        value="<p>Hello</p>"
+        variables={variables}
+        onChange={onChange}
+      />,
+    )
+    const editor = screen.getByRole('textbox', { name: 'Email body editor' })
+
+    editor.innerHTML = '<p>Hello there</p>'
+    fireEvent.input(editor)
+    rerender(
+      <TemplateRichTextEditor
+        value="<p>Hello there</p>"
+        variables={variables}
+        onChange={onChange}
+      />,
+    )
+
+    expect(editor.innerHTML).toBe('<p>Hello there</p>')
+    expect(onChange).toHaveBeenLastCalledWith('<p>Hello there</p>')
+  })
+
   it('runs formatting and variable insertion commands without submitting the form', () => {
     render(
       <TemplateRichTextEditor

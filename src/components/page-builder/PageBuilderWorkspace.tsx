@@ -30,6 +30,7 @@ import type {
   PageField,
 } from '../../lib/page-builder/types'
 import { Button } from '../ui/Button'
+import { useToast } from '../ui/Toast'
 import {
   Check,
   ChevronDown,
@@ -82,6 +83,7 @@ export function PageBuilderWorkspace({
   onChanged,
   onDraftChange,
 }: PageBuilderWorkspaceProps) {
+  const toast = useToast()
   const incomingPages = useMemo(() => sortPages(pages), [pages])
   const incomingReferences = useMemo(() => sortReferences(references), [references])
   const incomingSnapshot = useMemo(
@@ -224,6 +226,13 @@ export function PageBuilderWorkspace({
             : null,
       )
       onChanged(saved)
+      toast.success('Form changes saved', 'The latest pages, fields, and settings are now recorded.')
+    },
+    onError: (error) => {
+      toast.error(
+        'Form changes were not saved',
+        error instanceof Error ? error.message : 'Check your connection and try again.',
+      )
     },
   })
 

@@ -1,12 +1,13 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { BarChart3, ChevronDown, CreditCard, FileEdit, ReceiptText } from 'lucide-react'
+import { BarChart3, ChevronDown, CreditCard, FileEdit, MailCheck, ReceiptText } from 'lucide-react'
 
-export type FormSection = 'build' | 'responses' | 'payments' | 'invoicing'
+export type FormSection = 'build' | 'responses' | 'emails' | 'payments' | 'invoicing'
 
 const sections = [
   { id: 'build', label: 'Build', to: '/forms/$formId/edit', icon: FileEdit },
   { id: 'responses', label: 'Responses', to: '/forms/$formId/submissions', icon: BarChart3 },
+  { id: 'emails', label: 'Emails', to: '/forms/$formId/emails', icon: MailCheck },
   { id: 'payments', label: 'Payments', to: '/forms/$formId/payments', icon: CreditCard },
   { id: 'invoicing', label: 'Invoicing', to: '/forms/$formId/invoicing', icon: ReceiptText },
 ] as const
@@ -45,7 +46,7 @@ export function FormSectionNav({ formId, active }: { formId: string; active: For
 
   return (
     <nav aria-label="Form sections" className="max-w-full">
-      <div ref={navRef} className="relative sm:hidden">
+      <div ref={navRef} className="relative lg:hidden">
         <button
           ref={triggerRef}
           type="button"
@@ -102,7 +103,7 @@ export function FormSectionNav({ formId, active }: { formId: string; active: For
         ) : null}
       </div>
 
-      <div className="hidden w-max rounded-lg border border-[#e6dfd8] bg-[#f5f0e8] p-0.5 text-sm sm:flex">
+      <div className="hidden w-max rounded-lg border border-[#e6dfd8] bg-[#f5f0e8] p-0.5 text-sm lg:flex">
         {sections.map((section) => {
           const Icon = section.icon
           const selected = active === section.id

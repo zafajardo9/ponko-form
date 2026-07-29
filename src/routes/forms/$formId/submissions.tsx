@@ -19,6 +19,7 @@ import type { ResponseColumn } from "@/lib/server-fns/submissions";
 import { submissionCsvDownloadUrl } from "@/lib/submissions/csv";
 import { Badge } from "@/components/ui/Badge";
 import { DataTable } from "@/components/ui/DataTable";
+import { useToast } from "@/components/ui/Toast";
 import type { DataTableColumn } from "@/components/ui/DataTableTypes";
 import {
   navigationBackIconClass,
@@ -72,6 +73,7 @@ function SubmissionsPage() {
     number: number;
   } | null>(null);
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -146,12 +148,16 @@ function SubmissionsPage() {
       }),
     onSuccess: async (_result, variables) => {
       setPendingAction(null);
-      setActionMessage(variables.archived ? "Response archived." : "Response restored.");
+      const message = variables.archived ? "Response archived." : "Response restored.";
+      setActionMessage(message);
+      toast.success(message);
       if (rows.length === 1 && page > 1) setPage(page - 1);
       await queryClient.invalidateQueries({ queryKey: ["submissions", formId] });
     },
     onError: (error) => {
-      setActionMessage(error instanceof Error ? error.message : "Unable to update the response.");
+      const detail = error instanceof Error ? error.message : "Unable to update the response.";
+      setActionMessage(detail);
+      toast.error("Response was not updated", detail);
     },
   });
 
@@ -161,11 +167,14 @@ function SubmissionsPage() {
     onSuccess: async () => {
       setPendingAction(null);
       setActionMessage("Response permanently deleted.");
+      toast.success("Response permanently deleted");
       if (rows.length === 1 && page > 1) setPage(page - 1);
       await queryClient.invalidateQueries({ queryKey: ["submissions", formId] });
     },
     onError: (error) => {
-      setActionMessage(error instanceof Error ? error.message : "Unable to delete the response.");
+      const detail = error instanceof Error ? error.message : "Unable to delete the response.";
+      setActionMessage(detail);
+      toast.error("Response was not deleted", detail);
     },
   });
 
@@ -174,16 +183,18 @@ function SubmissionsPage() {
     mutationFn: ({ submissionIds, archived }: { submissionIds: number[]; archived: boolean }) =>
       bulkArchiveSubmissions({ data: { formId: Number(formId), submissionIds, archived } }),
     onSuccess: async (_result, variables) => {
-      setActionMessage(
-        variables.archived
+      const message = variables.archived
           ? `${_result.count} response(s) archived.`
-          : `${_result.count} response(s) restored.`,
-      );
+          : `${_result.count} response(s) restored.`;
+      setActionMessage(message);
+      toast.success(message);
       if (pageSize > 1 && variables.submissionIds.length >= rows.length && page > 1) setPage(page - 1);
       await queryClient.invalidateQueries({ queryKey: ["submissions", formId] });
     },
     onError: (error) => {
-      setActionMessage(error instanceof Error ? error.message : "Bulk archive failed.");
+      const detail = error instanceof Error ? error.message : "Bulk archive failed.";
+      setActionMessage(detail);
+      toast.error("Selected responses were not updated", detail);
     },
   });
 
@@ -192,11 +203,14 @@ function SubmissionsPage() {
       bulkDeleteSubmissions({ data: { formId: Number(formId), submissionIds } }),
     onSuccess: async (_result, variables) => {
       setActionMessage(`${_result.count} response(s) deleted.`);
+      toast.success(`${_result.count} response(s) permanently deleted`);
       if (pageSize > 1 && variables.length >= rows.length && page > 1) setPage(page - 1);
       await queryClient.invalidateQueries({ queryKey: ["submissions", formId] });
     },
     onError: (error) => {
-      setActionMessage(error instanceof Error ? error.message : "Bulk delete failed.");
+      const detail = error instanceof Error ? error.message : "Bulk delete failed.";
+      setActionMessage(detail);
+      toast.error("Selected responses were not deleted", detail);
     },
   });
 

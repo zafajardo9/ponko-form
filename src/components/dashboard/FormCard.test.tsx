@@ -71,6 +71,11 @@ describe("FormCard", () => {
     ).toBe("/forms/17/submissions");
     expect(
       screen
+        .getByRole("menuitem", { name: "Response emails for Client intake" })
+        .getAttribute("href"),
+    ).toBe("/forms/17/emails");
+    expect(
+      screen
         .getByRole("menuitem", { name: "Payments for Client intake" })
         .getAttribute("href"),
     ).toBe("/forms/17/payments");
@@ -100,6 +105,9 @@ describe("FormCard", () => {
     ).toBeTruthy();
     expect(
       screen.getByRole("menuitem", { name: "Responses for Client intake" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("menuitem", { name: "Response emails for Client intake" }),
     ).toBeTruthy();
     expect(
       screen.queryByRole("menuitem", { name: "Payments for Client intake" }),

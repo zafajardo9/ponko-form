@@ -40,7 +40,7 @@ export type FlowCanvasLayout = {
 };
 
 export interface FlowCanvasWorkspaceHandle {
-  saveNow: () => void;
+  saveNow: (announce?: boolean) => void;
   autoLayout: () => void;
 }
 
@@ -114,7 +114,7 @@ interface FlowCanvasWorkspaceProps {
   onAddEdge: (sourceNodeId: number, targetNodeId: number) => void;
   onDeleteNode: (nodeId: number) => void;
   onDeleteEdge: (edgeId: number) => void;
-  onSaveLayout: (layout: FlowCanvasLayout[]) => void;
+  onSaveLayout: (layout: FlowCanvasLayout[], announce?: boolean) => void;
 }
 
 /**
@@ -183,13 +183,14 @@ export const FlowCanvasWorkspace = forwardRef<
     setNodes,
   ]);
 
-  const saveNow = useCallback(() => {
+  const saveNow = useCallback((announce = false) => {
     onSaveLayout(
       nodes.map((node) => ({
         id: Number(node.id),
         positionX: node.position.x,
         positionY: node.position.y,
       })),
+      announce,
     );
   }, [nodes, onSaveLayout]);
 
@@ -242,7 +243,7 @@ export const FlowCanvasWorkspace = forwardRef<
       onNodeClick={(nodeId) => onSelectNode(nodeId)}
       onPaneClick={() => onSelectNode(null)}
       onDropNode={onAddNode}
-      onNodeDragStop={saveNow}
+      onNodeDragStop={() => saveNow(false)}
       onNodesDelete={(deleted) => {
         for (const node of deleted) {
           if (node.type !== "start") onDeleteNode(Number(node.id));

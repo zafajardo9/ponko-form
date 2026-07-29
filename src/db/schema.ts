@@ -124,6 +124,21 @@ export type InvoiceLineItemField = {
   variable: string
 }
 
+export type ResponseEmailRecipientMode = 'field' | 'fixed'
+
+export type ResponseEmailTemplate = {
+  id: string
+  name: string
+  enabled: boolean
+  recipientMode: ResponseEmailRecipientMode
+  respondentEmailField: string
+  recipientEmail: string
+  subjectTemplate: string
+  bodyTemplate: string
+  fromName: string
+  ccRecipients: string[]
+}
+
 export const formInvoiceConfigs = pgTable(
   'form_invoice_configs',
   {
@@ -176,6 +191,14 @@ export const formConfirmationConfigs = pgTable(
       .default('<h1>Thank you</h1><p>Your response has been recorded.</p>'),
     bodyTemplatePlain: text('body_template_plain'),
     fromName: varchar('from_name', { length: 255 }),
+    ccRecipients: jsonb('cc_recipients')
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    templates: jsonb('templates')
+      .$type<ResponseEmailTemplate[]>()
+      .notNull()
+      .default([]),
     lastTestSentAt: timestamp('last_test_sent_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -524,6 +547,7 @@ export const payments = pgTable(
     subscriptionLastSyncedAt: timestamp('subscription_last_synced_at'),
     reminderCount: integer('reminder_count').notNull().default(0),
     lastReminderAt: timestamp('last_reminder_at'),
+    paymentLinkId: integer('payment_link_id').references(() => paymentLinks.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
@@ -538,6 +562,7 @@ export const payments = pgTable(
     index('payments_status_created_idx').on(table.status, table.createdAt),
     uniqueIndex('payments_subscription_plan_id_idx').on(table.subscriptionPlanId),
     index('payments_subscription_status_sync_idx').on(table.subscriptionStatus, table.subscriptionLastSyncedAt),
+    index('payments_payment_link_id_idx').on(table.paymentLinkId),
   ],
 )
 
@@ -574,10 +599,12 @@ export const subscriptionCycles = pgTable(
 export type EmailTemplateKind = 'invoice' | 'confirmation'
 export type EmailDeliveryStatus = 'queued' | 'sending' | 'sent' | 'failed'
 export type EmailTemplateSnapshot = {
+  templateName?: string
   subjectTemplate: string
   bodyTemplate: string
   bodyTemplatePlain?: string | null
   fromName?: string | null
+  ccRecipients?: string[]
   logoUrl?: string | null
   accentColor?: string | null
   includePaymentDetails?: boolean
@@ -597,6 +624,7 @@ export const emailDeliveryLogs = pgTable(
       .references(() => formSubmissions.id, { onDelete: 'cascade' }),
     paymentId: integer('payment_id').references(() => payments.id, { onDelete: 'set null' }),
     templateKind: varchar('template_kind', { length: 20 }).notNull().$type<EmailTemplateKind>(),
+    templateKey: varchar('template_key', { length: 80 }).notNull().default('default'),
     recipientEmail: varchar('recipient_email', { length: 255 }).notNull(),
     invoiceNumber: varchar('invoice_number', { length: 50 }),
     subject: varchar('subject', { length: 255 }).notNull(),
@@ -618,6 +646,7 @@ export const emailDeliveryLogs = pgTable(
     uniqueIndex('email_delivery_logs_submission_kind_idx').on(
       table.formSubmissionId,
       table.templateKind,
+      table.templateKey,
     ),
     uniqueIndex('email_delivery_logs_form_invoice_number_idx').on(
       table.formId,
@@ -876,5 +905,39 @@ export const integrations = pgTable(
   (table) => [
     uniqueIndex('integrations_profile_provider_idx').on(table.profileId, table.provider),
     uniqueIndex('integrations_webhook_endpoint_key_idx').on(table.webhookEndpointKey),
+  ],
+)
+
+// ── Payment Links (FT-018) ──
+
+export const paymentLinks = pgTable(
+  'payment_links',
+  {
+    id: serial().primaryKey(),
+    profileId: integer('profile_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    publicId: varchar('public_id', { length: 16 }).notNull().unique(),
+    title: varchar('title', { length: 255 }).notNull(),
+    description: text('description'),
+    amount: integer('amount').notNull(),
+    currency: varchar('currency', { length: 3 }).notNull().default('PHP'),
+    paymentGatewayId: integer('payment_gateway_id')
+      .notNull()
+      .references(() => paymentGateways.id),
+    allowCustomAmount: boolean('allow_custom_amount').notNull().default(false),
+    minAmount: integer('min_amount'),
+    maxAmount: integer('max_amount'),
+    redirectUrl: text('redirect_url'),
+    successMessage: text('success_message'),
+    isActive: boolean('is_active').notNull().default(true),
+    totalPayments: integer('total_payments').notNull().default(0),
+    totalRevenue: integer('total_revenue').notNull().default(0),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('payment_links_public_id_idx').on(table.publicId),
+    index('payment_links_profile_id_idx').on(table.profileId),
   ],
 )

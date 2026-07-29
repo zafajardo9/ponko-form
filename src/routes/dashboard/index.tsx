@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   CircleDollarSign,
   Download,
+  ExternalLink,
   Eye,
   FileCheck2,
   FileText,
@@ -563,6 +564,29 @@ function DashboardPage() {
             )}
           </>
         )}
+
+        {/* Payment Links quick link */}
+        <section className="mt-8">
+          <Link
+            to="/dashboard/payment-links"
+            className="group flex items-center justify-between rounded-2xl border border-[#e6dfd8] bg-white p-5 transition-colors hover:border-[#d9d0c5] hover:bg-[#fcfbf8]"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f5ece4] text-[#cc785c]">
+                <ExternalLink size={19} />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-[#141413]">Payment Links</h3>
+                <p className="mt-0.5 text-xs text-[#6c6a64]">
+                  Create shareable payment links for products, donations, and one-off charges.
+                </p>
+              </div>
+            </div>
+            <span className="shrink-0 text-xs font-medium text-[#a9583e] opacity-0 transition-opacity group-hover:opacity-100">
+              Manage links &rarr;
+            </span>
+          </Link>
+        </section>
       </div>
 
       {dashboard && reportTarget && (

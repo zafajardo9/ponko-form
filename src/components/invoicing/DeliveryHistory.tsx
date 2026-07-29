@@ -30,7 +30,9 @@ export function DeliveryHistory({
             <div key={delivery.id} className="flex flex-wrap items-center gap-3 px-5 py-4 text-sm">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium capitalize text-[#141413]">{delivery.templateKind}</span>
+                  <span className="font-medium text-[#141413]">
+                    {delivery.templateName ?? (delivery.templateKind === 'invoice' ? 'Invoice' : 'Response email')}
+                  </span>
                   {delivery.invoiceNumber && <span className="font-mono text-xs text-[#6c6a64]">{delivery.invoiceNumber}</span>}
                 </div>
                 <p className="mt-1 truncate text-xs text-[#8e8b82]">
@@ -58,4 +60,3 @@ export function DeliveryHistory({
     </section>
   )
 }
-

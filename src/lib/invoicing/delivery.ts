@@ -158,6 +158,9 @@ export async function attemptEmailDelivery(deliveryId: number) {
     const message = renderTemplateMessage(delivery.templateKind, delivery.templateSnapshot, context)
     const result = await sendTransactionalEmail(form.profileId, {
       recipient: delivery.recipientEmail,
+      cc: (delivery.templateSnapshot.ccRecipients ?? []).filter(
+        (email) => email.toLowerCase() !== delivery.recipientEmail.toLowerCase(),
+      ),
       fromName: delivery.templateSnapshot.fromName,
       idempotencyKey: `submission-delivery/${delivery.id}`,
       ...message,
@@ -206,32 +209,8 @@ export async function dispatchSubmissionEmails(submissionId: number) {
   if (!submission) return null
 
   const payment = await completedPaymentForSubmission(submissionId)
-  let kind: EmailTemplateKind
-  let respondentEmailField: string | null
-  let snapshot: EmailTemplateSnapshot
-
-  if (payment) {
-    const [config] = await db
-      .select()
-      .from(formInvoiceConfigs)
-      .where(and(eq(formInvoiceConfigs.formId, submission.form.id), eq(formInvoiceConfigs.enabled, true)))
-      .limit(1)
-    if (!config) return null
-    kind = 'invoice'
-    respondentEmailField = config.respondentEmailField
-    snapshot = {
-      subjectTemplate: config.subjectTemplate,
-      bodyTemplate: config.bodyTemplate,
-      bodyTemplatePlain: config.bodyTemplatePlain,
-      fromName: config.fromName,
-      logoUrl: config.logoUrl,
-      accentColor: config.accentColor,
-      includePaymentDetails: config.includePaymentDetails,
-      includeLineItems: config.includeLineItems,
-      lineItemFields: config.lineItemFields,
-    }
-  } else {
-    const [config] = await db
+  const [confirmationConfig, invoiceConfig] = await Promise.all([
+    db
       .select()
       .from(formConfirmationConfigs)
       .where(and(
@@ -239,46 +218,123 @@ export async function dispatchSubmissionEmails(submissionId: number) {
         eq(formConfirmationConfigs.enabled, true),
       ))
       .limit(1)
-    if (!config) return null
-    kind = 'confirmation'
-    respondentEmailField = config.respondentEmailField
-    snapshot = {
-      subjectTemplate: config.subjectTemplate,
-      bodyTemplate: config.bodyTemplate,
-      bodyTemplatePlain: config.bodyTemplatePlain,
-      fromName: config.fromName,
+      .then((rows) => rows[0]),
+    payment
+      ? db
+          .select()
+          .from(formInvoiceConfigs)
+          .where(and(
+            eq(formInvoiceConfigs.formId, submission.form.id),
+            eq(formInvoiceConfigs.enabled, true),
+          ))
+          .limit(1)
+          .then((rows) => rows[0])
+      : Promise.resolve(undefined),
+  ])
+
+  const deliveries: Array<{
+    kind: EmailTemplateKind
+    templateKey: string
+    respondentEmailField: string | null
+    fixedRecipientEmail?: string
+    snapshot: EmailTemplateSnapshot
+  }> = []
+
+  if (confirmationConfig) {
+    const templates = confirmationConfig.templates?.length
+      ? confirmationConfig.templates.filter((template) => template.enabled)
+      : [{
+          id: 'default',
+          name: 'Response confirmation',
+          recipientMode: 'field' as const,
+          respondentEmailField: confirmationConfig.respondentEmailField ?? '',
+          recipientEmail: '',
+          subjectTemplate: confirmationConfig.subjectTemplate,
+          bodyTemplate: confirmationConfig.bodyTemplate,
+          fromName: confirmationConfig.fromName ?? '',
+          ccRecipients: confirmationConfig.ccRecipients,
+        }]
+    for (const template of templates) {
+      deliveries.push({
+        kind: 'confirmation',
+        templateKey: template.id,
+        respondentEmailField:
+          template.recipientMode === 'field' ? template.respondentEmailField : null,
+        fixedRecipientEmail:
+          template.recipientMode === 'fixed' ? template.recipientEmail : undefined,
+        snapshot: {
+          templateName: template.name,
+          subjectTemplate: template.subjectTemplate,
+          bodyTemplate: template.bodyTemplate,
+          fromName: template.fromName,
+          ccRecipients: template.ccRecipients,
+        },
+      })
     }
   }
-
-  const rawRecipient = respondentEmailField
-    ? submission.submission.formData[respondentEmailField]
-    : null
-  const recipientEmail = typeof rawRecipient === 'string' ? rawRecipient.trim() : '(missing)'
-  const [created] = await db
-    .insert(emailDeliveryLogs)
-    .values({
-      formId: submission.form.id,
-      formSubmissionId: submission.submission.id,
-      paymentId: payment?.id ?? null,
-      templateKind: kind,
-      recipientEmail,
-      subject: snapshot.subjectTemplate.slice(0, 255),
-      templateSnapshot: snapshot,
-      status: 'queued',
+  if (invoiceConfig) {
+    deliveries.push({
+      kind: 'invoice',
+      templateKey: 'invoice',
+      respondentEmailField: invoiceConfig.respondentEmailField,
+      snapshot: {
+        subjectTemplate: invoiceConfig.subjectTemplate,
+        bodyTemplate: invoiceConfig.bodyTemplate,
+        bodyTemplatePlain: invoiceConfig.bodyTemplatePlain,
+        fromName: invoiceConfig.fromName,
+        logoUrl: invoiceConfig.logoUrl,
+        accentColor: invoiceConfig.accentColor,
+        includePaymentDetails: invoiceConfig.includePaymentDetails,
+        includeLineItems: invoiceConfig.includeLineItems,
+        lineItemFields: invoiceConfig.lineItemFields,
+      },
     })
-    .onConflictDoNothing({
-      target: [emailDeliveryLogs.formSubmissionId, emailDeliveryLogs.templateKind],
-    })
-    .returning()
+  }
 
-  const delivery = created ?? (await db
-    .select()
-    .from(emailDeliveryLogs)
-    .where(and(
-      eq(emailDeliveryLogs.formSubmissionId, submission.submission.id),
-      eq(emailDeliveryLogs.templateKind, kind),
-    ))
-    .limit(1))[0]
-  if (!delivery || delivery.status === 'sent') return delivery ?? null
-  return attemptEmailDelivery(delivery.id)
+  return Promise.all(deliveries.map(async ({
+    kind,
+    templateKey,
+    respondentEmailField,
+    fixedRecipientEmail,
+    snapshot,
+  }) => {
+    const rawRecipient = respondentEmailField
+      ? submission.submission.formData[respondentEmailField]
+      : null
+    const recipientEmail = fixedRecipientEmail
+      ?? (typeof rawRecipient === 'string' ? rawRecipient.trim() : '(missing)')
+    const [created] = await db
+      .insert(emailDeliveryLogs)
+      .values({
+        formId: submission.form.id,
+        formSubmissionId: submission.submission.id,
+        paymentId: kind === 'invoice' ? payment?.id ?? null : null,
+        templateKind: kind,
+        templateKey,
+        recipientEmail,
+        subject: snapshot.subjectTemplate.slice(0, 255),
+        templateSnapshot: snapshot,
+        status: 'queued',
+      })
+      .onConflictDoNothing({
+        target: [
+          emailDeliveryLogs.formSubmissionId,
+          emailDeliveryLogs.templateKind,
+          emailDeliveryLogs.templateKey,
+        ],
+      })
+      .returning()
+
+    const delivery = created ?? (await db
+      .select()
+      .from(emailDeliveryLogs)
+      .where(and(
+        eq(emailDeliveryLogs.formSubmissionId, submission.submission.id),
+        eq(emailDeliveryLogs.templateKind, kind),
+        eq(emailDeliveryLogs.templateKey, templateKey),
+      ))
+      .limit(1))[0]
+    if (!delivery || delivery.status === 'sent') return delivery ?? null
+    return attemptEmailDelivery(delivery.id)
+  }))
 }

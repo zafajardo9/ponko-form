@@ -18,6 +18,7 @@ import {
   payments,
   type EmailTemplateKind,
   type EmailTemplateSnapshot,
+  type ResponseEmailTemplate,
 } from '../../db/schema'
 import { assertFormOwner } from './flow-helpers'
 import { getTransactionalEmailAvailability, sendTransactionalEmail } from '../email/transactional'
@@ -37,6 +38,13 @@ import type {
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const bindingPattern = /^[a-z0-9][a-z0-9_]*$/
+const ccRecipientsSchema = z
+  .array(z.string().trim().toLowerCase().email().max(255))
+  .max(20)
+  .refine(
+    (recipients) => new Set(recipients).size === recipients.length,
+    'Remove duplicate CC recipients',
+  )
 
 const lineItemSchema = z.object({
   label: z.string().trim().min(1).max(100),
@@ -64,6 +72,22 @@ const confirmationSchema = z.object({
   subjectTemplate: z.string().trim().min(1).max(255).refine((value) => !/[\r\n]/.test(value)),
   bodyTemplate: z.string().min(1).max(50_000),
   fromName: z.string().trim().max(255).refine((value) => !/[\r\n]/.test(value)),
+  ccRecipients: ccRecipientsSchema,
+  templates: z.array(z.object({
+    id: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,79}$/i),
+    name: z.string().trim().min(1).max(100),
+    enabled: z.boolean(),
+    recipientMode: z.enum(['field', 'fixed']),
+    respondentEmailField: z.string().max(100),
+    recipientEmail: z.string().trim().toLowerCase().max(255),
+    subjectTemplate: z.string().trim().min(1).max(255).refine((value) => !/[\r\n]/.test(value)),
+    bodyTemplate: z.string().min(1).max(50_000),
+    fromName: z.string().trim().max(255).refine((value) => !/[\r\n]/.test(value)),
+    ccRecipients: ccRecipientsSchema,
+  }).strict()).max(20).refine(
+    (templates) => new Set(templates.map((template) => template.id)).size === templates.length,
+    'Email rule identifiers must be unique',
+  ),
 }).strict()
 
 const saveSchema = z.object({
@@ -193,12 +217,27 @@ function invoiceDraft(config: typeof formInvoiceConfigs.$inferSelect | undefined
 }
 
 function confirmationDraft(config: typeof formConfirmationConfigs.$inferSelect | undefined): ConfirmationConfigDraft {
-  return {
+  const legacyTemplate: ResponseEmailTemplate = {
+    id: 'default',
+    name: 'Response confirmation',
     enabled: config?.enabled ?? false,
+    recipientMode: 'field',
     respondentEmailField: config?.respondentEmailField ?? '',
+    recipientEmail: '',
     subjectTemplate: config?.subjectTemplate ?? 'Thanks for submitting {{form_title}}',
     bodyTemplate: config?.bodyTemplate ?? '<h1>Thank you</h1><p>Your response has been recorded.</p>',
     fromName: config?.fromName ?? '',
+    ccRecipients: config?.ccRecipients ?? [],
+  }
+  const templates = config?.templates?.length ? config.templates : [legacyTemplate]
+  return {
+    enabled: templates.some((template) => template.enabled),
+    respondentEmailField: templates[0]?.respondentEmailField ?? '',
+    subjectTemplate: templates[0]?.subjectTemplate ?? legacyTemplate.subjectTemplate,
+    bodyTemplate: templates[0]?.bodyTemplate ?? legacyTemplate.bodyTemplate,
+    fromName: templates[0]?.fromName ?? '',
+    ccRecipients: templates[0]?.ccRecipients ?? [],
+    templates,
   }
 }
 
@@ -221,6 +260,7 @@ export const getInvoicingView = createServerFn({ method: 'GET', strict: false })
       db.select({
         id: emailDeliveryLogs.id,
         templateKind: emailDeliveryLogs.templateKind,
+        templateName: emailDeliveryLogs.templateSnapshot,
         recipientEmail: emailDeliveryLogs.recipientEmail,
         invoiceNumber: emailDeliveryLogs.invoiceNumber,
         subject: emailDeliveryLogs.subject,
@@ -247,8 +287,9 @@ export const getInvoicingView = createServerFn({ method: 'GET', strict: false })
       variables: [...variables, ...SYSTEM_VARIABLES],
       hasPaymentPath: paymentPath,
       emailAvailability: availability,
-      deliveries: deliveries.map(({ fallbackAmount, ...delivery }) => ({
+      deliveries: deliveries.map(({ fallbackAmount, templateName, ...delivery }) => ({
         ...delivery,
+        templateName: templateName.templateName ?? null,
         amount: delivery.amount ?? fallbackAmount,
       })),
     }
@@ -266,8 +307,10 @@ export const saveInvoicingConfig = createServerFn({ method: 'POST', strict: fals
     const unknownTokens = validateTemplateTokens([
       data.invoice.subjectTemplate,
       data.invoice.bodyTemplate,
-      data.confirmation.subjectTemplate,
-      data.confirmation.bodyTemplate,
+      ...data.confirmation.templates.flatMap((template) => [
+        template.subjectTemplate,
+        template.bodyTemplate,
+      ]),
     ], variables)
     if (unknownTokens.length) throw new Error(`Unknown template variables: ${unknownTokens.join(', ')}`)
     if (data.invoice.enabled) {
@@ -275,9 +318,14 @@ export const saveInvoicingConfig = createServerFn({ method: 'POST', strict: fals
       if (!hasEmail) throw new Error('Configure Resend or SMTP before enabling invoices')
       if (!emailCandidates.has(data.invoice.respondentEmailField)) throw new Error('Choose a valid respondent email field')
     }
-    if (data.confirmation.enabled) {
-      if (!hasEmail) throw new Error('Configure Resend or SMTP before enabling confirmations')
-      if (!emailCandidates.has(data.confirmation.respondentEmailField)) throw new Error('Choose a valid respondent email field')
+    for (const template of data.confirmation.templates.filter((item) => item.enabled)) {
+      if (!hasEmail) throw new Error('Configure Resend or SMTP before enabling response emails')
+      if (template.recipientMode === 'field' && !emailCandidates.has(template.respondentEmailField)) {
+        throw new Error(`Choose a valid recipient field for “${template.name}”`)
+      }
+      if (template.recipientMode === 'fixed' && !emailPattern.test(template.recipientEmail)) {
+        throw new Error(`Enter a valid recipient address for “${template.name}”`)
+      }
     }
     const [existingInvoice] = await db.select().from(formInvoiceConfigs)
       .where(eq(formInvoiceConfigs.formId, data.formId)).limit(1)
@@ -287,7 +335,17 @@ export const saveInvoicingConfig = createServerFn({ method: 'POST', strict: fals
     }
 
     const sanitizedInvoiceBody = sanitizeTemplateHtml(data.invoice.bodyTemplate)
-    const sanitizedConfirmationBody = sanitizeTemplateHtml(data.confirmation.bodyTemplate)
+    const sanitizedTemplates = data.confirmation.templates.map((template) => ({
+      ...template,
+      bodyTemplate: sanitizeTemplateHtml(template.bodyTemplate),
+    }))
+    const primaryTemplate = sanitizedTemplates[0] ?? {
+      respondentEmailField: '',
+      subjectTemplate: 'Thanks for submitting {{form_title}}',
+      bodyTemplate: '<h1>Thank you</h1><p>Your response has been recorded.</p>',
+      fromName: '',
+      ccRecipients: [],
+    }
     const invoiceValues = {
       enabled: data.invoice.enabled,
       respondentEmailField: data.invoice.respondentEmailField || null,
@@ -307,17 +365,25 @@ export const saveInvoicingConfig = createServerFn({ method: 'POST', strict: fals
       .values({ formId: data.formId, nextInvoiceNumber: data.invoice.invoiceStartNumber, ...invoiceValues })
       .onConflictDoUpdate({ target: formInvoiceConfigs.formId, set: invoiceValues })
     const confirmationValues = {
-      enabled: data.confirmation.enabled,
-      respondentEmailField: data.confirmation.respondentEmailField || null,
-      subjectTemplate: data.confirmation.subjectTemplate,
-      bodyTemplate: sanitizedConfirmationBody,
-      fromName: data.confirmation.fromName || null,
+      enabled: sanitizedTemplates.some((template) => template.enabled),
+      respondentEmailField: primaryTemplate.respondentEmailField || null,
+      subjectTemplate: primaryTemplate.subjectTemplate,
+      bodyTemplate: primaryTemplate.bodyTemplate,
+      fromName: primaryTemplate.fromName || null,
+      ccRecipients: primaryTemplate.ccRecipients,
+      templates: sanitizedTemplates,
       updatedAt: new Date(),
     }
     await db.insert(formConfirmationConfigs)
       .values({ formId: data.formId, ...confirmationValues })
       .onConflictDoUpdate({ target: formConfirmationConfigs.formId, set: confirmationValues })
-    return { invoice: invoiceDraft({ ...existingInvoice, ...invoiceValues } as typeof formInvoiceConfigs.$inferSelect), confirmation: data.confirmation }
+    return {
+      invoice: invoiceDraft({ ...existingInvoice, ...invoiceValues } as typeof formInvoiceConfigs.$inferSelect),
+      confirmation: confirmationDraft({
+        ...confirmationValues,
+        formId: data.formId,
+      } as typeof formConfirmationConfigs.$inferSelect),
+    }
   })
 
 export const sendTestTemplate = createServerFn({ method: 'POST', strict: false })
@@ -325,6 +391,7 @@ export const sendTestTemplate = createServerFn({ method: 'POST', strict: false }
     formId: z.number().int().positive(),
     kind: z.enum(['invoice', 'confirmation']),
     recipientEmail: z.string().email().max(255),
+    templateId: z.string().max(80).optional(),
   }).strict().parse(data))
   .handler(async ({ data }) => {
     const form = await ownedForm(data.formId)
@@ -341,7 +408,16 @@ export const sendTestTemplate = createServerFn({ method: 'POST', strict: false }
       const [config] = await db.select().from(formConfirmationConfigs).where(eq(formConfirmationConfigs.formId, data.formId)).limit(1)
       if (!config) throw new Error('Save the confirmation template before sending a test')
       if (config.lastTestSentAt && now.getTime() - config.lastTestSentAt.getTime() < 10_000) throw new Error('Wait a few seconds before sending another test')
-      snapshot = config
+      const selectedTemplate = config.templates?.find((template) => template.id === data.templateId)
+        ?? config.templates?.[0]
+      snapshot = selectedTemplate
+        ? {
+            templateName: selectedTemplate.name,
+            subjectTemplate: selectedTemplate.subjectTemplate,
+            bodyTemplate: selectedTemplate.bodyTemplate,
+            fromName: selectedTemplate.fromName,
+          }
+        : config
       await db.update(formConfirmationConfigs).set({ lastTestSentAt: now }).where(eq(formConfirmationConfigs.id, config.id))
     }
     if (!emailPattern.test(data.recipientEmail)) throw new Error('Enter a valid test email address')

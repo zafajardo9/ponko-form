@@ -15,6 +15,7 @@ import {
 } from "@/lib/server-fns/payments-view";
 import { Badge } from "@/components/ui/Badge";
 import { FormWorkspaceLayout } from "@/components/forms/FormWorkspaceLayout";
+import { useToast } from "@/components/ui/Toast";
 import {
   DataTable,
   type DataTableColumn,
@@ -41,6 +42,7 @@ function PaymentsPage() {
   const [selected, setSelected] = useState<PaymentViewRow | null>(null);
   const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -98,16 +100,24 @@ function PaymentsPage() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["form-payments", formId] });
       setSelected(null);
+      toast.success("Payment verification recorded", "The payment status and activity are up to date.");
     },
+    onError: (error) =>
+      toast.error("Payment could not be verified", (error as Error).message),
   });
   const copyLinkMut = useMutation({
     mutationFn: (paymentId: number) => getPaymentRecoveryLink({ data: { formId: Number(formId), paymentId } }),
     onSuccess: async (result) => {
       await navigator.clipboard.writeText(result.paymentUrl);
-      setRecoveryMessage("Payment link copied. You can send it to the respondent.");
+      const message = "Payment link copied. You can send it to the respondent.";
+      setRecoveryMessage(message);
+      toast.success("Payment link copied", "It is ready to paste into a message.");
       await queryClient.invalidateQueries({ queryKey: ["form-payments", formId] });
     },
-    onError: (error) => setRecoveryMessage((error as Error).message),
+    onError: (error) => {
+      setRecoveryMessage((error as Error).message);
+      toast.error("Payment link could not be copied", (error as Error).message);
+    },
   });
   const replaceLinkMut = useMutation({
     mutationFn: ({
@@ -122,27 +132,35 @@ function PaymentsPage() {
       }),
     onSuccess: async (result) => {
       await navigator.clipboard.writeText(result.paymentUrl);
-      setRecoveryMessage(
-        result.emailSent
+      const message = result.emailSent
           ? "Replacement payment link created, emailed, and copied."
           : result.emailError
             ? `Replacement link created and copied, but email failed: ${result.emailError}`
             : result.reused
               ? "Active payment link copied."
-              : "Replacement payment link created and copied.",
-      );
+              : "Replacement payment link created and copied.";
+      setRecoveryMessage(message);
+      if (result.emailError) toast.info("Replacement link created", message);
+      else toast.success(result.reused ? "Active payment link copied" : "Replacement link ready", message);
       await queryClient.invalidateQueries({ queryKey: ["form-payments", formId] });
     },
-    onError: (error) => setRecoveryMessage((error as Error).message),
+    onError: (error) => {
+      setRecoveryMessage((error as Error).message);
+      toast.error("Replacement link could not be created", (error as Error).message);
+    },
   });
   const emailLinkMut = useMutation({
     mutationFn: ({ paymentId, recipientEmail }: { paymentId: number; recipientEmail: string }) =>
       emailPaymentRecoveryLink({ data: { formId: Number(formId), paymentId, recipientEmail } }),
     onSuccess: async () => {
       setRecoveryMessage("Payment reminder accepted for delivery.");
+      toast.success("Payment reminder accepted", "The email provider accepted it for delivery.");
       await queryClient.invalidateQueries({ queryKey: ["form-payments", formId] });
     },
-    onError: (error) => setRecoveryMessage((error as Error).message),
+    onError: (error) => {
+      setRecoveryMessage((error as Error).message);
+      toast.error("Payment reminder was not sent", (error as Error).message);
+    },
   });
 
   // Bulk verify mutation
@@ -151,10 +169,13 @@ function PaymentsPage() {
       bulkVerifyPayments({ data: { formId: Number(formId), paymentIds } }),
     onSuccess: async (result) => {
       setRecoveryMessage(`${result.verified} payment(s) verified.`);
+      toast.success(`${result.verified} payment(s) verified`, "Payment activity has been refreshed.");
       await queryClient.invalidateQueries({ queryKey: ["form-payments", formId] });
     },
-    onError: (error) =>
-      setRecoveryMessage((error as Error).message),
+    onError: (error) => {
+      setRecoveryMessage((error as Error).message);
+      toast.error("Selected payments could not be verified", (error as Error).message);
+    },
   });
 
   // No payment flow configured for this form.

@@ -1,5 +1,5 @@
 import { Show, UserButton } from '@clerk/tanstack-react-start'
-import { Link } from '@tanstack/react-router'
+import { Link, useRouterState } from '@tanstack/react-router'
 import { Menu, X } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import ClerkProvider from '../../integrations/clerk/provider'
@@ -9,9 +9,12 @@ export default function AuthenticatedAppShell({
 }: {
   children: React.ReactNode
 }) {
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const focusedEditor = /^\/forms\/[^/]+\/edit\/?$/.test(pathname)
+
   return (
     <ClerkProvider>
-      <TopNav />
+      {!focusedEditor && <TopNav />}
       {children}
     </ClerkProvider>
   )
@@ -50,6 +53,12 @@ export function TopNav() {
                 className={navLinkClass}
               >
                 Forms
+              </Link>
+              <Link
+                to="/dashboard/payment-links"
+                className={navLinkClass}
+              >
+                Payment Links
               </Link>
               <Link
                 to="/settings/integrations"
@@ -149,6 +158,7 @@ function MobileNavigation() {
             </p>
             <MobileNavLink to="/dashboard" onSelect={close}>Dashboard</MobileNavLink>
             <MobileNavLink to="/forms" onSelect={close}>Forms</MobileNavLink>
+            <MobileNavLink to="/dashboard/payment-links" onSelect={close}>Payment Links</MobileNavLink>
             <MobileNavLink to="/settings/integrations" onSelect={close}>Integrations</MobileNavLink>
             <div className="my-2 h-px bg-[#e6dfd8]" />
           </Show>
@@ -173,7 +183,7 @@ function MobileNavLink({
   onSelect,
   children,
 }: {
-  to: '/dashboard' | '/forms' | '/settings/integrations' | '/docs'
+  to: '/dashboard' | '/dashboard/payment-links' | '/forms' | '/settings/integrations' | '/docs'
   onSelect: () => void
   children: React.ReactNode
 }) {

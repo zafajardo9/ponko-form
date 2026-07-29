@@ -47,4 +47,26 @@ describe('Resend payment reminders', () => {
     const [, request] = fetchMock.mock.calls[0]
     expect(request.headers['Idempotency-Key']).toBe('submission-delivery/42')
   })
+
+  it('includes configured CC recipients in a response email', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: 'email-3' }), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await sendResendEmail({
+      config: { apiKey: 're_secret', fromEmail: 'forms@example.com' },
+      recipient: 'customer@example.com',
+      cc: ['owner@example.com', 'support@example.com'],
+      subject: 'Submission received',
+      html: '<p>Thanks</p>',
+      text: 'Thanks',
+    })
+
+    const [, request] = fetchMock.mock.calls[0]
+    expect(JSON.parse(request.body).cc).toEqual([
+      'owner@example.com',
+      'support@example.com',
+    ])
+  })
 })

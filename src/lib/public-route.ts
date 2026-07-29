@@ -3,6 +3,7 @@ const BARE_PUBLIC_PREFIXES = [
   '/forms/embed/',
   '/forms/payment-return',
   '/flow/',
+  '/pay/',
 ] as const
 
 export function isBarePublicPath(pathname: string) {

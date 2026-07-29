@@ -9,6 +9,7 @@ export interface TransactionalEmailMessage {
   html: string
   text: string
   fromName?: string | null
+  cc?: string[]
   idempotencyKey?: string
 }
 

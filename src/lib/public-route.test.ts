@@ -10,6 +10,8 @@ describe('isBarePublicPath', () => {
     '/forms/payment-return',
     '/forms/payment-return?gateway=xendit',
     '/flow/42/complete',
+    '/pay/abc123def45',
+    '/pay/abc123def45/success',
   ])('keeps %s outside the authenticated client shell', (pathname) => {
     expect(isBarePublicPath(pathname)).toBe(true)
   })

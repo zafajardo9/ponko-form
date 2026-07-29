@@ -264,13 +264,17 @@ These are the five detailed feature plans already spec'd out in `feature-plan/`.
 
 ### 2.1 FT-021: Discount Codes & Coupons
 
+> **✅ Full detailed plan:** [`feature-plan/021-discount-codes-coupons.md`](../../feature-plan/021-discount-codes-coupons.md)
+
+Discount codes appear as a **draggable form field** in the page builder. Creators create codes with percentage or fixed-amount off, descriptions, usage limits, date ranges, and per-respondent caps. Respondents enter codes on any page before payment. The system validates server-side, adjusts the payment amount in `calculatePagePayment`, and atomically redeems in `initiatePagePayment`.
+
 | Attribute | Detail |
 |---|---|
 | **Complexity** | Medium |
-| **Files to touch** | ~12 |
-| **Lines of code** | ~1,000 |
-| **Days to build** | 3–4 days |
-| **Key leverage** | Atomic redemption via `UPDATE ... WHERE current_uses < max_uses RETURNING id` — PostgreSQL row-level locking handles race conditions for free. Reuses existing `calculatePagePayment` pipeline. |
+| **Files to touch** | ~17 (3 new tables, 7 new files, 7 modifications) |
+| **Lines of code** | ~1,500 |
+| **Days to build** | 4–5 days |
+| **Key leverage** | `calculatePagePayment` adds discount deduction from `collectedData.__discount`. `initiatePagePayment` does atomic `UPDATE ... RETURNING` for race-condition-free redemption. Field renderer pattern reused. |
 | **User impact** | 🟡 High — essential for PH market (events, workshops, promos). |
 
 ### 2.2 FT-018: Payment Links (Standalone Checkout)

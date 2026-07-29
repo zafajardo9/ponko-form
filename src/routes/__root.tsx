@@ -9,6 +9,7 @@ import { TanStackDevtools } from "@tanstack/react-devtools";
 import { lazy, Suspense } from "react";
 
 import { ErrorBoundary } from "../components/layout/ErrorBoundary";
+import { ToastProvider } from "../components/ui/Toast";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
 import { isBarePublicPath } from "../lib/public-route";
 
@@ -67,7 +68,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <ApplicationShell>{children}</ApplicationShell>
+        <ToastProvider>
+          <ApplicationShell>{children}</ApplicationShell>
+        </ToastProvider>
         <TanStackDevtools
           config={{ position: "bottom-right" }}
           plugins={[

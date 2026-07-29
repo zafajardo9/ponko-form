@@ -1,6 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronUp } from "lucide-react";
+import { UserButton } from "@clerk/tanstack-react-start";
+import {
+  ArrowLeft,
+  ChevronUp,
+  Eye,
+  Settings,
+  Share2,
+} from "lucide-react";
 import {
   lazy,
   Suspense,
@@ -50,6 +57,7 @@ import {
 } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { PreviewDialog } from "@/components/ui/PreviewDialog";
+import { useToast } from "@/components/ui/Toast";
 import { FormSectionNav } from "@/components/forms/FormSectionNav";
 import { ShareDialog } from "@/components/dashboard/ShareDialog";
 import { SettingsDialog } from "@/components/flow-builder/SettingsDialog";
@@ -149,6 +157,7 @@ function UnifiedEditorPage() {
   const { formId } = Route.useParams();
   const { preview } = Route.useSearch();
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   const [view, setView] = useState<View>("list");
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
@@ -320,13 +329,34 @@ function UnifiedEditorPage() {
   const publishMutation = useMutation({
     mutationFn: (status: "draft" | "published") =>
       updateForm({ data: { id: Number(formId), status } }),
-    onSuccess: invalidateFormMetadata,
+    onSuccess: async (_result, status) => {
+      await invalidateFormMetadata()
+      toast.success(
+        status === "published" ? "Form published" : "Form unpublished",
+        status === "published"
+          ? "The public form now uses your latest saved version."
+          : "The public link no longer accepts new responses.",
+      )
+    },
+    onError: (error) =>
+      toast.error(
+        "Publication status was not updated",
+        error instanceof Error ? error.message : "Try again in a moment.",
+      ),
   });
 
   const settingsMutation = useMutation({
     mutationFn: ({ title, theme }: { title: string; theme: FormTheme }) =>
       updateForm({ data: { id: Number(formId), title, theme } }),
-    onSuccess: invalidateFormMetadata,
+    onSuccess: async () => {
+      await invalidateFormMetadata()
+      toast.success("Form settings saved", "The title and appearance have been updated.")
+    },
+    onError: (error) =>
+      toast.error(
+        "Form settings were not saved",
+        error instanceof Error ? error.message : "Try again in a moment.",
+      ),
   });
 
   const addNodeMutation = useMutation({
@@ -531,7 +561,7 @@ function UnifiedEditorPage() {
 
   const handleSaveNow = useCallback(() => {
     if (view === "canvas") {
-      canvasRef.current?.saveNow();
+      canvasRef.current?.saveNow(true);
       return;
     }
     if (!flowData) return;
@@ -541,8 +571,17 @@ function UnifiedEditorPage() {
         positionX: node.positionX,
         positionY: node.positionY,
       })),
+      {
+        onSuccess: () =>
+          toast.success("Flow layout saved", "Node positions are now recorded."),
+        onError: (error) =>
+          toast.error(
+            "Flow layout was not saved",
+            error instanceof Error ? error.message : "Try again in a moment.",
+          ),
+      },
     );
-  }, [flowData, saveLayoutMutation, view]);
+  }, [flowData, saveLayoutMutation, toast, view]);
 
   const handleAutoLayout = useCallback(() => {
     canvasRef.current?.autoLayout();
@@ -575,22 +614,40 @@ function UnifiedEditorPage() {
         : flowData === null));
 
   return (
-    <div className="flex h-[calc(100dvh-64px)] min-h-0 flex-col overflow-hidden">
-      {/* Header */}
+    <div className="flex h-dvh min-h-0 flex-col overflow-hidden">
+      {/* Focused editor chrome */}
       <div
         id="editor-toolbar"
-        className="flex flex-none flex-col border-b border-[#e6dfd8] bg-[#faf9f5] shadow-[0_1px_0_rgba(20,20,19,0.02)]"
+        className="z-40 flex flex-none flex-wrap items-center border-b border-[#ded8cf] bg-[#faf9f5]/98 px-3 shadow-[0_2px_10px_rgba(20,20,19,0.045)] backdrop-blur-sm sm:px-4"
       >
-        <div className="flex min-h-10 items-center px-4 py-1 sm:px-6">
-          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
-            <Link
-              to="/forms"
-              className={`${navigationButtonClass} h-8 flex-none px-2.5`}
-            >
-              <ArrowLeft size={15} className={navigationBackIconClass} />
-              Forms
-            </Link>
-            <span className="min-w-0 max-w-[65vw] truncate text-sm font-medium text-[#141413] sm:max-w-none">
+        <div className="flex h-12 min-w-0 flex-1 items-center gap-2.5">
+          <Link
+            to="/"
+            aria-label="PonkoForm home"
+            className="flex shrink-0 items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2"
+          >
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#cc785c] text-sm font-bold text-white">
+              P
+            </span>
+            <span className="hidden text-sm font-semibold tracking-tight text-[#141413] 2xl:inline">
+              PonkoForm
+            </span>
+          </Link>
+
+          <span aria-hidden="true" className="h-5 w-px shrink-0 bg-[#ded8cf]" />
+
+          <Link
+            to="/forms"
+            aria-label="Back to forms"
+            title="Back to forms"
+            className={`${navigationButtonClass} h-8 flex-none px-2 sm:px-2.5`}
+          >
+            <ArrowLeft size={15} className={navigationBackIconClass} aria-hidden="true" />
+            <span className="hidden sm:inline">Forms</span>
+          </Link>
+
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 truncate text-sm font-semibold text-[#141413]">
               {form?.title ?? "Loading…"}
             </span>
             {form && (
@@ -605,7 +662,7 @@ function UnifiedEditorPage() {
           id="editor-toolbar-actions"
           aria-hidden={headerCollapsed}
           inert={headerCollapsed}
-          className={`grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+          className={`order-3 grid w-full overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none xl:order-none xl:ml-auto xl:w-auto ${
             headerCollapsed
               ? "grid-rows-[0fr] opacity-0"
               : "grid-rows-[1fr] opacity-100"
@@ -613,39 +670,51 @@ function UnifiedEditorPage() {
         >
           <div className="min-h-0 overflow-hidden">
             <div
-              className={`flex flex-col gap-2 border-t border-[#e6dfd8] bg-[#f7f4ee] px-4 py-2 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transform-none motion-reduce:transition-none sm:px-6 lg:flex-row lg:items-center lg:justify-between ${
+              className={`flex flex-row items-center justify-between gap-2 border-t border-[#e6dfd8] py-2 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transform-none motion-reduce:transition-none xl:border-t-0 xl:py-0 ${
                 headerCollapsed ? "-translate-y-1" : "translate-y-0"
               }`}
             >
               <FormSectionNav formId={formId} active="build" />
 
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:pb-0">
                 {/* Variables & Valid live in the build sub-toolbar (shown in
                     both List and Canvas); these are page-level actions. */}
                 <button
+                  type="button"
                   onClick={() => {
                     setPreviewOpen(true);
                     setSelectedNodeId(null);
                     setShowVariables(false);
                   }}
-                  className="flex-none rounded-md border border-[#e6dfd8] bg-white px-3 py-1.5 text-sm text-[#6c6a64] transition-colors hover:bg-[#efe9de] hover:text-[#141413]"
+                  aria-label="Preview form"
+                  title="Preview form"
+                  className="inline-flex h-8 flex-none items-center gap-1.5 rounded-md border border-[#ded8cf] bg-white px-2.5 text-sm text-[#5f5b55] transition-colors hover:bg-[#f2ede6] hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]/30"
                 >
-                  Preview
+                  <Eye size={14} aria-hidden="true" />
+                  <span className="hidden sm:inline">Preview</span>
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => setSettingsOpen(true)}
-                  className="inline-flex flex-none items-center gap-1.5 rounded-md border border-[#e6dfd8] bg-white px-3 py-1.5 text-sm text-[#6c6a64] transition-colors hover:bg-[#efe9de] hover:text-[#141413]"
+                  aria-label="Form settings"
+                  title="Form settings"
+                  className="inline-flex h-8 flex-none items-center gap-1.5 rounded-md border border-[#ded8cf] bg-white px-2.5 text-sm text-[#5f5b55] transition-colors hover:bg-[#f2ede6] hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]/30"
                 >
-                  <span className="text-xs">⚙</span> Settings
+                  <Settings size={14} aria-hidden="true" />
+                  <span className="hidden 2xl:inline">Settings</span>
                 </button>
 
                 {isPublished && (
                   <button
+                    type="button"
                     onClick={() => setShareOpen(true)}
-                    className="inline-flex flex-none items-center gap-1.5 rounded-md border border-[#e6dfd8] bg-white px-3 py-1.5 text-sm text-[#6c6a64] transition-colors hover:bg-[#efe9de] hover:text-[#141413]"
+                    aria-label="Share form"
+                    title="Share form"
+                    className="inline-flex h-8 flex-none items-center gap-1.5 rounded-md border border-[#ded8cf] bg-white px-2.5 text-sm text-[#5f5b55] transition-colors hover:bg-[#f2ede6] hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]/30"
                   >
-                    <span className="text-xs">↗</span> Share
+                    <Share2 size={14} aria-hidden="true" />
+                    <span className="hidden 2xl:inline">Share</span>
                   </button>
                 )}
 
@@ -665,7 +734,7 @@ function UnifiedEditorPage() {
           </div>
         </div>
 
-        <div className="flex h-6 items-center justify-center bg-[#faf9f5]">
+        <div className="ml-2 flex shrink-0 items-center gap-1.5">
           <button
             type="button"
             onClick={() => setHeaderCollapsed((collapsed) => !collapsed)}
@@ -673,16 +742,18 @@ function UnifiedEditorPage() {
             aria-controls="editor-toolbar-actions"
             aria-expanded={!headerCollapsed}
             title={headerCollapsed ? "Show editor toolbar" : "Minimize editor toolbar"}
-            className="group flex h-5 w-12 items-center justify-center rounded-md text-[#8e8b82] transition-[background-color,color,transform] duration-150 hover:bg-[#efe9de] hover:text-[#141413] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-1 motion-reduce:transition-none"
+            className="group flex h-8 w-8 items-center justify-center rounded-md border border-[#ded8cf] bg-white text-[#6c6a64] transition-colors hover:bg-[#f2ede6] hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-1 motion-reduce:transition-none"
           >
             <ChevronUp
-              size={16}
+              size={15}
               aria-hidden="true"
               className={`transition-transform duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
                 headerCollapsed ? "rotate-180" : "rotate-0"
               }`}
             />
           </button>
+          <span className="hidden h-5 w-px bg-[#ded8cf] sm:block" aria-hidden="true" />
+          <UserButton />
         </div>
       </div>
 
@@ -997,8 +1068,26 @@ function UnifiedEditorPage() {
                       onDeleteEdge={(edgeId) =>
                         deleteEdgeMutation.mutate(edgeId)
                       }
-                      onSaveLayout={(layout) =>
-                        saveLayoutMutation.mutate(layout)
+                      onSaveLayout={(layout, announce) =>
+                        saveLayoutMutation.mutate(
+                          layout,
+                          announce
+                            ? {
+                                onSuccess: () =>
+                                  toast.success(
+                                    "Flow layout saved",
+                                    "Node positions are now recorded.",
+                                  ),
+                                onError: (error) =>
+                                  toast.error(
+                                    "Flow layout was not saved",
+                                    error instanceof Error
+                                      ? error.message
+                                      : "Try again in a moment.",
+                                  ),
+                              }
+                            : undefined,
+                        )
                       }
                     />
                   </Suspense>

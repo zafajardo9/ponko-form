@@ -71,6 +71,33 @@ body {
   background: var(--color-canvas);
 }
 
+/* Standalone payment links: a quiet checkout field with a receipt-like focus. */
+.payment-checkout-canvas::before {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-image:
+    linear-gradient(to right, rgb(60 55 47 / 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(60 55 47 / 0.045) 1px, transparent 1px);
+  background-size: 32px 32px;
+  content: "";
+  mask-image: radial-gradient(circle at center, black 10%, transparent 72%);
+}
+
+.payment-checkout-canvas::after {
+  position: absolute;
+  z-index: -1;
+  top: 8%;
+  left: 50%;
+  width: min(46rem, 94vw);
+  height: min(46rem, 76vh);
+  border-radius: 9999px;
+  background: rgb(204 120 92 / 0.08);
+  content: "";
+  filter: blur(1px);
+  transform: translateX(-50%);
+}
+
 /* Homepage hero: a quiet form-grid with one coordinated workflow reveal. */
 .hero-grid {
   background-image:
@@ -304,4 +331,19 @@ body {
     width: 86%;
     height: 43%;
   }
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toast-timer {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
 }

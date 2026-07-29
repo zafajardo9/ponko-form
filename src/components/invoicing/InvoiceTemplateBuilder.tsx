@@ -1,7 +1,6 @@
-import { useState } from 'react'
-import { ChevronDown, MailCheck, ReceiptText, Trash2 } from 'lucide-react'
+import { ChevronDown, ReceiptText, Trash2 } from 'lucide-react'
 import type { EmailTemplateSnapshot } from '../../db/schema'
-import type { ConfirmationConfigDraft, InvoiceConfigDraft, TemplateVariable } from '../../lib/invoicing/types'
+import type { InvoiceConfigDraft, TemplateVariable } from '../../lib/invoicing/types'
 import { InvoicePreview } from './InvoicePreview'
 import { TemplateRichTextEditor } from './TemplateRichTextEditor'
 
@@ -9,24 +8,19 @@ const inputClass = 'h-10 w-full rounded-md border border-[#e6dfd8] bg-white px-3
 
 export function InvoiceTemplateBuilder({
   invoice,
-  confirmation,
   variables,
   hasPaymentPath,
   hasEmailIntegration,
   numberingLocked,
   onInvoiceChange,
-  onConfirmationChange,
 }: {
   invoice: InvoiceConfigDraft
-  confirmation: ConfirmationConfigDraft
   variables: TemplateVariable[]
   hasPaymentPath: boolean
   hasEmailIntegration: boolean
   numberingLocked: boolean
   onInvoiceChange: (next: InvoiceConfigDraft) => void
-  onConfirmationChange: (next: ConfirmationConfigDraft) => void
 }) {
-  const [previewKind, setPreviewKind] = useState<'invoice' | 'confirmation'>('invoice')
   const emailVariables = variables.filter((variable) => variable.emailCandidate)
   const respondentVariables = variables.filter((variable) => variable.category === 'respondent')
   const prerequisites = hasPaymentPath && hasEmailIntegration && emailVariables.length > 0
@@ -40,12 +34,6 @@ export function InvoiceTemplateBuilder({
     includeLineItems: invoice.includeLineItems,
     lineItemFields: invoice.lineItemFields,
   }
-  const confirmationSnapshot: EmailTemplateSnapshot = {
-    subjectTemplate: confirmation.subjectTemplate,
-    bodyTemplate: confirmation.bodyTemplate,
-    fromName: confirmation.fromName,
-  }
-
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,0.8fr)]">
       <div className="space-y-6">
@@ -113,24 +101,13 @@ export function InvoiceTemplateBuilder({
           </div>
         </section>
 
-        <section className="rounded-xl border border-[#e6dfd8] bg-white">
-          <div className="flex items-start justify-between gap-4 border-b border-[#e6dfd8] px-5 py-4">
-            <div className="flex gap-3"><span className="rounded-lg bg-[#3f7d69]/10 p-2 text-[#3f7d69]"><MailCheck size={20} /></span><div><h2 className="font-medium text-[#141413]">Submission confirmation</h2><p className="mt-1 text-xs text-[#8e8b82]">Sent after a successful submission without payment.</p></div></div>
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={confirmation.enabled} disabled={!hasEmailIntegration || emailVariables.length === 0} onChange={(event) => onConfirmationChange({ ...confirmation, enabled: event.target.checked })} /> Enabled</label>
-          </div>
-          <div className="space-y-5 p-5">
-            <Field label="Respondent email field"><select className={inputClass} value={confirmation.respondentEmailField} onChange={(event) => onConfirmationChange({ ...confirmation, respondentEmailField: event.target.value })}><option value="">Choose an email field…</option>{emailVariables.map((variable) => <option key={variable.key} value={variable.key}>{variable.label}</option>)}</select></Field>
-            <Field label="From name"><input className={inputClass} value={confirmation.fromName} onChange={(event) => onConfirmationChange({ ...confirmation, fromName: event.target.value })} /></Field>
-            <Field label="Subject"><input className={inputClass} value={confirmation.subjectTemplate} maxLength={255} onChange={(event) => onConfirmationChange({ ...confirmation, subjectTemplate: event.target.value })} /></Field>
-            <Field label="Email body"><TemplateRichTextEditor value={confirmation.bodyTemplate} variables={variables} onChange={(bodyTemplate) => onConfirmationChange({ ...confirmation, bodyTemplate })} /></Field>
-          </div>
-        </section>
       </div>
       <aside className="min-w-0 xl:sticky xl:top-6 xl:self-start">
-        <div className="mb-3 flex rounded-lg border border-[#e6dfd8] bg-[#f5f0e8] p-1 text-sm">
-          {(['invoice', 'confirmation'] as const).map((kind) => <button key={kind} type="button" onClick={() => setPreviewKind(kind)} className={`flex-1 rounded-md px-3 py-1.5 capitalize ${previewKind === kind ? 'bg-white font-medium shadow-sm' : 'text-[#6c6a64]'}`}>{kind} preview</button>)}
+        <div className="mb-3">
+          <h2 className="text-sm font-semibold text-[#141413]">Invoice preview</h2>
+          <p className="mt-0.5 text-xs text-[#8e8b82]">Sample values replace variables here.</p>
         </div>
-        <InvoicePreview kind={previewKind} snapshot={previewKind === 'invoice' ? invoiceSnapshot : confirmationSnapshot} variables={variables} />
+        <InvoicePreview kind="invoice" snapshot={invoiceSnapshot} variables={variables} />
       </aside>
     </div>
   )

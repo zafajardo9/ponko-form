@@ -2,7 +2,7 @@
 
 > **Feature Plan** — Let creators generate standalone payment links (no form fields, just an amount + description) that open directly to the payment gateway checkout. A "Buy Now" button without building a full form. Creates a new use case: simple product sales, donations, invoice payments, and one-off charges.
 
-**Status:** 🚧 **Planned** — not yet implemented
+**Status:** ✅ **Implemented and verified** — 2026-07-29
 
 **Dependencies:**
 - ✅ **Existing Payment Architecture** — The `initiatePagePayment` / `initiatePayment` server functions and the `PaymentGateway` abstract class (PayPal + Xendit) are fully built. Payment links reuse the same gateway layer — they just skip the form fields wrapper.
@@ -308,13 +308,19 @@ export const initiatePaymentLinkCheckout = createServerFn({ method: 'POST', stri
 | File | Purpose |
 |---|---|
 | `src/db/schema.ts` | Add `paymentLinks` table; add `paymentLinkId` FK to `payments` |
-| `drizzle/0028_payment_links.sql` | Generated migration |
+| `drizzle/0026_hard_stepford_cuckoos.sql` | Generated full-history migration |
+| `drizzle/0033_payment_links.sql` | Idempotent compatibility migration used by existing/production databases |
 | `src/lib/server-fns/payment-links.ts` (new) | CRUD server functions for payment links |
+| `src/lib/payment-links/model.ts` (new) | Side-effect-free validation and per-checkout attempt identity |
+| `src/lib/payments/reconciliation.ts` | Resolve payment-link owners and synchronize aggregate totals after verification |
 | `src/routes/pay/$publicId.tsx` (new) | Public payment link page |
-| `src/routes/pay/$publicId.success.tsx` (new) | Success/thank-you page after payment |
+| `src/routes/pay/$publicId/success.tsx` (new) | Attempt-bound success/thank-you page with polling and optional redirect |
 | `src/routes/dashboard/payment-links.tsx` (new) | Creator dashboard — manage payment links |
 | `src/components/dashboard/PaymentLinkCard.tsx` (new) | Card component for the payment links list |
 | `src/routes/dashboard/index.tsx` (modify) | Add "Payment Links" section or link to the payment links page |
+| `src/components/layout/AuthenticatedAppShell.tsx` | Add authenticated desktop/mobile navigation entry |
+| `src/lib/server-fns/payment-links.test.ts` | Validation and checkout-isolation tests |
+| `src/components/dashboard/CreatePaymentLinkDialog.test.tsx` | Dialog accessibility tests |
 | `src/lib/page-builder/complete-submission.ts` (modify, optional) | If payment link payments should also fire confirmation emails |
 
 ---
@@ -379,13 +385,56 @@ export const initiatePaymentLinkCheckout = createServerFn({ method: 'POST', stri
 
 ## 9. Validation / Testing
 
-- [ ] Create payment link → gets unique `publicId` → appears in dashboard list
-- [ ] Open `publicId` in browser → renders title, description, amount, Pay button
-- [ ] Click Pay → redirected to Xendit/PayPal checkout with correct amount
-- [ ] Complete payment in sandbox → redirected to success page with thank-you message
-- [ ] Payment recorded in `payments` table with `payment_link_id` FK
-- [ ] Dashboard shows updated `total_revenue` and `total_payments` for the link
-- [ ] Custom amount mode: enter ₱1,000 on a ₱500–₱5,000 link → charged ₱1,000
-- [ ] Custom amount mode: enter ₱100 on a ₱500 min link → rejected (below minimum)
-- [ ] Deactivate link → public page shows "This payment link is no longer active"
-- [ ] Delete link → link removed from dashboard, existing payments still visible
+- [x] Creator management route loads against the migrated development database
+- [x] Authenticated desktop/mobile navigation exposes `/dashboard/payment-links`
+- [x] Create dialog is keyboard reachable and every field has an accessible label
+- [x] Create input is normalized and rejects invalid amounts, redirect protocols, and min/max ranges
+- [x] Public links use a unique opaque checkout attempt for every buyer
+- [x] Success verification is restricted to the exact public link + checkout attempt
+- [x] Payment reconciliation resolves the owning payment-link profile
+- [x] Completed/refunded reconciliation recalculates payment count and revenue idempotently
+- [x] Custom amounts are enforced server-side and shown on the Pay button
+- [x] Success verification polls while the provider is pending and honors the optional redirect URL
+- [x] Database compatibility check requires the table, FK column, and payment-link index
+- [x] Full automated test suite, TypeScript compilation, and production client/SSR build pass
+
+> Gateway-hosted checkout still requires the creator's own connected Xendit or PayPal
+> sandbox/live credentials. The implementation reuses the already-tested gateway layer;
+> no real charge was created as part of repository verification.
+
+---
+
+## 10. Implementation Verification (2026-07-29)
+
+Artifacts and runtime behavior verified:
+
+| # | Artifact | Path | Status |
+|---|---|---|---|
+| 1 | Schema: `paymentLinks` table (18 columns) | `src/db/schema.ts:886-916` | ✅ Present |
+| 1b | Schema: `paymentLinkId` FK on `payments` | `src/db/schema.ts:527` | ✅ Present |
+| 2 | Migrations: full history + compatibility | `drizzle/0026_hard_stepford_cuckoos.sql`, `drizzle/0033_payment_links.sql` | ✅ Applied to the configured development database; compatibility check passes |
+| 3 | Server functions (7) | `src/lib/server-fns/payment-links.ts` | ✅ Present — `createPaymentLink`, `getPaymentLinks`, `togglePaymentLink`, `deletePaymentLink`, `getPublicPaymentLink`, `initiatePaymentLinkCheckout`, `finalizePaymentLinkPayment` |
+| 4a | Public pay page | `src/routes/pay/$publicId.tsx` | ✅ Present — uses `getPublicPaymentLink` + `initiatePaymentLinkCheckout` |
+| 4b | Public success page | `src/routes/pay/$publicId/success.tsx` | ✅ Present — uses `finalizePaymentLinkPayment` |
+| 5 | Dashboard management page | `src/routes/dashboard/payment-links.tsx` | ✅ Present — full CRUD with `PaymentLinkCard` + `CreatePaymentLinkDialog` |
+| 6a | Card component | `src/components/dashboard/PaymentLinkCard.tsx` | ✅ Present |
+| 6b | Create dialog component | `src/components/dashboard/CreatePaymentLinkDialog.tsx` | ✅ Present |
+| 7 | Dashboard integration | `src/routes/dashboard/index.tsx:568-586` | ✅ Present — "Payment Links" section linking to `/dashboard/payment-links` |
+| 8 | Route tree | `src/routeTree.gen.ts` | ✅ Present — `/pay/$publicId`, `/pay/$publicId/success`, `/dashboard/payment-links` |
+| 9 | TypeScript compilation | `pnpm tsc --noEmit` | ✅ Passed — zero errors |
+| 10 | Automated tests | `pnpm test` | ✅ Passed — 74 files, 323 tests |
+| 11 | Production build | `pnpm run build` | ✅ Passed — client, SSR, and Nitro server bundles |
+| 12 | Live browser verification | `http://localhost:3000/dashboard/payment-links` | ✅ Authenticated route, navigation, empty state, and accessible create dialog verified |
+
+### Corrections made during verification
+
+- Replaced the shared-per-link checkout key with a unique 192-bit attempt token so
+  different buyers never reuse the same gateway checkout.
+- Bound the success route to that attempt token instead of selecting the latest
+  payment made by any visitor.
+- Added payment-link ownership resolution to the shared reconciliation layer.
+- Replaced non-atomic counter increments with idempotent totals derived from
+  completed payment records.
+- Added server-side schema validation and supported-currency/connected-provider checks.
+- Completed redirect URL behavior, pending verification polling, dynamic custom-amount
+  button text, SSR-safe public URLs, navigation access, and form-label accessibility.

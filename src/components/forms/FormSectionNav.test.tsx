@@ -21,6 +21,7 @@ describe('FormSectionNav', () => {
     expect(screen.getByRole('navigation', { name: 'Form sections' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Build' }).getAttribute('href')).toBe('/forms/17/edit')
     expect(screen.getByRole('link', { name: 'Responses' }).getAttribute('href')).toBe('/forms/17/submissions')
+    expect(screen.getByRole('link', { name: 'Emails' }).getAttribute('href')).toBe('/forms/17/emails')
     expect(screen.getByRole('link', { name: 'Payments' }).getAttribute('href')).toBe('/forms/17/payments')
     expect(screen.getByRole('link', { name: 'Invoicing' }).getAttribute('aria-current')).toBe('page')
     expect(screen.getAllByRole('link').filter((link) => link.getAttribute('aria-current') === 'page')).toHaveLength(1)

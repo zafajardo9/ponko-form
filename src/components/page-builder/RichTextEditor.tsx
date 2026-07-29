@@ -189,7 +189,6 @@ export default function RichTextEditor({
         contentEditable
         suppressContentEditableWarning
         className="rich-text-content min-h-40 bg-[#faf9f5] px-3 py-3 text-sm leading-6 text-[#141413] outline-none"
-        dangerouslySetInnerHTML={{ __html: normalizedHtml(value) }}
         onInput={emitChange}
         onFocus={rememberSelection}
         onKeyUp={rememberSelection}

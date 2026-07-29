@@ -67,6 +67,24 @@ async function main() {
         WHERE table_schema = 'public' AND table_name = 'form_confirmation_configs'
       ) AS has_confirmation_configs,
       EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'form_confirmation_configs'
+          AND column_name = 'cc_recipients'
+      ) AS has_confirmation_cc_recipients,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'form_confirmation_configs'
+          AND column_name = 'templates'
+      ) AS has_response_email_templates,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'email_delivery_logs'
+          AND column_name = 'template_key'
+      ) AS has_email_delivery_template_key,
+      EXISTS (
         SELECT 1 FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = 'email_delivery_logs'
       ) AS has_email_delivery_logs,
@@ -104,6 +122,23 @@ async function main() {
           AND table_name = 'profiles'
           AND column_name = 'dashboard_currency'
       ) AS has_dashboard_currency,
+      EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name = 'payment_links'
+      ) AS has_payment_links,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'payments'
+          AND column_name = 'payment_link_id'
+      ) AS has_payment_link_reference,
+      EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename = 'payments'
+          AND indexname = 'payments_payment_link_id_idx'
+      ) AS has_payment_link_reference_index,
       to_regprocedure('public.replace_page_form(integer,jsonb,jsonb)') IS NOT NULL
         AS has_replace_page_form
   `
@@ -139,6 +174,9 @@ async function main() {
     !compatibility?.has_form_templates ||
     !compatibility?.has_invoice_configs ||
     !compatibility?.has_confirmation_configs ||
+    !compatibility?.has_confirmation_cc_recipients ||
+    !compatibility?.has_response_email_templates ||
+    !compatibility?.has_email_delivery_template_key ||
     !compatibility?.has_email_delivery_logs ||
     !compatibility?.has_subscription_cycles ||
     !compatibility?.has_subscription_config ||
@@ -147,6 +185,9 @@ async function main() {
     !compatibility?.has_submission_query_index ||
     !compatibility?.has_payment_query_index ||
     !compatibility?.has_dashboard_currency ||
+    !compatibility?.has_payment_links ||
+    !compatibility?.has_payment_link_reference ||
+    !compatibility?.has_payment_link_reference_index ||
     !compatibility?.has_replace_page_form
   ) {
     throw new Error(

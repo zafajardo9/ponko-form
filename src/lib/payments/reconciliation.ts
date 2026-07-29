@@ -9,6 +9,7 @@ import {
   forms,
   paymentEvents,
   paymentGateways,
+  paymentLinks,
   payments,
   subscriptionCycles,
 } from '@/db/schema'
@@ -139,6 +140,13 @@ function paymentEnvironment(payment: typeof payments.$inferSelect): PaymentEnvir
 }
 
 async function paymentOwnerProfileId(payment: typeof payments.$inferSelect): Promise<number> {
+  if (payment.paymentLinkId) {
+    const [row] = await db.select({ profileId: paymentLinks.profileId })
+      .from(paymentLinks)
+      .where(eq(paymentLinks.id, payment.paymentLinkId))
+      .limit(1)
+    if (row) return row.profileId
+  }
   if (payment.pageSessionId) {
     const [row] = await db.select({ profileId: forms.profileId })
       .from(formSubmissionSessions)
@@ -155,6 +163,25 @@ async function paymentOwnerProfileId(payment: typeof payments.$inferSelect): Pro
     if (row) return row.profileId
   }
   throw new Error('Payment owner could not be resolved')
+}
+
+async function syncPaymentLinkTotals(payment: typeof payments.$inferSelect) {
+  if (!payment.paymentLinkId) return
+  await db.update(paymentLinks).set({
+    totalPayments: sql<number>`(
+      SELECT COUNT(*)::int
+      FROM "payments"
+      WHERE "payments"."payment_link_id" = ${payment.paymentLinkId}
+        AND "payments"."status" = 'completed'
+    )`,
+    totalRevenue: sql<number>`(
+      SELECT COALESCE(SUM("payments"."amount"), 0)::int
+      FROM "payments"
+      WHERE "payments"."payment_link_id" = ${payment.paymentLinkId}
+        AND "payments"."status" = 'completed'
+    )`,
+    updatedAt: new Date(),
+  }).where(eq(paymentLinks.id, payment.paymentLinkId))
 }
 
 async function markRecoverableResponse(payment: typeof payments.$inferSelect, status: PaymentStatus) {
@@ -273,6 +300,7 @@ export async function reconcilePayment(input: {
     }).where(eq(payments.id, row.payment.id))
     await markRecoverableResponse(row.payment, normalized)
     await syncPaymentOwnerStatus(row.payment, normalized)
+    await syncPaymentLinkTotals(row.payment)
     await completePaymentEvent(
       claimedEvent,
       normalized === row.payment.status ? 'ignored' : 'processed',
