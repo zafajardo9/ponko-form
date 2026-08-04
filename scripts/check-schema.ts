@@ -139,6 +139,49 @@ async function main() {
           AND tablename = 'payments'
           AND indexname = 'payments_payment_link_id_idx'
       ) AS has_payment_link_reference_index,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'profiles'
+          AND column_name = 'auth_id'
+      ) AS has_profile_auth_id,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'profiles'
+          AND column_name = 'email'
+      ) AS has_profile_email,
+      EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'profiles_auth_id_unique'
+          AND conrelid = 'profiles'::regclass
+      ) AS has_profile_auth_constraint,
+      EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name = 'form_collaborators'
+      ) AS has_form_collaborators,
+      EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name = 'collaboration_logs'
+      ) AS has_collaboration_logs,
+      EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'user'
+      ) AS has_better_auth_user,
+      EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'session'
+      ) AS has_better_auth_session,
+      EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'account'
+      ) AS has_better_auth_account,
+      EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'verification'
+      ) AS has_better_auth_verification,
       to_regprocedure('public.replace_page_form(integer,jsonb,jsonb)') IS NOT NULL
         AS has_replace_page_form
   `
@@ -188,6 +231,15 @@ async function main() {
     !compatibility?.has_payment_links ||
     !compatibility?.has_payment_link_reference ||
     !compatibility?.has_payment_link_reference_index ||
+    !compatibility?.has_profile_auth_id ||
+    !compatibility?.has_profile_email ||
+    !compatibility?.has_profile_auth_constraint ||
+    !compatibility?.has_form_collaborators ||
+    !compatibility?.has_collaboration_logs ||
+    !compatibility?.has_better_auth_user ||
+    !compatibility?.has_better_auth_session ||
+    !compatibility?.has_better_auth_account ||
+    !compatibility?.has_better_auth_verification ||
     !compatibility?.has_replace_page_form
   ) {
     throw new Error(

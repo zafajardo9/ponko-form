@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { auth } from "@clerk/tanstack-react-start/server";
+import { currentAuth as auth } from "../auth.server";
 import { db } from "@/db/index";
 import {
   payments,
@@ -238,7 +238,7 @@ export const getFormPayments = createServerFn({ method: "GET", strict: false })
       .select({ id: forms.id, title: forms.title })
       .from(forms)
       .innerJoin(profiles, eq(profiles.id, forms.profileId))
-      .where(and(eq(forms.id, data.formId), eq(profiles.clerkId, userId)))
+      .where(and(eq(forms.id, data.formId), eq(profiles.authId, userId)))
       .limit(1);
     if (!form) throw new Error("Not found");
 
@@ -464,7 +464,7 @@ export const bulkVerifyPayments = createServerFn({ method: "POST", strict: false
     return { verified, results };
   });
 
-async function ownedPayment(formId: number, paymentId: number, clerkId: string) {
+async function ownedPayment(formId: number, paymentId: number, authId: string) {
   const [row] = await db.select({
     payment: payments,
     gatewaySlug: paymentGateways.slug,
@@ -487,7 +487,7 @@ async function ownedPayment(formId: number, paymentId: number, clerkId: string) 
     .where(and(
       eq(payments.id, paymentId),
       eq(forms.id, formId),
-      eq(profiles.clerkId, clerkId),
+      eq(profiles.authId, authId),
     ))
     .limit(1);
   if (!row) throw new Error("Payment not found");

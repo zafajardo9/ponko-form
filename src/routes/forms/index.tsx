@@ -12,6 +12,7 @@ import { FormCard } from "@/components/dashboard/FormCard";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { FormPreviewDialog } from "@/components/dashboard/FormPreviewDialog";
 import { ShareDialog } from "@/components/dashboard/ShareDialog";
+import { ShareFormDialog } from "@/components/forms/ShareFormDialog";
 import { Button } from "@/components/ui/Button";
 import {
   AlertCircle,
@@ -31,6 +32,7 @@ function FormsPage() {
   const queryClient = useQueryClient();
   const [previewFormId, setPreviewFormId] = useState<number | null>(null);
   const [shareFormId, setShareFormId] = useState<number | null>(null);
+  const [accessFormId, setAccessFormId] = useState<number | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
   const [bulkError, setBulkError] = useState<string | null>(null);
@@ -127,18 +129,21 @@ function FormsPage() {
   function toggleAll() {
     setBulkMessage(null);
     setBulkError(null);
+    const ownedForms = forms.filter((form) => form.accessRole === "owner");
     setSelectedIds((current) =>
-      current.size === forms.length
+      current.size === ownedForms.length
         ? new Set()
-        : new Set(forms.map((form) => form.id)),
+        : new Set(ownedForms.map((form) => form.id)),
     );
   }
 
   const selected = [...selectedIds];
-  const allSelected = forms.length > 0 && selectedIds.size === forms.length;
+  const ownedFormCount = forms.filter((form) => form.accessRole === "owner").length;
+  const allSelected = ownedFormCount > 0 && selectedIds.size === ownedFormCount;
   const bulkPending = bulkStatusMutation.isPending || bulkDeleteMutation.isPending;
   const previewForm = forms.find((form) => form.id === previewFormId);
   const shareForm = forms.find((form) => form.id === shareFormId);
+  const accessForm = forms.find((form) => form.id === accessFormId);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:py-12">
@@ -312,6 +317,7 @@ function FormsPage() {
                 onDelete={handleDelete}
                 onPreview={(id) => setPreviewFormId(id)}
                 onShare={(id) => setShareFormId(id)}
+                onManageAccess={(id) => setAccessFormId(id)}
                 selected={selectedIds.has(form.id)}
                 onSelectionChange={setFormSelected}
               />
@@ -333,6 +339,14 @@ function FormsPage() {
           publicId={shareForm.publicId}
           title={shareForm?.title ?? "Form"}
           onClose={() => setShareFormId(null)}
+        />
+      )}
+      {accessFormId != null && accessForm?.accessRole === "owner" && (
+        <ShareFormDialog
+          formId={accessForm.id}
+          title={accessForm.title}
+          open
+          onClose={() => setAccessFormId(null)}
         />
       )}
     </div>

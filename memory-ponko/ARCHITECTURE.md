@@ -49,7 +49,7 @@ Internal numeric `forms.id` values are used on authenticated creator routes. Pub
 | Server state | TanStack Query |
 | Build | Vite 8 |
 | Styling | Tailwind CSS 4 through `@tailwindcss/vite` |
-| Authentication | Clerk via `@clerk/tanstack-react-start` |
+| Authentication | Better Auth email/password accounts with the Drizzle adapter |
 | Database | PostgreSQL; Neon HTTP or `pg` driver selected from the database URL/config |
 | ORM/migrations | Drizzle ORM and Drizzle Kit |
 | Flow canvas | `@xyflow/react` |
@@ -92,9 +92,11 @@ ponkoform/
 │   │   ├── driver.ts             # Database-driver selection
 │   │   └── index.ts              # Shared database access
 │   ├── integrations/
-│   │   ├── clerk/                # Clerk provider and user header
 │   │   └── payments/             # Gateway contract, registry, PayPal, Xendit
 │   ├── lib/
+│   │   ├── auth.ts               # Better Auth server configuration
+│   │   ├── auth.server.ts        # Request-session validation
+│   │   ├── profile.server.ts     # Verified-identity profile linking
 │   │   ├── email/                # Resend/SMTP and transactional dispatch
 │   │   ├── flow-engine/          # Flow engine, validator, expression parser
 │   │   ├── form-templates/       # Built-in template catalog and creation plans
@@ -190,7 +192,11 @@ Render is the maintained deployment path:
 - Database prep: migrations, schema validation, built-in template seed
 - Reconciliation endpoint: `/api/internal/reconcile-payments`, protected by `CRON_SECRET`
 
-Required production secrets are `DATABASE_URL`, Clerk publishable/secret keys, and `CREDENTIALS_ENCRYPTION_KEY`. `CRON_SECRET` is required if the reconciliation endpoint is scheduled. Provider credentials are normally connected per creator in Settings, with limited environment fallbacks for PayPal and Xendit.
+Required production values are `DATABASE_URL`, `BETTER_AUTH_SECRET`,
+`BETTER_AUTH_URL`, and `CREDENTIALS_ENCRYPTION_KEY`.
+`CRON_SECRET` is required if the reconciliation endpoint is scheduled. Provider
+credentials are normally connected per creator in Settings, with limited
+environment fallbacks for PayPal and Xendit.
 
 `vercel.json` remains in the repository, but the old `api/index.ts` Vercel bridge was removed. Do not document Vercel serverless as the current production architecture.
 

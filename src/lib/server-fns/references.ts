@@ -1,11 +1,11 @@
 import { createServerFn } from '@tanstack/react-start'
-import { auth } from '@clerk/tanstack-react-start/server'
+import { currentAuth as auth } from '../auth.server'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '../../db/index'
 import { formPageFields, formPages, formReferences } from '../../db/schema'
 import { isReferenceKey } from '../page-builder/references'
 import type { FormReferenceType } from '../page-builder/types'
-import { assertFormOwner } from './flow-helpers'
+import { assertFormEditor as assertFormOwner } from './flow-helpers'
 
 function validateReferenceValue(type: FormReferenceType, value: string) {
   if (type === 'number' && !Number.isFinite(Number(value))) {

@@ -38,7 +38,7 @@ PonkoForm is a flexible form creation tool (similar to Google Forms) with integr
 | **Page Builder** | Traditional linear multi-page forms with independent pages | Simple surveys, contact forms, linear workflows |
 | **Flow Builder** | Visual node-graph editor for branching logic, calculations, and conditional paths | Complex processes (payment plans, service calculators, branching apps) |
 
-**Tech Stack:** TanStack Start + React 19 + Clerk + PostgreSQL (Neon HTTP or standard `pg`) + Drizzle ORM
+**Tech Stack:** TanStack Start + React 19 + Better Auth + PostgreSQL (Neon HTTP or standard `pg`) + Drizzle ORM
 
 **Payment Gateways:** Bring-your-own-gateway model — PayPal (multi-currency) and Xendit (PHP only), extensible via registry pattern.
 
@@ -697,7 +697,10 @@ When `emailSurveyToken` + `emailSurveyRating` URL params are present:
 
 | Table | Purpose |
 |---|---|
-| `profiles` | User profiles (1:1 with Clerk) |
+| `user`, `session`, `account`, `verification` | Better Auth identities, sessions, OAuth accounts, and verification state |
+| `profiles` | Stable application profiles linked to Better Auth users by `auth_id` and verified email |
+| `formCollaborators` | Editor/viewer access grants for existing users |
+| `collaborationLogs` | Audit trail for collaborator access changes |
 | `integrationSettings` | Per-user payment/SMTP credentials |
 | `forms` | Form definitions (title, status, theme, publicId) |
 | `formPages` | Page-builder pages (title, payment config, subscription config) |
@@ -769,8 +772,9 @@ When `emailSurveyToken` + `emailSurveyRating` URL params are present:
 | `/forms/submit/$publicId` | Public form submission |
 | `/forms/embed/$publicId` | Embedded form |
 | `/forms/payment-return` | Payment gateway callback |
-| `/sign-in/$` | Clerk sign-in |
-| `/sign-up/$` | Clerk sign-up |
+| `/sign-in` | Better Auth email/password sign-in and account creation |
+| `/api/auth/$` | Better Auth session and credential endpoints |
+| `/sign-out` | Ends the Better Auth session |
 
 ### API Routes
 

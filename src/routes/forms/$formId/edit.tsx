@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { UserButton } from "@clerk/tanstack-react-start";
 import {
   ArrowLeft,
   ChevronUp,
@@ -60,6 +59,8 @@ import { PreviewDialog } from "@/components/ui/PreviewDialog";
 import { useToast } from "@/components/ui/Toast";
 import { FormSectionNav } from "@/components/forms/FormSectionNav";
 import { ShareDialog } from "@/components/dashboard/ShareDialog";
+import { UserMenu } from "@/components/auth/UserMenu";
+import { ShareFormDialog } from "@/components/forms/ShareFormDialog";
 import { SettingsDialog } from "@/components/flow-builder/SettingsDialog";
 import { themeVars, type FormTheme } from "@/lib/theme";
 import type { FormPage, FormReference } from "@/lib/page-builder/types";
@@ -166,6 +167,7 @@ function UnifiedEditorPage() {
   const [validateOpen, setValidateOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(preview === true);
   const [shareOpen, setShareOpen] = useState(false);
+  const [accessOpen, setAccessOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pagePreviewDraft, setPagePreviewDraft] = useState<{
     pages: FormPage[];
@@ -718,6 +720,19 @@ function UnifiedEditorPage() {
                   </button>
                 )}
 
+                {form?.accessRole === "owner" && (
+                  <button
+                    type="button"
+                    onClick={() => setAccessOpen(true)}
+                    aria-label="Manage form access"
+                    title="Manage form access"
+                    className="inline-flex h-8 flex-none items-center gap-1.5 rounded-md border border-[#ded8cf] bg-white px-2.5 text-sm text-[#5f5b55] transition-colors hover:bg-[#f2ede6] hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]/30"
+                  >
+                    <Share2 size={14} aria-hidden="true" />
+                    <span className="hidden 2xl:inline">Access</span>
+                  </button>
+                )}
+
                 <Button
                   variant={isPublished ? "secondary" : "primary"}
                   size="sm"
@@ -753,7 +768,7 @@ function UnifiedEditorPage() {
             />
           </button>
           <span className="hidden h-5 w-px bg-[#ded8cf] sm:block" aria-hidden="true" />
-          <UserButton />
+          <UserMenu />
         </div>
       </div>
 
@@ -816,6 +831,14 @@ function UnifiedEditorPage() {
           onClose={() => setShareOpen(false)}
         />
       )}
+      {accessOpen && form?.accessRole === "owner" && (
+        <ShareFormDialog
+          formId={form.id}
+          title={form.title}
+          open
+          onClose={() => setAccessOpen(false)}
+        />
+      )}
       {settingsOpen && (
         <SettingsDialog
           formTitle={form?.title ?? "Form"}
@@ -872,7 +895,7 @@ function UnifiedEditorPage() {
             </h2>
             <p className="mt-2 text-sm text-[#6c6a64]">
               {(setupError as Error)?.message ??
-                "Check your database migration and Clerk session, then refresh this page."}
+                "Check your database migration and authentication session, then refresh this page."}
             </p>
             <Button
               type="button"

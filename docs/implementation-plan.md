@@ -8,7 +8,7 @@
 | Area | Status | Notes |
 |---|---|---|
 | TanStack Start/React application | Complete | File routes, SSR/server functions, Nitro Node output |
-| Clerk authentication and ownership checks | Complete | Authenticated creator routes; public respondent routes |
+| Better Auth and role-aware access checks | Complete locally | Email/password accounts, authenticated creator routes, editor/viewer collaboration, and public respondent routes. |
 | PostgreSQL/Drizzle persistence | Complete | Migrations, schema check, Render preparation workflow |
 | Form dashboard and CRUD | Complete | Templates, bulk actions, sharing, aggregate analytics |
 | Page Builder | Complete baseline | Pages, 18 field types, validation, conditions, references, calculations |

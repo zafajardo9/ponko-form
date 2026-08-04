@@ -1,9 +1,9 @@
 import { createServerFn } from '@tanstack/react-start'
-import { auth } from '@clerk/tanstack-react-start/server'
+import { currentAuth as auth } from '../auth.server'
 import { db } from '../../db/index'
 import { flowVariables, flowNodes } from '../../db/schema'
 import { eq, and } from 'drizzle-orm'
-import { assertFlowOwner } from './flow-helpers'
+import { assertFlowEditor as assertFlowOwner } from './flow-helpers'
 import type { FlowVariableType } from '../flow-engine/types'
 
 /** snake_case identifier check for variable names. */

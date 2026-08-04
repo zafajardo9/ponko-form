@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { redirect } from '@tanstack/react-router'
-import { auth } from '@clerk/tanstack-react-start/server'
+import { isBetterAuthConfigured } from '../auth-env'
 
 const DEFAULT_AUTH_RETURN_TO = '/forms'
 
@@ -20,22 +20,21 @@ export function safeAuthReturnTo(value: unknown): string {
   }
 }
 
-// auth() needs the server request context (set up by clerkMiddleware), so it
-// must run inside a server function — calling it directly in beforeLoad fails
-// on the client with "Cannot read properties of undefined (reading 'auth')".
 export const requireAuth = createServerFn({ method: 'GET' })
   .validator((data?: { returnTo?: string }) => ({
     returnTo: safeAuthReturnTo(data?.returnTo),
   }))
   .handler(async ({ data }) => {
-    const { isAuthenticated, userId, sessionId } = await auth()
+    const { currentAuth } = await import('../auth.server')
+    const { isAuthenticated, userId, sessionId } = await currentAuth()
     if (!isAuthenticated || !userId || !sessionId) {
       throw redirect({
-        to: '/sign-in/$',
-        params: { _splat: '' },
+        to: '/sign-in',
         search: { redirect_url: data.returnTo },
       })
     }
+    const { ensureProfile } = await import('../profile.server')
+    await ensureProfile(userId)
     return { userId, sessionId }
   })
 
@@ -44,7 +43,12 @@ export const redirectAuthenticatedUser = createServerFn({ method: 'GET' })
     returnTo: safeAuthReturnTo(data?.returnTo),
   }))
   .handler(async ({ data }) => {
-    const { isAuthenticated, userId } = await auth()
+    const { currentAuth } = await import('../auth.server')
+    const { isAuthenticated, userId } = await currentAuth()
     if (isAuthenticated && userId) throw redirect({ href: data.returnTo })
     return { isAuthenticated: false as const }
   })
+
+export const getAuthAvailability = createServerFn({ method: 'GET' }).handler(
+  async () => ({ configured: isBetterAuthConfigured() }),
+)

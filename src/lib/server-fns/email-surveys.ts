@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { createServerFn } from '@tanstack/react-start'
-import { auth } from '@clerk/tanstack-react-start/server'
+import { currentAuth as auth } from '../auth.server'
 import { and, eq } from 'drizzle-orm'
 import { db } from '../../db/index'
 import {
@@ -10,7 +10,7 @@ import {
   forms,
 } from '../../db/schema'
 import type { PageFieldOption } from '../page-builder/types'
-import { assertFormOwner } from './flow-helpers'
+import { assertFormEditor as assertFormOwner } from './flow-helpers'
 import { emailSurveyTokenHash, validEmailSurveyToken } from './email-survey-token'
 
 export const getEmailSurveyFields = createServerFn({ method: 'GET', strict: false })

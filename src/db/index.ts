@@ -4,7 +4,10 @@ import { drizzle as drizzlePostgres } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
 
 import * as schema from './schema.ts'
+import * as authSchema from './auth-schema.ts'
 import { resolveDatabaseDriver } from './driver.ts'
+
+const databaseSchema = { ...schema, ...authSchema }
 
 const databaseUrl = process.env.DATABASE_URL
 
@@ -18,7 +21,7 @@ const driver = resolveDatabaseDriver(databaseUrl)
 // PostgreSQL URLs to use a long-lived connection pool.
 export const db = (
   driver === 'neon-http'
-    ? drizzleNeon({ client: neon(databaseUrl), schema })
+    ? drizzleNeon({ client: neon(databaseUrl), schema: databaseSchema })
     : drizzlePostgres({
         client: new Pool({
           connectionString: databaseUrl,
@@ -27,6 +30,6 @@ export const db = (
           connectionTimeoutMillis: 10_000,
           allowExitOnIdle: true,
         }),
-        schema,
+        schema: databaseSchema,
       })
-) as unknown as NeonHttpDatabase<typeof schema>
+) as unknown as NeonHttpDatabase<typeof databaseSchema>

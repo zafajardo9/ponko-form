@@ -7,9 +7,8 @@
   "secrets": {
     "required": [
       "DATABASE_URL",
-      "VITE_CLERK_PUBLISHABLE_KEY",
-      "CLERK_PUBLISHABLE_KEY",
-      "CLERK_SECRET_KEY",
+      "BETTER_AUTH_SECRET",
+      "BETTER_AUTH_URL",
       "CREDENTIALS_ENCRYPTION_KEY"
     ]
   },

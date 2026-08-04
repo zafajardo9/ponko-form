@@ -61,7 +61,8 @@ export default function RichTextEditor({
   onChange: (html: string) => void
 }) {
   const editorRef = useRef<HTMLDivElement>(null)
-  const lastHtmlRef = useRef(normalizedHtml(value))
+  // Start empty so the mount effect hydrates the contentEditable element.
+  const lastHtmlRef = useRef('')
   const savedRangeRef = useRef<Range | null>(null)
   const [toolbar, setToolbar] = useState(EMPTY_TOOLBAR)
 

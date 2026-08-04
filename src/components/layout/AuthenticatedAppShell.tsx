@@ -1,8 +1,8 @@
-import { Show, UserButton } from '@clerk/tanstack-react-start'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Menu, X } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
-import ClerkProvider from '../../integrations/clerk/provider'
+import { useSession } from '../../lib/auth-client'
+import { UserMenu } from '../auth/UserMenu'
 
 export default function AuthenticatedAppShell({
   children,
@@ -11,12 +11,13 @@ export default function AuthenticatedAppShell({
 }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const focusedEditor = /^\/forms\/[^/]+\/edit\/?$/.test(pathname)
+  const authPage = pathname === '/sign-in' || pathname.startsWith('/sign-in/')
 
   return (
-    <ClerkProvider>
-      {!focusedEditor && <TopNav />}
+    <>
+      {!focusedEditor && !authPage && <TopNav />}
       {children}
-    </ClerkProvider>
+    </>
   )
 }
 
@@ -24,6 +25,8 @@ const navLinkClass =
   'text-sm text-[#6c6a64] transition-colors hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2 [&.active]:font-medium [&.active]:text-[#141413]'
 
 export function TopNav() {
+  const { data: session } = useSession()
+  const signedIn = Boolean(session)
   return (
     <header className="sticky top-0 z-50 flex h-16 items-center border-b border-[#e6dfd8] bg-[#faf9f5]/95 px-4 backdrop-blur-sm sm:px-6">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between">
@@ -41,7 +44,7 @@ export function TopNav() {
           </Link>
 
           <nav className="hidden items-center gap-6 sm:flex">
-            <Show when="signed-in">
+            {signedIn ? <>
               <Link
                 to="/dashboard"
                 className={navLinkClass}
@@ -66,7 +69,7 @@ export function TopNav() {
               >
                 Integrations
               </Link>
-            </Show>
+            </> : null}
             <Link
               to="/docs"
               className={navLinkClass}
@@ -77,32 +80,30 @@ export function TopNav() {
         </div>
 
         <div className="flex items-center gap-3">
-          <MobileNavigation />
-          <Show when="signed-out">
+          <MobileNavigation signedIn={signedIn} />
+          {!signedIn ? <>
             <a
-              href="/sign-in/"
+              href="/sign-in"
               className="hidden rounded-md text-sm font-medium text-[#6c6a64] transition-colors hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2 sm:inline"
             >
               Sign in
             </a>
             <a
-              href="/sign-up/"
+              href="/sign-in"
               className="inline-flex h-9 shrink-0 items-center rounded-md bg-[#cc785c] px-3 text-sm font-medium text-white transition-colors hover:bg-[#a9583e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2 sm:px-4"
             >
               <span className="sm:hidden">Start free</span>
               <span className="hidden sm:inline">Get started free</span>
             </a>
-          </Show>
-          <Show when="signed-in">
-            <UserButton />
-          </Show>
+          </> : null}
+          {signedIn ? <UserMenu /> : null}
         </div>
       </div>
     </header>
   )
 }
 
-function MobileNavigation() {
+function MobileNavigation({ signedIn }: { signedIn: boolean }) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -152,7 +153,7 @@ function MobileNavigation() {
           aria-label="Mobile navigation"
           className="absolute right-0 top-12 w-60 overflow-hidden rounded-xl border border-[#e6dfd8] bg-[#faf9f5] p-2 shadow-[0_18px_45px_rgba(37,35,32,0.14)]"
         >
-          <Show when="signed-in">
+          {signedIn ? <>
             <p className="px-3 pb-2 pt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-[#8e8b82]">
               Workspace
             </p>
@@ -161,17 +162,17 @@ function MobileNavigation() {
             <MobileNavLink to="/dashboard/payment-links" onSelect={close}>Payment Links</MobileNavLink>
             <MobileNavLink to="/settings/integrations" onSelect={close}>Integrations</MobileNavLink>
             <div className="my-2 h-px bg-[#e6dfd8]" />
-          </Show>
+          </> : null}
           <MobileNavLink to="/docs" onSelect={close}>Documentation</MobileNavLink>
-          <Show when="signed-out">
+          {!signedIn ? (
             <a
-              href="/sign-in/"
+              href="/sign-in"
               onClick={close}
               className="flex min-h-10 items-center rounded-lg px-3 text-sm font-medium text-[#3d3d3a] transition-colors hover:bg-[#f5f0e8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#cc785c]"
             >
               Sign in
             </a>
-          </Show>
+          ) : null}
         </nav>
       )}
     </div>

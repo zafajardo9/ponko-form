@@ -24,10 +24,12 @@ interface FormCardProps {
     description: string | null;
     updatedAt: Date | string;
     hasPayment: boolean;
+    accessRole?: "owner" | "editor" | "viewer";
   };
   onDelete: (id: number) => void;
   onPreview: (id: number) => void;
   onShare: (id: number) => void;
+  onManageAccess?: (id: number) => void;
   selected?: boolean;
   onSelectionChange?: (id: number, selected: boolean) => void;
 }
@@ -83,6 +85,7 @@ export function FormCard({
   onDelete,
   onPreview,
   onShare,
+  onManageAccess,
   selected = false,
   onSelectionChange,
 }: FormCardProps) {
@@ -91,6 +94,8 @@ export function FormCard({
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const updatedAt = new Date(form.updatedAt);
   const canShare = form.status === "published";
+  const accessRole = form.accessRole ?? "owner";
+  const isOwner = accessRole === "owner";
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -138,6 +143,7 @@ export function FormCard({
               role="checkbox"
               aria-checked={selected}
               aria-label={`Select ${form.title}`}
+              disabled={!isOwner}
               onClick={() => onSelectionChange?.(form.id, !selected)}
               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-[background-color,border-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2 ${
                 selected
@@ -148,6 +154,9 @@ export function FormCard({
               <Check size={15} strokeWidth={3} aria-hidden="true" />
             </button>
             <Badge variant={form.status}>{form.status}</Badge>
+            <span className="rounded-full bg-[#eee8df] px-2 py-1 text-[11px] font-medium capitalize text-[#6c6258]">
+              {accessRole}
+            </span>
           </div>
 
           <div ref={menuRef} className="relative">
@@ -173,7 +182,11 @@ export function FormCard({
                   Workspace
                 </p>
                 {workspaceSections
-                  .filter((section) => !section.paymentOnly || form.hasPayment)
+                  .filter((section) =>
+                    accessRole !== "viewer"
+                    && (accessRole === "owner" || section.label === "Builder")
+                    && (!section.paymentOnly || form.hasPayment),
+                  )
                   .map((section) => {
                     const Icon = section.icon;
                     return (
@@ -201,7 +214,21 @@ export function FormCard({
                     );
                   })}
                 <div className="my-1.5 border-t border-[#ece6de]" />
-                <button
+                {isOwner && onManageAccess ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onManageAccess(form.id);
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-[#4f4c46] transition-colors hover:bg-[#f5f0e8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]"
+                  >
+                    <Share2 size={15} aria-hidden="true" />
+                    Manage access
+                  </button>
+                ) : null}
+                {isOwner ? <button
                   type="button"
                   role="menuitem"
                   onClick={() => {
@@ -212,21 +239,25 @@ export function FormCard({
                 >
                   <Trash2 size={15} aria-hidden="true" />
                   Delete form
-                </button>
+                </button> : null}
               </div>
             ) : null}
           </div>
         </div>
 
-        <Link
-          to="/forms/$formId/edit"
-          params={{ formId: String(form.id) }}
-          className="mt-3.5 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-4"
-        >
-          <h2 className="line-clamp-2 text-lg font-semibold leading-6 text-[#141413] transition-colors group-hover:text-[#9f5039]">
-            {form.title}
-          </h2>
-        </Link>
+        {accessRole === "viewer" ? (
+          <button type="button" onClick={() => onPreview(form.id)} className="mt-3.5 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-4">
+            <h2 className="line-clamp-2 text-lg font-semibold leading-6 text-[#141413] transition-colors group-hover:text-[#9f5039]">{form.title}</h2>
+          </button>
+        ) : (
+          <Link
+            to="/forms/$formId/edit"
+            params={{ formId: String(form.id) }}
+            className="mt-3.5 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-4"
+          >
+            <h2 className="line-clamp-2 text-lg font-semibold leading-6 text-[#141413] transition-colors group-hover:text-[#9f5039]">{form.title}</h2>
+          </Link>
+        )}
         <p className="mt-1.5 line-clamp-2 min-h-10 text-sm leading-5 text-[#6c6a64]">
           {form.description || "No description added yet."}
         </p>

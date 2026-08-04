@@ -8,7 +8,7 @@ Multi-tenant form builder with flow automation, payment integration, and multi-s
 
 - Node.js >= 22.12.0
 - PostgreSQL database (Neon serverless recommended)
-- Clerk account (for authentication)
+- A high-entropy Better Auth secret
 
 ## 🚀 Quick Start
 
@@ -47,9 +47,8 @@ Node.js web service. In Render, choose **New → Blueprint**, connect this
 repository, and provide the secret values requested by the Blueprint:
 
 - `DATABASE_URL`
-- `VITE_CLERK_PUBLISHABLE_KEY`
-- `CLERK_PUBLISHABLE_KEY` (use the same `pk_...` value)
-- `CLERK_SECRET_KEY`
+- `BETTER_AUTH_SECRET`
+- `BETTER_AUTH_URL`
 - `CREDENTIALS_ENCRYPTION_KEY`
 
 `DATABASE_URL` may point to either Neon or a standard PostgreSQL database such
@@ -62,8 +61,17 @@ applies the idempotent database migrations, validates the schema, and seeds
 built-in form templates. The start command only starts the generated server,
 keeping free tier cold starts fast. Health checks use `/api/health`.
 
-In Clerk, allow the generated `https://<service-name>.onrender.com` domain. For
-Xendit, configure the webhook URL shown in **Settings → Integrations** after the
+Apply the auth migration before switching traffic:
+
+```bash
+pnpm run db:prepare
+```
+
+The first successful Better Auth login links the local auth user to an existing
+profile by verified email, so owned forms and integration settings remain on
+the same profile row.
+
+For Xendit, configure the webhook URL shown in **Settings → Integrations** after the
 service is live. PayPal and Xendit return URLs are generated from the active
 Render request domain.
 
@@ -90,7 +98,7 @@ pnpm test                 # Run tests
 | **Build** | Vite 8 |
 | **Styling** | Tailwind CSS 4 + Lucide icons |
 | **Database** | PostgreSQL (Neon) + Drizzle ORM |
-| **Auth** | [Clerk](https://clerk.com) |
+| **Auth** | [Better Auth](https://better-auth.com) with email and password |
 | **Flow Canvas** | [React Flow](https://xyflow.com) |
 | **Expression Engine** | In-house safe tokenizer/parser/AST evaluator |
 | **Deployment** | Render (long-running Node.js web service) |
@@ -122,14 +130,11 @@ For a Git-connected deployment, create a Worker from this repository and use:
 | Non-production deploy command | `pnpm exec wrangler versions upload` |
 | Root directory | `/` |
 
-Add `VITE_CLERK_PUBLISHABLE_KEY` as a **build variable**, because Vite embeds
-that public key in the browser bundle. Under **Settings → Variables & Secrets**,
-add these runtime secrets:
+Under **Settings → Variables & Secrets**, add these runtime values:
 
 - `DATABASE_URL` — use a Neon PostgreSQL URL so the Worker uses the HTTP driver
-- `VITE_CLERK_PUBLISHABLE_KEY`
-- `CLERK_PUBLISHABLE_KEY`
-- `CLERK_SECRET_KEY`
+- `BETTER_AUTH_SECRET`
+- `BETTER_AUTH_URL` — the final Worker or custom-domain URL
 - `CREDENTIALS_ENCRYPTION_KEY`
 
 Add `APP_URL` as a runtime variable containing the final `https://...` URL.
@@ -143,5 +148,4 @@ machine or CI environment:
 pnpm run db:prepare
 ```
 
-Finally, allow the Worker/custom domain in Clerk. Never commit `.env`,
-`.env.local`, or the generated `dist/` directory.
+Never commit `.env`, `.env.local`, or the generated `dist/` directory.

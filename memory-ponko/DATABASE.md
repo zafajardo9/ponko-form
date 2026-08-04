@@ -60,24 +60,50 @@ erDiagram
 
 ### 3.1 `profiles`
 
-The user profile. Maps one-to-one with Clerk accounts.
+The application profile. `auth_id` maps one-to-one to a Better Auth user.
+During migration, a matching account email links to the pre-existing profile so
+forms and other owned data remain attached to the same row.
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `serial` PK | |
-| `clerk_id` | `text` NOT NULL UNIQUE | Clerk user ID |
+| `auth_id` | `text` NOT NULL UNIQUE | Current authentication-provider user ID |
+| `email` | `text` UNIQUE when non-null | Verified identity email used for migration/linking and collaboration invites |
+| `name` | `text` | Identity-provider display name |
 | `display_name` | `varchar(255)` | |
 | `avatar_url` | `text` | |
+| `auth_provider` | `text` DEFAULT 'better-auth' NOT NULL | Identity source; pre-migration rows are marked `legacy` until linked |
 | `dashboard_currency` | `varchar(3)` DEFAULT 'USD' NOT NULL | Currency preference |
 | `created_at` | `timestamp` DEFAULT now | |
+| `updated_at` | `timestamp` DEFAULT now | |
 
-**Indexes:** `unique(profiles_clerk_id_idx)` on `clerk_id`
+**Indexes:** unique `profiles_auth_id_idx` on `auth_id`; partial unique
+`profiles_email_idx` on non-null `email`.
 
-### 3.1a `integration_settings` (legacy)
+### 3.1a Better Auth tables
+
+Better Auth owns four local tables: `user` stores the canonical identity;
+`session` stores revocable cookie-backed sessions; `account` stores the
+credential account and password hash; and `verification` stores short-lived
+verification state. Foreign keys from `session` and `account` cascade
+when an auth user is removed. Application data does not reference these tables
+directly; `profiles.auth_id` is the boundary between auth and product data.
+
+### 3.1b `form_collaborators` and `collaboration_logs`
+
+`form_collaborators` grants an existing profile either `editor` or `viewer`
+access to a form. Each `(form_id, profile_id)` pair is unique. The owner remains
+`forms.profile_id` and is never represented as a collaborator.
+
+`collaboration_logs` records owner-driven access changes (`invited`,
+`role_changed`, `removed`, or `accepted`) with actor, target, old/new role,
+details, and timestamp. Both tables cascade when the form is deleted.
+
+### 3.1c `integration_settings` (legacy)
 
 Per-user (per-profile) credentials for external services: payment gateways (Xendit, PayPal) and outbound email (SMTP). Each `*_config` column holds an **AES-256-GCM-encrypted JSON blob** (see `src/lib/crypto.ts`) — plaintext secrets are NEVER stored. A `null` column means that integration is not configured for the user.
 
-> **Note:** A new normalized `integrations` table (one row per provider) exists alongside this legacy column-per-provider table. See §3.1b.
+> **Note:** A new normalized `integrations` table (one row per provider) exists alongside this legacy column-per-provider table. See the following section.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -97,7 +123,7 @@ smtpConfig:   { host: string, port: number, secure: boolean, user: string,
                 password: string, fromEmail: string, fromName?: string }
 ```
 
-### 3.1b `integrations` (new, normalized)
+### 3.1d `integrations` (new, normalized)
 
 A newer normalized table for per-user provider credentials — one row per `(profile_id, provider)`. Config is stored as AES-256-GCM-encrypted JSON. This coexists with the legacy `integration_settings` table during migration.
 

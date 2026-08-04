@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { auth } from '@clerk/tanstack-react-start/server'
+import { currentAuth as auth } from '../auth.server'
 import { db } from '../../db/index'
 import {
   flows,
@@ -9,7 +9,7 @@ import {
   formFields,
 } from '../../db/schema'
 import { eq } from 'drizzle-orm'
-import { assertFormOwner, uniqueVarName, variableTypeForField } from './flow-helpers'
+import { assertFormEditor as assertFormOwner, uniqueVarName, variableTypeForField } from './flow-helpers'
 import { loadFlow } from '../flow-engine/server-data'
 
 /**

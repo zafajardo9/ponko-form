@@ -1,8 +1,9 @@
-import { auth } from '@clerk/tanstack-react-start/server'
+import { currentAuth as auth } from '../auth.server'
 import { and, eq } from 'drizzle-orm'
 import { db } from '../../db/index'
-import { integrationSettings, integrations, profiles } from '../../db/schema'
+import { integrationSettings, integrations } from '../../db/schema'
 import { decryptJson, encryptJson, maskSecret } from '../crypto'
+import { ensureProfile } from '../profile.server'
 import type {
   IntegrationConfig,
   IntegrationConfigs,
@@ -26,19 +27,6 @@ import type {
  * code (e.g. payment gateways). Routes talk to `server-fns/integrations.ts`,
  * whose `.handler()` bodies are stripped from the client bundle.
  */
-
-export async function ensureProfile(clerkId: string) {
-  const [profile] = await db
-    .insert(profiles)
-    .values({ clerkId })
-    .onConflictDoUpdate({
-      target: profiles.clerkId,
-      set: { clerkId },
-    })
-    .returning()
-  if (!profile) throw new Error('Unable to initialize user profile')
-  return profile
-}
 
 export async function requireProfile() {
   const { userId } = await auth()

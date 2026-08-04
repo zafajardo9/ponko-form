@@ -46,7 +46,7 @@ export function Button({ variant = 'primary', size = 'md', children, ...rest }: 
 
 ### 1.4 Import Order
 
-1. External libraries (React, TanStack, Clerk, etc.)
+1. External libraries (React, TanStack, Better Auth, etc.)
 2. Internal components (`@/components/...`)
 3. Internal utilities (`@/lib/...`)
 4. Type-only imports (`import type ...`)
@@ -116,28 +116,24 @@ Reuse the established warm palette and shared primitives. When a new semantic st
 
 ```tsx
 import { createServerFn } from '@tanstack/react-start'
-import { auth } from '@clerk/tanstack-react-start/server'
-import { db } from '../../db/index'
-import { forms } from '../../db/schema'
-import { eq } from 'drizzle-orm'
+import { requireProfile } from '@/lib/server-fns/auth'
+import { assertFormAccess } from '@/lib/server-fns/flow-helpers'
 
 export const getForm = createServerFn({ method: 'GET' })
   .validator((data: { id: number }) => data)
   .handler(async ({ data }) => {
-    const { userId } = await auth()
-    if (!userId) throw new Error('Unauthorized')
-    const [form] = await db
-      .select()
-      .from(forms)
-      .where(eq(forms.id, data.id))
-      .limit(1)
-    return form
+    const profile = await requireProfile()
+    const access = await assertFormAccess(data.id, profile.id)
+    return { ...access.form, accessRole: access.role }
   })
 ```
 
 ### 3.2 Key Rules
 
-- Protected server functions either call `auth()` or reuse the domain helpers in `server-fns/auth.ts`. Always verify creator ownership of a form/resource, not only that a user is signed in.
+- Protected server functions resolve the signed-in profile through
+  `server-fns/auth.ts`, then use the access helper appropriate to the operation:
+  `assertFormOwner`, `assertFormEditor`, or `assertFormAccess`. Authentication
+  alone is never sufficient authorization.
 - Use **`.validator()`** for input validation and normalization. Several public/payment functions also set `strict: false` because they are called across the public server boundary.
 - Import the shared DB client from `src/db/index.ts` (normally `@/db` or a correct relative path).
 - Return plain objects (serializable)

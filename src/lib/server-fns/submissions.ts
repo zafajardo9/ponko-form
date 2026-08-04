@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { auth } from "@clerk/tanstack-react-start/server";
+import { currentAuth as auth } from "../auth.server";
 import { db } from "../../db/index";
 import {
   formSubmissions,
@@ -213,7 +213,7 @@ async function requireOwnedSubmission(formId: number, submissionId: number) {
       and(
         eq(formSubmissions.id, submissionId),
         eq(formSubmissions.formId, formId),
-        eq(profiles.clerkId, userId),
+        eq(profiles.authId, userId),
       ),
     )
     .limit(1);
@@ -326,7 +326,7 @@ export const bulkDeleteSubmissions = createServerFn({
 async function requireOwnedSubmissions(
   formId: number,
   submissionIds: number[],
-  clerkUserId: string,
+  authId: string,
 ) {
   const owned = await db
     .select({ id: formSubmissions.id })
@@ -337,7 +337,7 @@ async function requireOwnedSubmissions(
       and(
         eq(formSubmissions.formId, formId),
         inArray(formSubmissions.id, submissionIds),
-        eq(profiles.clerkId, clerkUserId),
+        eq(profiles.authId, authId),
       ),
     );
 

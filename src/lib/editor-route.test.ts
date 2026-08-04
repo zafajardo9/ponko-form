@@ -74,7 +74,7 @@ describe('editor data boundary', () => {
     )
   })
 
-  it('uses owner subqueries instead of profile round trips for form reads and writes', () => {
+  it('loads owned and shared forms while keeping destructive operations owner-scoped', () => {
     const listForms = sourceSection(
       formsSource,
       'export const getForms',
@@ -90,31 +90,20 @@ describe('editor data boundary', () => {
     expect(listForms).toContain(
       '.where(inArray(forms.profileId, ownedProfileIds(userId)))',
     )
-    expect(listForms).not.toContain('ensureProfile')
-    expect(updateForm).toContain(
-      'inArray(forms.profileId, ownedProfileIds(userId))',
-    )
+    expect(listForms).toContain('.from(formCollaborators)')
+    expect(listForms).toContain("accessRole: 'owner' as const")
+    expect(listForms).toContain('await ensureProfile(userId)')
+    expect(updateForm).toContain('await assertFormOwner(id, userId)')
     expect(updateForm).not.toContain('ensureProfile')
     expect(deleteForm).toContain('.delete(forms)')
     expect(deleteForm).toContain('.returning({ id: forms.id })')
     expect(deleteForm).not.toContain('ensureProfile')
   })
 
-  it('initializes profiles with one concurrency-safe statement', () => {
-    for (const source of [formsSource, credentialsSource]) {
-      const profileHelper = sourceSection(
-        source,
-        source.includes('export async function ensureProfile')
-          ? 'export async function ensureProfile'
-          : 'async function ensureProfile',
-        source.includes('export async function ensureProfile')
-          ? 'export async function requireProfile'
-          : 'function ownedProfileIds',
-      )
-
-      expect(profileHelper).toContain('.onConflictDoUpdate({')
-      expect(profileHelper).toContain('target: profiles.clerkId')
-      expect(profileHelper).not.toContain('.select()')
-    }
+  it('centralizes Better Auth profile resolution instead of duplicating provider identity logic', () => {
+    expect(formsSource).toContain("import { ensureProfile } from '../profile.server'")
+    expect(credentialsSource).toContain("import { ensureProfile } from '../profile.server'")
+    expect(formsSource).not.toContain('profiles.clerkId')
+    expect(credentialsSource).not.toContain('profiles.clerkId')
   })
 })

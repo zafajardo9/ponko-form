@@ -27,7 +27,7 @@ describe('isBarePublicPath', () => {
     expect(isBarePublicPath(pathname)).toBe(false)
   })
 
-  it('keeps Clerk behind the lazy authenticated shell boundary', () => {
+  it('keeps Better Auth UI concerns in the client shell without a root provider', () => {
     const rootSource = readFileSync(
       fileURLToPath(new URL('../routes/__root.tsx', import.meta.url)),
       'utf8',
@@ -40,7 +40,8 @@ describe('isBarePublicPath', () => {
     expect(rootSource).toMatch(
       /lazy\(\s*\(\) => import\(["']\.\.\/components\/layout\/AuthenticatedAppShell["']\)/,
     )
-    expect(rootSource).not.toMatch(/from ["']@clerk\//)
-    expect(authenticatedShellSource).toMatch(/from ["']@clerk\//)
+    expect(rootSource).not.toMatch(/AuthProvider/)
+    expect(authenticatedShellSource).not.toMatch(/AuthProvider/)
+    expect(authenticatedShellSource).toContain("../../lib/auth-client")
   })
 })

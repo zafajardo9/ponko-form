@@ -11,6 +11,7 @@ import {
   uniqueIndex,
   index,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import type { TemplatePageData } from '../lib/form-templates/types'
 import type { SubscriptionConfig } from '../lib/page-builder/types'
 
@@ -47,20 +48,39 @@ export const submissionStatusEnum = pgEnum('submission_status', [
   'completed',
   'payment_failed',
 ])
+export const collaboratorRoleEnum = pgEnum('collaborator_role', [
+  'editor',
+  'viewer',
+])
+export const collaborationActionEnum = pgEnum('collaboration_action', [
+  'invited',
+  'role_changed',
+  'removed',
+  'accepted',
+])
 
 export const profiles = pgTable(
   'profiles',
   {
     id: serial().primaryKey(),
-    clerkId: text('clerk_id').notNull().unique(),
+    authId: text('auth_id').notNull().unique(),
+    email: text('email'),
+    name: text('name'),
     displayName: varchar('display_name', { length: 255 }),
     avatarUrl: text('avatar_url'),
+    authProvider: text('auth_provider').notNull().default('better-auth'),
     dashboardCurrency: varchar('dashboard_currency', { length: 3 })
       .notNull()
       .default('USD'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
-  (table) => [uniqueIndex('profiles_clerk_id_idx').on(table.clerkId)],
+  (table) => [
+    uniqueIndex('profiles_auth_id_idx').on(table.authId),
+    uniqueIndex('profiles_email_idx')
+      .on(table.email)
+      .where(sql`email IS NOT NULL`),
+  ],
 )
 
 /**
@@ -116,6 +136,58 @@ export const forms = pgTable(
   (table) => [
     index('forms_profile_id_idx').on(table.profileId),
     uniqueIndex('forms_public_id_idx').on(table.publicId),
+  ],
+)
+
+export const formCollaborators = pgTable(
+  'form_collaborators',
+  {
+    id: serial().primaryKey(),
+    formId: integer('form_id')
+      .notNull()
+      .references(() => forms.id, { onDelete: 'cascade' }),
+    profileId: integer('profile_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    role: collaboratorRoleEnum('role').notNull().default('editor'),
+    invitedBy: integer('invited_by')
+      .notNull()
+      .references(() => profiles.id),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('form_collaborators_form_profile_idx').on(
+      table.formId,
+      table.profileId,
+    ),
+    index('form_collaborators_profile_idx').on(table.profileId),
+  ],
+)
+
+export const collaborationLogs = pgTable(
+  'collaboration_logs',
+  {
+    id: serial().primaryKey(),
+    formId: integer('form_id')
+      .notNull()
+      .references(() => forms.id, { onDelete: 'cascade' }),
+    actorId: integer('actor_id')
+      .notNull()
+      .references(() => profiles.id),
+    targetId: integer('target_id')
+      .notNull()
+      .references(() => profiles.id),
+    action: collaborationActionEnum('action').notNull(),
+    oldRole: collaboratorRoleEnum('old_role'),
+    newRole: collaboratorRoleEnum('new_role'),
+    details: text('details'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('collaboration_logs_form_idx').on(table.formId),
+    index('collaboration_logs_actor_idx').on(table.actorId),
+    index('collaboration_logs_created_at_idx').on(table.createdAt),
   ],
 )
 

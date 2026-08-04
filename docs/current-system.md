@@ -16,12 +16,16 @@ New forms start from a built-in template or as a blank page form. Flow forms alr
 
 ## Current Creator Workflow
 
-1. Sign in with Clerk.
+1. Sign in or create an account with email and password through Better Auth.
 2. Create a blank form or copy a template at `/forms/new`.
 3. Build at `/forms/$formId/edit`.
 4. Preview, validate where applicable, customize the theme, and publish.
 5. Share the public URL or iframe embed.
 6. Review Responses, Payments, and Invoicing from the form workspace.
+
+Form owners can invite existing PonkoForm users as editors or viewers. Editors
+can change form content and configuration; viewers have read-only access.
+Ownership-only actions include access management, deletion, and bulk actions.
 
 The creator routes use the form's numeric ID. Share and embed routes use the separate public ID.
 

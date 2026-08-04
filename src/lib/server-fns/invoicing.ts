@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { auth } from '@clerk/tanstack-react-start/server'
+import { currentAuth as auth } from '../auth.server'
 import { and, asc, desc, eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../../db/index'
@@ -20,7 +20,7 @@ import {
   type EmailTemplateSnapshot,
   type ResponseEmailTemplate,
 } from '../../db/schema'
-import { assertFormOwner } from './flow-helpers'
+import { assertFormEditor as assertFormOwner } from './flow-helpers'
 import { getTransactionalEmailAvailability, sendTransactionalEmail } from '../email/transactional'
 import { attemptEmailDelivery } from '../invoicing/delivery'
 import {

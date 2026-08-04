@@ -187,4 +187,41 @@ describe("FormCard", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Select Client intake" }));
     expect(onSelectionChange).toHaveBeenCalledWith(17, true);
   });
+
+  it("labels shared editor access and limits destructive owner actions", () => {
+    render(
+      <FormCard
+        form={{ ...publishedForm, accessRole: "editor" }}
+        onDelete={vi.fn()}
+        onPreview={vi.fn()}
+        onShare={vi.fn()}
+        onManageAccess={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("editor")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "More actions for Client intake" }));
+    expect(screen.getByRole("menuitem", { name: "Builder for Client intake" })).toBeTruthy();
+    expect(screen.queryByRole("menuitem", { name: /Delete form/i })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: /Manage access/i })).toBeNull();
+  });
+
+  it("opens a shared viewer form as a preview and prevents bulk selection", () => {
+    const onPreview = vi.fn();
+    const onSelectionChange = vi.fn();
+    render(
+      <FormCard
+        form={{ ...publishedForm, accessRole: "viewer" }}
+        onDelete={vi.fn()}
+        onPreview={onPreview}
+        onShare={vi.fn()}
+        onSelectionChange={onSelectionChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Client intake" }));
+    expect(onPreview).toHaveBeenCalledWith(17);
+    const selection = screen.getByRole("checkbox", { name: "Select Client intake" }) as HTMLButtonElement;
+    expect(selection.disabled).toBe(true);
+  });
 });

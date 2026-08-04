@@ -1,11 +1,12 @@
 import { createServerFn } from '@tanstack/react-start'
-import { auth } from '@clerk/tanstack-react-start/server'
+import { currentAuth as auth } from '../auth.server'
 import { randomBytes } from 'node:crypto'
 import { db } from '../../db/index'
 import {
   flowNodes,
   flows,
   formFields,
+  formCollaborators,
   formPageFields,
   formPages,
   formPaymentConfigs,
@@ -23,28 +24,16 @@ import {
 import { getRecaptchaConfigForForm } from '../integrations/recaptcha'
 import { hydratePages, loadFormReferences } from '../page-builder/server-data'
 import { loadFlow } from '../flow-engine/server-data'
-import { assertFormOwner } from './flow-helpers'
+import { assertFormAccess, assertFormEditor as assertFormOwner } from './flow-helpers'
+import { ensureProfile } from '../profile.server'
 import { jsonObject } from './validation'
 export { jsonObject } from './validation'
 
-async function ensureProfile(clerkId: string) {
-  const [profile] = await db
-    .insert(profiles)
-    .values({ clerkId })
-    .onConflictDoUpdate({
-      target: profiles.clerkId,
-      set: { clerkId },
-    })
-    .returning()
-  if (!profile) throw new Error('Unable to initialize user profile')
-  return profile
-}
-
-function ownedProfileIds(clerkId: string) {
+function ownedProfileIds(authId: string) {
   return db
     .select({ id: profiles.id })
     .from(profiles)
-    .where(eq(profiles.clerkId, clerkId))
+    .where(eq(profiles.authId, authId))
 }
 
 function createPublicId() {
@@ -67,16 +56,31 @@ async function createUniquePublicId() {
 export const getForms = createServerFn({ method: 'GET' }).handler(async () => {
   const { userId } = await auth()
   if (!userId) throw new Error('Unauthorized')
+  await ensureProfile(userId)
 
-  const ownedForms = await db
-    .select()
-    .from(forms)
-    .where(inArray(forms.profileId, ownedProfileIds(userId)))
-    .orderBy(desc(forms.updatedAt))
+  const [ownedForms, sharedForms] = await Promise.all([
+    db
+      .select({ form: forms })
+      .from(forms)
+      .where(inArray(forms.profileId, ownedProfileIds(userId)))
+      .orderBy(desc(forms.updatedAt)),
+    db
+      .select({ form: forms, accessRole: formCollaborators.role })
+      .from(formCollaborators)
+      .innerJoin(forms, eq(formCollaborators.formId, forms.id))
+      .innerJoin(profiles, eq(formCollaborators.profileId, profiles.id))
+      .where(eq(profiles.authId, userId))
+      .orderBy(desc(forms.updatedAt)),
+  ])
 
-  if (ownedForms.length === 0) return []
+  const accessibleForms = [
+    ...ownedForms.map(({ form }) => ({ ...form, accessRole: 'owner' as const })),
+    ...sharedForms.map(({ form, accessRole }) => ({ ...form, accessRole })),
+  ].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
 
-  const formIds = ownedForms.map((form) => form.id)
+  if (accessibleForms.length === 0) return []
+
+  const formIds = accessibleForms.map((form) => form.id)
   const [paymentPages, paymentConfigs, paymentNodes] = await Promise.all([
     db
       .select({ formId: formPages.formId })
@@ -110,7 +114,7 @@ export const getForms = createServerFn({ method: 'GET' }).handler(async () => {
     ...paymentNodes.map((node) => node.formId),
   ])
 
-  return ownedForms.map((form) => ({
+  return accessibleForms.map((form) => ({
     ...form,
     hasPayment: paymentFormIds.has(form.id),
   }))
@@ -132,7 +136,8 @@ export const getEditorForm = createServerFn({ method: 'GET', strict: false })
     const { userId } = await auth()
     if (!userId) throw new Error('Unauthorized')
 
-    const form = await assertFormOwner(data.formId, userId)
+    const access = await assertFormAccess(data.formId, userId)
+    const form = { ...access.form, accessRole: access.role }
     const pages = await hydratePages(data.formId)
     if (pages.length > 0) {
       const needsRecaptcha = pages.some((page) =>
@@ -170,7 +175,7 @@ export const getEditorForm = createServerFn({ method: 'GET', strict: false })
  * never exposed. Returns null when not found or not published.
  *
  * The public form pages must NOT use `getForms` (auth-gated + owner-scoped):
- * anonymous visitors have no Clerk session, so it would throw "Unauthorized".
+ * anonymous visitors have no authenticated session, so it would throw "Unauthorized".
  */
 export const getPublicForm = createServerFn({ method: 'GET' })
   .validator((data: { publicId: string }) => data)
@@ -366,15 +371,11 @@ export const updateForm = createServerFn({ method: 'POST' })
     if (!userId) throw new Error('Unauthorized')
 
     const { id, ...fields } = data
+    await assertFormOwner(id, userId)
     const [form] = await db
       .update(forms)
       .set({ ...fields, updatedAt: new Date() })
-      .where(
-        and(
-          eq(forms.id, id),
-          inArray(forms.profileId, ownedProfileIds(userId)),
-        ),
-      )
+      .where(eq(forms.id, id))
       .returning()
 
     if (!form) throw new Error('Not found')

@@ -1,4 +1,3 @@
-import { Show } from "@clerk/tanstack-react-start";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, Check, MousePointer2, RefreshCw } from "lucide-react";
 import {
@@ -14,6 +13,18 @@ import {
   ResponsiveFormsMockup,
   WorkflowMockup,
 } from "./ProductMockups";
+import { useSession } from "../../lib/auth-client";
+
+function Show({
+  when,
+  children,
+}: {
+  when: "signed-in" | "signed-out";
+  children: React.ReactNode;
+}) {
+  const { data: session } = useSession();
+  return (when === "signed-in") === Boolean(session) ? children : null;
+}
 
 const focusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2";
@@ -87,7 +98,7 @@ function HeroSection() {
           </p>
           <div className="hero-enter hero-enter-four mt-9 flex flex-col gap-3 sm:flex-row">
             <Show when="signed-out">
-              <a href="/sign-up/" className={primaryButton}>
+              <a href="/sign-in" className={primaryButton}>
                 Start building free
                 <ArrowRight className="transition-transform duration-200 group-hover/button:translate-x-1" size={16} />
               </a>
@@ -283,7 +294,7 @@ function IntegrationsSection() {
             </Link>
           </Show>
           <Show when="signed-out">
-            <a href="/sign-up/" className={`${secondaryButton} shrink-0`}>
+            <a href="/sign-in" className={`${secondaryButton} shrink-0`}>
               Connect your stack <ArrowRight size={15} />
             </a>
           </Show>
@@ -367,11 +378,11 @@ function CtaSection() {
         </p>
         <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
           <Show when="signed-out">
-            <a href="/sign-up/" className={`${secondaryButton} border-transparent`}>
+            <a href="/sign-in" className={`${secondaryButton} border-transparent`}>
               Create a free account <ArrowRight size={16} />
             </a>
             <a
-              href="/sign-in/"
+              href="/sign-in"
               className={`inline-flex min-h-11 items-center justify-center rounded-md border border-white/40 px-6 py-3 text-sm font-medium text-white hover:bg-white/10 ${focusRing} focus-visible:ring-white`}
             >
               Sign in
@@ -419,9 +430,9 @@ function Footer() {
                 <Link to="/settings/integrations" className={`hover:text-on-dark ${focusRing}`}>Integrations</Link>
               </Show>
               <Show when="signed-out">
-                <a href="/sign-up/" className={`hover:text-on-dark ${focusRing}`}>Create forms</a>
-                <a href="/sign-up/" className={`hover:text-on-dark ${focusRing}`}>Use templates</a>
-                <a href="/sign-up/" className={`hover:text-on-dark ${focusRing}`}>Connect integrations</a>
+                <a href="/sign-in" className={`hover:text-on-dark ${focusRing}`}>Create forms</a>
+                <a href="/sign-in" className={`hover:text-on-dark ${focusRing}`}>Use templates</a>
+                <a href="/sign-in" className={`hover:text-on-dark ${focusRing}`}>Connect integrations</a>
               </Show>
             </nav>
           </div>

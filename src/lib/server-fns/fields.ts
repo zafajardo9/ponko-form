@@ -1,21 +1,9 @@
 import { createServerFn } from '@tanstack/react-start'
-import { auth } from '@clerk/tanstack-react-start/server'
+import { currentAuth as auth } from '../auth.server'
 import { db } from '../../db/index'
-import { formFields, forms, profiles } from '../../db/schema'
+import { formFields } from '../../db/schema'
 import { and, eq, inArray, max, sql } from 'drizzle-orm'
-
-async function assertFormOwner(formId: number, clerkId: string) {
-  const [profile] = await db
-    .select()
-    .from(profiles)
-    .where(eq(profiles.clerkId, clerkId))
-    .limit(1)
-  if (!profile) throw new Error('Unauthorized')
-
-  const [form] = await db.select().from(forms).where(eq(forms.id, formId)).limit(1)
-  if (!form || form.profileId !== profile.id) throw new Error('Not found')
-  return form
-}
+import { assertFormEditor as assertFormOwner } from './flow-helpers'
 
 export const getFields = createServerFn({ method: 'GET' })
   .validator((data: { formId: number }) => data)

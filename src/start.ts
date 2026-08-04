@@ -1,4 +1,3 @@
-import { clerkMiddleware } from "@clerk/tanstack-react-start/server";
 import { createStart, createCsrfMiddleware } from "@tanstack/react-start";
 
 // Register payment gateways on the server only. This module transitively
@@ -14,6 +13,6 @@ const csrfMiddleware = createCsrfMiddleware({
 
 export const startInstance = createStart(() => {
   return {
-    requestMiddleware: [clerkMiddleware(), csrfMiddleware],
+    requestMiddleware: [csrfMiddleware],
   };
 });

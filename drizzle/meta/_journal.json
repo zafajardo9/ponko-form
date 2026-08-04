@@ -204,6 +204,13 @@
       "when": 1785304800000,
       "tag": "0035_response_email_automations",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1785812400000,
+      "tag": "0036_better_auth_and_collaboration",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { auth } from "@clerk/tanstack-react-start/server";
+import { currentAuth as auth } from "../auth.server";
 import { db } from "../../db/index";
 import { forms, formSubmissions, payments, profiles } from "../../db/schema";
 import { eq, desc, sql, and, gte, count } from "drizzle-orm";
@@ -27,7 +27,7 @@ async function getDashboardProfile() {
       dashboardCurrency: profiles.dashboardCurrency,
     })
     .from(profiles)
-    .where(eq(profiles.clerkId, userId))
+    .where(eq(profiles.authId, userId))
     .limit(1);
   if (!profile) throw new Error("Profile not found");
   return profile;

@@ -9,13 +9,13 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SignOutRouteImport } from './routes/sign-out'
+import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as FormsIndexRouteImport } from './routes/forms/index'
 import { Route as DocsIndexRouteImport } from './routes/docs/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
-import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
-import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
 import { Route as SettingsIntegrationsRouteImport } from './routes/settings/integrations'
 import { Route as PayPublicIdRouteImport } from './routes/pay/$publicId'
 import { Route as FormsPaymentReturnRouteImport } from './routes/forms/payment-return'
@@ -35,9 +35,20 @@ import { Route as FormsFormIdEmailsRouteImport } from './routes/forms/$formId/em
 import { Route as FormsFormIdEditRouteImport } from './routes/forms/$formId/edit'
 import { Route as FlowExecutionIdCompleteRouteImport } from './routes/flow/$executionId/complete'
 import { Route as ApiInternalReconcilePaymentsRouteImport } from './routes/api/internal/reconcile-payments'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiWebhooksXenditEndpointKeyRouteImport } from './routes/api/webhooks/xendit/$endpointKey'
 import { Route as ApiFormsFormIdSubmissionsExportRouteImport } from './routes/api/forms/$formId/submissions-export'
 
+const SignOutRoute = SignOutRouteImport.update({
+  id: '/sign-out',
+  path: '/sign-out',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignInRoute = SignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const McpRoute = McpRouteImport.update({
   id: '/mcp',
   path: '/mcp',
@@ -61,16 +72,6 @@ const DocsIndexRoute = DocsIndexRouteImport.update({
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/dashboard/',
   path: '/dashboard/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SignUpSplatRoute = SignUpSplatRouteImport.update({
-  id: '/sign-up/$',
-  path: '/sign-up/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SignInSplatRoute = SignInSplatRouteImport.update({
-  id: '/sign-in/$',
-  path: '/sign-in/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsIntegrationsRoute = SettingsIntegrationsRouteImport.update({
@@ -170,6 +171,11 @@ const ApiInternalReconcilePaymentsRoute =
     path: '/api/internal/reconcile-payments',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiWebhooksXenditEndpointKeyRoute =
   ApiWebhooksXenditEndpointKeyRouteImport.update({
     id: '/api/webhooks/xendit/$endpointKey',
@@ -186,6 +192,8 @@ const ApiFormsFormIdSubmissionsExportRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/sign-in': typeof SignInRoute
+  '/sign-out': typeof SignOutRoute
   '/api/health': typeof ApiHealthRoute
   '/dashboard/payment-links': typeof DashboardPaymentLinksRoute
   '/docs/$slug': typeof DocsSlugRoute
@@ -193,11 +201,10 @@ export interface FileRoutesByFullPath {
   '/forms/payment-return': typeof FormsPaymentReturnRoute
   '/pay/$publicId': typeof PayPublicIdRouteWithChildren
   '/settings/integrations': typeof SettingsIntegrationsRoute
-  '/sign-in/$': typeof SignInSplatRoute
-  '/sign-up/$': typeof SignUpSplatRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/docs/': typeof DocsIndexRoute
   '/forms/': typeof FormsIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/internal/reconcile-payments': typeof ApiInternalReconcilePaymentsRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
@@ -216,6 +223,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/sign-in': typeof SignInRoute
+  '/sign-out': typeof SignOutRoute
   '/api/health': typeof ApiHealthRoute
   '/dashboard/payment-links': typeof DashboardPaymentLinksRoute
   '/docs/$slug': typeof DocsSlugRoute
@@ -223,11 +232,10 @@ export interface FileRoutesByTo {
   '/forms/payment-return': typeof FormsPaymentReturnRoute
   '/pay/$publicId': typeof PayPublicIdRouteWithChildren
   '/settings/integrations': typeof SettingsIntegrationsRoute
-  '/sign-in/$': typeof SignInSplatRoute
-  '/sign-up/$': typeof SignUpSplatRoute
   '/dashboard': typeof DashboardIndexRoute
   '/docs': typeof DocsIndexRoute
   '/forms': typeof FormsIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/internal/reconcile-payments': typeof ApiInternalReconcilePaymentsRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
@@ -247,6 +255,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/sign-in': typeof SignInRoute
+  '/sign-out': typeof SignOutRoute
   '/api/health': typeof ApiHealthRoute
   '/dashboard/payment-links': typeof DashboardPaymentLinksRoute
   '/docs/$slug': typeof DocsSlugRoute
@@ -254,11 +264,10 @@ export interface FileRoutesById {
   '/forms/payment-return': typeof FormsPaymentReturnRoute
   '/pay/$publicId': typeof PayPublicIdRouteWithChildren
   '/settings/integrations': typeof SettingsIntegrationsRoute
-  '/sign-in/$': typeof SignInSplatRoute
-  '/sign-up/$': typeof SignUpSplatRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/docs/': typeof DocsIndexRoute
   '/forms/': typeof FormsIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/internal/reconcile-payments': typeof ApiInternalReconcilePaymentsRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
@@ -279,6 +288,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/mcp'
+    | '/sign-in'
+    | '/sign-out'
     | '/api/health'
     | '/dashboard/payment-links'
     | '/docs/$slug'
@@ -286,11 +297,10 @@ export interface FileRouteTypes {
     | '/forms/payment-return'
     | '/pay/$publicId'
     | '/settings/integrations'
-    | '/sign-in/$'
-    | '/sign-up/$'
     | '/dashboard/'
     | '/docs/'
     | '/forms/'
+    | '/api/auth/$'
     | '/api/internal/reconcile-payments'
     | '/flow/$executionId/complete'
     | '/forms/$formId/edit'
@@ -309,6 +319,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/mcp'
+    | '/sign-in'
+    | '/sign-out'
     | '/api/health'
     | '/dashboard/payment-links'
     | '/docs/$slug'
@@ -316,11 +328,10 @@ export interface FileRouteTypes {
     | '/forms/payment-return'
     | '/pay/$publicId'
     | '/settings/integrations'
-    | '/sign-in/$'
-    | '/sign-up/$'
     | '/dashboard'
     | '/docs'
     | '/forms'
+    | '/api/auth/$'
     | '/api/internal/reconcile-payments'
     | '/flow/$executionId/complete'
     | '/forms/$formId/edit'
@@ -339,6 +350,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/mcp'
+    | '/sign-in'
+    | '/sign-out'
     | '/api/health'
     | '/dashboard/payment-links'
     | '/docs/$slug'
@@ -346,11 +359,10 @@ export interface FileRouteTypes {
     | '/forms/payment-return'
     | '/pay/$publicId'
     | '/settings/integrations'
-    | '/sign-in/$'
-    | '/sign-up/$'
     | '/dashboard/'
     | '/docs/'
     | '/forms/'
+    | '/api/auth/$'
     | '/api/internal/reconcile-payments'
     | '/flow/$executionId/complete'
     | '/forms/$formId/edit'
@@ -370,6 +382,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   McpRoute: typeof McpRoute
+  SignInRoute: typeof SignInRoute
+  SignOutRoute: typeof SignOutRoute
   ApiHealthRoute: typeof ApiHealthRoute
   DashboardPaymentLinksRoute: typeof DashboardPaymentLinksRoute
   DocsSlugRoute: typeof DocsSlugRoute
@@ -377,11 +391,10 @@ export interface RootRouteChildren {
   FormsPaymentReturnRoute: typeof FormsPaymentReturnRoute
   PayPublicIdRoute: typeof PayPublicIdRouteWithChildren
   SettingsIntegrationsRoute: typeof SettingsIntegrationsRoute
-  SignInSplatRoute: typeof SignInSplatRoute
-  SignUpSplatRoute: typeof SignUpSplatRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   DocsIndexRoute: typeof DocsIndexRoute
   FormsIndexRoute: typeof FormsIndexRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiInternalReconcilePaymentsRoute: typeof ApiInternalReconcilePaymentsRoute
   FlowExecutionIdCompleteRoute: typeof FlowExecutionIdCompleteRoute
   FormsFormIdEditRoute: typeof FormsFormIdEditRoute
@@ -399,6 +412,20 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sign-out': {
+      id: '/sign-out'
+      path: '/sign-out'
+      fullPath: '/sign-out'
+      preLoaderRoute: typeof SignOutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-in': {
+      id: '/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/mcp': {
       id: '/mcp'
       path: '/mcp'
@@ -432,20 +459,6 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard/'
       preLoaderRoute: typeof DashboardIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sign-up/$': {
-      id: '/sign-up/$'
-      path: '/sign-up/$'
-      fullPath: '/sign-up/$'
-      preLoaderRoute: typeof SignUpSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sign-in/$': {
-      id: '/sign-in/$'
-      path: '/sign-in/$'
-      fullPath: '/sign-in/$'
-      preLoaderRoute: typeof SignInSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings/integrations': {
@@ -581,6 +594,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiInternalReconcilePaymentsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/webhooks/xendit/$endpointKey': {
       id: '/api/webhooks/xendit/$endpointKey'
       path: '/api/webhooks/xendit/$endpointKey'
@@ -613,6 +633,8 @@ const PayPublicIdRouteWithChildren = PayPublicIdRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   McpRoute: McpRoute,
+  SignInRoute: SignInRoute,
+  SignOutRoute: SignOutRoute,
   ApiHealthRoute: ApiHealthRoute,
   DashboardPaymentLinksRoute: DashboardPaymentLinksRoute,
   DocsSlugRoute: DocsSlugRoute,
@@ -620,11 +642,10 @@ const rootRouteChildren: RootRouteChildren = {
   FormsPaymentReturnRoute: FormsPaymentReturnRoute,
   PayPublicIdRoute: PayPublicIdRouteWithChildren,
   SettingsIntegrationsRoute: SettingsIntegrationsRoute,
-  SignInSplatRoute: SignInSplatRoute,
-  SignUpSplatRoute: SignUpSplatRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   DocsIndexRoute: DocsIndexRoute,
   FormsIndexRoute: FormsIndexRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiInternalReconcilePaymentsRoute: ApiInternalReconcilePaymentsRoute,
   FlowExecutionIdCompleteRoute: FlowExecutionIdCompleteRoute,
   FormsFormIdEditRoute: FormsFormIdEditRoute,

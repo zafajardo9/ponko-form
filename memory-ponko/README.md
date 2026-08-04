@@ -22,7 +22,7 @@ User-facing and extended technical guides live in [`../docs/`](../docs/README.md
 | **Builders** | Page Builder for linear multi-page forms; Flow Builder for node-graph journeys |
 | **Editor** | Unified route at `/forms/$formId/edit`; `/forms/$formId/flow` redirects there |
 | **Public runtime** | `/forms/submit/$publicId` and `/forms/embed/$publicId`; selects page or flow runtime from persisted form data |
-| **Stack** | TanStack Start, React 19, Vite 8, Tailwind CSS 4, TanStack Query, Drizzle ORM, PostgreSQL, Clerk |
+| **Stack** | TanStack Start, React 19, Vite 8, Tailwind CSS 4, TanStack Query, Drizzle ORM, PostgreSQL, Better Auth |
 | **Flow canvas** | `@xyflow/react`; list reordering uses dnd-kit |
 | **Expressions** | In-house tokenizer/parser/evaluator in `safe-expression.ts`; no JavaScript `eval` and no `math.js` dependency |
 | **Payments** | Working PayPal and Xendit one-time payments; Xendit/PHP subscriptions on page forms |

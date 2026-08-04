@@ -7,9 +7,11 @@ import { HomePage } from "./HomePage";
 
 const auth = vi.hoisted(() => ({ state: "signed-out" as "signed-in" | "signed-out" }));
 
-vi.mock("@clerk/tanstack-react-start", () => ({
-  Show: ({ when, children }: { when: "signed-in" | "signed-out"; children: ReactNode }) =>
-    auth.state === when ? children : null,
+vi.mock("../../lib/auth-client", () => ({
+  useSession: () => ({
+    data: auth.state === "signed-in" ? { session: { id: "session-test" } } : null,
+    isPending: false,
+  }),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -35,7 +37,7 @@ describe("HomePage", () => {
 
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("link", { name: /start building free/i }).getAttribute("href")).toBe(
-      "/sign-up/",
+      "/sign-in",
     );
     expect(screen.getByRole("link", { name: /see how it works/i }).getAttribute("href")).toBe(
       "#how-it-works",

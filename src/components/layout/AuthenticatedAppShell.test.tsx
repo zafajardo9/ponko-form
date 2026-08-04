@@ -2,9 +2,15 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@clerk/tanstack-react-start', () => ({
-  Show: ({ children }: { children: React.ReactNode }) => children,
-  UserButton: () => <button type="button">Account</button>,
+vi.mock('../../lib/auth-client', () => ({
+  useSession: () => ({
+    data: {
+      session: { id: 'session-test' },
+      user: { email: 'test@example.com', name: 'Test User', image: null },
+    },
+    isPending: false,
+  }),
+  authClient: { signOut: vi.fn() },
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -16,10 +22,6 @@ vi.mock('@tanstack/react-router', () => ({
     to: string
     children: React.ReactNode
   }) => <a href={to} {...props}>{children}</a>,
-}))
-
-vi.mock('../../integrations/clerk/provider', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
 }))
 
 import { TopNav } from './AuthenticatedAppShell'

@@ -192,12 +192,12 @@ export async function getResponseColumns(formId: number): Promise<ResponseColumn
   return responseColumnsFromSources(sources)
 }
 
-export async function requireOwnedForm(formId: number, clerkId: string) {
+export async function requireOwnedForm(formId: number, authId: string) {
   const [form] = await db
     .select({ form: forms })
     .from(forms)
     .innerJoin(profiles, eq(profiles.id, forms.profileId))
-    .where(and(eq(forms.id, formId), eq(profiles.clerkId, clerkId)))
+    .where(and(eq(forms.id, formId), eq(profiles.authId, authId)))
     .limit(1)
   if (!form) throw new Error('Not found')
   return form.form

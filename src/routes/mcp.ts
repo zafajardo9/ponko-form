@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { createFileRoute } from '@tanstack/react-router'
-import { auth } from '@clerk/tanstack-react-start/server'
+import { currentAuth as auth } from '../lib/auth.server'
 import { handleMcpRequest } from '#/utils/mcp-handler'
 
 const server = new McpServer({

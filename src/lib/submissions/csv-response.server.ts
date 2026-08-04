@@ -1,4 +1,4 @@
-import { auth } from '@clerk/tanstack-react-start/server'
+import { currentAuth as auth } from '../auth.server'
 import { and, inArray } from 'drizzle-orm'
 
 import { db } from '../../db'

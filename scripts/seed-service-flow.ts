@@ -161,7 +161,7 @@ async function main() {
     if (!profile) {
       [profile] = await db
         .insert(profiles)
-        .values({ clerkId: "seed_demo_user", displayName: "Seed Demo" })
+        .values({ authId: "seed_demo_user", displayName: "Seed Demo" })
         .returning();
     }
     [form] = await db

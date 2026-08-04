@@ -1,9 +1,9 @@
 import { createServerFn } from '@tanstack/react-start'
-import { auth } from '@clerk/tanstack-react-start/server'
+import { currentAuth as auth } from '../auth.server'
 import { db } from '../../db/index'
 import { flowNodes, flowEdges, flowVariables, flows } from '../../db/schema'
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { assertFlowOwner, uniqueVarName, variableTypeForField } from './flow-helpers'
+import { assertFlowEditor as assertFlowOwner, uniqueVarName, variableTypeForField } from './flow-helpers'
 import { primaryOutgoingEdge } from '../flow-engine/path-utils'
 import type { FlowNodeType, FlowEdge } from '../flow-engine/types'
 

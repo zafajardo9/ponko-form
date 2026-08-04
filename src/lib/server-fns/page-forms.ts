@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { auth } from '@clerk/tanstack-react-start/server'
+import { currentAuth as auth } from '../auth.server'
 import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm'
 import { db } from '@/db/index'
 import { withTimeout } from '@/db/with-timeout'
@@ -61,7 +61,7 @@ import {
   subscriptionPaymentsEnabled,
   validateSubscriptionBindings,
 } from '../payments/subscriptions'
-import { assertFormOwner, uniqueVarName } from './flow-helpers'
+import { assertFormEditor as assertFormOwner, uniqueVarName } from './flow-helpers'
 import { emailSurveyTokenHash, validEmailSurveyToken } from './email-survey-token'
 import { paymentReturnOrigin, publicRequestOrigin } from './request-origin'
 import { ensurePageSubmissionDraft } from '../page-builder/submission-draft'
