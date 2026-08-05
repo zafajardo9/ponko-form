@@ -16,6 +16,7 @@ import {
   createEmailSurveyInvitation,
   getEmailSurveyFields,
 } from "../../lib/server-fns/email-surveys";
+import { appConfig } from "../../utils/app-config";
 import {
   buildEmailSurveyHtml,
   emailSurveyRatingUrl,
@@ -264,7 +265,7 @@ export function ShareDialog({ publicId, title, onClose }: ShareDialogProps) {
                     </p>
                     <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-[#8a5c48]">
                       <ShieldCheck size={13} aria-hidden="true" />
-                      PonkoForm creates the links—it does not send the email.
+                      {appConfig.name} creates the links—it does not send the email.
                     </p>
                   </div>
                 </div>
@@ -326,7 +327,7 @@ export function ShareDialog({ publicId, title, onClose }: ShareDialogProps) {
                           className="h-10 rounded-md border border-[#dedbd5] bg-white px-3 text-sm font-normal outline-none transition placeholder:text-[#aaa69e] focus:border-[#cc785c] focus:ring-2 focus:ring-[#cc785c]/15"
                         />
                         <span className="text-xs font-normal leading-4 text-[#8e8b82]">
-                          Used only to identify this response. PonkoForm will not email them.
+                          Used only to identify this response. {appConfig.name} will not email them.
                         </span>
                       </label>
 

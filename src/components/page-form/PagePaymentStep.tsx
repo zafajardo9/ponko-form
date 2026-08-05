@@ -3,6 +3,7 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { ensurePagePaymentDraft, getPagePaymentOptions, initiatePagePayment } from '../../lib/server-fns/page-forms'
 import { Button } from '../ui/Button'
 import { AlertTriangle, CheckCircle2, Info, LockKeyhole, RotateCcw, X } from 'lucide-react'
+import { appConfig } from '../../utils/app-config'
 
 interface PagePaymentStepProps {
   sessionId: number
@@ -118,7 +119,7 @@ function PaymentGuideDialog({
           <div className="flex items-start gap-2 rounded-lg border border-[#e6dfd8] bg-white p-3 text-xs text-[#6c6a64]">
             <LockKeyhole size={14} className="mt-0.5 shrink-0 text-[#8e8b82]" aria-hidden="true" />
             <span>
-              All payment details are handled securely by the provider. PonkoForm never sees your
+              All payment details are handled securely by the provider. {appConfig.name} never sees your
               payment method, card number, or banking credentials.
             </span>
           </div>
@@ -195,7 +196,7 @@ export function PagePaymentStep({
         return
       }
       if (result.issue) {
-        console.error('[PonkoForm payment] Checkout creation failed', {
+        console.error(`[${appConfig.name} payment] Checkout creation failed`, {
           reference: result.issue.reference,
           gateway: result.issue.gatewaySlug,
           category: result.issue.code,
@@ -207,7 +208,7 @@ export function PagePaymentStep({
     onError: (error) => {
       setPendingGateway(null)
       console.error(
-        '[PonkoForm payment] Checkout request failed before the provider returned a result',
+        `[${appConfig.name} payment] Checkout request failed before the provider returned a result`,
         error,
       )
     },

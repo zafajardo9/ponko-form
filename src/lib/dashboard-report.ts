@@ -3,6 +3,7 @@ import type {
   DashboardStats,
 } from "./server-fns/dashboard";
 import type { FormAnalyticsRecord } from "./dashboard-analytics";
+import { appConfig } from "../utils/app-config";
 import {
   compareFormPerformance,
   completionRate,
@@ -137,7 +138,7 @@ export async function createDashboardReportPdf(
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(...muted);
-    doc.text("PonkoForm performance report", margin, pageHeight - 8);
+    doc.text(`${appConfig.name} performance report`, margin, pageHeight - 8);
     doc.text(
       `Page ${doc.getNumberOfPages()}`,
       pageWidth - margin,

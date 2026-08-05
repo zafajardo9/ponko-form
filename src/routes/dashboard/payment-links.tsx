@@ -12,6 +12,7 @@ import {
 import { PaymentLinkCard } from '@/components/dashboard/PaymentLinkCard'
 import { CreatePaymentLinkDialog } from '@/components/dashboard/CreatePaymentLinkDialog'
 import { Button, navigationBackIconClass, navigationButtonClass } from '@/components/ui/Button'
+import { appConfig } from '@/utils/app-config'
 
 export const Route = createFileRoute('/dashboard/payment-links')({
   beforeLoad: ({ location }) => requireAuth({ data: { returnTo: location.href } }),
@@ -86,7 +87,7 @@ function PaymentLinksPage() {
             <ArrowRight className="hidden self-center text-white/25 md:block" size={16} aria-hidden="true" />
             <PaymentLinkStep icon={<Share2 size={18} />} label="2. Share the link" detail="Send it in chat, email, or place it on a page." />
             <ArrowRight className="hidden self-center text-white/25 md:block" size={16} aria-hidden="true" />
-            <PaymentLinkStep icon={<Link2 size={18} />} label="3. Get paid once" detail="The provider handles payment; PonkoForm records it." />
+            <PaymentLinkStep icon={<Link2 size={18} />} label="3. Get paid once" detail={`The provider handles payment; ${appConfig.name} records it.`} />
           </div>
           {!isLoading && !isError && linkCount > 0 && (
             <div className="grid grid-cols-3 border-t border-white/10 bg-white/[0.035]">

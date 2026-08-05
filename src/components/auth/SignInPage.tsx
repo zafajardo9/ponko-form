@@ -1,6 +1,9 @@
 import { ArrowRight, Eye, EyeOff } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { authClient } from '../../lib/auth-client'
+import { appConfig } from '../../utils/app-config'
+import { Plasma } from '../Plasma'
+import { AppLogo } from '../ui/AppLogo'
 
 type AuthMode = 'sign-in' | 'sign-up'
 type FieldErrors = Partial<Record<'name' | 'email' | 'password' | 'confirmPassword', string>>
@@ -78,45 +81,54 @@ export function SignInPage({ returnTo, configured }: { returnTo: string; configu
 
   return (
     <main className="min-h-screen bg-[#f6f1e9] p-3 sm:p-5">
-      <div className="grid min-h-[calc(100vh-1.5rem)] overflow-hidden rounded-[24px] bg-[#faf9f5] shadow-[0_28px_80px_rgba(45,37,30,0.08)] sm:min-h-[calc(100vh-2.5rem)] lg:grid-cols-[1.05fr_1fr]">
-        <aside className="relative hidden overflow-hidden bg-[#faf9f5] lg:flex lg:flex-col lg:justify-between lg:p-12 xl:p-16">
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-          <div className="absolute -top-40 right-[-12%] h-[520px] w-[520px] rounded-full bg-[radial-gradient(circle_at_center,rgba(204,120,92,0.5),transparent_65%)] blur-2xl" />
-          <div className="absolute left-[-18%] top-1/3 h-[460px] w-[460px] rounded-full bg-[radial-gradient(circle_at_center,rgba(240,183,160,0.45),transparent_65%)] blur-2xl" />
-          <div className="absolute bottom-[-22%] right-[10%] h-[500px] w-[500px] rounded-full bg-[radial-gradient(circle_at_center,rgba(169,88,62,0.32),transparent_65%)] blur-3xl" />
-        </div>
-
-        <a href="/" className="relative flex w-fit items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#cc785c] text-sm font-bold text-white">P</span>
-          <span className="text-lg font-semibold tracking-tight text-[#141413]">PonkoForm</span>
-        </a>
-
-        <div className="relative">
-          <h2 className="max-w-md font-[var(--font-display)] text-5xl font-normal leading-[1.06] tracking-[-0.02em] text-[#141413] xl:text-6xl">
-            <span className="bg-gradient-to-r from-[#cc785c] to-[#8a4a33] bg-clip-text text-transparent">Build forms</span>
-            <br />
-            that collect more.
-          </h2>
-          <p className="mt-5 max-w-sm text-sm leading-6 text-[#6c6a64]">
-            One builder for forms, flows, and payments — drag, drop, and ship.
-          </p>
-
-          <div className="mt-12 grid grid-cols-4 gap-6 border-t border-[#e6dfd8] pt-8">
-            {STATS.map((stat) => (
-              <div key={stat.label}>
-                <p className="text-xl font-semibold tracking-tight text-[#141413]">{stat.value}</p>
-                <p className="mt-1 text-xs text-[#6c6a64]">{stat.label}</p>
-              </div>
-            ))}
+      <div className="grid min-h-[calc(100vh-1.5rem)] sm:min-h-[calc(100vh-2.5rem)] lg:grid-cols-[1.05fr_1fr]">
+        <aside className="relative hidden overflow-hidden rounded-[24px] bg-[#faf9f5] lg:flex lg:flex-col lg:justify-between lg:p-12 xl:p-16">
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+            <Plasma
+              color="#cc785c"
+              speed={0.55}
+              direction="pingpong"
+              scale={0.85}
+              opacity={0.78}
+              mouseInteractive={false}
+              renderScale={0.5}
+              targetFps={30}
+              iterations={48}
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(250,249,245,0.72)_0%,rgba(250,249,245,0.42)_48%,rgba(246,241,233,0.68)_100%)]" />
           </div>
-        </div>
-      </aside>
 
-      <section className="flex flex-col items-center justify-center px-4 py-10 sm:px-10 sm:py-12">
+          <a href="/" className="relative flex w-fit items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2">
+            <AppLogo className="h-9 w-9 rounded-lg" fallbackClassName="bg-[#cc785c] text-sm font-bold text-white" />
+            <span className="text-lg font-semibold tracking-tight text-[#141413]">{appConfig.name}</span>
+          </a>
+
+          <div className="relative">
+            <h2 className="max-w-md font-[var(--font-display)] text-5xl font-normal leading-[1.06] tracking-[-0.02em] text-[#141413] xl:text-6xl">
+              <span className="bg-gradient-to-r from-[#cc785c] to-[#8a4a33] bg-clip-text text-transparent">Build forms</span>
+              <br />
+              that collect more.
+            </h2>
+            <p className="mt-5 max-w-sm text-sm leading-6 text-[#6c6a64]">
+              One builder for forms, flows, and payments — drag, drop, and ship.
+            </p>
+
+            <div className="mt-12 grid grid-cols-4 gap-6 border-t border-[#d8c9bd] pt-8">
+              {STATS.map((stat) => (
+                <div key={stat.label}>
+                  <p className="text-xl font-semibold tracking-tight text-[#141413]">{stat.value}</p>
+                  <p className="mt-1 text-xs text-[#6c6a64]">{stat.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </aside>
+
+      <section className="flex flex-col items-center justify-center border-0 bg-transparent px-4 py-10 sm:px-10 sm:py-12">
         <div className="w-full max-w-[400px]">
           <a href="/" className="mb-10 flex w-fit items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2 lg:hidden">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#cc785c] text-sm font-bold text-white">P</span>
-            <span className="text-lg font-semibold tracking-tight text-[#141413]">PonkoForm</span>
+            <AppLogo className="h-9 w-9 rounded-lg" fallbackClassName="bg-[#cc785c] text-sm font-bold text-white" />
+            <span className="text-lg font-semibold tracking-tight text-[#141413]">{appConfig.name}</span>
           </a>
 
           <h1 className="text-3xl font-semibold tracking-tight text-[#141413] sm:text-4xl">
@@ -124,7 +136,7 @@ export function SignInPage({ returnTo, configured }: { returnTo: string; configu
           </h1>
           <p className="mt-2.5 text-sm leading-6 text-[#6c6a64]">
             {creatingAccount
-              ? 'Almost there — create your PonkoForm account to start building.'
+              ? `Almost there — create your ${appConfig.name} account to start building.`
               : 'Welcome back. Sign in to continue to your workspace.'}
           </p>
 
@@ -205,7 +217,7 @@ export function SignInPage({ returnTo, configured }: { returnTo: string; configu
           </form>
 
           <p className="mt-8 text-center text-sm text-[#77736c]">
-            {creatingAccount ? 'Already have an account?' : 'New to PonkoForm?'}{' '}
+            {creatingAccount ? 'Already have an account?' : `New to ${appConfig.name}?`}{' '}
             <button
               type="button"
               onClick={() => changeMode(creatingAccount ? 'sign-in' : 'sign-up')}

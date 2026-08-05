@@ -1,16 +1,25 @@
 import { Link } from '@tanstack/react-router'
-import { LogOut } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { LogOut, UserRound } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { authClient, useSession } from '../../lib/auth-client'
+import { getMyProfile } from '../../lib/server-fns/profile'
 
 export function UserMenu() {
   const { data } = useSession()
   const user = data?.user
+  const profileQuery = useQuery({
+    queryKey: ['my-profile'],
+    queryFn: () => getMyProfile(),
+    enabled: Boolean(user),
+    staleTime: 5 * 60 * 1000,
+  })
+  const profile = profileQuery.data
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
-  const email = user?.email
-  const name = user?.name || email || 'Account'
-  const avatar = user?.image
+  const email = profile?.email || user?.email
+  const name = profile?.name || user?.name || email || 'Account'
+  const avatar = profile?.avatarUrl || user?.image
 
   useEffect(() => {
     if (!open) return
@@ -45,6 +54,9 @@ export function UserMenu() {
           </div>
           <div className="my-1 border-t border-[#ece6de]" />
           <Link to="/dashboard" onClick={() => setOpen(false)} className="block rounded-lg px-3 py-2 text-sm text-[#3d3d3a] hover:bg-[#f5f0e8]">Dashboard</Link>
+          <Link to="/settings/profile" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[#3d3d3a] hover:bg-[#f5f0e8]">
+            <UserRound size={15} aria-hidden="true" /> Edit profile
+          </Link>
           <button type="button" onClick={signOut} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[#b33e35] hover:bg-[#fdf0f0]">
             <LogOut size={15} aria-hidden="true" /> Sign out
           </button>

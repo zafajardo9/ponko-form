@@ -8,6 +8,7 @@ import {
   inviteCollaborator,
   removeCollaborator,
 } from '../../lib/server-fns/collaborators'
+import { appConfig } from '../../utils/app-config'
 
 export function ShareFormDialog({
   formId,
@@ -66,7 +67,7 @@ export function ShareFormDialog({
         <header className="sticky top-0 flex items-start justify-between border-b border-[#ece6de] bg-white px-6 py-5">
           <div>
             <h2 id="share-form-title" className="text-lg font-semibold text-[#282622]">Share “{title}”</h2>
-            <p className="mt-1 text-sm text-[#817d76]">Give another PonkoForm user editing or viewing access.</p>
+            <p className="mt-1 text-sm text-[#817d76]">Give another {appConfig.name} user editing or viewing access.</p>
           </div>
           <button type="button" aria-label="Close sharing dialog" onClick={onClose} className="rounded-lg p-2 text-[#817d76] hover:bg-[#f5f0e8]"><X size={18} /></button>
         </header>

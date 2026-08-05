@@ -4,12 +4,13 @@ import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import { randomBytes } from 'node:crypto'
 import { db } from '../db/index'
 import * as authSchema from '../db/auth-schema'
+import { appConfig } from '../utils/app-config'
 import { getAuthBaseUrl } from './auth-env'
 
 const ephemeralFallbackSecret = randomBytes(32).toString('base64url')
 
 export const auth = betterAuth({
-  appName: 'PonkoForm',
+  appName: appConfig.name,
   baseURL: getAuthBaseUrl(),
   secret: process.env.BETTER_AUTH_SECRET || ephemeralFallbackSecret,
   database: drizzleAdapter(db, {

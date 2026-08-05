@@ -1,4 +1,5 @@
 import type { ResendConfig } from '../integrations/types'
+import { appConfig } from '../../utils/app-config'
 
 export async function sendResendEmail(input: {
   config: ResendConfig
@@ -11,7 +12,7 @@ export async function sendResendEmail(input: {
   idempotencyKey?: string
 }) {
   if (!input.config.fromEmail) throw new Error('Resend verified sender email is not configured')
-  const senderName = input.fromName?.trim() || input.config.fromName?.trim() || 'PonkoForm'
+  const senderName = input.fromName?.trim() || input.config.fromName?.trim() || appConfig.name
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {

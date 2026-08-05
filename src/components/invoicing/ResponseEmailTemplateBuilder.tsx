@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import type { EmailTemplateSnapshot, ResponseEmailTemplate } from '../../db/schema'
 import type { ConfirmationConfigDraft, TemplateVariable } from '../../lib/invoicing/types'
+import { appConfig } from '../../utils/app-config'
 import { PreviewDialog } from '../ui/PreviewDialog'
 import { InvoicePreview } from './InvoicePreview'
 import { TemplateRichTextEditor } from './TemplateRichTextEditor'
@@ -382,7 +383,7 @@ export function ResponseEmailTemplateBuilder({
 
             {activeTab === 'advanced' ? (
               <div className="space-y-5">
-                <Field label="Automation name" required helper="Used only inside PonkoForm. Recipients will not see it.">
+                <Field label="Automation name" required helper={`Used only inside ${appConfig.name}. Recipients will not see it.`}>
                   <input
                     className={inputClass}
                     value={selected.name}

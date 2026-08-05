@@ -2,7 +2,9 @@ import { Link, useRouterState } from '@tanstack/react-router'
 import { Menu, X } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useSession } from '../../lib/auth-client'
+import { appConfig } from '../../utils/app-config'
 import { UserMenu } from '../auth/UserMenu'
+import { AppLogo } from '../ui/AppLogo'
 
 export default function AuthenticatedAppShell({
   children,
@@ -35,11 +37,9 @@ export function TopNav() {
             to="/"
             className="flex shrink-0 items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2"
           >
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#cc785c] text-sm font-bold text-white">
-              P
-            </span>
+            <AppLogo className="h-7 w-7 rounded-lg" fallbackClassName="bg-[#cc785c] text-sm font-bold text-white" />
             <span className="text-base font-semibold tracking-tight text-[#141413]">
-              PonkoForm
+              {appConfig.name}
             </span>
           </Link>
 

@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer'
 import type { SmtpConfig } from '../integrations/types'
+import { appConfig } from '../../utils/app-config'
 
 export function smtpTransportSecurity(config: Pick<SmtpConfig, 'port' | 'secure'>) {
   if (config.port === 465) {
@@ -53,7 +54,7 @@ export async function sendSmtpEmail(input: {
     greetingTimeout: 10_000,
     socketTimeout: 12_000,
   })
-  const fromName = input.fromName?.trim() || input.config.fromName?.trim() || 'PonkoForm'
+  const fromName = input.fromName?.trim() || input.config.fromName?.trim() || appConfig.name
   try {
     const result = await transport.sendMail({
       from: { name: fromName, address: input.config.fromEmail },

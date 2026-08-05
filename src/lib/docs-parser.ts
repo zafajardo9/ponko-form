@@ -2,6 +2,7 @@
 // This eliminates the need for runtime filesystem access and works
 // on all deployment targets (Vercel, Node, etc.).
 import type { DocMeta, DocData } from './docs-parser-types'
+import { appConfig } from '../utils/app-config'
 
 // Re-export types for consumers
 export type { DocMeta, DocData } from './docs-parser-types'
@@ -42,7 +43,7 @@ function extractDescription(md: string): string {
       break
     }
   }
-  return desc || 'Documentation for PonkoForm.'
+  return desc || `Documentation for ${appConfig.name}.`
 }
 
 /** Extract all headings for the sidebar table of contents. */

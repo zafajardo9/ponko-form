@@ -14,6 +14,8 @@ import {
   WorkflowMockup,
 } from "./ProductMockups";
 import { useSession } from "../../lib/auth-client";
+import { appConfig } from "../../utils/app-config";
+import { AppLogo } from "../ui/AppLogo";
 
 function Show({
   when,
@@ -164,7 +166,7 @@ function FeaturesSection() {
         <SectionHeading
           eyebrow="Build · Collect · Manage"
           title="The complete form workflow, without the clutter"
-          description="PonkoForm keeps creation, collection, and follow-up in one coherent system so important context never gets separated from a response."
+          description={`${appConfig.name} keeps creation, collection, and follow-up in one coherent system so important context never gets separated from a response.`}
           centered
         />
         <div className="mt-16 space-y-12">
@@ -202,7 +204,7 @@ function WorkflowSection() {
         <SectionHeading
           eyebrow="How it works"
           title="From a blank page to useful answers"
-          description="Start with a template, make it yours, and publish when the experience feels right. PonkoForm keeps the operational work just as straightforward."
+          description={`Start with a template, make it yours, and publish when the experience feels right. ${appConfig.name} keeps the operational work just as straightforward.`}
           centered
         />
         <ol className="mt-16 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
@@ -245,7 +247,7 @@ function PaymentReliabilitySection() {
           <SectionHeading
             eyebrow="Payment reliability"
             title="Every transaction has a state, a history, and a way forward"
-            description="PonkoForm records payment status alongside the form journey. Gateway returns, verified webhooks, and reconciliation checks help you distinguish completed payments from transactions that still need attention."
+            description={`${appConfig.name} records payment status alongside the form journey. Gateway returns, verified webhooks, and reconciliation checks help you distinguish completed payments from transactions that still need attention.`}
             dark
           />
           <div className="mt-7 flex flex-wrap gap-2">
@@ -286,7 +288,7 @@ function IntegrationsSection() {
           <SectionHeading
             eyebrow="Connected workflows"
             title="Use the accounts you already trust"
-            description="Connect your own gateway credentials. PonkoForm handles the form-side workflow while the provider remains the source of truth for the transaction."
+            description={`Connect your own gateway credentials. ${appConfig.name} handles the form-side workflow while the provider remains the source of truth for the transaction.`}
           />
           <Show when="signed-in">
             <Link to="/settings/integrations" className={`${secondaryButton} shrink-0`}>
@@ -329,7 +331,7 @@ function RespondentExperienceSection() {
           <SectionHeading
             eyebrow="Respondent experience"
             title="One form. Every screen. No compromises."
-            description="Publish once and give every respondent a focused journey. PonkoForm reshapes the same fields, progress, and actions for the screen they are already using."
+            description={`Publish once and give every respondent a focused journey. ${appConfig.name} reshapes the same fields, progress, and actions for the screen they are already using.`}
           />
           <ul className="mt-8 grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
             {[
@@ -412,10 +414,8 @@ function Footer() {
         <div className="grid gap-10 border-b border-surface-dark-elevated pb-10 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr]">
           <div className="max-w-sm">
             <Link to="/" className={`inline-flex items-center gap-2 text-on-dark ${focusRing} focus-visible:ring-offset-surface-dark`}>
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-white">
-                P
-              </span>
-              <span className="font-medium">PonkoForm</span>
+              <AppLogo className="h-8 w-8 rounded-lg" fallbackClassName="bg-primary text-sm font-semibold text-white" />
+              <span className="font-medium">{appConfig.name}</span>
             </Link>
             <p className="mt-4 text-sm leading-6">
               Responsive forms, connected payments, and an organized response workspace.
@@ -444,7 +444,7 @@ function Footer() {
           </div>
         </div>
         <div className="flex flex-col gap-2 pt-7 text-xs sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} PonkoForm. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} {appConfig.name}. All rights reserved.</p>
           <p>Built for clear, reliable collection.</p>
         </div>
       </div>

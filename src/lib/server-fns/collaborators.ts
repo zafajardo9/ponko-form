@@ -10,6 +10,7 @@ import { requireProfile } from '../profile.server'
 import { sendTransactionalEmail } from '../email/transactional'
 import { publicRequestOrigin } from './request-origin'
 import { assertFormOwner } from './flow-helpers'
+import { appConfig } from '../../utils/app-config'
 
 type CollaboratorRole = 'editor' | 'viewer'
 
@@ -77,7 +78,7 @@ export const inviteCollaborator = createServerFn({ method: 'POST' })
       .where(eq(profiles.email, data.email))
       .limit(1)
     if (!target) {
-      throw new Error(`No PonkoForm user found for ${data.email}. They need to sign in once before you can add them.`)
+      throw new Error(`No ${appConfig.name} user found for ${data.email}. They need to sign in once before you can add them.`)
     }
     if (target.id === profile.id) throw new Error('You already own this form')
 
@@ -120,14 +121,14 @@ export const inviteCollaborator = createServerFn({ method: 'POST' })
     let notificationSent = false
     if (!existing && target.email) {
       const formTitle = form.title
-      const actor = profile.name || profile.email || 'A PonkoForm user'
+      const actor = profile.name || profile.email || `A ${appConfig.name} user`
       const formsUrl = `${publicRequestOrigin()}/forms`
       try {
         await sendTransactionalEmail(profile.id, {
           recipient: target.email,
-          subject: `You can now ${data.role === 'editor' ? 'edit' : 'view'} “${formTitle}” in PonkoForm`,
+          subject: `You can now ${data.role === 'editor' ? 'edit' : 'view'} “${formTitle}” in ${appConfig.name}`,
           text: `${actor} shared “${formTitle}” with you as ${data.role}. Open ${formsUrl} to access it.`,
-          html: `<p>${escapeHtml(actor)} shared <strong>${escapeHtml(formTitle)}</strong> with you as ${data.role}.</p><p><a href="${escapeHtml(formsUrl)}">Open PonkoForm</a></p>`,
+          html: `<p>${escapeHtml(actor)} shared <strong>${escapeHtml(formTitle)}</strong> with you as ${data.role}.</p><p><a href="${escapeHtml(formsUrl)}">Open ${escapeHtml(appConfig.name)}</a></p>`,
           idempotencyKey: `collaboration-invite-${collaborator.id}`,
         })
         notificationSent = true

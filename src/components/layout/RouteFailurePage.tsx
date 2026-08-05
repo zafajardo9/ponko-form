@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, RefreshCw } from 'lucide-react'
+import { appConfig } from '../../utils/app-config'
 
 import type { ErrorComponentProps } from '@tanstack/react-router'
 
@@ -30,7 +31,7 @@ export function RouteFailurePage(props: FailurePageProps) {
           </h1>
           <p className="mt-6 max-w-xl text-base leading-7 text-muted sm:text-lg sm:leading-8">
             {isNotFound
-              ? 'The address may be outdated or incomplete. Return to PonkoForm, or use the documentation to find the workflow you need.'
+              ? `The address may be outdated or incomplete. Return to ${appConfig.name}, or use the documentation to find the workflow you need.`
               : 'A temporary application error stopped this view from loading. Try the page again; if it keeps happening, return home and reopen your workspace.'}
           </p>
 

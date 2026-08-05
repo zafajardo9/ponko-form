@@ -12,6 +12,7 @@ import { ErrorBoundary } from "../components/layout/ErrorBoundary";
 import { ToastProvider } from "../components/ui/Toast";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
 import { isBarePublicPath } from "../lib/public-route";
+import { appConfig } from "../utils/app-config";
 
 import appCss from "../styles.css?url";
 
@@ -40,7 +41,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "PonkoForm — Build forms that collect more" },
+      { title: `${appConfig.name} — Build forms that collect more` },
       {
         name: "description",
         content:

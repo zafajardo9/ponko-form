@@ -55,6 +55,7 @@ import {
   navigationButtonClass,
 } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { AppLogo } from "@/components/ui/AppLogo";
 import { PreviewDialog } from "@/components/ui/PreviewDialog";
 import { useToast } from "@/components/ui/Toast";
 import { FormSectionNav } from "@/components/forms/FormSectionNav";
@@ -63,6 +64,7 @@ import { UserMenu } from "@/components/auth/UserMenu";
 import { ShareFormDialog } from "@/components/forms/ShareFormDialog";
 import { SettingsDialog } from "@/components/flow-builder/SettingsDialog";
 import { themeVars, type FormTheme } from "@/lib/theme";
+import { appConfig } from "@/utils/app-config";
 import type { FormPage, FormReference } from "@/lib/page-builder/types";
 import { FlowValidator } from "@/lib/flow-engine/FlowValidator";
 import {
@@ -625,14 +627,12 @@ function UnifiedEditorPage() {
         <div className="flex h-12 min-w-0 flex-1 items-center gap-2.5">
           <Link
             to="/"
-            aria-label="PonkoForm home"
+            aria-label={`${appConfig.name} home`}
             className="flex shrink-0 items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2"
           >
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#cc785c] text-sm font-bold text-white">
-              P
-            </span>
+            <AppLogo className="h-7 w-7 rounded-lg" fallbackClassName="bg-[#cc785c] text-sm font-bold text-white" />
             <span className="hidden text-sm font-semibold tracking-tight text-[#141413] 2xl:inline">
-              PonkoForm
+              {appConfig.name}
             </span>
           </Link>
 

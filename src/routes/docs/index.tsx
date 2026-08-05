@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { listDocs } from "../../lib/server-fns/docs";
 import { DocCard } from "../../components/docs/DocCard";
 import type { DocMeta } from "../../lib/docs-parser";
+import { appConfig } from "../../utils/app-config";
 import {
   ArrowRight,
   BookOpen,
@@ -61,7 +62,7 @@ function DocsIndexPage() {
         <section className="rounded-lg border border-[#e6dfd8] bg-[#efe9de] p-7 sm:p-8">
           <div className="mb-5 flex items-center gap-2 text-sm font-medium text-[#cc785c]">
             <BookOpen size={16} />
-            <span>PonkoForm Docs</span>
+            <span>{appConfig.name} Docs</span>
           </div>
           <h1 className="max-w-2xl text-4xl font-semibold leading-tight tracking-tight text-[#141413] sm:text-5xl">
             Build flows that feel like guided service journeys.

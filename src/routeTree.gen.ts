@@ -16,6 +16,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as FormsIndexRouteImport } from './routes/forms/index'
 import { Route as DocsIndexRouteImport } from './routes/docs/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
+import { Route as SettingsProfileRouteImport } from './routes/settings/profile'
 import { Route as SettingsIntegrationsRouteImport } from './routes/settings/integrations'
 import { Route as PayPublicIdRouteImport } from './routes/pay/$publicId'
 import { Route as FormsPaymentReturnRouteImport } from './routes/forms/payment-return'
@@ -72,6 +73,11 @@ const DocsIndexRoute = DocsIndexRouteImport.update({
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/dashboard/',
   path: '/dashboard/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsProfileRoute = SettingsProfileRouteImport.update({
+  id: '/settings/profile',
+  path: '/settings/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsIntegrationsRoute = SettingsIntegrationsRouteImport.update({
@@ -201,6 +207,7 @@ export interface FileRoutesByFullPath {
   '/forms/payment-return': typeof FormsPaymentReturnRoute
   '/pay/$publicId': typeof PayPublicIdRouteWithChildren
   '/settings/integrations': typeof SettingsIntegrationsRoute
+  '/settings/profile': typeof SettingsProfileRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/docs/': typeof DocsIndexRoute
   '/forms/': typeof FormsIndexRoute
@@ -232,6 +239,7 @@ export interface FileRoutesByTo {
   '/forms/payment-return': typeof FormsPaymentReturnRoute
   '/pay/$publicId': typeof PayPublicIdRouteWithChildren
   '/settings/integrations': typeof SettingsIntegrationsRoute
+  '/settings/profile': typeof SettingsProfileRoute
   '/dashboard': typeof DashboardIndexRoute
   '/docs': typeof DocsIndexRoute
   '/forms': typeof FormsIndexRoute
@@ -264,6 +272,7 @@ export interface FileRoutesById {
   '/forms/payment-return': typeof FormsPaymentReturnRoute
   '/pay/$publicId': typeof PayPublicIdRouteWithChildren
   '/settings/integrations': typeof SettingsIntegrationsRoute
+  '/settings/profile': typeof SettingsProfileRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/docs/': typeof DocsIndexRoute
   '/forms/': typeof FormsIndexRoute
@@ -297,6 +306,7 @@ export interface FileRouteTypes {
     | '/forms/payment-return'
     | '/pay/$publicId'
     | '/settings/integrations'
+    | '/settings/profile'
     | '/dashboard/'
     | '/docs/'
     | '/forms/'
@@ -328,6 +338,7 @@ export interface FileRouteTypes {
     | '/forms/payment-return'
     | '/pay/$publicId'
     | '/settings/integrations'
+    | '/settings/profile'
     | '/dashboard'
     | '/docs'
     | '/forms'
@@ -359,6 +370,7 @@ export interface FileRouteTypes {
     | '/forms/payment-return'
     | '/pay/$publicId'
     | '/settings/integrations'
+    | '/settings/profile'
     | '/dashboard/'
     | '/docs/'
     | '/forms/'
@@ -391,6 +403,7 @@ export interface RootRouteChildren {
   FormsPaymentReturnRoute: typeof FormsPaymentReturnRoute
   PayPublicIdRoute: typeof PayPublicIdRouteWithChildren
   SettingsIntegrationsRoute: typeof SettingsIntegrationsRoute
+  SettingsProfileRoute: typeof SettingsProfileRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   DocsIndexRoute: typeof DocsIndexRoute
   FormsIndexRoute: typeof FormsIndexRoute
@@ -459,6 +472,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard/'
       preLoaderRoute: typeof DashboardIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings/profile': {
+      id: '/settings/profile'
+      path: '/settings/profile'
+      fullPath: '/settings/profile'
+      preLoaderRoute: typeof SettingsProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings/integrations': {
@@ -642,6 +662,7 @@ const rootRouteChildren: RootRouteChildren = {
   FormsPaymentReturnRoute: FormsPaymentReturnRoute,
   PayPublicIdRoute: PayPublicIdRouteWithChildren,
   SettingsIntegrationsRoute: SettingsIntegrationsRoute,
+  SettingsProfileRoute: SettingsProfileRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   DocsIndexRoute: DocsIndexRoute,
   FormsIndexRoute: FormsIndexRoute,
