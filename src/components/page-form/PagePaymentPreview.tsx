@@ -44,30 +44,37 @@ export function PagePaymentPreview({
           ? 'Subscription payment preview'
           : 'Payment preview'
       }
-      className="overflow-hidden rounded-xl border border-[#ddd4ca] bg-[#faf9f5]"
+      className="rounded-2xl border border-[#e6dfd8] bg-white shadow-[0_1px_4px_rgba(20,20,19,0.08)]"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e6dfd8] bg-white px-4 py-3">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.12em] text-[#8e8b82]">
-            {isSubscription ? 'Subscription amount' : 'Amount due'}
-          </p>
-          <p className="mt-1 text-2xl font-semibold tracking-tight text-[#141413]">
-            {formatMoney(calculation.amount, page.paymentCurrency)}
-            {subscription && (
-              <span className="ml-1 text-sm font-normal tracking-normal text-[#6c6a64]">
-                /{INTERVAL_LABELS[subscription.interval]}
-              </span>
-            )}
-          </p>
-        </div>
-        <span className="rounded-full border border-[#d9c8bb] bg-[#f7eee8] px-2.5 py-1 text-xs font-medium text-[#9a533d]">
+      {/* Ticket stub — amount due */}
+      <div className="rounded-t-2xl bg-[#faf9f5] px-5 pb-6 pt-5 text-center">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8e8b82]">
+          {isSubscription ? 'Subscription amount' : 'Amount due'}
+        </p>
+        <p className="mt-2 text-4xl font-semibold tracking-tight text-[#141413]">
+          {formatMoney(calculation.amount, page.paymentCurrency)}
+          {subscription && (
+            <span className="ml-1.5 text-lg font-normal text-[#6c6a64]">
+              /{INTERVAL_LABELS[subscription.interval]}
+            </span>
+          )}
+        </p>
+        <span className="mt-3 inline-flex items-center rounded-full border border-[#d9c8bb] bg-[#f7eee8] px-2.5 py-1 text-xs font-medium text-[#9a533d]">
           Preview
         </span>
       </div>
 
-      <div className="space-y-4 p-4">
+      {/* Perforation */}
+      <div className="relative flex items-center" aria-hidden="true">
+        <span className="absolute -left-2.5 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full bg-[var(--ponko-surface,#efe9de)]" />
+        <span className="absolute -right-2.5 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full bg-[var(--ponko-surface,#efe9de)]" />
+        <div className="mx-4 flex-1 border-t-2 border-dashed border-[#ddd5cc]" />
+      </div>
+
+      {/* Ticket body */}
+      <div className="flex flex-col gap-4 px-5 py-5">
         {subscription && (
-          <div className="rounded-lg border border-[#e6dfd8] bg-white p-3 text-sm leading-relaxed text-[#5f5a53]">
+          <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 text-sm leading-relaxed text-[#5f5a53]">
             <p className="font-medium text-[#141413]">
               {subscription.trialPeriodDays > 0
                 ? `${subscription.trialPeriodDays}-day trial`
@@ -84,8 +91,8 @@ export function PagePaymentPreview({
 
         {page.paymentComputation?.showBreakdown &&
           calculation.breakdown.length > 0 && (
-            <div className="rounded-lg border border-[#e6dfd8] bg-white p-3">
-              <p className="mb-2 text-sm font-medium text-[#141413]">
+            <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#8e8b82]">
                 Price breakdown
               </p>
               <div className="space-y-1.5">

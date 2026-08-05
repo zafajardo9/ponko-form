@@ -179,13 +179,26 @@ describe('PageFormView session resilience', () => {
     expect(screen.queryByText('Preparing secure submission…')).toBeNull()
   })
 
-  it('does not include the final thank-you page in the progress total', () => {
+  it('hides the progress bar when the form has a single page', () => {
     serverFns.startPageSession.mockReturnValue(new Promise(() => undefined))
 
     renderPageForm()
 
-    expect(screen.getByText('Page 1 of 1')).toBeTruthy()
-    expect(screen.queryByText('Page 1 of 2')).toBeNull()
+    expect(screen.queryByText(/^Page \d+ of \d+$/)).toBeNull()
+  })
+
+  it('shows progress across multiple pages without counting the final page', () => {
+    serverFns.startPageSession.mockReturnValue(new Promise(() => undefined))
+    const multiPages = [
+      { ...pages[0], id: 3, position: 0, title: 'First', fields: [] },
+      { ...pages[0], id: 4, position: 1, title: 'Second', fields: [] },
+      pages[1],
+    ] as FormPage[]
+
+    renderPageForm(multiPages)
+
+    expect(screen.getByText('Page 1 of 2')).toBeTruthy()
+    expect(screen.queryByText('Page 1 of 3')).toBeNull()
   })
 
   it('shows the form name once when the description duplicates it', () => {

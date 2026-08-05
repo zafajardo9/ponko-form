@@ -234,19 +234,22 @@ export function ShareDialog({ publicId, title, onClose }: ShareDialogProps) {
                 fills the container it's placed in and auto-resizes to fit its
                 content.
               </p>
-              <textarea
-                readOnly
-                value={embedCode}
-                onFocus={(e) => e.currentTarget.select()}
-                rows={10}
-                className="w-full resize-none rounded-md border border-[#e6dfd8] bg-white px-3 py-2 font-mono text-xs leading-relaxed text-[#141413]"
-              />
-              <button
-                onClick={() => copy(embedCode, "embed")}
-                className="inline-flex h-9 w-fit items-center rounded-md bg-[#cc785c] px-4 text-sm font-medium text-white transition-colors hover:bg-[#a9583e]"
-              >
-                {copied === "embed" ? "Copied!" : "Copy embed code"}
-              </button>
+              <div className="relative">
+                <textarea
+                  readOnly
+                  value={embedCode}
+                  onFocus={(e) => e.currentTarget.select()}
+                  rows={10}
+                  className="w-full resize-none rounded-md border border-[#e6dfd8] bg-white px-3 py-2 pr-20 font-mono text-xs leading-relaxed text-[#141413]"
+                />
+                <button
+                  onClick={() => copy(embedCode, "embed")}
+                  className="absolute right-2 top-2 inline-flex h-7 items-center gap-1.5 rounded-md border border-[#e6dfd8] bg-white/95 px-2.5 text-xs font-medium text-[#5f5b55] shadow-sm transition-colors hover:border-[#cc785c]/50 hover:text-[#a9583e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]/30"
+                >
+                  {copied === "embed" ? <Check size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}
+                  {copied === "embed" ? "Copied!" : "Copy"}
+                </button>
+              </div>
             </div>
           ) : (
             <div className="flex flex-col gap-5">

@@ -63,7 +63,7 @@ describe('FieldRenderer choice and calendar controls', () => {
     expect(onChange).toHaveBeenCalledWith('5')
   })
 
-  it('lays out satisfaction choices as a compact responsive emoji grid', () => {
+  it('keeps satisfaction choices circular and wraps them on narrow screens', () => {
     const field: FieldConfig = {
       id: 10,
       type: 'satisfaction',
@@ -78,8 +78,10 @@ describe('FieldRenderer choice and calendar controls', () => {
     render(<FieldRenderer field={field} value="" onChange={vi.fn()} />)
 
     const group = screen.getByRole('radiogroup', { name: 'Satisfaction level' })
-    expect(group.className).toContain('auto-fit')
-    expect(group.className).not.toContain('overflow-x-auto')
+    expect(group.className).toContain('flex-wrap')
+    expect(group.className).toContain('justify-center')
+    expect(screen.getByTitle('Not at all likely').className).toContain('h-11 flex-none')
+    expect(screen.getByTitle('Not at all likely').className).toContain('w-11 rounded-full')
     expect(screen.getByText('Not at all likely').className).toBe('sr-only')
     expect(screen.getAllByRole('radio')).toHaveLength(11)
   })
@@ -107,6 +109,8 @@ describe('FieldRenderer choice and calendar controls', () => {
     expect(screen.queryByText('star-svg')).toBeNull()
     expect(container.querySelectorAll('svg[data-star-icon]')).toHaveLength(5)
     expect(container.querySelectorAll('svg[data-filled="true"]')).toHaveLength(0)
+    expect(screen.getByTitle('4 stars').className).not.toContain('rounded-full')
+    expect(screen.getByTitle('4 stars').className).not.toContain('border-[#e6dfd8]')
 
     fireEvent.click(screen.getByRole('radio', { name: '4 stars' }))
     expect(onChange).toHaveBeenCalledWith('4')

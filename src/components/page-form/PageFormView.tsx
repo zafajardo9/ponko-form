@@ -91,6 +91,12 @@ export function PageFormView({
   const [paidPages, setPaidPages] = useState<Record<number, boolean>>({})
   const [paymentGateMessage, setPaymentGateMessage] = useState('')
   const [completed, setCompleted] = useState(false)
+  // Bumps on every page navigation; `tick` re-keys the page wrapper (replaying
+  // the transition) and `dir` picks the forward/back animation.
+  const [nav, setNav] = useState<{ tick: number; dir: 'forward' | 'back' }>({
+    tick: 0,
+    dir: 'forward',
+  })
   const [captchaEpoch, setCaptchaEpoch] = useState(0)
   const [sessionClientToken] = useState(() => resumeClientToken ?? createPublicSessionToken())
   const sessionCorrelationId = sessionClientToken.slice(0, 12)
@@ -357,10 +363,12 @@ export function PageFormView({
       }
     }
     setCurrentPageIndex(nextIndex)
+    setNav((s) => ({ tick: s.tick + 1, dir: 'forward' }))
   }
 
   function goBack() {
     setCurrentPageIndex((index) => Math.max(0, index - 1))
+    setNav((s) => ({ tick: s.tick + 1, dir: 'back' }))
   }
 
   if (completed) {
@@ -412,6 +420,12 @@ export function PageFormView({
             </div>
           )}
 
+          {/* Re-key per navigation so the page transition replays. Embedded
+              forms skip the animation to stay calm inside a host page. */}
+          <div
+            key={embed ? undefined : nav.tick}
+            className={embed ? undefined : `ponko-step-${nav.dir}`}
+          >
           <div className="mb-6">
             <h2 className="text-xl font-medium text-[#141413]">{currentPage.title}</h2>
             {currentPage.description && (
@@ -477,6 +491,7 @@ export function PageFormView({
               ))}
             </div>
           )}
+          </div>
 
           {(advanceMut.isError || completeMut.isError) && (
             <p className="mt-4 text-sm text-[#c64545]" role="alert">

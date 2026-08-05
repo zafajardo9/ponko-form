@@ -10,6 +10,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { Field, inputClass } from './Shared'
 import { slugForBinding, slugForOptionValue, tempId } from './PageBuilderUtils'
+import { SUPPORTED_CURRENCY_OPTIONS } from '../../integrations/payments/currencies'
 
 interface PageSettingsProps {
   page: FormPage
@@ -260,6 +261,8 @@ export function PageSettings({ page, gateways, pages, references, onUpdate, onDe
   const customerEmailFields = earlierFields.filter((field) => field.fieldType === 'email')
   const xenditGateway = gateways.find((gateway) => gateway.slug === 'xendit')
   const subscriptionConfig = page.subscriptionConfig
+  const paymentCurrency = page.paymentCurrency.toUpperCase()
+  const hasListedCurrency = SUPPORTED_CURRENCY_OPTIONS.some(({ code }) => code === paymentCurrency)
   const paymentComputation = page.paymentComputation ?? {
     mode: page.paymentAmountVariable ? 'field' : 'sum_priced_options',
     fieldBindings: page.paymentAmountVariable ? [page.paymentAmountVariable] : [],
@@ -573,13 +576,27 @@ export function PageSettings({ page, gateways, pages, references, onUpdate, onDe
                   )}
                 </div>
               </div>
-              <Field label="Currency">
-                <input
-                  value={page.paymentCurrency}
-                  onChange={(e) => onUpdate({ paymentCurrency: e.target.value.toUpperCase().slice(0, 3) })}
+              <Field
+                label="Currency"
+                hint={subscriptionConfig
+                  ? 'Xendit subscriptions are charged in Philippine pesos.'
+                  : 'Choose the currency customers will be charged in. Availability depends on the payment gateway.'}
+              >
+                <select
+                  value={paymentCurrency}
+                  onChange={(e) => onUpdate({ paymentCurrency: e.target.value })}
                   className={inputClass}
                   disabled={Boolean(page.subscriptionConfig)}
-                />
+                >
+                  {!hasListedCurrency && paymentCurrency && (
+                    <option value={paymentCurrency}>{paymentCurrency} — Saved currency</option>
+                  )}
+                  {SUPPORTED_CURRENCY_OPTIONS.map(({ code, name }) => (
+                    <option key={code} value={code}>
+                      {code} — {name}
+                    </option>
+                  ))}
+                </select>
               </Field>
               <label className="flex items-center gap-2 rounded-lg border border-[#e6dfd8] bg-white p-3 text-sm text-[#141413]">
                 <input
@@ -719,4 +736,3 @@ export function FormulaAdjustmentsEditor({
     </div>
   )
 }
-

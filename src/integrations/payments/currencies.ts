@@ -20,3 +20,16 @@ export const SUPPORTED_CURRENCIES = [
 ] as const
 
 export type SupportedCurrency = (typeof SUPPORTED_CURRENCIES)[number]
+
+/** Human-readable labels for currency pickers in creator-facing interfaces. */
+export const SUPPORTED_CURRENCY_OPTIONS: readonly {
+  code: SupportedCurrency
+  name: string
+}[] = [
+  { code: 'USD', name: 'US dollar' },
+  { code: 'PHP', name: 'Philippine peso' },
+  { code: 'EUR', name: 'Euro' },
+  { code: 'GBP', name: 'British pound' },
+  { code: 'SGD', name: 'Singapore dollar' },
+  { code: 'AUD', name: 'Australian dollar' },
+]

@@ -309,6 +309,40 @@ body {
   animation: ponko-step-back 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* Progress bar shine sweep — replayed once per page change via re-keying. */
+@keyframes ponko-progress-shine {
+  from {
+    opacity: 0;
+    transform: translateX(-140%);
+  }
+  25% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(420%);
+  }
+}
+
+.ponko-progress-shine {
+  animation: ponko-progress-shine 750ms 120ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes ponko-progress-label {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ponko-progress-label {
+  animation: ponko-progress-label 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hero-enter,
   .hero-panel-enter,
@@ -320,6 +354,11 @@ body {
 
   .ponko-step-forward,
   .ponko-step-back {
+    animation: none;
+  }
+
+  .ponko-progress-shine,
+  .ponko-progress-label {
     animation: none;
   }
 }

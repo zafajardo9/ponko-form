@@ -23,6 +23,10 @@ interface RatingControlProps {
  * scales). Both the live form (`SatisfactionField`) and the form-builder card
  * preview render through this component, so creators always see exactly what
  * respondents will see.
+ *
+ * Layout: options sit centered with comfortable gaps. When they don't fit on
+ * narrow screens (e.g. an 11-point NPS scale on mobile), the row wraps into
+ * centered rows instead of scrolling horizontally.
  */
 export function RatingControl({ options, value, onChange, name, label, readOnly }: RatingControlProps) {
   const [hoveredRating, setHoveredRating] = useState<number | null>(null)
@@ -37,7 +41,7 @@ export function RatingControl({ options, value, onChange, name, label, readOnly 
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <div
-        className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(2.5rem,1fr))] gap-1 sm:gap-2"
+        className="flex min-w-0 flex-wrap items-center justify-center gap-1.5 px-1 sm:gap-2"
         role="radiogroup"
         aria-label={label}
       >
@@ -45,21 +49,27 @@ export function RatingControl({ options, value, onChange, name, label, readOnly 
           const ratingValue = Number(opt.value)
           const isCurrent = value === opt.value
           const isActive = hasActiveRating && ratingValue <= activeRating
-          const visual = opt.emoji?.trim() || opt.value
+          const optionVisual = opt.emoji?.trim() ?? ''
+          const visual = optionVisual || opt.value
+          const isNumericOption =
+            !usesSvgStars && !isImageUrl(visual) && (!optionVisual || optionVisual === opt.value)
+          const usesTextStars = !usesSvgStars && visual.includes('★')
           return (
             <label
               key={opt.value}
               title={opt.label}
               onMouseEnter={interactive ? () => setHoveredRating(ratingValue) : undefined}
               onMouseLeave={interactive ? () => setHoveredRating(null) : undefined}
-              className={`group flex min-h-11 min-w-0 items-center justify-center rounded-full p-1 text-center transition-all duration-200 focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] sm:min-h-14 sm:p-2 ${
+              className={`group flex h-11 flex-none items-center justify-center text-center transition-all duration-200 focus-within:rounded-lg focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] sm:h-14 ${
                 interactive ? 'cursor-pointer' : 'cursor-default'
               } ${
-                usesSvgStars
-                  ? ''
-                  : isCurrent || (interactive && hoveredRating === ratingValue)
-                    ? 'border border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary-soft,#cc785c29)] shadow-sm'
-                    : 'border border-[#e6dfd8] bg-white hover:border-[#cfc4b8] hover:bg-[#faf9f5]'
+                isNumericOption
+                  ? `w-11 rounded-full p-1 sm:w-14 sm:p-2 ${
+                      isCurrent || (interactive && hoveredRating === ratingValue)
+                        ? 'border border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary-soft,#cc785c29)] shadow-sm'
+                        : 'border border-[#e6dfd8] bg-white hover:border-[#cfc4b8] hover:bg-[#faf9f5]'
+                    }`
+                  : 'min-w-11 px-1 sm:min-w-14 sm:px-2'
               }`}
             >
               <input
@@ -85,13 +95,27 @@ export function RatingControl({ options, value, onChange, name, label, readOnly 
                 <img
                   src={visual}
                   alt=""
-                  className="h-7 w-7 object-contain transition-transform duration-200 group-hover:scale-110 sm:h-9 sm:w-9"
+                  className={`h-8 w-8 object-contain transition-transform duration-200 sm:h-10 sm:w-10 ${
+                    isCurrent ? 'scale-110 drop-shadow-sm' : ''
+                  } ${interactive ? 'group-hover:scale-110' : ''}`}
                 />
               ) : (
                 <span
                   aria-hidden="true"
-                  className={`whitespace-nowrap text-xl leading-none transition-transform duration-200 sm:text-2xl ${
-                    isActive ? 'text-[#d59b25]' : 'text-[#8e8b82]'
+                  className={`whitespace-nowrap leading-none transition-transform duration-200 ${
+                    isNumericOption
+                      ? 'max-w-full truncate text-lg sm:text-xl'
+                      : usesTextStars
+                        ? 'text-lg sm:text-xl'
+                        : 'text-2xl sm:text-3xl'
+                  } ${
+                    isNumericOption && isActive
+                      ? 'text-[#d59b25]'
+                      : isNumericOption
+                        ? 'text-[#8e8b82]'
+                        : ''
+                  } ${
+                    !isNumericOption && isCurrent ? 'scale-110 drop-shadow-sm' : ''
                   } ${interactive ? 'group-hover:scale-110' : ''}`}
                 >
                   {visual}
