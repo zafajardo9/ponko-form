@@ -191,6 +191,7 @@ function PaymentsPage() {
         formId={formId}
         formTitle={formTitle}
         active="payments"
+        hasPayment={hasPaymentFlow}
         title="Payments"
       >
         <div className="rounded-xl border border-dashed border-[#e6dfd8] py-24 text-center">
@@ -404,6 +405,7 @@ function PaymentsPage() {
       formId={formId}
       formTitle={formTitle}
       active="payments"
+      hasPayment={hasPaymentFlow}
       title="Payments"
       count={totalCount}
       wide

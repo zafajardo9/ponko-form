@@ -7,9 +7,10 @@ interface Props {
   onChange: (value: FieldValue) => void
   error?: string
   readOnly?: boolean
+  hideLabel?: boolean
 }
 
-export function RadioField({ field, value, onChange, error, readOnly }: Props) {
+export function RadioField({ field, value, onChange, error, readOnly, hideLabel }: Props) {
   const strValue = getStrValue(value)
   const options = getOptions(field)
   const labelId = `field-label-${field.id}`
@@ -25,14 +26,17 @@ export function RadioField({ field, value, onChange, error, readOnly }: Props) {
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <fieldset className="flex min-w-0 flex-col gap-1.5">
-        <legend id={labelId} className="text-sm font-medium text-[#141413]">
-          {field.label || 'Untitled field'}
-          {field.required && <span aria-hidden="true" className="ml-1 text-[#c64545]">*</span>}
-        </legend>
+        {!hideLabel && (
+          <legend id={labelId} className="text-sm font-medium text-[#141413]">
+            {field.label || 'Untitled field'}
+            {field.required && <span aria-hidden="true" className="ml-1 text-[#c64545]">*</span>}
+          </legend>
+        )}
         <div
           className="flex min-w-0 flex-col gap-3"
           role="radiogroup"
-          aria-labelledby={labelId}
+          aria-labelledby={hideLabel ? undefined : labelId}
+          aria-label={hideLabel ? field.label : undefined}
         >
           {options.map((opt) => {
             const selected = strValue === opt.value

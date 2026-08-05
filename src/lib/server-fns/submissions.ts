@@ -5,6 +5,9 @@ import {
   formSubmissions,
   forms,
   formFields,
+  formPages,
+  flowNodes,
+  flows,
   payments,
   profiles,
 } from "../../db/schema";
@@ -129,7 +132,7 @@ export const getSubmissions = createServerFn({ method: "GET", strict: false })
       columns,
     });
 
-    const [[countResult], submissions, [paymentRecord]] = await Promise.all([
+    const [[countResult], submissions, [paymentRecord], [paymentPage], [paymentNode]] = await Promise.all([
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(formSubmissions)
@@ -149,6 +152,17 @@ export const getSubmissions = createServerFn({ method: "GET", strict: false })
           eq(payments.formSubmissionId, formSubmissions.id),
         )
         .where(eq(formSubmissions.formId, data.formId))
+        .limit(1),
+      db
+        .select({ id: formPages.id })
+        .from(formPages)
+        .where(and(eq(formPages.formId, data.formId), eq(formPages.hasPayment, true)))
+        .limit(1),
+      db
+        .select({ id: flowNodes.id })
+        .from(flowNodes)
+        .innerJoin(flows, eq(flowNodes.flowId, flows.id))
+        .where(and(eq(flows.formId, data.formId), eq(flowNodes.type, 'payment')))
         .limit(1),
     ]);
     const totalCount = countResult?.count ?? 0;
@@ -197,6 +211,7 @@ export const getSubmissions = createServerFn({ method: "GET", strict: false })
       page,
       pageSize,
       hasPaymentData: !!paymentRecord,
+      hasPaymentFlow: !!paymentPage || !!paymentNode,
     };
   });
 

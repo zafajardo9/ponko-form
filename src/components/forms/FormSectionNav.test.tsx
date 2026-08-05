@@ -17,7 +17,7 @@ describe('FormSectionNav', () => {
   afterEach(cleanup)
 
   it('exposes every creator section with the selected section marked as current', () => {
-    render(<FormSectionNav formId="17" active="invoicing" />)
+    render(<FormSectionNav formId="17" active="invoicing" hasPayment />)
     expect(screen.getByRole('navigation', { name: 'Form sections' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Build' }).getAttribute('href')).toBe('/forms/17/edit')
     expect(screen.getByRole('link', { name: 'Responses' }).getAttribute('href')).toBe('/forms/17/submissions')
@@ -28,7 +28,7 @@ describe('FormSectionNav', () => {
   })
 
   it('opens a compact section menu and closes it after a selection', () => {
-    render(<FormSectionNav formId="17" active="build" />)
+    render(<FormSectionNav formId="17" active="build" hasPayment />)
 
     const trigger = screen.getByRole('button', { name: 'Build' })
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
@@ -51,5 +51,15 @@ describe('FormSectionNav', () => {
 
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
     expect(document.activeElement).toBe(trigger)
+  })
+
+  it('hides payment-only sections when the form has no payment page', () => {
+    render(<FormSectionNav formId="17" active="build" />)
+
+    expect(screen.queryByRole('link', { name: 'Payments' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Invoicing' })).toBeNull()
+    expect(screen.getByRole('link', { name: 'Build' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Responses' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Emails' })).toBeTruthy()
   })
 })

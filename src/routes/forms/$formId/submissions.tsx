@@ -408,6 +408,7 @@ function SubmissionsPage() {
       formId={formId}
       formTitle={form?.title}
       active="responses"
+      hasPayment={data?.hasPaymentFlow ?? false}
       title="Responses"
       count={totalCount}
       wide

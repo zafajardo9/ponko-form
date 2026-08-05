@@ -1,10 +1,10 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { ChevronRight, GripVertical, Upload } from 'lucide-react'
-import type { FormPage, PageField } from '../../lib/page-builder/types'
+import { ChevronRight, GripVertical } from 'lucide-react'
+import type { FormPage, PageField, PageFieldType } from '../../lib/page-builder/types'
+import type { FieldConfig } from '../../lib/form-field-types'
 import { richTextHtml } from '../form-builder/fields/FieldRenderer'
-import { StarIcon } from '../ui/StarIcon'
-import { SVG_STAR_MARKER } from '../../lib/page-builder/satisfaction'
+import { FieldPreview } from '../form-builder/fields/FieldPreview'
 import { fieldPaletteItem, isContentField } from './PageBuilderConfig'
 
 interface SortablePageTabProps {
@@ -58,11 +58,35 @@ interface SortableFieldCardProps {
   onSelect: () => void
 }
 
+/** Field types that render their own bespoke preview inside the card. */
+const NO_CONTROL_PREVIEW: PageFieldType[] = ['content', 'media', 'payment', 'computation']
+
+function toFieldConfig(field: PageField): FieldConfig {
+  return {
+    id: field.id,
+    type: field.fieldType,
+    label: field.label || 'Untitled field',
+    placeholder: field.placeholder,
+    required: field.required,
+    options: (field.options ?? []).map((option) => ({
+      label: option.label,
+      value: option.value,
+      emoji: option.emoji,
+      price: option.price,
+      priceReference: option.priceReference,
+      additionalPrice: option.additionalPrice,
+      additionalPriceReference: option.additionalPriceReference,
+    })),
+    validationRules: field.validationRules,
+  }
+}
+
 export function SortableFieldCard({ field, selected, onSelect }: SortableFieldCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: field.id,
   })
   const paletteItem = fieldPaletteItem(field.fieldType)
+  const showControlPreview = !NO_CONTROL_PREVIEW.includes(field.fieldType)
 
   return (
     <div
@@ -82,81 +106,48 @@ export function SortableFieldCard({ field, selected, onSelect }: SortableFieldCa
       >
         <GripVertical size={16} />
       </button>
-      <button type="button" onClick={onSelect} className="min-w-0 flex-1 p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#cc785c]/30">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-[#141413]">
-              {field.label || 'Untitled field'}
-              {field.required && <span className="text-[#c64545]"> *</span>}
+      <div className="min-w-0 flex-1">
+        <button
+          type="button"
+          onClick={onSelect}
+          className="block w-full p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#cc785c]/30"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-[#141413]">
+                {field.label || 'Untitled field'}
+                {field.required && <span className="text-[#c64545]"> *</span>}
+              </p>
+            </div>
+            <div className="flex flex-none items-center gap-2 text-xs">
+              <span className="inline-flex items-center gap-1.5 rounded bg-[#efe9de] px-2 py-1 text-[#6c6a64]">
+                {paletteItem.icon} {paletteItem.label}
+              </span>
+              <span className={`inline-flex items-center gap-1 font-medium ${selected ? 'text-[#a9583e]' : 'text-[#8e8b82]'}`}>
+                {selected ? 'Editing' : 'Configure'} <ChevronRight size={13} />
+              </span>
+            </div>
+          </div>
+          {!isContentField(field) && field.fieldType !== 'recaptcha' && (
+            <p className="mt-2 truncate text-xs text-[#8e8b82]">
+              Saves to {field.bindVariable ? `{{${field.bindVariable}}}` : 'no variable'}
+              {field.conditions.length > 0 ? ` · ${field.conditions.length} logic ${field.conditions.length === 1 ? 'rule' : 'rules'}` : ''}
             </p>
-          </div>
-          <div className="flex flex-none items-center gap-2 text-xs">
-            <span className="inline-flex items-center gap-1.5 rounded bg-[#efe9de] px-2 py-1 text-[#6c6a64]">
-              {paletteItem.icon} {paletteItem.label}
-            </span>
-            <span className={`inline-flex items-center gap-1 font-medium ${selected ? 'text-[#a9583e]' : 'text-[#8e8b82]'}`}>
-              {selected ? 'Editing' : 'Configure'} <ChevronRight size={13} />
-            </span>
-          </div>
-        </div>
-        {!isContentField(field) && field.fieldType !== 'recaptcha' && (
-          <p className="mt-2 truncate text-xs text-[#8e8b82]">
-            Saves to {field.bindVariable ? `{{${field.bindVariable}}}` : 'no variable'}
-            {field.conditions.length > 0 ? ` · ${field.conditions.length} logic ${field.conditions.length === 1 ? 'rule' : 'rules'}` : ''}
-          </p>
-        )}
-        {field.fieldType === 'content' && field.placeholder && (
-          <div className="mt-3 block w-full text-left">
+          )}
+        </button>
+        {field.fieldType === 'content' && field.placeholder ? (
+          <div className="px-4 pb-4">
             <div
               className="rich-text-content max-h-40 overflow-hidden rounded-md border border-[#e6dfd8] bg-white p-3 text-sm leading-6 text-[#6c6a64]"
               dangerouslySetInnerHTML={{ __html: richTextHtml(field.placeholder) }}
             />
           </div>
-        )}
-        {field.fieldType === 'file_upload' && (
-          <div className="mt-3 block w-full text-left">
-            <div className="flex items-center gap-3 rounded-md border border-dashed border-[#d8cec3] bg-white p-3">
-              <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-[#efe9de] text-[#cc785c]">
-                <Upload size={15} />
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-xs font-medium text-[#141413]">Drop files or browse</p>
-                <p className="truncate text-xs text-[#8e8b82]">{field.placeholder || 'Respondents can upload a file.'}</p>
-              </div>
-            </div>
+        ) : showControlPreview ? (
+          <div inert aria-hidden="true" className="px-4 pb-4">
+            <FieldPreview field={toFieldConfig(field)} />
           </div>
-        )}
-        {field.fieldType === 'satisfaction' && (
-          <div className="mt-3 block w-full text-left">
-            {(field.options?.length ?? 0) > 0 && (field.options ?? []).every((option) => option.emoji === SVG_STAR_MARKER) ? (
-              <div className="inline-flex items-center gap-1 rounded-lg border border-[#e6dfd8] bg-white px-3 py-2.5 text-[#cc785c]">
-                {(field.options ?? []).map((option) => (
-                  <StarIcon key={option.value} size={24} filled={false} className="h-6 w-6" />
-                ))}
-                <span className="ml-2 text-[10px] font-medium uppercase tracking-wide text-[#8e8b82]">Star rating</span>
-              </div>
-            ) : (
-              <div className="flex gap-1.5 overflow-hidden">
-                {(field.options ?? []).map((option) => (
-                <span key={option.value} className="flex min-w-0 flex-1 flex-col items-center rounded-md border border-[#e6dfd8] bg-white px-1 py-2">
-                  <span className="text-lg leading-none">{option.emoji || option.value}</span>
-                  <span className="mt-1 max-w-full truncate text-[10px] text-[#8e8b82]">{option.label}</span>
-                </span>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-        {field.fieldType === 'recaptcha' && (
-          <div className="mt-3 block w-full text-left">
-            <div className="flex h-[70px] max-w-[304px] items-center gap-3 rounded border border-[#d8d8d8] bg-white px-4 text-sm text-[#3d3d3a]">
-              <span className="h-7 w-7 rounded border-2 border-[#777]" />
-              <span>I’m not a robot</span>
-              <span className="ml-auto text-[10px] text-[#777]">reCAPTCHA</span>
-            </div>
-          </div>
-        )}
-      </button>
+        ) : null}
+      </div>
     </div>
   )
 }

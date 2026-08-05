@@ -7,9 +7,10 @@ interface Props {
   onChange: (value: FieldValue) => void
   error?: string
   readOnly?: boolean
+  hideLabel?: boolean
 }
 
-export function FileUploadField({ field, value, onChange, error, readOnly }: Props) {
+export function FileUploadField({ field, value, onChange, error, readOnly, hideLabel }: Props) {
   const { accept: uploadAccept, multiple: uploadMultiple } = getUploadMeta(field)
   const uploadFiles = getUploadFiles(value)
   const inputId = `field-input-${field.id}`
@@ -23,10 +24,12 @@ export function FileUploadField({ field, value, onChange, error, readOnly }: Pro
 
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
-      <label htmlFor={inputId} id={labelId} className="text-sm font-medium text-[#141413]">
-        {field.label || 'Untitled field'}
-        {field.required && <span aria-hidden="true" className="ml-1 text-[#c64545]">*</span>}
-      </label>
+      {!hideLabel && (
+        <label htmlFor={inputId} id={labelId} className="text-sm font-medium text-[#141413]">
+          {field.label || 'Untitled field'}
+          {field.required && <span aria-hidden="true" className="ml-1 text-[#c64545]">*</span>}
+        </label>
+      )}
       {error && (
         <p id={errorId} role="alert" className="text-sm text-[#c64545]">
           {error}

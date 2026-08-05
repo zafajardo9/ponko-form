@@ -12,12 +12,23 @@ const sections = [
   { id: 'invoicing', label: 'Invoicing', to: '/forms/$formId/invoicing', icon: ReceiptText },
 ] as const
 
-export function FormSectionNav({ formId, active }: { formId: string; active: FormSection }) {
+export function FormSectionNav({
+  formId,
+  active,
+  hasPayment = false,
+}: {
+  formId: string
+  active: FormSection
+  hasPayment?: boolean
+}) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuId = useId()
   const navRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const activeSection = sections.find((section) => section.id === active) ?? sections[0]
+  const visibleSections = hasPayment
+    ? sections
+    : sections.filter((section) => section.id !== 'payments' && section.id !== 'invoicing')
+  const activeSection = visibleSections.find((section) => section.id === active) ?? visibleSections[0]
   const ActiveIcon = activeSection.icon
 
   useEffect(() => {
@@ -71,7 +82,7 @@ export function FormSectionNav({ formId, active }: { formId: string; active: For
             id={menuId}
             className="absolute left-0 top-[calc(100%+0.375rem)] z-50 w-56 overflow-hidden rounded-xl border border-[#e6dfd8] bg-white p-1.5 shadow-[0_12px_32px_rgba(20,20,19,0.14)]"
           >
-            {sections.map((section) => {
+            {visibleSections.map((section) => {
               const Icon = section.icon
               const selected = active === section.id
               return (
@@ -104,7 +115,7 @@ export function FormSectionNav({ formId, active }: { formId: string; active: For
       </div>
 
       <div className="hidden w-max rounded-lg border border-[#e6dfd8] bg-[#f5f0e8] p-0.5 text-sm lg:flex">
-        {sections.map((section) => {
+        {visibleSections.map((section) => {
           const Icon = section.icon
           const selected = active === section.id
           return (

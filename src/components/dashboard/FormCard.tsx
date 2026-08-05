@@ -11,6 +11,7 @@ import {
   ReceiptText,
   Share2,
   Trash2,
+  UserPlus,
   type LucideProps,
 } from "lucide-react";
 import { Badge } from "../ui/Badge";
@@ -224,7 +225,7 @@ export function FormCard({
                     }}
                     className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-[#4f4c46] transition-colors hover:bg-[#f5f0e8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]"
                   >
-                    <Share2 size={15} aria-hidden="true" />
+                    <UserPlus size={15} aria-hidden="true" />
                     Manage access
                   </button>
                 ) : null}

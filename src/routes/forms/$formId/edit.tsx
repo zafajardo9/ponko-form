@@ -6,6 +6,7 @@ import {
   Eye,
   Settings,
   Share2,
+  UserPlus,
 } from "lucide-react";
 import {
   lazy,
@@ -195,6 +196,10 @@ function UnifiedEditorPage() {
   const flowData = editorData?.flow;
   const pageForm = editorData?.pageForm;
   const isPublished = form?.status === "published";
+  const hasPayment = Boolean(
+    pageForm?.pages.some((page) => page.hasPayment) ||
+      flowData?.nodes.some((node) => node.type === "payment"),
+  );
 
   const { data: gateways = [] } = useQuery({
     queryKey: ["gateways"],
@@ -624,7 +629,7 @@ function UnifiedEditorPage() {
         id="editor-toolbar"
         className="z-40 flex flex-none flex-wrap items-center border-b border-[#ded8cf] bg-[#faf9f5]/98 px-3 shadow-[0_2px_10px_rgba(20,20,19,0.045)] backdrop-blur-sm sm:px-4"
       >
-        <div className="flex h-12 min-w-0 flex-1 items-center gap-2.5">
+        <div className="flex h-16 min-w-0 flex-1 items-center gap-2.5">
           <Link
             to="/"
             aria-label={`${appConfig.name} home`}
@@ -676,7 +681,7 @@ function UnifiedEditorPage() {
                 headerCollapsed ? "-translate-y-1" : "translate-y-0"
               }`}
             >
-              <FormSectionNav formId={formId} active="build" />
+              <FormSectionNav formId={formId} active="build" hasPayment={hasPayment} />
 
               <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:pb-0">
                 {/* Variables & Valid live in the build sub-toolbar (shown in
@@ -728,7 +733,7 @@ function UnifiedEditorPage() {
                     title="Manage form access"
                     className="inline-flex h-8 flex-none items-center gap-1.5 rounded-md border border-[#ded8cf] bg-white px-2.5 text-sm text-[#5f5b55] transition-colors hover:bg-[#f2ede6] hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]/30"
                   >
-                    <Share2 size={14} aria-hidden="true" />
+                    <UserPlus size={14} aria-hidden="true" />
                     <span className="hidden 2xl:inline">Access</span>
                   </button>
                 )}

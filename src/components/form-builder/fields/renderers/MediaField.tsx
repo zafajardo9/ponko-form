@@ -7,13 +7,14 @@ interface Props {
   onChange: (value: FieldValue) => void
   error?: string
   readOnly?: boolean
+  hideLabel?: boolean
 }
 
-export function MediaField({ field }: Props) {
+export function MediaField({ field, hideLabel }: Props) {
   const { mediaType, caption } = getMediaMeta(field)
   return (
     <figure className="overflow-hidden rounded-[var(--ponko-radius,6px)] border border-[#e6dfd8] bg-[#faf9f5]">
-      {field.label && <figcaption className="border-b border-[#e6dfd8] px-4 py-3 text-sm font-medium text-[#141413]">{field.label}</figcaption>}
+      {field.label && !hideLabel && <figcaption className="border-b border-[#e6dfd8] px-4 py-3 text-sm font-medium text-[#141413]">{field.label}</figcaption>}
       {field.placeholder ? (
         mediaType === 'video' ? (
           <video src={field.placeholder} controls className="max-h-[420px] w-full bg-black" />

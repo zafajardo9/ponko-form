@@ -9,7 +9,6 @@ import {
   formCollaborators,
   formPageFields,
   formPages,
-  formPaymentConfigs,
   formTemplates,
   forms,
   profiles,
@@ -81,7 +80,7 @@ export const getForms = createServerFn({ method: 'GET' }).handler(async () => {
   if (accessibleForms.length === 0) return []
 
   const formIds = accessibleForms.map((form) => form.id)
-  const [paymentPages, paymentConfigs, paymentNodes] = await Promise.all([
+  const [paymentPages, paymentNodes] = await Promise.all([
     db
       .select({ formId: formPages.formId })
       .from(formPages)
@@ -91,10 +90,6 @@ export const getForms = createServerFn({ method: 'GET' }).handler(async () => {
           eq(formPages.hasPayment, true),
         ),
       ),
-    db
-      .select({ formId: formPaymentConfigs.formId })
-      .from(formPaymentConfigs)
-      .where(inArray(formPaymentConfigs.formId, formIds)),
     db
       .select({ formId: flows.formId })
       .from(flows)
@@ -110,7 +105,6 @@ export const getForms = createServerFn({ method: 'GET' }).handler(async () => {
 
   const paymentFormIds = new Set([
     ...paymentPages.map((page) => page.formId),
-    ...paymentConfigs.map((config) => config.formId),
     ...paymentNodes.map((node) => node.formId),
   ])
 

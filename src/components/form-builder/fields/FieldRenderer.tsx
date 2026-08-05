@@ -32,6 +32,8 @@ interface FieldRendererProps {
   onChange: (value: FieldValue) => void
   error?: string
   readOnly?: boolean
+  /** Hides the label/legend — used by read-only previews that render their own heading. */
+  hideLabel?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -59,7 +61,7 @@ const renderers = {
   recaptcha: RecaptchaField,
 } as const
 
-export function FieldRenderer({ field, value, onChange, error, readOnly }: FieldRendererProps) {
+export function FieldRenderer({ field, value, onChange, error, readOnly, hideLabel }: FieldRendererProps) {
   const Renderer = renderers[field.type as keyof typeof renderers]
 
   if (!Renderer) {
@@ -75,6 +77,7 @@ export function FieldRenderer({ field, value, onChange, error, readOnly }: Field
       onChange={onChange}
       error={error}
       readOnly={readOnly}
+      hideLabel={hideLabel}
     />
   )
 }

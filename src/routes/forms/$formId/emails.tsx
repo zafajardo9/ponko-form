@@ -152,6 +152,7 @@ function LoadedResponseEmailsPage({
       formId={formId}
       formTitle={data.form.title}
       active="emails"
+      hasPayment={data.hasPaymentPath}
       title="Response emails"
       titleAdornment={<Badge variant={data.form.status}>{data.form.status}</Badge>}
       description="Send a personalized confirmation after every successful form submission."

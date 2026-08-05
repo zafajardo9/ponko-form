@@ -12,6 +12,7 @@ interface FormWorkspaceLayoutProps {
   titleAdornment?: ReactNode
   actions?: ReactNode
   wide?: boolean
+  hasPayment?: boolean
   children: ReactNode
 }
 
@@ -30,6 +31,7 @@ export function FormWorkspaceLayout({
   titleAdornment,
   actions,
   wide = false,
+  hasPayment = false,
   children,
 }: FormWorkspaceLayoutProps) {
   return (
@@ -39,7 +41,7 @@ export function FormWorkspaceLayout({
       }`}
     >
       <div className="mb-5">
-        <FormSectionNav formId={formId} active={active} />
+        <FormSectionNav formId={formId} active={active} hasPayment={hasPayment} />
       </div>
 
       <nav

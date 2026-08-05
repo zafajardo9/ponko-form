@@ -123,6 +123,7 @@ function LoadedInvoicingPage({
       formId={formId}
       formTitle={data.form.title}
       active="invoicing"
+      hasPayment={data.hasPaymentPath}
       title="Invoicing"
       titleAdornment={<Badge variant={data.form.status}>{data.form.status}</Badge>}
       description="Design the invoice email respondents receive after a verified payment."

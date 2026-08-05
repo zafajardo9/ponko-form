@@ -7,9 +7,10 @@ interface Props {
   onChange: (value: FieldValue) => void
   error?: string
   readOnly?: boolean
+  hideLabel?: boolean
 }
 
-export function AddressField({ field, value, onChange, error, readOnly }: Props) {
+export function AddressField({ field, value, onChange, error, readOnly, hideLabel }: Props) {
   const addressValue = getAddressValue(value)
   const labelId = `field-label-${field.id}`
   const errorClass = error ? 'border-[#c64545] focus:border-[#c64545] focus:ring-[#c64545]/20' : ''
@@ -17,11 +18,13 @@ export function AddressField({ field, value, onChange, error, readOnly }: Props)
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <fieldset className="flex min-w-0 flex-col gap-1.5">
-        <legend id={labelId} className="text-sm font-medium text-[#141413]">
-          {field.label || 'Untitled field'}
-          {field.required && <span aria-hidden="true" className="ml-1 text-[#c64545]">*</span>}
-        </legend>
-        <div className="flex flex-col gap-3" role="group" aria-labelledby={labelId}>
+        {!hideLabel && (
+          <legend id={labelId} className="text-sm font-medium text-[#141413]">
+            {field.label || 'Untitled field'}
+            {field.required && <span aria-hidden="true" className="ml-1 text-[#c64545]">*</span>}
+          </legend>
+        )}
+        <div className="flex flex-col gap-3" role="group" aria-labelledby={hideLabel ? undefined : labelId} aria-label={hideLabel ? field.label : undefined}>
           {(!readOnly || addressValue.currentAddress) && (
             <input
               type="text"

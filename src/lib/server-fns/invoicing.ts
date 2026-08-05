@@ -13,7 +13,6 @@ import {
   formInvoiceConfigs,
   formPageFields,
   formPages,
-  formPaymentConfigs,
   formReferences,
   payments,
   type EmailTemplateKind,
@@ -185,14 +184,12 @@ async function templateVariables(formId: number): Promise<TemplateVariable[]> {
 }
 
 async function hasPaymentPath(formId: number) {
-  const [pagePayment, configured, flow] = await Promise.all([
+  const [pagePayment, flow] = await Promise.all([
     db.select({ id: formPages.id }).from(formPages)
       .where(and(eq(formPages.formId, formId), eq(formPages.hasPayment, true))).limit(1),
-    db.select({ id: formPaymentConfigs.id }).from(formPaymentConfigs)
-      .where(eq(formPaymentConfigs.formId, formId)).limit(1),
     db.select({ id: flows.id }).from(flows).where(eq(flows.formId, formId)).limit(1),
   ])
-  if (pagePayment.length || configured.length) return true
+  if (pagePayment.length) return true
   if (!flow[0]) return false
   const [paymentNode] = await db.select({ id: flowNodes.id }).from(flowNodes)
     .where(and(eq(flowNodes.flowId, flow[0].id), eq(flowNodes.type, 'payment'))).limit(1)
