@@ -11,6 +11,7 @@ import { themeVars, type FormTheme } from '@/lib/theme'
 import type { FieldConfig, FieldValue } from '../form-builder/fields/FieldRenderer'
 import { createPublicSessionToken } from '@/lib/public-session-access'
 import { FormLoadingIndicator } from './FormLoadingIndicator'
+import { FormSuccessCard } from '../page-form/FormSuccessCard'
 
 const FlowExecutionContainer = lazy(() =>
   import('../flow-execution/FlowExecutionContainer').then((module) => ({
@@ -257,10 +258,8 @@ export function PublicFormView({
     return (
       <div className={outerClass} style={themed}>
         <div className={wrapperClass}>
-          <Card className="text-center py-16">
-            <div className="mb-4 text-5xl">✓</div>
-            <h1 className="text-2xl font-medium text-[#141413]">Thank you!</h1>
-            <p className="mt-2 text-[#6c6a64]">Your response has been recorded.</p>
+          <Card className="py-14 text-center sm:py-16">
+            <FormSuccessCard title="Thank you!" message="Your response has been recorded." />
           </Card>
         </div>
       </div>

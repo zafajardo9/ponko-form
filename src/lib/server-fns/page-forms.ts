@@ -250,6 +250,7 @@ export const getPageSessionData = createServerFn({ method: 'GET', strict: false 
         id: session.id,
         currentPageIndex: session.currentPageIndex,
         status: session.status,
+        formSubmissionId: session.formSubmissionId,
         collectedData: publicSubmissionData((session.collectedData ?? {}) as Record<string, unknown>),
       },
       form,
@@ -328,6 +329,7 @@ export const updatePage = createServerFn({ method: 'POST', strict: false })
       isFinal?: boolean
       finalTemplate?: string | null
       finalRedirectUrl?: string | null
+      finalContactEmail?: string | null
       hasPayment?: boolean
       paymentGatewayId?: number | null
       paymentAmountVariable?: string | null
@@ -569,6 +571,7 @@ export const savePageForm = createServerFn({ method: 'POST', strict: false })
         isFinal: boolean
         finalTemplate?: string | null
         finalRedirectUrl?: string | null
+        finalContactEmail?: string | null
         hasPayment?: boolean
         paymentGatewayId?: number | null
         paymentAmountVariable?: string | null
@@ -659,6 +662,10 @@ export const savePageForm = createServerFn({ method: 'POST', strict: false })
     }
 
     const finalInput = orderedPages.find((page) => page.isFinal) ?? orderedPages[orderedPages.length - 1]
+    const supportEmail = finalInput.finalContactEmail?.trim() ?? ''
+    if (supportEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(supportEmail)) {
+      throw new Error('Support email needs a valid email address')
+    }
     const normalizedPages = [
       ...orderedPages.filter((page) => page.id !== finalInput.id && !page.isFinal),
       { ...finalInput, isFinal: true },
@@ -702,6 +709,7 @@ export const savePageForm = createServerFn({ method: 'POST', strict: false })
             ? page.finalTemplate ?? 'Your response has been recorded.'
             : null,
         finalRedirectUrl: pageIndex === normalizedPages.length - 1 ? page.finalRedirectUrl ?? null : null,
+        finalContactEmail: pageIndex === normalizedPages.length - 1 ? page.finalContactEmail?.trim() || null : null,
         hasPayment: isPaymentPage,
         paymentGatewayId: isPaymentPage ? page.paymentGatewayId ?? null : null,
         paymentAmountVariable: isPaymentPage ? page.paymentAmountVariable ?? null : null,
@@ -830,6 +838,7 @@ export const startPageSession = createServerFn({ method: 'POST', strict: false }
           (session.collectedData ?? {}) as Record<string, unknown>,
         ),
         status: session.status,
+        formSubmissionId: session.formSubmissionId,
       }
     }
 
@@ -853,7 +862,7 @@ export const startPageSession = createServerFn({ method: 'POST', strict: false }
           AND status = 'published'
         ON CONFLICT (form_id, client_token)
         DO UPDATE SET client_token = EXCLUDED.client_token
-        RETURNING id, current_page_index, collected_data, status
+        RETURNING id, current_page_index, collected_data, status, form_submission_id
       `),
       8_000,
       'startPageSession.upsertSession',
@@ -863,6 +872,7 @@ export const startPageSession = createServerFn({ method: 'POST', strict: false }
       current_page_index: number
       collected_data: Record<string, unknown>
       status: string
+      form_submission_id: number | null
     }[] }
     const row = result.rows[0]
     if (!row) throw new Error('Form not found or not published')
@@ -871,6 +881,7 @@ export const startPageSession = createServerFn({ method: 'POST', strict: false }
       currentPageIndex: row.current_page_index,
       collectedData: row.collected_data ?? {},
       status: row.status,
+      formSubmissionId: row.form_submission_id,
     }
 
     console.info('[database-operation-complete]', {
@@ -886,6 +897,7 @@ export const startPageSession = createServerFn({ method: 'POST', strict: false }
       currentPageIndex: session.currentPageIndex,
       collectedData: publicSubmissionData(session.collectedData),
       status: session.status,
+      formSubmissionId: session.formSubmissionId,
     }
   })
 
@@ -975,13 +987,16 @@ export const completePageSubmission = createServerFn({ method: 'POST', strict: f
       .where(sessionAccessWhere(data.sessionId, data.clientToken))
       .limit(1)
     if (!session) throw new Error('Session not found')
-    await withTimeout(
+    const result = await withTimeout(
       completePageSubmissionRecord(data.sessionId, data.collectedData),
       15_000,
       'completePageSubmission',
       { sessionId: data.sessionId },
     )
-    return { success: true }
+    return {
+      success: true,
+      submissionId: result.submission.id,
+    }
   })
 
 export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: false })

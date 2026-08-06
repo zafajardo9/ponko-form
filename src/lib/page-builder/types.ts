@@ -144,6 +144,8 @@ export interface FormPage {
   isFinal: boolean
   finalTemplate: string | null
   finalRedirectUrl: string | null
+  /** Optional support email shown on the thank-you page so respondents can reach out. */
+  finalContactEmail: string | null
   hasPayment: boolean
   paymentGatewayId: number | null
   paymentAmountVariable: string | null

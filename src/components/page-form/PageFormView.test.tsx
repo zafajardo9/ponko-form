@@ -53,6 +53,7 @@ const pages = [
     isFinal: false,
     finalTemplate: null,
     finalRedirectUrl: null,
+    finalContactEmail: null,
     hasPayment: false,
     paymentGatewayId: null,
     paymentAmountVariable: null,
@@ -83,6 +84,7 @@ const pages = [
     isFinal: true,
     finalTemplate: 'Ready to submit.',
     finalRedirectUrl: null,
+    finalContactEmail: null,
     hasPayment: false,
     paymentGatewayId: null,
     paymentAmountVariable: null,
@@ -151,7 +153,10 @@ function renderResumedPageForm(sessionStatus: 'in_progress' | 'completed') {
 describe('PageFormView session resilience', () => {
   beforeEach(() => {
     serverFns.advancePageSession.mockResolvedValue({ id: 10 })
-    serverFns.completePageSubmission.mockResolvedValue({})
+    serverFns.completePageSubmission.mockResolvedValue({
+      success: true,
+      submissionId: 42,
+    })
     serverFns.ensurePagePaymentDraft.mockResolvedValue({ submissionId: 1 })
     serverFns.getPagePaymentOptions.mockResolvedValue({
       amount: 25,
@@ -258,9 +263,20 @@ describe('PageFormView session resilience', () => {
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Ada' } })
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Submit' }))
+    expect(screen.getByText('Review before submitting')).toBeTruthy()
+    expect(screen.getByText('Not submitted yet')).toBeTruthy()
+    expect(screen.queryByText('Response recorded')).toBeNull()
+    expect(screen.getByText('Ada')).toBeTruthy()
+    const review = screen.getByText('Review before submitting').closest('section')
+    expect(review?.className).toContain('max-w-lg')
+    expect(review?.querySelector('dl')?.className).toContain('max-h-44')
+    expect(review?.querySelector('dl')?.className).toContain('overflow-y-auto')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Submit response' }))
 
     expect(await screen.findByRole('heading', { name: 'Thank you!' })).toBeTruthy()
+    expect(screen.getByText('Response recorded')).toBeTruthy()
+    expect(screen.getByText('PF-000042')).toBeTruthy()
     expect(serverFns.completePageSubmission).toHaveBeenCalledWith({
       data: {
         sessionId: 10,
@@ -268,7 +284,7 @@ describe('PageFormView session resilience', () => {
         collectedData: { name: 'Ada' },
       },
     })
-    expect(screen.queryByRole('button', { name: 'Submit' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Submit response' })).toBeNull()
   })
 
   it('starts an email survey session with its rating preselected', async () => {
@@ -392,7 +408,29 @@ describe('PageFormView session resilience', () => {
     renderResumedPageForm('completed')
 
     expect(await screen.findByRole('heading', { name: 'Thank you!' })).toBeTruthy()
-    expect(screen.getByText('Your response has been recorded.')).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Submit' })).toBeNull()
+    expect(screen.getByText('Ready to submit.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Submit response' })).toBeNull()
+  })
+
+  it('shows the configured support email on the confirmation screen', async () => {
+    serverFns.startPageSession.mockResolvedValue({ id: 10 })
+    const supportPages = [
+      pages[0],
+      {
+        ...pages[1],
+        finalContactEmail: 'support@example.com',
+        finalTemplate: 'Thanks {{name}} — we got your response.',
+      },
+    ] as FormPage[]
+
+    renderPageForm(supportPages)
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Ada' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Submit response' }))
+
+    expect(await screen.findByText('Thanks Ada — we got your response.')).toBeTruthy()
+    expect(screen.getByText('Need help?')).toBeTruthy()
+    const contactLink = screen.getByRole('link', { name: 'support@example.com' })
+    expect((contactLink as HTMLAnchorElement).href).toBe('mailto:support@example.com')
   })
 })

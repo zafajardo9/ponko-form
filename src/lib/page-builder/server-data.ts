@@ -77,6 +77,7 @@ export async function hydratePages(formId: number): Promise<FormPage[]> {
     isFinal: page.isFinal,
     finalTemplate: page.finalTemplate,
     finalRedirectUrl: page.finalRedirectUrl,
+    finalContactEmail: page.finalContactEmail,
     hasPayment: page.hasPayment,
     paymentGatewayId: page.paymentGatewayId,
     paymentAmountVariable: page.paymentAmountVariable,

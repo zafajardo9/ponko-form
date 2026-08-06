@@ -25,6 +25,7 @@ const pages: FormPage[] = [
     isFinal: false,
     finalTemplate: null,
     finalRedirectUrl: null,
+    finalContactEmail: null,
     hasPayment: false,
     paymentGatewayId: null,
     paymentAmountVariable: null,
@@ -122,6 +123,30 @@ describe('PageBuilderWorkspace field configuration UX', () => {
     expect(screen.getByRole('status', { name: 'Field search results' }).textContent).toContain('0 field types found')
     fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
     expect(screen.getByRole('region', { name: 'Questions' })).toBeTruthy()
+  })
+
+  it('adds a palette field when it is dragged onto the canvas', () => {
+    renderBuilder()
+
+    const stored = new Map<string, string>()
+    const dataTransfer = {
+      effectAllowed: '',
+      dropEffect: '',
+      setData: (type: string, value: string) => stored.set(type, value),
+      getData: (type: string) => stored.get(type) ?? '',
+    }
+    const shortText = screen.getByRole('button', { name: 'Short text' })
+    const canvas = screen.getByTestId('field-drop-canvas')
+
+    fireEvent.dragStart(shortText, { dataTransfer })
+    expect(screen.getByText('Drop to add Short text')).toBeTruthy()
+    fireEvent.dragEnter(canvas, { dataTransfer })
+    fireEvent.dragOver(canvas, { dataTransfer })
+    expect(canvas.className).toContain('bg-[#f8ede7]')
+    fireEvent.drop(canvas, { dataTransfer })
+
+    expect(screen.getByRole('button', { name: /Untitled field.*Short text.*Editing/ })).toBeTruthy()
+    expect(screen.queryByText('Drop to add Short text')).toBeNull()
   })
 
   it('groups field types and explains the configuration workflow', () => {

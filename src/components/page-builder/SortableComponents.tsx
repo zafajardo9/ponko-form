@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { ChevronRight, GripVertical } from 'lucide-react'
+import { ChevronRight, GripVertical, X } from 'lucide-react'
 import type { FormPage, PageField, PageFieldType } from '../../lib/page-builder/types'
 import type { FieldConfig } from '../../lib/form-field-types'
 import { richTextHtml } from '../form-builder/fields/FieldRenderer'
@@ -56,6 +56,7 @@ interface SortableFieldCardProps {
   field: PageField
   selected: boolean
   onSelect: () => void
+  onDelete: () => void
 }
 
 /** Field types that render their own bespoke preview inside the card. */
@@ -81,7 +82,7 @@ function toFieldConfig(field: PageField): FieldConfig {
   }
 }
 
-export function SortableFieldCard({ field, selected, onSelect }: SortableFieldCardProps) {
+export function SortableFieldCard({ field, selected, onSelect, onDelete }: SortableFieldCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: field.id,
   })
@@ -91,6 +92,7 @@ export function SortableFieldCard({ field, selected, onSelect }: SortableFieldCa
   return (
     <div
       ref={setNodeRef}
+      data-field-card-id={field.id}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={`group flex min-w-0 rounded-lg border bg-[#faf9f5] text-left transition-colors ${
         selected ? 'border-[#cc785c] shadow-sm' : 'border-[#e6dfd8] hover:border-[#cc785c]/60'
@@ -100,41 +102,52 @@ export function SortableFieldCard({ field, selected, onSelect }: SortableFieldCa
         type="button"
         {...attributes}
         {...listeners}
-        className="flex w-9 flex-none items-center justify-center border-r border-[#e6dfd8] text-[#8e8b82] hover:bg-[#efe9de] hover:text-[#141413]"
+        className="flex w-9 flex-none items-center justify-center rounded-l-lg text-[#8e8b82] hover:bg-[#efe9de] hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#cc785c]/30"
         aria-label={`Reorder ${field.label || 'field'}`}
         title="Drag to reorder"
       >
         <GripVertical size={16} />
       </button>
       <div className="min-w-0 flex-1">
-        <button
-          type="button"
-          onClick={onSelect}
-          className="block w-full p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#cc785c]/30"
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-[#141413]">
-                {field.label || 'Untitled field'}
-                {field.required && <span className="text-[#c64545]"> *</span>}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={onSelect}
+            className="block w-full p-4 pr-12 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#cc785c]/30"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-[#141413]">
+                  {field.label || 'Untitled field'}
+                  {field.required && <span className="text-[#c64545]"> *</span>}
+                </p>
+              </div>
+              <div className="flex flex-none items-center gap-2 text-xs">
+                <span className="inline-flex items-center gap-1.5 rounded bg-[#efe9de] px-2 py-1 text-[#6c6a64]">
+                  {paletteItem.icon} {paletteItem.label}
+                </span>
+                <span className={`inline-flex items-center gap-1 font-medium ${selected ? 'text-[#a9583e]' : 'text-[#8e8b82]'}`}>
+                  {selected ? 'Editing' : 'Configure'} <ChevronRight size={13} />
+                </span>
+              </div>
+            </div>
+            {!isContentField(field) && field.fieldType !== 'recaptcha' && (
+              <p className="mt-2 truncate text-xs text-[#8e8b82]">
+                Saves to {field.bindVariable ? `{{${field.bindVariable}}}` : 'no variable'}
+                {field.conditions.length > 0 ? ` · ${field.conditions.length} logic ${field.conditions.length === 1 ? 'rule' : 'rules'}` : ''}
               </p>
-            </div>
-            <div className="flex flex-none items-center gap-2 text-xs">
-              <span className="inline-flex items-center gap-1.5 rounded bg-[#efe9de] px-2 py-1 text-[#6c6a64]">
-                {paletteItem.icon} {paletteItem.label}
-              </span>
-              <span className={`inline-flex items-center gap-1 font-medium ${selected ? 'text-[#a9583e]' : 'text-[#8e8b82]'}`}>
-                {selected ? 'Editing' : 'Configure'} <ChevronRight size={13} />
-              </span>
-            </div>
-          </div>
-          {!isContentField(field) && field.fieldType !== 'recaptcha' && (
-            <p className="mt-2 truncate text-xs text-[#8e8b82]">
-              Saves to {field.bindVariable ? `{{${field.bindVariable}}}` : 'no variable'}
-              {field.conditions.length > 0 ? ` · ${field.conditions.length} logic ${field.conditions.length === 1 ? 'rule' : 'rules'}` : ''}
-            </p>
-          )}
-        </button>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-label={`Delete ${field.label || 'untitled field'}`}
+            title="Delete field"
+            className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-md text-[#c64545] transition-colors hover:bg-[#fff3ef] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c64545]/40"
+          >
+            <X size={15} aria-hidden="true" />
+          </button>
+        </div>
         {field.fieldType === 'content' && field.placeholder ? (
           <div className="px-4 pb-4">
             <div

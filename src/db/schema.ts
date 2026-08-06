@@ -333,6 +333,7 @@ export const formPages = pgTable(
     isFinal: boolean('is_final').notNull().default(false),
     finalTemplate: text('final_template'),
     finalRedirectUrl: varchar('final_redirect_url', { length: 500 }),
+    finalContactEmail: varchar('final_contact_email', { length: 254 }),
     hasPayment: boolean('has_payment').notNull().default(false),
     paymentGatewayId: integer('payment_gateway_id').references(() => paymentGateways.id),
     paymentAmountVariable: varchar('payment_amount_variable', { length: 100 }),

@@ -1,5 +1,18 @@
 import type { PageFieldOption } from '../page-builder/types'
-import { SVG_STAR_MARKER } from '../page-builder/satisfaction'
+import {
+  ratingFaceIcon,
+  SVG_STAR_MARKER,
+  TEXT_ONLY_MARKER,
+  type RatingFaceIcon,
+} from '../page-builder/satisfaction'
+
+const EMAIL_FACE_ICONS: Record<RatingFaceIcon, string> = {
+  angry: '😠',
+  frown: '☹️',
+  meh: '😐',
+  smile: '🙂',
+  delighted: '😄',
+}
 
 function escapeHtml(value: string) {
   return value
@@ -31,10 +44,18 @@ export function buildEmailSurveyHtml(input: {
 }) {
   const cells = input.options.map((option) => {
     const href = escapeHtml(emailSurveyRatingUrl(input.origin, input.publicId, input.token, option.value))
-    const visual = option.emoji?.trim() === SVG_STAR_MARKER
+    const marker = option.emoji?.trim() ?? ''
+    const faceIcon = ratingFaceIcon(marker)
+    const visual = marker === SVG_STAR_MARKER
       ? '★'.repeat(Math.max(1, Math.min(5, Number(option.value) || 1)))
-      : option.emoji?.trim() || option.value
-    const visualHtml = /^https?:\/\//i.test(visual)
+      : marker === TEXT_ONLY_MARKER
+        ? ''
+        : faceIcon
+          ? EMAIL_FACE_ICONS[faceIcon]
+          : marker || option.value
+    const visualHtml = !visual
+      ? ''
+      : /^https?:\/\//i.test(visual)
       ? `<img src="${escapeHtml(visual)}" width="32" height="32" alt="" style="display:block;margin:0 auto 6px;object-fit:contain;">`
       : `<span style="display:block;font-size:24px;line-height:28px;margin-bottom:6px;">${escapeHtml(visual)}</span>`
     return `<td align="center" valign="top" style="padding:4px;">

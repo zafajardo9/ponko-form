@@ -1,6 +1,6 @@
 import { Check, ChevronRight } from 'lucide-react'
 import { StarIcon } from '../ui/StarIcon'
-import { SVG_STAR_MARKER } from '../../lib/page-builder/satisfaction'
+import { ratingFaceIcon, SVG_STAR_MARKER, TEXT_ONLY_MARKER } from '../../lib/page-builder/satisfaction'
 import type { FormTemplateRecord } from '../../lib/form-templates/types'
 
 export function TemplatePreview({ template }: { template: FormTemplateRecord }) {
@@ -47,7 +47,11 @@ export function TemplatePreview({ template }: { template: FormTemplateRecord }) 
                             title={option.label}
                             className="flex min-h-9 min-w-9 items-center justify-center rounded-md border border-[#e6dfd8] bg-[#faf9f5] px-2 text-sm text-[#6c6a64]"
                           >
-                            {option.emoji || option.value}
+                            {option.emoji === TEXT_ONLY_MARKER
+                              ? option.label
+                              : ratingFaceIcon(option.emoji)
+                                ? '☺'
+                                : option.emoji || option.value}
                           </span>
                         ))}
                       </div>

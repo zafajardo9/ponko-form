@@ -42,4 +42,22 @@ describe('email survey HTML', () => {
     expect(html).toContain('★')
     expect(html).not.toContain('star-svg')
   })
+
+  it('renders icon and text presets without exposing storage markers', () => {
+    const html = buildEmailSurveyHtml({
+      origin: 'https://forms.example',
+      publicId: 'public-id',
+      token: 'token_value',
+      title: 'Rate the service',
+      options: [
+        { label: 'Poor', value: '1', emoji: 'rating-icon:frown' },
+        { label: 'Excellent', value: '5', emoji: 'rating-text-only' },
+      ],
+    })
+
+    expect(html).toContain('☹️')
+    expect(html).toContain('Excellent')
+    expect(html).not.toContain('rating-icon:')
+    expect(html).not.toContain('rating-text-only')
+  })
 })

@@ -1,7 +1,13 @@
 import { useState } from 'react'
+import { Angry, Frown, Laugh, Meh, Smile, type LucideIcon } from 'lucide-react'
 import type { FieldOption } from '../../../../lib/form-field-types'
 import { StarIcon } from '../../../ui/StarIcon'
-import { SVG_STAR_MARKER } from '../../../../lib/page-builder/satisfaction'
+import {
+  ratingFaceIcon,
+  SVG_STAR_MARKER,
+  TEXT_ONLY_MARKER,
+  type RatingFaceIcon,
+} from '../../../../lib/page-builder/satisfaction'
 import { isImageUrl } from './utils'
 
 interface RatingControlProps {
@@ -18,6 +24,14 @@ interface RatingControlProps {
   readOnly?: boolean
 }
 
+const FACE_ICONS: Record<RatingFaceIcon, LucideIcon> = {
+  angry: Angry,
+  frown: Frown,
+  meh: Meh,
+  smile: Smile,
+  delighted: Laugh,
+}
+
 /**
  * The single source of truth for PonkoForm's rating UI (stars, emoji, and NPS
  * scales). Both the live form (`SatisfactionField`) and the form-builder card
@@ -32,6 +46,7 @@ export function RatingControl({ options, value, onChange, name, label, readOnly 
   const [hoveredRating, setHoveredRating] = useState<number | null>(null)
   const interactive = !readOnly
   const usesSvgStars = options.length > 0 && options.every((opt) => (opt.emoji?.trim() ?? '') === SVG_STAR_MARKER)
+  const usesTextOnly = options.length > 0 && options.every((opt) => (opt.emoji?.trim() ?? '') === TEXT_ONLY_MARKER)
 
   const numericValue = value === '' ? Number.NaN : Number(value)
   const activeRating = hoveredRating ?? numericValue
@@ -51,8 +66,10 @@ export function RatingControl({ options, value, onChange, name, label, readOnly 
           const isActive = hasActiveRating && ratingValue <= activeRating
           const optionVisual = opt.emoji?.trim() ?? ''
           const visual = optionVisual || opt.value
+          const faceIcon = ratingFaceIcon(optionVisual)
+          const FaceIcon = faceIcon ? FACE_ICONS[faceIcon] : null
           const isNumericOption =
-            !usesSvgStars && !isImageUrl(visual) && (!optionVisual || optionVisual === opt.value)
+            !usesSvgStars && !usesTextOnly && !FaceIcon && !isImageUrl(visual) && (!optionVisual || optionVisual === opt.value)
           const usesTextStars = !usesSvgStars && visual.includes('★')
           return (
             <label
@@ -63,7 +80,13 @@ export function RatingControl({ options, value, onChange, name, label, readOnly 
               className={`group flex h-11 flex-none items-center justify-center text-center transition-all duration-200 focus-within:rounded-lg focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] sm:h-14 ${
                 interactive ? 'cursor-pointer' : 'cursor-default'
               } ${
-                isNumericOption
+                usesTextOnly
+                  ? `min-h-11 min-w-[84px] rounded-lg border px-2.5 py-2 sm:min-h-12 ${
+                      isCurrent
+                        ? 'border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary-soft,#cc785c29)] text-[var(--ponko-primary,#a9583e)] shadow-sm'
+                        : 'border-[#e6dfd8] bg-white text-[#6c6a64] hover:border-[#cfc4b8] hover:bg-[#faf9f5]'
+                    }`
+                  : isNumericOption
                   ? `w-11 rounded-full p-1 sm:w-14 sm:p-2 ${
                       isCurrent || (interactive && hoveredRating === ratingValue)
                         ? 'border border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary-soft,#cc785c29)] shadow-sm'
@@ -87,8 +110,22 @@ export function RatingControl({ options, value, onChange, name, label, readOnly 
                   filled={isActive}
                   className={`h-7 w-7 transition-all duration-200 sm:h-8 sm:w-8 ${
                     isActive
-                      ? 'scale-100 text-[var(--ponko-primary,#cc785c)] drop-shadow-[0_1px_2px_rgba(204,120,92,0.35)]'
+                      ? 'scale-100 text-[#f4b400] drop-shadow-[0_1px_2px_rgba(244,180,0,0.3)]'
                       : 'scale-95 text-[#d9cfc2]'
+                  } ${interactive ? 'group-hover:scale-110' : ''}`}
+                />
+              ) : usesTextOnly ? (
+                <span aria-hidden="true" className="text-xs font-semibold leading-4 sm:text-sm">
+                  {opt.label}
+                </span>
+              ) : FaceIcon ? (
+                <FaceIcon
+                  aria-hidden="true"
+                  strokeWidth={1.8}
+                  className={`h-8 w-8 transition-all duration-200 sm:h-9 sm:w-9 ${
+                    isCurrent || (interactive && hoveredRating === ratingValue)
+                      ? 'scale-110 text-[var(--ponko-primary,#cc785c)]'
+                      : 'text-[#9c958b]'
                   } ${interactive ? 'group-hover:scale-110' : ''}`}
                 />
               ) : isImageUrl(visual) ? (

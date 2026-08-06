@@ -22,10 +22,16 @@ END $$;--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "payments_gateway_payment_id_idx" ON "payments" ("gateway_payment_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "payments_external_id_idx" ON "payments" ("external_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "payments_page_session_id_idx" ON "payments" ("page_session_id");--> statement-breakpoint
-UPDATE "payments"
-SET "page_session_id" = ("gateway_response"->>'pageSessionId')::integer
-WHERE "page_session_id" IS NULL
-  AND ("gateway_response"->>'pageSessionId') ~ '^[0-9]+$';--> statement-breakpoint
+-- Some legacy gateway payloads reference submission sessions that have since
+-- been removed. Preserve those payloads for audit purposes, but only backfill
+-- the relational column when the referenced session still exists. Comparing
+-- as text also avoids an integer cast failure for malformed or oversized IDs.
+UPDATE "payments" AS "payment"
+SET "page_session_id" = "session"."id"
+FROM "form_submission_sessions" AS "session"
+WHERE "payment"."page_session_id" IS NULL
+  AND ("payment"."gateway_response"->>'pageSessionId') ~ '^[0-9]+$'
+  AND "session"."id"::text = "payment"."gateway_response"->>'pageSessionId';--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS "payment_events" (
   "id" serial PRIMARY KEY,

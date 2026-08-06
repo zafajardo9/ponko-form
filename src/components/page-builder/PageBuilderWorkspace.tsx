@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent as ReactDragEvent,
+} from 'react'
 import { useMutation } from '@tanstack/react-query'
 import {
   DndContext,
@@ -36,6 +43,7 @@ import {
   ChevronDown,
   LayoutGrid,
   List,
+  GripVertical,
   Plus,
   Search,
   Save,
@@ -74,6 +82,13 @@ import type { EditablePageField } from './PageBuilderTypes'
 import { ReferencesPanel, PageSettings } from './PageSettings'
 import { SortableFieldCard, SortablePageTab } from './SortableComponents'
 import { FieldSettings } from './FieldSettings'
+import { FormSuccessCard } from '../page-form/FormSuccessCard'
+
+const FIELD_DRAG_TYPE = 'application/x-ponkoform-field'
+
+function fieldDragKey(item: FieldPaletteItem) {
+  return `${item.type}:${item.preset ?? item.label}`
+}
 
 export function PageBuilderWorkspace({
   formId,
@@ -107,7 +122,11 @@ export function PageBuilderWorkspace({
   const [fieldSearch, setFieldSearch] = useState('')
   const [paletteView, setPaletteView] = useState<'list' | 'grid'>('list')
   const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false)
+  const [draggedPaletteItem, setDraggedPaletteItem] = useState<FieldPaletteItem | null>(null)
+  const [isPaletteOverCanvas, setIsPaletteOverCanvas] = useState(false)
+  const [dragAnnouncement, setDragAnnouncement] = useState('')
   const isResizingSettings = useRef(false)
+  const canvasDragDepth = useRef(0)
 
   const currentSnapshot = useMemo(() => snapshotBuilder(draftPages, draftReferences), [draftPages, draftReferences])
   const isDirty = currentSnapshot !== savedSnapshot
@@ -266,6 +285,7 @@ export function PageBuilderWorkspace({
       isFinal: false,
       finalTemplate: null,
       finalRedirectUrl: null,
+      finalContactEmail: null,
       hasPayment: false,
       paymentGatewayId: null,
       paymentAmountVariable: null,
@@ -299,7 +319,7 @@ export function PageBuilderWorkspace({
     setMobileSettingsOpen(false)
   }
 
-  function addFieldLocal(item: FieldPaletteItem) {
+  function addFieldLocal(item: FieldPaletteItem, insertAt = currentPage?.fields.length ?? 0) {
     if (!currentPage || currentPage.isFinal) return
     const fieldType = item.type
     const isTerms = item.preset === 'terms'
@@ -363,7 +383,7 @@ export function PageBuilderWorkspace({
           ]
         : null,
       bindVariable: slugForBinding(isTerms ? 'terms_and_conditions' : fieldType, used),
-      position: currentPage.fields.length,
+      position: insertAt,
       width: 'full',
       validationRules: fieldType === 'computation'
         ? {
@@ -380,14 +400,56 @@ export function PageBuilderWorkspace({
       conditions: [],
     }
     setDraftPages((items) =>
-      items.map((page) =>
-        page.id === currentPage.id ? { ...page, fields: [...page.fields, field] } : page,
-      ),
+      items.map((page) => {
+        if (page.id !== currentPage.id) return page
+        const nextFields = [...page.fields]
+        const nextIndex = Math.max(0, Math.min(insertAt, nextFields.length))
+        nextFields.splice(nextIndex, 0, field)
+        return {
+          ...page,
+          fields: nextFields.map((item, index) => ({ ...item, position: index })),
+        }
+      }),
     )
     setPanelMode('settings')
     setSelection({ type: 'field', fieldId: field.id })
     setMobilePaletteOpen(false)
     setMobileSettingsOpen(true)
+  }
+
+  function startPaletteDrag(event: ReactDragEvent<HTMLButtonElement>, item: FieldPaletteItem) {
+    if (currentPage.isFinal) {
+      event.preventDefault()
+      return
+    }
+    event.dataTransfer.effectAllowed = 'copy'
+    event.dataTransfer.setData(FIELD_DRAG_TYPE, fieldDragKey(item))
+    event.dataTransfer.setData('text/plain', item.label)
+    setDraggedPaletteItem(item)
+    setDragAnnouncement(`Dragging ${item.label}. Drop it on the form canvas to add it.`)
+  }
+
+  function finishPaletteDrag() {
+    canvasDragDepth.current = 0
+    setDraggedPaletteItem(null)
+    setIsPaletteOverCanvas(false)
+  }
+
+  function dropPaletteField(event: ReactDragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    const key = event.dataTransfer.getData(FIELD_DRAG_TYPE)
+    const item = draggedPaletteItem ?? FIELD_ITEMS.find((candidate) => fieldDragKey(candidate) === key)
+    if (!item || currentPage.isFinal) {
+      finishPaletteDrag()
+      return
+    }
+
+    const targetCard = (event.target as Element | null)?.closest<HTMLElement>('[data-field-card-id]')
+    const targetFieldId = targetCard ? Number(targetCard.dataset.fieldCardId) : Number.NaN
+    const targetIndex = currentPage.fields.findIndex((field) => field.id === targetFieldId)
+    addFieldLocal(item, targetIndex >= 0 ? targetIndex : currentPage.fields.length)
+    setDragAnnouncement(`${item.label} added to ${currentPage.title}.`)
+    finishPaletteDrag()
   }
 
   function deleteFieldLocal(fieldId: number) {
@@ -482,6 +544,9 @@ export function PageBuilderWorkspace({
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto lg:min-h-0 lg:flex-row lg:overflow-hidden">
+      <p role="status" aria-live="polite" className="sr-only">
+        {dragAnnouncement}
+      </p>
       <aside className="flex-none border-b border-[#e6dfd8] bg-[#faf9f5] p-4 lg:w-72 lg:overflow-y-auto lg:border-b-0 lg:border-r">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium text-[#141413]">Add a field</p>
@@ -501,6 +566,9 @@ export function PageBuilderWorkspace({
           </div>
         </div>
         <div className={`${mobilePaletteOpen ? 'mt-4 flex' : 'hidden'} flex-col lg:mt-4 lg:flex`}>
+          <p className="mb-3 text-xs leading-5 text-[#817d76]">
+            Click to add, or drag a field onto the canvas.
+          </p>
           <div className="flex items-center gap-2">
             <label className="relative min-w-0 flex-1">
               <span className="sr-only">Search field types</span>
@@ -611,10 +679,17 @@ export function PageBuilderWorkspace({
                         <button
                           key={`${item.type}-${item.preset ?? item.label}`}
                           type="button"
+                          draggable={!currentPage.isFinal}
                           disabled={currentPage.isFinal}
                           onClick={() => addFieldLocal(item)}
+                          onDragStart={(event) => startPaletteDrag(event, item)}
+                          onDragEnd={finishPaletteDrag}
                           title={item.description}
-                          className={`group min-w-0 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] text-sm transition-colors hover:border-[#cc785c] hover:bg-[#efe9de] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]/30 disabled:cursor-not-allowed disabled:opacity-50 ${
+                          className={`group min-w-0 cursor-grab rounded-lg border border-[#e6dfd8] bg-[#faf9f5] text-sm transition-[transform,opacity,border-color,background-color,box-shadow] duration-150 ease-[cubic-bezier(0.2,0,0,1)] hover:border-[#cc785c] hover:bg-[#efe9de] active:cursor-grabbing active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]/30 motion-reduce:transform-none motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-50 ${
+                            draggedPaletteItem && fieldDragKey(draggedPaletteItem) === fieldDragKey(item)
+                              ? 'scale-[0.98] border-[#cc785c] bg-[#fff7f3] opacity-55 shadow-inner'
+                              : ''
+                          } ${
                             paletteView === 'grid'
                               ? 'flex min-h-[74px] flex-col items-center justify-center gap-1.5 px-1.5 py-2 text-center'
                               : 'flex items-center gap-2 px-3 py-2.5 text-left'
@@ -632,6 +707,13 @@ export function PageBuilderWorkspace({
                           >
                             {item.label}
                           </span>
+                          {paletteView === 'list' && (
+                            <GripVertical
+                              size={14}
+                              aria-hidden="true"
+                              className="ml-auto flex-none text-[#aaa39a] transition-colors group-hover:text-[#b45f45]"
+                            />
+                          )}
                         </button>
                       ))}
                     </div>
@@ -697,7 +779,43 @@ export function PageBuilderWorkspace({
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div
+          data-testid="field-drop-canvas"
+          onDragEnter={(event) => {
+            if (!draggedPaletteItem) return
+            event.preventDefault()
+            canvasDragDepth.current += 1
+            setIsPaletteOverCanvas(true)
+          }}
+          onDragOver={(event) => {
+            if (!draggedPaletteItem) return
+            event.preventDefault()
+            event.dataTransfer.dropEffect = 'copy'
+          }}
+          onDragLeave={() => {
+            if (!draggedPaletteItem) return
+            canvasDragDepth.current = Math.max(0, canvasDragDepth.current - 1)
+            if (canvasDragDepth.current === 0) setIsPaletteOverCanvas(false)
+          }}
+          onDrop={dropPaletteField}
+          className={`relative flex-1 overflow-y-auto p-4 transition-colors duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none sm:p-6 ${
+            isPaletteOverCanvas ? 'bg-[#f8ede7]' : ''
+          }`}
+        >
+          {draggedPaletteItem && !currentPage.isFinal && (
+            <div
+              aria-hidden="true"
+              className={`pointer-events-none absolute inset-2 z-20 rounded-xl border-2 border-dashed transition-[border-color,background-color,transform] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transform-none motion-reduce:transition-none ${
+                isPaletteOverCanvas
+                  ? 'scale-[0.995] border-[#cc785c] bg-[#cc785c]/5'
+                  : 'border-[#c9b4a8] bg-white/10'
+              }`}
+            >
+              <span className="absolute left-1/2 top-3 -translate-x-1/2 rounded-full border border-[#e2c9bf] bg-white px-3 py-1.5 text-xs font-medium text-[#a9583e] shadow-sm">
+                Drop to add {draggedPaletteItem.label}
+              </span>
+            </div>
+          )}
           <div className="mx-auto max-w-3xl">
             <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -710,19 +828,18 @@ export function PageBuilderWorkspace({
             </div>
 
             {currentPage.isFinal ? (
-              <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-6 text-center">
-                <div className="mb-3 text-4xl">✓</div>
-                <p className="whitespace-pre-wrap text-[#3d3d3a]">
-                  {currentPage.finalTemplate || 'Your response has been recorded.'}
-                </p>
-              </div>
+              <FormSuccessCard
+                bordered
+                message={currentPage.finalTemplate || 'Your response has been recorded.'}
+                supportEmail={currentPage.finalContactEmail}
+              />
             ) : currentPage.fields.length === 0 ? (
               <div className="flex min-h-[220px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#e6dfd8] bg-[#faf9f5] px-6 text-center">
                 <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#efe9de] text-[#cc785c]">
                   <Plus size={18} />
                 </span>
                 <p className="mt-3 text-sm font-medium text-[#141413]">This page has no fields yet</p>
-                <p className="mt-1 max-w-xs text-xs leading-5 text-[#8e8b82]">Choose a field type from the Add a field panel. It will appear here and open its settings.</p>
+                <p className="mt-1 max-w-xs text-xs leading-5 text-[#8e8b82]">Click a field type or drag it here. The new field will appear and open its settings.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -741,6 +858,7 @@ export function PageBuilderWorkspace({
                           setSelection({ type: 'field', fieldId: field.id })
                           setMobileSettingsOpen(true)
                         }}
+                        onDelete={() => deleteFieldLocal(field.id)}
                       />
                     ))}
                   </SortableContext>
@@ -858,7 +976,6 @@ export function PageBuilderWorkspace({
               references={draftReferences}
               onUpdate={(patch) => updateFieldLocal(selectedField.id, patch)}
               onMoveToPage={(pageId) => moveFieldToPageLocal(selectedField.id, pageId)}
-              onDelete={() => deleteFieldLocal(selectedField.id)}
               onSaveConditions={(conditions) => saveConditionsLocal(selectedField.id, conditions)}
             />
           ) : (

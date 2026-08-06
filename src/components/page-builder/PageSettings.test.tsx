@@ -14,6 +14,7 @@ const paymentPage: FormPage = {
   isFinal: false,
   finalTemplate: null,
   finalRedirectUrl: null,
+  finalContactEmail: null,
   hasPayment: true,
   paymentGatewayId: null,
   paymentAmountVariable: null,

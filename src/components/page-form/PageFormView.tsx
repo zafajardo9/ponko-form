@@ -28,6 +28,11 @@ import { PageProgressBar } from './PageProgressBar'
 import { PagePaymentStep } from './PagePaymentStep'
 import { PagePaymentPreview } from './PagePaymentPreview'
 import { RecaptchaField } from './RecaptchaField'
+import {
+  FormSuccessCard,
+  SubmissionReviewCard,
+  type SubmissionDetail,
+} from './FormSuccessCard'
 import { createPublicSessionToken } from '@/lib/public-session-access'
 import { FormLoadingIndicator } from '../public-form/FormLoadingIndicator'
 
@@ -68,6 +73,47 @@ function fieldConfig(field: PageField) {
   }
 }
 
+function displaySubmissionValue(field: PageField, value: unknown): string | null {
+  if (value == null || value === '') return null
+  const optionLabels = new Map((field.options ?? []).map((option) => [option.value, option.label]))
+
+  if (Array.isArray(value)) {
+    const labels = value.map((item) => {
+      if (item && typeof item === 'object' && 'name' in item) return String(item.name)
+      const raw = String(item)
+      return optionLabels.get(raw) ?? raw
+    }).filter(Boolean)
+    return labels.length > 0 ? labels.join(', ') : null
+  }
+
+  if (typeof value === 'object') {
+    const labels: Record<string, string> = {
+      currentAddress: 'Address',
+      apartment: 'Apartment',
+      city: 'City',
+      stateProvince: 'State/Province',
+      zipPostalCode: 'Postal code',
+      country: 'Country',
+    }
+    const parts = Object.entries(value as Record<string, unknown>)
+      .filter(([, part]) => part != null && String(part).trim() !== '')
+      .map(([key, part]) => labels[key] ? `${labels[key]}: ${String(part)}` : String(part))
+    return parts.length > 0 ? parts.join(' · ') : null
+  }
+
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  const raw = String(value)
+  return optionLabels.get(raw) ?? raw
+}
+
+function buildSubmissionDetails(fields: PageField[], values: Record<string, unknown>): SubmissionDetail[] {
+  return fields.flatMap((field) => {
+    if (['content', 'media', 'recaptcha'].includes(field.fieldType)) return []
+    const value = displaySubmissionValue(field, values[field.bindVariable])
+    return value ? [{ label: field.label || 'Untitled field', value }] : []
+  })
+}
+
 export function PageFormView({
   formId,
   title = 'Form',
@@ -91,6 +137,7 @@ export function PageFormView({
   const [paidPages, setPaidPages] = useState<Record<number, boolean>>({})
   const [paymentGateMessage, setPaymentGateMessage] = useState('')
   const [completed, setCompleted] = useState(false)
+  const [submissionId, setSubmissionId] = useState<number | null>(null)
   // Bumps on every page navigation; `tick` re-keys the page wrapper (replaying
   // the transition) and `dir` picks the forward/back animation.
   const [nav, setNav] = useState<{ tick: number; dir: 'forward' | 'back' }>({
@@ -179,6 +226,7 @@ export function PageFormView({
           : { ...session.collectedData, ...current })
       }
       if (typeof session.currentPageIndex === 'number') setCurrentPageIndex(session.currentPageIndex)
+      if (session.formSubmissionId) setSubmissionId(session.formSubmissionId)
       if (session.status === 'completed') setCompleted(true)
       setPaymentGateMessage('')
     },
@@ -208,7 +256,10 @@ export function PageFormView({
           collectedData,
         },
       }),
-    onSuccess: () => setCompleted(true),
+    onSuccess: (result) => {
+      setSubmissionId(result.submissionId)
+      setCompleted(true)
+    },
     onError: resetCaptchaFields,
   })
 
@@ -217,6 +268,7 @@ export function PageFormView({
       setCurrentPageIndex(resumeQuery.data.session.currentPageIndex)
       setData((resumeQuery.data.session.collectedData as Record<string, unknown>) ?? {})
       setSessionId(resumeQuery.data.session.id)
+      if (resumeQuery.data.session.formSubmissionId) setSubmissionId(resumeQuery.data.session.formSubmissionId)
       setCompleted(resumeQuery.data.session.status === 'completed')
     }
   }, [resumeQuery.data])
@@ -262,6 +314,10 @@ export function PageFormView({
   const computedData = useMemo(
     () => applyComputedFieldValues(allFields, data, references),
     [allFields, data, references],
+  )
+  const submissionDetails = useMemo(
+    () => buildSubmissionDetails(allFields, computedData),
+    [allFields, computedData],
   )
   const currentValues = computedData as Record<string, FieldValue>
   const themed = themeVars(resolvedTheme ?? null)
@@ -376,13 +432,20 @@ export function PageFormView({
     const completedRedirectUrl = completedPage?.finalRedirectUrl
       ? interpolate(completedPage.finalRedirectUrl, { ...referenceMap, ...data })
       : null
+    const completedMessage = completedPage?.finalTemplate
+      ? interpolate(completedPage.finalTemplate, { ...referenceMap, ...data })
+      : 'Your response has been recorded.'
     return (
       <div className={outerClass} style={themed}>
         <div className={wrapperClass}>
-          <Card className="text-center py-16">
-            <div className="mb-4 text-5xl">✓</div>
-            <h1 className="text-2xl font-medium text-[#141413]">Thank you!</h1>
-            <p className="mt-2 text-[#6c6a64]">Your response has been recorded.</p>
+          <Card className="py-14 text-center sm:py-16">
+            <FormSuccessCard
+              title="Thank you!"
+              message={completedMessage}
+              supportEmail={completedPage?.finalContactEmail}
+              reference={submissionId ? `PF-${String(submissionId).padStart(6, '0')}` : null}
+              details={submissionDetails}
+            />
             {completedRedirectUrl && !preview && <RedirectAfterDelay url={completedRedirectUrl} />}
           </Card>
         </div>
@@ -434,10 +497,9 @@ export function PageFormView({
           </div>
 
           {currentPage.isFinal ? (
-            <div className="rounded-lg bg-[#faf9f5] p-5 text-center">
-              <div className="mb-3 text-4xl">✓</div>
-              <p className="whitespace-pre-wrap text-[#3d3d3a]">{finalContent}</p>
-            </div>
+            <SubmissionReviewCard
+              details={submissionDetails}
+            />
           ) : currentPage.hasPayment ? (
             preview ? (
               <PagePaymentPreview
@@ -519,12 +581,12 @@ export function PageFormView({
             >
               {currentPageIndex >= pages.length - 1
                 ? completeMut.isPending
-                  ? 'Submitting...'
+                  ? 'Saving response…'
                   : !preview && startMut.isError
                     ? 'Session unavailable'
                     : !preview && !sessionId
                       ? 'Preparing...'
-                  : 'Submit'
+                  : 'Submit response'
                 : currentPage.hasPayment && !currentPaymentPaid && !preview
                   ? 'Complete payment to continue'
                   : 'Next'}

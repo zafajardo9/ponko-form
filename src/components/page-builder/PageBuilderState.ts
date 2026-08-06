@@ -33,6 +33,7 @@ export function snapshotBuilder(pages: EditablePage[], references: FormReference
       isFinal: page.isFinal,
       finalTemplate: page.finalTemplate ?? null,
       finalRedirectUrl: page.finalRedirectUrl ?? null,
+      finalContactEmail: page.finalContactEmail ?? null,
       hasPayment: page.hasPayment,
       paymentGatewayId: page.paymentGatewayId ?? null,
       paymentAmountVariable: page.paymentAmountVariable ?? null,

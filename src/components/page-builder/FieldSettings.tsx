@@ -11,22 +11,24 @@ import type {
   PageFieldType,
 } from '../../lib/page-builder/types'
 import {
+  Check,
   Calculator,
   Eye,
   Info,
   Settings2,
   ShieldCheck,
   SlidersHorizontal,
-  Trash2,
   X,
 } from 'lucide-react'
 import { addressRequiredParts } from '../../lib/page-builder/conditions'
 import {
   inferSatisfactionPreset,
+  ratingFaceIcon,
   satisfactionOptions,
+  SVG_STAR_MARKER,
+  TEXT_ONLY_MARKER,
   type SatisfactionPreset,
 } from '../../lib/page-builder/satisfaction'
-import { Button } from '../ui/Button'
 import { StarIcon } from '../ui/StarIcon'
 import { ErrorBoundary } from '../layout/ErrorBoundary'
 import {
@@ -66,8 +68,43 @@ interface FieldSettingsProps {
   references: FormReference[]
   onUpdate: (patch: Partial<PageField>) => void
   onMoveToPage: (pageId: number) => void
-  onDelete: () => void
   onSaveConditions: (conditions: FieldCondition[]) => void
+}
+
+const RATING_PRESETS: Array<{
+  value: Exclude<SatisfactionPreset, 'custom'>
+  label: string
+  description: string
+}> = [
+  { value: 'five-point', label: 'Emoji mood', description: 'Expressive and friendly' },
+  { value: 'icon-faces', label: 'Icon faces', description: 'Clean, consistent symbols' },
+  { value: 'svg-stars', label: 'Review stars', description: 'Familiar Google-style rating' },
+  { value: 'text-only', label: 'Text labels', description: 'Clear words, no icons' },
+  { value: 'numbers', label: 'Number scale', description: 'Simple 1–5 score' },
+  { value: 'nps', label: 'NPS scale', description: 'Standard 0–10 score' },
+]
+
+function RatingPresetPreview({ preset }: { preset: Exclude<SatisfactionPreset, 'custom'> }) {
+  if (preset === 'svg-stars') {
+    return (
+      <span className="flex items-center gap-0.5 text-[#f4b400]" aria-hidden="true">
+        {[0, 1, 2, 3, 4].map((star) => <StarIcon key={star} size={16} filled />)}
+      </span>
+    )
+  }
+  if (preset === 'icon-faces') {
+    return <span className="text-lg tracking-[0.2em] text-[#77736b]" aria-hidden="true">☹ ◯ ☺</span>
+  }
+  if (preset === 'text-only') {
+    return <span className="flex gap-1 text-[9px] font-semibold text-[#77736b]" aria-hidden="true"><i className="not-italic">Poor</i><i className="not-italic">Okay</i><i className="not-italic">Great</i></span>
+  }
+  if (preset === 'numbers') {
+    return <span className="text-xs font-semibold tracking-[0.28em] text-[#77736b]" aria-hidden="true">1 2 3 4 5</span>
+  }
+  if (preset === 'nps') {
+    return <span className="text-[10px] font-semibold tracking-[0.11em] text-[#77736b]" aria-hidden="true">0 ··· 5 ··· 10</span>
+  }
+  return <span className="text-lg tracking-[0.15em]" aria-hidden="true">😡 😐 😍</span>
 }
 
 export function SatisfactionSettings({ field, onUpdate }: Pick<FieldSettingsProps, 'field' | 'onUpdate'>) {
@@ -107,26 +144,79 @@ export function SatisfactionSettings({ field, onUpdate }: Pick<FieldSettingsProp
   }
 
   return (
-    <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
-      <Field label="Rating scale">
-        <select value={preset} onChange={(event) => selectPreset(event.target.value as SatisfactionPreset)} className={inputClass}>
-          <option value="five-point">5-point satisfaction</option>
-          <option value="stars">Star rating</option>
-          <option value="svg-stars">Modern star rating</option>
-          <option value="nps">Net Promoter Score (0–10)</option>
-          <option value="custom">Custom scale</option>
-        </select>
-      </Field>
-      <div className="mt-3 flex flex-col gap-2">
+    <div className="rounded-xl border border-[#e6dfd8] bg-[#faf9f5] p-3">
+      <div>
+        <p className="text-xs font-semibold text-[#38342f]">Choose a rating look</p>
+        <p className="mt-0.5 text-[11px] leading-4 text-[#8e8b82]">Each preset includes respondent-friendly labels and numeric values.</p>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Rating appearance preset">
+        {RATING_PRESETS.map((item) => {
+          const selected = preset === item.value
+          return (
+            <button
+              key={item.value}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => selectPreset(item.value)}
+              className={`relative flex min-h-[92px] min-w-0 flex-col items-start justify-between rounded-lg border p-2.5 text-left transition-[border-color,background-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]/30 ${
+                selected
+                  ? 'border-[#cc785c] bg-white shadow-[0_0_0_1px_rgba(204,120,92,0.15)]'
+                  : 'border-[#e3ddd5] bg-white/70 hover:border-[#cfc4b8] hover:bg-white'
+              }`}
+            >
+              <span className="flex min-h-7 w-full items-center"><RatingPresetPreview preset={item.value} /></span>
+              <span className="w-full min-w-0 pr-4">
+                <span className={`block truncate text-xs font-semibold ${selected ? 'text-[#a9583e]' : 'text-[#38342f]'}`}>{item.label}</span>
+                <span className="mt-0.5 block truncate text-[10px] text-[#8e8b82]">{item.description}</span>
+              </span>
+              {selected && (
+                <span className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-[#cc785c] text-white">
+                  <Check size={10} strokeWidth={3} aria-hidden="true" />
+                </span>
+              )}
+            </button>
+          )
+        })}
+        <button
+          type="button"
+          role="radio"
+          aria-checked={preset === 'custom' || preset === 'stars'}
+          onClick={() => selectPreset('custom')}
+          className={`col-span-2 flex items-center justify-between rounded-lg border px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]/30 ${
+            preset === 'custom' || preset === 'stars'
+              ? 'border-[#cc785c] bg-white text-[#a9583e]'
+              : 'border-[#e3ddd5] bg-white/70 text-[#6c6a64] hover:border-[#cfc4b8] hover:bg-white'
+          }`}
+        >
+          <span>
+            <span className="block text-xs font-semibold">Custom scale</span>
+            <span className="mt-0.5 block text-[10px] text-[#8e8b82]">Keep these values and tune every label or visual</span>
+          </span>
+          {(preset === 'custom' || preset === 'stars') && <Check size={14} aria-hidden="true" />}
+        </button>
+      </div>
+      <div className="my-3 h-px bg-[#e6dfd8]" />
+      <div className="mb-2 flex items-end justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold text-[#38342f]">Labels and values</p>
+          <p className="mt-0.5 text-[10px] text-[#8e8b82]">Editing a preset turns it into a custom scale.</p>
+        </div>
+      </div>
+      <div className="flex flex-col gap-2">
         {options.map((option, index) => (
           <div key={`${option.value}-${index}`} className="grid grid-cols-[64px_minmax(0,1fr)_64px_32px] gap-2">
-            {preset === 'svg-stars' ? (
+            {option.emoji === SVG_STAR_MARKER ? (
               <span
                 aria-label={`Rating ${index + 1} star visual`}
-                className="flex h-10 items-center justify-center rounded-md border border-[#e6dfd8] bg-white text-[#cc785c]"
+                className="flex h-10 items-center justify-center rounded-md border border-[#e6dfd8] bg-white text-[#f4b400]"
               >
                 <StarIcon size={22} filled />
               </span>
+            ) : option.emoji === TEXT_ONLY_MARKER ? (
+              <span className="flex h-10 items-center justify-center rounded-md border border-[#e6dfd8] bg-white px-1 text-[10px] font-semibold text-[#77736b]">Text</span>
+            ) : ratingFaceIcon(option.emoji) ? (
+              <span className="flex h-10 items-center justify-center rounded-md border border-[#e6dfd8] bg-white text-lg text-[#77736b]">☺</span>
             ) : (
               <input
                 aria-label={`Rating ${index + 1} visual`}
@@ -166,12 +256,12 @@ export function SatisfactionSettings({ field, onUpdate }: Pick<FieldSettingsProp
       <button type="button" onClick={addOption} className="mt-3 text-xs font-medium text-[#a9583e] hover:text-[#7f3f2d]">
         + Add rating level
       </button>
-      <p className="mt-2 text-xs leading-5 text-[#8e8b82]">The saved value is numeric and can be used in logic, calculations, submissions, and exports. Custom scales accept emoji or image URLs.</p>
+      <p className="mt-2 text-xs leading-5 text-[#8e8b82]">Values stay numeric for logic, calculations, submissions, and exports. Custom visuals accept emoji or image URLs.</p>
     </div>
   )
 }
 
-export function FieldSettings({ field, pages, fields, references, onUpdate, onMoveToPage, onDelete, onSaveConditions }: FieldSettingsProps) {
+export function FieldSettings({ field, pages, fields, references, onUpdate, onMoveToPage, onSaveConditions }: FieldSettingsProps) {
   const [conditions, setConditions] = useState(field.conditions)
   const [rulesOpen, setRulesOpen] = useState(false)
   const [logicOpen, setLogicOpen] = useState(false)
@@ -551,14 +641,6 @@ export function FieldSettings({ field, pages, fields, references, onUpdate, onMo
         </SettingsSection>
       )}
 
-      <section className="rounded-xl border border-[#f0c2b8] bg-[#fff3ef] p-4">
-        <h4 className="text-sm font-medium text-[#9f3f35]">Remove this field</h4>
-        <p className="mt-1 text-xs leading-5 text-[#9f5b50]">This removes the field and its saved configuration from the draft.</p>
-        <Button type="button" variant="danger" size="sm" onClick={onDelete} className="mt-3">
-          <Trash2 size={14} /> Delete field
-        </Button>
-      </section>
-
       {rulesOpen && (
         <RulesDialog
           field={field}
@@ -615,9 +697,6 @@ export function FieldSettings({ field, pages, fields, references, onUpdate, onMo
     </div>
   )
 }
-
-
-
 
 
 

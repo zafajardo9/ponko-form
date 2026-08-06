@@ -326,6 +326,18 @@ export function PageSettings({ page, gateways, pages, references, onUpdate, onDe
               placeholder="https://example.com/thanks"
             />
           </Field>
+          <Field label="Support email">
+            <input
+              type="email"
+              value={page.finalContactEmail ?? ''}
+              onChange={(e) => onUpdate({ finalContactEmail: e.target.value || null })}
+              className={inputClass}
+              placeholder="support@example.com"
+            />
+            <p className="mt-1.5 text-xs leading-5 text-[#8e8b82]">
+              Shown on the thank-you page so respondents can reach out if something goes wrong.
+            </p>
+          </Field>
         </>
       ) : (
         <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
