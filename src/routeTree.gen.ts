@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignOutRouteImport } from './routes/sign-out'
 import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as ProgressRouteImport } from './routes/progress'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as FormsIndexRouteImport } from './routes/forms/index'
@@ -48,6 +49,11 @@ const SignOutRoute = SignOutRouteImport.update({
 const SignInRoute = SignInRouteImport.update({
   id: '/sign-in',
   path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProgressRoute = ProgressRouteImport.update({
+  id: '/progress',
+  path: '/progress',
   getParentRoute: () => rootRouteImport,
 } as any)
 const McpRoute = McpRouteImport.update({
@@ -198,6 +204,7 @@ const ApiFormsFormIdSubmissionsExportRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/progress': typeof ProgressRoute
   '/sign-in': typeof SignInRoute
   '/sign-out': typeof SignOutRoute
   '/api/health': typeof ApiHealthRoute
@@ -230,6 +237,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/progress': typeof ProgressRoute
   '/sign-in': typeof SignInRoute
   '/sign-out': typeof SignOutRoute
   '/api/health': typeof ApiHealthRoute
@@ -263,6 +271,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/progress': typeof ProgressRoute
   '/sign-in': typeof SignInRoute
   '/sign-out': typeof SignOutRoute
   '/api/health': typeof ApiHealthRoute
@@ -297,6 +306,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/mcp'
+    | '/progress'
     | '/sign-in'
     | '/sign-out'
     | '/api/health'
@@ -329,6 +339,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/mcp'
+    | '/progress'
     | '/sign-in'
     | '/sign-out'
     | '/api/health'
@@ -361,6 +372,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/mcp'
+    | '/progress'
     | '/sign-in'
     | '/sign-out'
     | '/api/health'
@@ -394,6 +406,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   McpRoute: typeof McpRoute
+  ProgressRoute: typeof ProgressRoute
   SignInRoute: typeof SignInRoute
   SignOutRoute: typeof SignOutRoute
   ApiHealthRoute: typeof ApiHealthRoute
@@ -437,6 +450,13 @@ declare module '@tanstack/react-router' {
       path: '/sign-in'
       fullPath: '/sign-in'
       preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/progress': {
+      id: '/progress'
+      path: '/progress'
+      fullPath: '/progress'
+      preLoaderRoute: typeof ProgressRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mcp': {
@@ -653,6 +673,7 @@ const PayPublicIdRouteWithChildren = PayPublicIdRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   McpRoute: McpRoute,
+  ProgressRoute: ProgressRoute,
   SignInRoute: SignInRoute,
   SignOutRoute: SignOutRoute,
   ApiHealthRoute: ApiHealthRoute,

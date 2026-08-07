@@ -440,6 +440,7 @@ function Footer() {
             <h2 className="text-xs font-medium uppercase tracking-[0.16em] text-on-dark">Resources</h2>
             <nav aria-label="Resources" className="mt-4 flex flex-col items-start gap-3 text-sm">
               <Link to="/docs" className={`hover:text-on-dark ${focusRing}`}>Documentation</Link>
+              <Link to="/progress" className={`hover:text-on-dark ${focusRing}`}>Build progress</Link>
             </nav>
           </div>
         </div>

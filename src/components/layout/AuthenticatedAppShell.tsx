@@ -14,10 +14,11 @@ export default function AuthenticatedAppShell({
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const focusedEditor = /^\/forms\/[^/]+\/edit\/?$/.test(pathname)
   const authPage = pathname === '/sign-in' || pathname.startsWith('/sign-in/')
+  const progressPage = pathname === '/progress'
 
   return (
     <>
-      {!focusedEditor && !authPage && <TopNav />}
+      {!focusedEditor && !authPage && !progressPage && <TopNav />}
       {children}
     </>
   )
@@ -75,6 +76,12 @@ export function TopNav() {
               className={navLinkClass}
             >
               Docs
+            </Link>
+            <Link
+              to="/progress"
+              className={navLinkClass}
+            >
+              Progress
             </Link>
           </nav>
         </div>
@@ -164,6 +171,7 @@ function MobileNavigation({ signedIn }: { signedIn: boolean }) {
             <div className="my-2 h-px bg-[#e6dfd8]" />
           </> : null}
           <MobileNavLink to="/docs" onSelect={close}>Documentation</MobileNavLink>
+          <MobileNavLink to="/progress" onSelect={close}>Progress</MobileNavLink>
           {!signedIn ? (
             <a
               href="/sign-in"
@@ -184,7 +192,7 @@ function MobileNavLink({
   onSelect,
   children,
 }: {
-  to: '/dashboard' | '/dashboard/payment-links' | '/forms' | '/settings/integrations' | '/docs'
+  to: '/dashboard' | '/dashboard/payment-links' | '/forms' | '/settings/integrations' | '/docs' | '/progress'
   onSelect: () => void
   children: React.ReactNode
 }) {
