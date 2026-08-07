@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { ChevronDown, ReceiptText, Trash2 } from 'lucide-react'
 import type { EmailTemplateSnapshot } from '../../db/schema'
 import type { InvoiceConfigDraft, TemplateVariable } from '../../lib/invoicing/types'
@@ -21,6 +22,7 @@ export function InvoiceTemplateBuilder({
   numberingLocked: boolean
   onInvoiceChange: (next: InvoiceConfigDraft) => void
 }) {
+  const fieldIdPrefix = useId()
   const emailVariables = variables.filter((variable) => variable.emailCandidate)
   const respondentVariables = variables.filter((variable) => variable.category === 'respondent')
   const prerequisites = hasPaymentPath && hasEmailIntegration && emailVariables.length > 0
@@ -43,8 +45,22 @@ export function InvoiceTemplateBuilder({
               <span className="rounded-lg bg-[#cc785c]/10 p-2 text-[#cc785c]"><ReceiptText size={20} /></span>
               <div><h2 className="font-medium text-[#141413]">Invoice email</h2><p className="mt-1 text-xs text-[#8e8b82]">Sent after a verified payment completes.</p></div>
             </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={invoice.enabled} disabled={!prerequisites} onChange={(event) => onInvoiceChange({ ...invoice, enabled: event.target.checked })} /> Enabled
+            <label className={`flex cursor-pointer items-center gap-2.5 text-sm ${!prerequisites ? 'cursor-not-allowed' : ''}`}>
+              <span className="relative inline-flex flex-none">
+                <input
+                  type="checkbox"
+                  checked={invoice.enabled}
+                  disabled={!prerequisites}
+                  aria-label={invoice.enabled ? 'Disable invoice email' : 'Enable invoice email'}
+                  onChange={(event) => onInvoiceChange({ ...invoice, enabled: event.target.checked })}
+                  className="peer sr-only"
+                />
+                <span className="h-6 w-11 rounded-full bg-[#d8cec3] transition-colors hover:bg-[#c9c3ba] peer-checked:bg-[#cc785c] peer-checked:hover:bg-[#cc785c] peer-focus-visible:ring-2 peer-focus-visible:ring-[#cc785c]/30 peer-focus-visible:ring-offset-2 peer-disabled:opacity-50" />
+                <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5" />
+              </span>
+              <span className={invoice.enabled ? 'font-semibold text-[#a9583e]' : 'text-[#6c6a64]'}>
+                {invoice.enabled ? 'Enabled' : 'Disabled'}
+              </span>
             </label>
           </div>
           {!prerequisites && (
@@ -56,23 +72,23 @@ export function InvoiceTemplateBuilder({
             </div>
           )}
           <div className="space-y-5 p-5">
-            <Field label="Respondent email field">
-              <select className={inputClass} value={invoice.respondentEmailField} onChange={(event) => onInvoiceChange({ ...invoice, respondentEmailField: event.target.value })}>
+            <Field label="Respondent email field" htmlFor={`${fieldIdPrefix}-respondent-email`}>
+              <select id={`${fieldIdPrefix}-respondent-email`} className={inputClass} value={invoice.respondentEmailField} onChange={(event) => onInvoiceChange({ ...invoice, respondentEmailField: event.target.value })}>
                 <option value="">Choose an email field…</option>
                 {emailVariables.map((variable) => <option key={variable.key} value={variable.key}>{variable.label}</option>)}
               </select>
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="From name"><input className={inputClass} value={invoice.fromName} maxLength={255} onChange={(event) => onInvoiceChange({ ...invoice, fromName: event.target.value })} placeholder="Acme Billing" /></Field>
-              <Field label="Accent color"><div className="flex gap-2"><input type="color" aria-label="Accent color picker" className="h-10 w-12 rounded border border-[#e6dfd8]" value={invoice.accentColor} onChange={(event) => onInvoiceChange({ ...invoice, accentColor: event.target.value })} /><input className={inputClass} value={invoice.accentColor} onChange={(event) => onInvoiceChange({ ...invoice, accentColor: event.target.value })} /></div></Field>
+              <Field label="From name" htmlFor={`${fieldIdPrefix}-from-name`}><input id={`${fieldIdPrefix}-from-name`} className={inputClass} value={invoice.fromName} maxLength={255} onChange={(event) => onInvoiceChange({ ...invoice, fromName: event.target.value })} placeholder="Acme Billing" /></Field>
+              <Field label="Accent color" htmlFor={`${fieldIdPrefix}-accent-color`}><div className="flex gap-2"><input type="color" aria-label="Accent color picker" className="h-10 w-12 rounded border border-[#e6dfd8]" value={invoice.accentColor} onChange={(event) => onInvoiceChange({ ...invoice, accentColor: event.target.value })} /><input id={`${fieldIdPrefix}-accent-color`} className={inputClass} value={invoice.accentColor} onChange={(event) => onInvoiceChange({ ...invoice, accentColor: event.target.value })} /></div></Field>
             </div>
-            <Field label="Logo URL (optional)"><input type="url" className={inputClass} value={invoice.logoUrl} onChange={(event) => onInvoiceChange({ ...invoice, logoUrl: event.target.value })} placeholder="https://example.com/logo.png" /></Field>
+            <Field label="Logo URL (optional)" htmlFor={`${fieldIdPrefix}-logo-url`}><input id={`${fieldIdPrefix}-logo-url`} type="url" className={inputClass} value={invoice.logoUrl} onChange={(event) => onInvoiceChange({ ...invoice, logoUrl: event.target.value })} placeholder="https://example.com/logo.png" /></Field>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Invoice prefix"><input className={inputClass} value={invoice.invoicePrefix} maxLength={20} onChange={(event) => onInvoiceChange({ ...invoice, invoicePrefix: event.target.value })} /></Field>
-              <Field label="Starting number"><input type="number" min={1} disabled={numberingLocked} className={inputClass} value={invoice.invoiceStartNumber} onChange={(event) => onInvoiceChange({ ...invoice, invoiceStartNumber: Number(event.target.value) })} /></Field>
+              <Field label="Invoice prefix" htmlFor={`${fieldIdPrefix}-invoice-prefix`}><input id={`${fieldIdPrefix}-invoice-prefix`} className={inputClass} value={invoice.invoicePrefix} maxLength={20} onChange={(event) => onInvoiceChange({ ...invoice, invoicePrefix: event.target.value })} /></Field>
+              <Field label="Starting number" htmlFor={`${fieldIdPrefix}-starting-number`}><input id={`${fieldIdPrefix}-starting-number`} type="number" min={1} disabled={numberingLocked} className={inputClass} value={invoice.invoiceStartNumber} onChange={(event) => onInvoiceChange({ ...invoice, invoiceStartNumber: Number(event.target.value) })} /></Field>
             </div>
             {numberingLocked && <p className="-mt-3 text-xs text-[#8e8b82]">The starting number is locked because an invoice has already been reserved.</p>}
-            <Field label="Subject"><input className={inputClass} value={invoice.subjectTemplate} maxLength={255} onChange={(event) => onInvoiceChange({ ...invoice, subjectTemplate: event.target.value })} /></Field>
+            <Field label="Subject" htmlFor={`${fieldIdPrefix}-subject`}><input id={`${fieldIdPrefix}-subject`} className={inputClass} value={invoice.subjectTemplate} maxLength={255} onChange={(event) => onInvoiceChange({ ...invoice, subjectTemplate: event.target.value })} /></Field>
             <Field label="Email body"><TemplateRichTextEditor value={invoice.bodyTemplate} variables={variables} onChange={(bodyTemplate) => onInvoiceChange({ ...invoice, bodyTemplate })} /></Field>
             <div className="space-y-3 rounded-lg bg-[#faf9f5] p-4 text-sm">
               <label className="flex items-center gap-2"><input type="checkbox" checked={invoice.includePaymentDetails} onChange={(event) => onInvoiceChange({ ...invoice, includePaymentDetails: event.target.checked })} /> Include verified payment details</label>
@@ -113,6 +129,21 @@ export function InvoiceTemplateBuilder({
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="block"><span className="mb-1.5 block text-sm font-medium text-[#141413]">{label}</span>{children}</label>
+function Field({ label, htmlFor, children }: {
+  label: string
+  htmlFor?: string
+  children: React.ReactNode
+}) {
+  const labelClass = 'mb-1.5 block text-sm font-medium text-[#141413]'
+
+  return (
+    <div className="block">
+      {htmlFor ? (
+        <label htmlFor={htmlFor} className={labelClass}>{label}</label>
+      ) : (
+        <div className={labelClass}>{label}</div>
+      )}
+      {children}
+    </div>
+  )
 }

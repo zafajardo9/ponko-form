@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import {
   Check,
   Eye,
@@ -57,6 +57,7 @@ export function ResponseEmailTemplateBuilder({
   const [ccError, setCcError] = useState<string | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [enableMessage, setEnableMessage] = useState<string | null>(null)
+  const fieldIdPrefix = useId()
   const templates = confirmation.templates
   const selected = templates.find((template) => template.id === selectedTemplateId) ?? templates[0]
   const emailVariables = variables.filter((variable) => variable.emailCandidate)
@@ -169,7 +170,7 @@ export function ResponseEmailTemplateBuilder({
                 >
                   <span className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm font-semibold text-[#141413]">{template.name}</span>
-                    <span className={`h-2 w-2 shrink-0 rounded-full ${template.enabled ? 'bg-[#4f8758]' : 'bg-[#c9c3ba]'}`} />
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${template.enabled ? 'bg-[#cc785c]' : 'bg-[#c9c3ba]'}`} />
                   </span>
                   <span className="mt-1.5 block truncate text-xs text-[#6c6a64]">To: {recipient}</span>
                   <span className="mt-1 block text-[11px] text-[#9a958d]">
@@ -199,7 +200,7 @@ export function ResponseEmailTemplateBuilder({
               <div className="flex items-center gap-2.5">
                 <span
                   className={`min-w-14 text-right text-xs font-semibold ${
-                    selected.enabled ? 'text-[#315f39]' : 'text-[#6c6a64]'
+                    selected.enabled ? 'text-[#a9583e]' : 'text-[#6c6a64]'
                   }`}
                   aria-live="polite"
                 >
@@ -227,15 +228,15 @@ export function ResponseEmailTemplateBuilder({
                     }
                     updateSelected({ enabled: true })
                   }}
-                  className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2 ${
+                  className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2 ${
                     selected.enabled
-                      ? 'border-[#4f8758] bg-[#4f8758]'
-                      : 'border-[#bdb6ad] bg-[#d8d2ca] hover:bg-[#c9c3ba]'
+                      ? 'bg-[#cc785c]'
+                      : 'bg-[#d8cec3] hover:bg-[#c9c3ba]'
                   }`}
                 >
                   <span
                     aria-hidden="true"
-                    className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                    className={`absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
                       selected.enabled ? 'translate-x-5' : 'translate-x-0'
                     }`}
                   />
@@ -264,8 +265,9 @@ export function ResponseEmailTemplateBuilder({
           <div className="p-4 sm:p-6">
             {activeTab === 'email' ? (
               <div className="space-y-5">
-                <Field label="Subject" required>
+                <Field label="Subject" required htmlFor={`${fieldIdPrefix}-subject`}>
                   <input
+                    id={`${fieldIdPrefix}-subject`}
                     className={inputClass}
                     value={selected.subjectTemplate}
                     maxLength={255}
@@ -308,8 +310,14 @@ export function ResponseEmailTemplateBuilder({
                   </div>
                 </div>
                 {selected.recipientMode === 'field' ? (
-                  <Field label="Recipient email field" required helper="Only Email fields from this form are shown.">
+                  <Field
+                    label="Recipient email field"
+                    required
+                    helper="Only Email fields from this form are shown."
+                    htmlFor={`${fieldIdPrefix}-recipient-field`}
+                  >
                     <select
+                      id={`${fieldIdPrefix}-recipient-field`}
                       className={inputClass}
                       value={selected.respondentEmailField}
                       onChange={(event) => updateSelected({ respondentEmailField: event.target.value })}
@@ -321,8 +329,14 @@ export function ResponseEmailTemplateBuilder({
                     </select>
                   </Field>
                 ) : (
-                  <Field label="Recipient email address" required helper="This address receives a copy after every submission.">
+                  <Field
+                    label="Recipient email address"
+                    required
+                    helper="This address receives a copy after every submission."
+                    htmlFor={`${fieldIdPrefix}-recipient-address`}
+                  >
                     <input
+                      id={`${fieldIdPrefix}-recipient-address`}
                       type="email"
                       className={inputClass}
                       value={selected.recipientEmail}
@@ -383,16 +397,28 @@ export function ResponseEmailTemplateBuilder({
 
             {activeTab === 'advanced' ? (
               <div className="space-y-5">
-                <Field label="Automation name" required helper={`Used only inside ${appConfig.name}. Recipients will not see it.`}>
+                <Field
+                  label="Automation name"
+                  required
+                  helper={`Used only inside ${appConfig.name}. Recipients will not see it.`}
+                  htmlFor={`${fieldIdPrefix}-automation-name`}
+                >
                   <input
+                    id={`${fieldIdPrefix}-automation-name`}
                     className={inputClass}
                     value={selected.name}
                     maxLength={100}
                     onChange={(event) => updateSelected({ name: event.target.value })}
                   />
                 </Field>
-                <Field label="From name" optional helper="The sender address comes from your connected email integration.">
+                <Field
+                  label="From name"
+                  optional
+                  helper="The sender address comes from your connected email integration."
+                  htmlFor={`${fieldIdPrefix}-from-name`}
+                >
                   <input
+                    id={`${fieldIdPrefix}-from-name`}
                     className={inputClass}
                     value={selected.fromName}
                     maxLength={255}
@@ -479,22 +505,38 @@ function RecipientMode({ active, icon, title, description, onClick }: {
   )
 }
 
-function Field({ label, required, optional, helper, children }: {
+function Field({ label, required, optional, helper, htmlFor, children }: {
   label: string
   required?: boolean
   optional?: boolean
   helper?: string
+  htmlFor?: string
   children: React.ReactNode
 }) {
+  const labelContent = (
+    <>
+      {label}
+      {required ? <span className="text-[#a9583e]">Required</span> : null}
+      {optional ? <span className="text-xs font-normal text-[#8e8b82]">Optional</span> : null}
+    </>
+  )
+
   return (
-    <label className="block">
-      <span className="mb-1.5 flex items-baseline gap-1.5 text-sm font-medium text-[#141413]">
-        {label}
-        {required ? <span className="text-[#a9583e]">Required</span> : null}
-        {optional ? <span className="text-xs font-normal text-[#8e8b82]">Optional</span> : null}
-      </span>
+    <div className="block">
+      {htmlFor ? (
+        <label
+          htmlFor={htmlFor}
+          className="mb-1.5 flex items-baseline gap-1.5 text-sm font-medium text-[#141413]"
+        >
+          {labelContent}
+        </label>
+      ) : (
+        <div className="mb-1.5 flex items-baseline gap-1.5 text-sm font-medium text-[#141413]">
+          {labelContent}
+        </div>
+      )}
       {children}
       {helper ? <span className="mt-1.5 block text-xs leading-4 text-[#8e8b82]">{helper}</span> : null}
-    </label>
+    </div>
   )
 }

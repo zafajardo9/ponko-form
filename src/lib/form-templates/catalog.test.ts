@@ -10,6 +10,8 @@ describe('built-in form templates', () => {
       'Deal Qualification',
       'Account Intake',
       'Task Request',
+      'Product Purchase',
+      'Products & Services Order',
     ])
   })
 
@@ -44,5 +46,33 @@ describe('built-in form templates', () => {
     expect(ratings.every((field) =>
       (field.options?.length ?? 0) >= 2 && field.options?.every((option) => Number.isFinite(Number(option.value))),
     )).toBe(true)
+  })
+
+  it('includes payment templates with a single fixed-price option and multi-option pricing', () => {
+    const product = BUILTIN_FORM_TEMPLATES.find((template) => template.name === 'Product Purchase')
+    const order = BUILTIN_FORM_TEMPLATES.find((template) => template.name === 'Products & Services Order')
+
+    expect(product?.category).toBe('sales')
+    const productPayment = product?.pagesData.find((page) => page.hasPayment)
+    expect(productPayment?.paymentComputation).toEqual({
+      mode: 'fixed',
+      fixedAmount: 500,
+      showBreakdown: true,
+    })
+
+    expect(order?.category).toBe('sales')
+    const orderPayment = order?.pagesData.find((page) => page.hasPayment)
+    expect(orderPayment?.paymentComputation).toEqual({
+      mode: 'sum_priced_options',
+      fieldBindings: ['items'],
+      showBreakdown: true,
+    })
+
+    const pricedField = order?.pagesData
+      .flatMap((page) => page.fields)
+      .find((field) => field.bindVariable === 'items')
+    expect(pricedField?.validationRules?.optionPricesEnabled).toBe(true)
+    expect(pricedField?.options?.length ?? 0).toBeGreaterThanOrEqual(2)
+    expect(pricedField?.options?.every((option) => Number(option.price) > 0)).toBe(true)
   })
 })

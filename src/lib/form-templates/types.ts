@@ -1,4 +1,4 @@
-import type { PageFieldOption, PageFieldType } from '../page-builder/types'
+import type { FieldValidationRules, PageFieldOption, PageFieldType, PaymentComputation } from '../page-builder/types'
 
 export interface TemplateFieldData {
   fieldType: PageFieldType
@@ -9,6 +9,7 @@ export interface TemplateFieldData {
   bindVariable: string
   position: number
   width?: 'full' | 'half'
+  validationRules?: FieldValidationRules | null
 }
 
 export interface TemplatePageData {
@@ -18,6 +19,11 @@ export interface TemplatePageData {
   isFinal: boolean
   finalTemplate?: string | null
   fields: TemplateFieldData[]
+  /** When true, the page collects payment (via the configured computation) before continuing. */
+  hasPayment?: boolean
+  paymentAmountVariable?: string | null
+  paymentCurrency?: string
+  paymentComputation?: PaymentComputation | null
 }
 
 export type FormTemplateCategory = 'contact' | 'support' | 'sales' | 'survey' | 'general' | 'custom'

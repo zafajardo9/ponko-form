@@ -19,6 +19,12 @@ export function templatePageInsertValues(
     finalTemplate: page.isFinal
       ? page.finalTemplate ?? "Your response has been recorded."
       : null,
+    hasPayment: Boolean(page.hasPayment),
+    paymentAmountVariable: page.hasPayment
+      ? page.paymentAmountVariable ?? null
+      : null,
+    paymentCurrency: (page.paymentCurrency || "USD").slice(0, 3).toUpperCase(),
+    paymentComputation: page.hasPayment ? page.paymentComputation ?? null : null,
   }));
 }
 
@@ -48,7 +54,7 @@ export function templateFieldInsertValues(
         bindVariable: field.bindVariable,
         position,
         width: field.width ?? ("full" as const),
-        validationRules: null,
+        validationRules: field.validationRules ?? null,
       }));
   });
 }

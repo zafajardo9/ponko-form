@@ -18,7 +18,9 @@ export function TemplatePreview({ template }: { template: FormTemplateRecord }) 
               </span>
               <div>
                 <h3 className="text-sm font-semibold text-[#141413]">{page.title}</h3>
-                <p className="mt-0.5 text-xs text-[#8e8b82]">{page.isFinal ? 'Confirmation page' : `${page.fields.length} fields`}</p>
+                <p className="mt-0.5 text-xs text-[#8e8b82]">
+                  {page.isFinal ? 'Confirmation page' : page.hasPayment ? paymentStepLabel(page) : `${page.fields.length} fields`}
+                </p>
               </div>
             </div>
             {!page.isFinal && page.fields.length > 0 && (
@@ -65,4 +67,15 @@ export function TemplatePreview({ template }: { template: FormTemplateRecord }) 
       </div>
     </div>
   )
+}
+
+function paymentStepLabel(page: FormTemplateRecord['pagesData'][number]) {
+  const computation = page.paymentComputation
+  if (computation?.mode === 'fixed' && Number(computation.fixedAmount) > 0) {
+    return `Payment · ${page.paymentCurrency ?? 'USD'} ${computation.fixedAmount}`
+  }
+  if (computation?.mode === 'sum_priced_options') {
+    return 'Payment · total of selected options'
+  }
+  return 'Payment step'
 }

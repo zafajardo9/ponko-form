@@ -81,6 +81,13 @@ describe('ResponseEmailTemplateBuilder', () => {
     expect(screen.getByRole('tab', { name: 'Advanced' })).toBeTruthy()
   })
 
+  it('does not wrap the rich-text editor controls in a native label', () => {
+    renderBuilder()
+
+    expect(screen.getByText('Email content').closest('label')).toBeNull()
+    expect(screen.getByLabelText(/Subject/)).toBeTruthy()
+  })
+
   it('adds a validated CC recipient to the selected email', () => {
     const onChange = vi.fn()
     renderBuilder({ onChange })

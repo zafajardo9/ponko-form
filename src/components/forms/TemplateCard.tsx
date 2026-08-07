@@ -37,6 +37,7 @@ export function ScratchTemplateCard({ onClick }: { onClick: () => void }) {
 export function TemplateCard({ template, onClick }: { template: FormTemplateRecord; onClick: () => void }) {
   const Icon = categoryIcon[template.category as keyof typeof categoryIcon] ?? Building2
   const fieldCount = template.pagesData.reduce((total, page) => total + page.fields.length, 0)
+  const hasPayment = template.pagesData.some((page) => page.hasPayment)
   return (
     <button
       type="button"
@@ -54,7 +55,7 @@ export function TemplateCard({ template, onClick }: { template: FormTemplateReco
       <h2 className="mt-5 text-lg font-semibold tracking-tight text-[#141413]">{template.name}</h2>
       <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#6c6a64]">{template.description}</p>
       <div className="mt-auto border-t border-[#eeeae4] pt-4 text-xs text-[#817d75]">
-        <span>{template.pagesData.length} pages · {fieldCount} fields</span>
+        <span>{template.pagesData.length} pages · {fieldCount} fields{hasPayment ? ' · Payment' : ''}</span>
       </div>
     </button>
   )
