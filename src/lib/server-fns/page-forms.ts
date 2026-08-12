@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { currentAuth as auth } from '../auth.server'
-import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, exists, inArray, ne, sql, lt, or } from 'drizzle-orm'
 import { db } from '@/db/index'
 import { withTimeout } from '@/db/with-timeout'
 import {
@@ -13,6 +13,9 @@ import {
   forms,
   paymentGateways,
   payments,
+  discountCodeForms,
+  discountCodes,
+  discountRedemptions,
 } from '@/db/schema'
 import { paymentRegistry } from '@/integrations/payments/index'
 import { reconcilePayment } from '../payments/reconciliation'
@@ -66,6 +69,8 @@ import { emailSurveyTokenHash, validEmailSurveyToken } from './email-survey-toke
 import { paymentReturnOrigin, publicRequestOrigin } from './request-origin'
 import { ensurePageSubmissionDraft } from '../page-builder/submission-draft'
 import { claimPaymentCheckout } from '../payments/checkout-claim'
+import { applyDiscount, discountEligibility, normalizeDiscountCode } from '../discounts'
+export { validateDiscountCode } from './discounts'
 
 type GatewaySlug = 'paypal' | 'xendit'
 
@@ -120,6 +125,43 @@ function paymentStartIssue(gatewaySlug: GatewaySlug, gatewayName: string, detail
   }
 }
 
+async function resolveSessionDiscount(formId: number, pages: Awaited<ReturnType<typeof hydratePages>>, collectedData: Record<string, unknown>, amountMajor: number) {
+  const discountField = pages.flatMap((page) => page.fields).find((field) => field.fieldType === 'discount')
+  const rawCode = discountField ? collectedData[discountField.bindVariable] : undefined
+  const code = typeof rawCode === 'string' ? normalizeDiscountCode(rawCode) : ''
+  if (!code) return { application: null, reason: null as string | null }
+  const [discount] = await db.select({ discount: discountCodes }).from(discountCodes)
+    .innerJoin(discountCodeForms, eq(discountCodeForms.discountCodeId, discountCodes.id))
+    .where(and(eq(discountCodeForms.formId, formId), eq(discountCodes.code, code))).limit(1)
+  if (!discount) return { application: null, reason: 'Invalid discount code' }
+  const amountMinor = Math.max(0, Math.round(amountMajor * 100))
+  const reason = discountEligibility(discount.discount, amountMinor)
+  if (reason) return { application: null, reason }
+  return { application: applyDiscount(discount.discount, amountMinor), reason: null }
+}
+
+function sessionRespondentEmail(pages: Awaited<ReturnType<typeof hydratePages>>, collectedData: Record<string, unknown>) {
+  const emailField = pages.flatMap((page) => page.fields).find((field) => field.fieldType === 'email')
+  const email = emailField ? String(collectedData[emailField.bindVariable] ?? '').trim().toLowerCase() : ''
+  return email || null
+}
+
+function paymentCalculationWithDiscount(calculation: ReturnType<typeof calculatePagePayment>, application: Awaited<ReturnType<typeof resolveSessionDiscount>>['application']) {
+  if (!application) return calculation
+  const originalMinor = Math.max(0, Math.round(calculation.amount * 100))
+  const finalAmount = application.finalAmount / 100
+  return {
+    ...calculation,
+    amount: finalAmount,
+    breakdown: [
+      ...calculation.breakdown.filter((line) => line.kind !== 'total'),
+      { label: `Discount (${application.code})`, amount: -(application.discountAmount / 100), kind: 'adjustment' as const },
+      { label: 'Total', amount: finalAmount, kind: 'total' as const },
+    ],
+    subtotal: calculation.subtotal || originalMinor / 100,
+  }
+}
+
 function credentialsForSlug(
   slug: GatewaySlug,
   configs: Awaited<ReturnType<typeof loadIntegrationConfigs>>,
@@ -146,6 +188,14 @@ async function gatewayRowId(slug: GatewaySlug, name: string): Promise<number> {
       target: paymentGateways.slug,
       set: { name, isActive: true },
     })
+    .returning({ id: paymentGateways.id })
+  return created.id
+}
+
+async function freeGatewayRowId(): Promise<number> {
+  const [created] = await db.insert(paymentGateways)
+    .values({ name: 'Discounted checkout', slug: 'free', isActive: true })
+    .onConflictDoUpdate({ target: paymentGateways.slug, set: { isActive: true } })
     .returning({ id: paymentGateways.id })
   return created.id
 }
@@ -1024,7 +1074,14 @@ export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: fal
     const allFields = pages.flatMap((item) => item.fields)
     const sessionData = applyComputedFieldValues(allFields, (session.collectedData ?? {}) as Record<string, unknown>, references)
     const dataScope = { ...buildReferenceMap(references), ...sessionData }
-    const calculation = calculatePagePayment(page as unknown as FormPage, allFields, dataScope, references)
+    const baseCalculation = calculatePagePayment(page as unknown as FormPage, allFields, dataScope, references)
+    const resolvedDiscount = await resolveSessionDiscount(
+      session.formId,
+      pages,
+      (session.collectedData ?? {}) as Record<string, unknown>,
+      baseCalculation.amount,
+    )
+    const calculation = paymentCalculationWithDiscount(baseCalculation, resolvedDiscount.application)
     const amount = calculation.amount
     const paymentId = Number(((session.collectedData ?? {}) as Record<string, unknown>).__paymentId)
     const [existingPayment] = Number.isFinite(paymentId)
@@ -1071,6 +1128,14 @@ export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: fal
       currency,
       gateways,
       breakdown: calculation.breakdown,
+      discount: resolvedDiscount.application ? {
+        code: resolvedDiscount.application.code,
+        description: resolvedDiscount.application.description,
+        discountAmount: resolvedDiscount.application.discountAmount / 100,
+        originalAmount: resolvedDiscount.application.originalAmount / 100,
+        finalAmount: resolvedDiscount.application.finalAmount / 100,
+      } : null,
+      discountError: resolvedDiscount.reason,
       showBreakdown: Boolean(computation?.showBreakdown),
       missingReferences: calculation.missingReferences,
       paymentStatus: existingPayment?.paymentKind === 'subscription' && existingPayment.subscriptionStatus === 'active'
@@ -1112,6 +1177,79 @@ export const ensurePagePaymentDraft = createServerFn({ method: 'POST', strict: f
     return { success: true }
   })
 
+export const completeFreePagePayment = createServerFn({ method: 'POST', strict: false })
+  .validator((data: { sessionId: number; clientToken: string; pageId: number }) => data)
+  .handler(async ({ data }) => {
+    const [session] = await db.select().from(formSubmissionSessions)
+      .where(sessionAccessWhere(data.sessionId, data.clientToken)).limit(1)
+    if (!session) throw new Error('Session not found')
+    const [[page], pages, references] = await Promise.all([
+      db.select().from(formPages).where(and(eq(formPages.id, data.pageId), eq(formPages.formId, session.formId))).limit(1),
+      hydratePages(session.formId),
+      loadFormReferences(session.formId),
+    ])
+    if (!page?.hasPayment) throw new Error('Payment page not found')
+    const allFields = pages.flatMap((item) => item.fields)
+    const computed = applyComputedFieldValues(allFields, (session.collectedData ?? {}) as Record<string, unknown>, references)
+    const base = calculatePagePayment(page as unknown as FormPage, allFields, { ...buildReferenceMap(references), ...computed }, references)
+    const resolved = await resolveSessionDiscount(session.formId, pages, (session.collectedData ?? {}) as Record<string, unknown>, base.amount)
+    const calculation = paymentCalculationWithDiscount(base, resolved.application)
+    if (calculation.amount !== 0 || !resolved.application) throw new Error('This payment is not eligible for free checkout')
+    const submissionId = await ensurePaymentDraft(session)
+    const existingId = Number(((session.collectedData ?? {}) as Record<string, unknown>).__paymentId)
+    if (Number.isFinite(existingId)) {
+      const [existing] = await db.select({ id: payments.id, status: payments.status }).from(payments)
+        .where(and(eq(payments.id, existingId), eq(payments.pageSessionId, session.id))).limit(1)
+      if (existing?.status === 'completed') return { success: true }
+    }
+    const application = resolved.application
+    const respondentEmail = sessionRespondentEmail(pages, (session.collectedData ?? {}) as Record<string, unknown>)
+    const [reserved] = await db.update(discountCodes)
+      .set({ currentUses: sql`${discountCodes.currentUses} + 1`, updatedAt: new Date() })
+      .where(and(
+        eq(discountCodes.id, application.discountId),
+        eq(discountCodes.code, application.code),
+        exists(db.select({ id: discountCodeForms.discountCodeId }).from(discountCodeForms).where(and(eq(discountCodeForms.discountCodeId, discountCodes.id), eq(discountCodeForms.formId, session.formId)))),
+        eq(discountCodes.isActive, true),
+        or(sql`${discountCodes.maxUses} IS NULL`, lt(discountCodes.currentUses, discountCodes.maxUses)),
+        or(sql`${discountCodes.startsAt} IS NULL`, sql`${discountCodes.startsAt} <= NOW()`),
+        or(sql`${discountCodes.expiresAt} IS NULL`, sql`${discountCodes.expiresAt} > NOW()`),
+      )).returning({ id: discountCodes.id })
+    if (!reserved) throw new Error('This discount code is no longer available')
+    const paymentGatewayId = await freeGatewayRowId()
+    const [payment] = await db.insert(payments).values({
+      paymentGatewayId,
+      pageSessionId: session.id,
+      formSubmissionId: submissionId,
+      amount: 0,
+      paidAmount: 0,
+      currency: page.paymentCurrency,
+      status: 'completed',
+      paymentKind: 'one_time',
+      paidAt: new Date(),
+      verificationSource: 'manual',
+    }).returning({ id: payments.id })
+    await db.insert(discountRedemptions).values({
+      discountCodeId: application.discountId,
+      formId: session.formId,
+      paymentId: payment.id,
+      pageSessionId: session.id,
+      formSubmissionId: submissionId,
+      currency: page.paymentCurrency,
+      respondentEmail,
+      originalAmount: application.originalAmount,
+      discountAmount: application.discountAmount,
+      finalAmount: application.finalAmount,
+    }).onConflictDoNothing({ target: discountRedemptions.paymentId })
+    await db.update(formSubmissionSessions).set({
+      status: 'payment_pending',
+      formSubmissionId: submissionId,
+      collectedData: { ...(session.collectedData as Record<string, unknown>), __paymentId: payment.id },
+      updatedAt: new Date(),
+    }).where(eq(formSubmissionSessions.id, session.id))
+    return { success: true }
+  })
+
 export const initiatePagePayment = createServerFn({ method: 'POST', strict: false })
   .validator(
     (data: {
@@ -1148,7 +1286,7 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
       (session.collectedData ?? {}) as Record<string, unknown>,
       references,
     )
-    const amountMajor = calculatePagePayment(
+    const baseCalculation = calculatePagePayment(
       page as unknown as FormPage,
       allFields,
       {
@@ -1156,7 +1294,16 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
         ...computedSessionData,
       },
       references,
-    ).amount
+    )
+    const resolvedDiscount = await resolveSessionDiscount(
+      session.formId,
+      pages,
+      (session.collectedData ?? {}) as Record<string, unknown>,
+      baseCalculation.amount,
+    )
+    if (resolvedDiscount.reason) throw new Error(resolvedDiscount.reason)
+    const calculation = paymentCalculationWithDiscount(baseCalculation, resolvedDiscount.application)
+    const amountMajor = calculation.amount
     if (!Number.isFinite(amountMajor) || amountMajor <= 0) {
       throw new Error('Nothing to pay - the amount is zero or invalid')
     }
@@ -1210,6 +1357,7 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
       return { paymentUrl: reusablePayment.paymentUrl, issue: null }
     }
     const amountMinor = Math.round(amountMajor * 100)
+    const respondentEmail = sessionRespondentEmail(pages, (session.collectedData ?? {}) as Record<string, unknown>)
     const paymentKind = subscriptionConfig ? 'subscription' as const : 'one_time' as const
     const subscriptionExternalId = subscriptionConfig
       ? `ponkoform-subscription-session-${session.id}`
@@ -1289,12 +1437,30 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
       }
     }
     const payment = checkout.payment
+    let discountReserved = false
+    if (resolvedDiscount.application) {
+      const application = resolvedDiscount.application
+      const [reserved] = await db.update(discountCodes)
+        .set({ currentUses: sql`${discountCodes.currentUses} + 1`, updatedAt: new Date() })
+        .where(and(
+          eq(discountCodes.id, application.discountId),
+          eq(discountCodes.code, application.code),
+          exists(db.select({ id: discountCodeForms.discountCodeId }).from(discountCodeForms).where(and(eq(discountCodeForms.discountCodeId, discountCodes.id), eq(discountCodeForms.formId, session.formId)))),
+          eq(discountCodes.isActive, true),
+          or(sql`${discountCodes.maxUses} IS NULL`, lt(discountCodes.currentUses, discountCodes.maxUses)),
+          or(sql`${discountCodes.startsAt} IS NULL`, sql`${discountCodes.startsAt} <= NOW()`),
+          or(sql`${discountCodes.expiresAt} IS NULL`, sql`${discountCodes.expiresAt} > NOW()`),
+        ))
+        .returning({ id: discountCodes.id })
+      if (!reserved) throw new Error('This discount code is no longer available')
+      discountReserved = true
+    }
     const externalId = subscriptionExternalId ?? `ponkoform-payment-${payment.id}`
     await db.update(payments).set({
       externalId,
       amount: Math.round(amountMajor * 100),
       respondentName: customer?.name ?? reusablePayment?.respondentName,
-      respondentEmail: customer?.email ?? reusablePayment?.respondentEmail,
+      respondentEmail: customer?.email ?? reusablePayment?.respondentEmail ?? respondentEmail,
       subscriptionAnchorDate: subscriptionConfig
         ? subscriptionAnchorDate(subscriptionConfig)
         : reusablePayment?.subscriptionAnchorDate,
@@ -1343,6 +1509,11 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
       phase: 'gateway-create',
     })
     if (!result.success || !result.paymentUrl) {
+      if (discountReserved && resolvedDiscount.application) {
+        await db.update(discountCodes)
+          .set({ currentUses: sql`GREATEST(${discountCodes.currentUses} - 1, 0)`, updatedAt: new Date() })
+          .where(eq(discountCodes.id, resolvedDiscount.application.discountId))
+      }
       const issue = paymentStartIssue(data.gatewaySlug, gateway.getGatewayName(), result.error)
       await db.update(payments).set({
         status: 'failed',
@@ -1390,6 +1561,21 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
       },
       updatedAt: new Date(),
     }).where(eq(payments.id, payment.id))
+    if (discountReserved && resolvedDiscount.application) {
+      const application = resolvedDiscount.application
+      await db.insert(discountRedemptions).values({
+        discountCodeId: application.discountId,
+        formId: session.formId,
+        paymentId: payment.id,
+        pageSessionId: session.id,
+        formSubmissionId: submissionId,
+        respondentEmail: respondentEmail ?? customer?.email?.trim().toLowerCase() ?? null,
+        currency: page.paymentCurrency,
+        originalAmount: application.originalAmount,
+        discountAmount: application.discountAmount,
+        finalAmount: application.finalAmount,
+      }).onConflictDoNothing({ target: discountRedemptions.paymentId })
+    }
     await db
       .update(formSubmissionSessions)
       .set({

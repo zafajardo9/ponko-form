@@ -435,7 +435,7 @@ export const suggestTemplateFromAI = createServerFn({ method: 'POST' })
 
 New seed script: `scripts/seed-field-group-templates.ts`
 
-Runs at migration time or via `npm run db:seed-templates` to insert the 7 built-in templates. Each template has `is_builtin = true` and references a specific profile ID (or `profile_id = 1` for system). On new user signup, the built-in templates are copied to the user's profile.
+Runs at migration time or via `pnpm run db:seed-templates` to insert the 7 built-in templates. Each template has `is_builtin = true` and references a specific profile ID (or `profile_id = 1` for system). On new user signup, the built-in templates are copied to the user's profile.
 
 ```ts
 // scripts/seed-field-group-templates.ts
@@ -525,7 +525,7 @@ If Gemini is not configured (no API key), the **[+AI]** button shows as disabled
 
 ### Task 1: DB Migration — `field_group_templates` table
 - Add table + index to `src/db/schema.ts`
-- Run `npm run db:generate` + `db:migrate`
+- Run `pnpm run db:generate` + `db:migrate`
 - Create `scripts/seed-field-group-templates.ts` with 7 built-in templates
 - Run seed script
 

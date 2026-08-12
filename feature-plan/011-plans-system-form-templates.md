@@ -640,12 +640,12 @@ seed()
 
 ### Task 1: DB Migration — `form_templates` Table
 - Add `formTemplates` Drizzle definition to `src/db/schema.ts` (after line 237, the `formPageFields` definition)
-- Run `npm run db:generate` to create migration
-- Run `npm run db:migrate` to apply
+- Run `pnpm run db:generate` to create migration
+- Run `pnpm run db:migrate` to apply
 
 ### Task 2: Seed Built-in Templates
 - Create `scripts/seed-form-templates.ts` with the 5 template definitions from Section 5
-- Add `"db:seed-form-templates": "npx tsx scripts/seed-form-templates.ts"` to `package.json` scripts
+- Add `"db:seed-form-templates": "pnpm exec tsx scripts/seed-form-templates.ts"` to `package.json` scripts
 - Run the seed script to populate the database
 - Verify: `SELECT id, name, category FROM form_templates` returns 5 rows
 

@@ -13,6 +13,7 @@ import { Route as SignOutRouteImport } from './routes/sign-out'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as ProgressRouteImport } from './routes/progress'
 import { Route as McpRouteImport } from './routes/mcp'
+import { Route as DiscountsRouteImport } from './routes/discounts'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as FormsIndexRouteImport } from './routes/forms/index'
 import { Route as DocsIndexRouteImport } from './routes/docs/index'
@@ -35,6 +36,7 @@ import { Route as FormsFormIdInvoicingRouteImport } from './routes/forms/$formId
 import { Route as FormsFormIdFlowRouteImport } from './routes/forms/$formId/flow'
 import { Route as FormsFormIdEmailsRouteImport } from './routes/forms/$formId/emails'
 import { Route as FormsFormIdEditRouteImport } from './routes/forms/$formId/edit'
+import { Route as FormsFormIdDiscountsRouteImport } from './routes/forms/$formId/discounts'
 import { Route as FlowExecutionIdCompleteRouteImport } from './routes/flow/$executionId/complete'
 import { Route as ApiInternalReconcilePaymentsRouteImport } from './routes/api/internal/reconcile-payments'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
@@ -59,6 +61,11 @@ const ProgressRoute = ProgressRouteImport.update({
 const McpRoute = McpRouteImport.update({
   id: '/mcp',
   path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DiscountsRoute = DiscountsRouteImport.update({
+  id: '/discounts',
+  path: '/discounts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -172,6 +179,11 @@ const FormsFormIdEditRoute = FormsFormIdEditRouteImport.update({
   path: '/forms/$formId/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FormsFormIdDiscountsRoute = FormsFormIdDiscountsRouteImport.update({
+  id: '/forms/$formId/discounts',
+  path: '/forms/$formId/discounts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FlowExecutionIdCompleteRoute = FlowExecutionIdCompleteRouteImport.update({
   id: '/flow/$executionId/complete',
   path: '/flow/$executionId/complete',
@@ -203,6 +215,7 @@ const ApiFormsFormIdSubmissionsExportRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/discounts': typeof DiscountsRoute
   '/mcp': typeof McpRoute
   '/progress': typeof ProgressRoute
   '/sign-in': typeof SignInRoute
@@ -221,6 +234,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/internal/reconcile-payments': typeof ApiInternalReconcilePaymentsRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
+  '/forms/$formId/discounts': typeof FormsFormIdDiscountsRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
   '/forms/$formId/emails': typeof FormsFormIdEmailsRoute
   '/forms/$formId/flow': typeof FormsFormIdFlowRoute
@@ -236,6 +250,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/discounts': typeof DiscountsRoute
   '/mcp': typeof McpRoute
   '/progress': typeof ProgressRoute
   '/sign-in': typeof SignInRoute
@@ -254,6 +269,7 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/internal/reconcile-payments': typeof ApiInternalReconcilePaymentsRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
+  '/forms/$formId/discounts': typeof FormsFormIdDiscountsRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
   '/forms/$formId/emails': typeof FormsFormIdEmailsRoute
   '/forms/$formId/flow': typeof FormsFormIdFlowRoute
@@ -270,6 +286,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/discounts': typeof DiscountsRoute
   '/mcp': typeof McpRoute
   '/progress': typeof ProgressRoute
   '/sign-in': typeof SignInRoute
@@ -288,6 +305,7 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/internal/reconcile-payments': typeof ApiInternalReconcilePaymentsRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
+  '/forms/$formId/discounts': typeof FormsFormIdDiscountsRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
   '/forms/$formId/emails': typeof FormsFormIdEmailsRoute
   '/forms/$formId/flow': typeof FormsFormIdFlowRoute
@@ -305,6 +323,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/discounts'
     | '/mcp'
     | '/progress'
     | '/sign-in'
@@ -323,6 +342,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/internal/reconcile-payments'
     | '/flow/$executionId/complete'
+    | '/forms/$formId/discounts'
     | '/forms/$formId/edit'
     | '/forms/$formId/emails'
     | '/forms/$formId/flow'
@@ -338,6 +358,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/discounts'
     | '/mcp'
     | '/progress'
     | '/sign-in'
@@ -356,6 +377,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/internal/reconcile-payments'
     | '/flow/$executionId/complete'
+    | '/forms/$formId/discounts'
     | '/forms/$formId/edit'
     | '/forms/$formId/emails'
     | '/forms/$formId/flow'
@@ -371,6 +393,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/discounts'
     | '/mcp'
     | '/progress'
     | '/sign-in'
@@ -389,6 +412,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/internal/reconcile-payments'
     | '/flow/$executionId/complete'
+    | '/forms/$formId/discounts'
     | '/forms/$formId/edit'
     | '/forms/$formId/emails'
     | '/forms/$formId/flow'
@@ -405,6 +429,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DiscountsRoute: typeof DiscountsRoute
   McpRoute: typeof McpRoute
   ProgressRoute: typeof ProgressRoute
   SignInRoute: typeof SignInRoute
@@ -423,6 +448,7 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiInternalReconcilePaymentsRoute: typeof ApiInternalReconcilePaymentsRoute
   FlowExecutionIdCompleteRoute: typeof FlowExecutionIdCompleteRoute
+  FormsFormIdDiscountsRoute: typeof FormsFormIdDiscountsRoute
   FormsFormIdEditRoute: typeof FormsFormIdEditRoute
   FormsFormIdEmailsRoute: typeof FormsFormIdEmailsRoute
   FormsFormIdFlowRoute: typeof FormsFormIdFlowRoute
@@ -464,6 +490,13 @@ declare module '@tanstack/react-router' {
       path: '/mcp'
       fullPath: '/mcp'
       preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/discounts': {
+      id: '/discounts'
+      path: '/discounts'
+      fullPath: '/discounts'
+      preLoaderRoute: typeof DiscountsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -620,6 +653,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FormsFormIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/forms/$formId/discounts': {
+      id: '/forms/$formId/discounts'
+      path: '/forms/$formId/discounts'
+      fullPath: '/forms/$formId/discounts'
+      preLoaderRoute: typeof FormsFormIdDiscountsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/flow/$executionId/complete': {
       id: '/flow/$executionId/complete'
       path: '/flow/$executionId/complete'
@@ -672,6 +712,7 @@ const PayPublicIdRouteWithChildren = PayPublicIdRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DiscountsRoute: DiscountsRoute,
   McpRoute: McpRoute,
   ProgressRoute: ProgressRoute,
   SignInRoute: SignInRoute,
@@ -690,6 +731,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiInternalReconcilePaymentsRoute: ApiInternalReconcilePaymentsRoute,
   FlowExecutionIdCompleteRoute: FlowExecutionIdCompleteRoute,
+  FormsFormIdDiscountsRoute: FormsFormIdDiscountsRoute,
   FormsFormIdEditRoute: FormsFormIdEditRoute,
   FormsFormIdEmailsRoute: FormsFormIdEmailsRoute,
   FormsFormIdFlowRoute: FormsFormIdFlowRoute,

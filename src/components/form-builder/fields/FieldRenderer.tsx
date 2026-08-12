@@ -19,6 +19,8 @@ import {
   FileUploadField,
   SatisfactionField,
   RecaptchaField,
+  DiscountCodeField,
+  type DiscountFieldContext,
 } from './renderers'
 
 // Utilities re-exported for external consumers (PageBuilderWorkspace, etc.)
@@ -34,6 +36,7 @@ interface FieldRendererProps {
   readOnly?: boolean
   /** Hides the label/legend — used by read-only previews that render their own heading. */
   hideLabel?: boolean
+  context?: DiscountFieldContext
 }
 
 // ---------------------------------------------------------------------------
@@ -59,9 +62,10 @@ const renderers = {
   file_upload: FileUploadField,
   satisfaction: SatisfactionField,
   recaptcha: RecaptchaField,
+  discount: DiscountCodeField,
 } as const
 
-export function FieldRenderer({ field, value, onChange, error, readOnly, hideLabel }: FieldRendererProps) {
+export function FieldRenderer({ field, value, onChange, error, readOnly, hideLabel, context }: FieldRendererProps) {
   const Renderer = renderers[field.type as keyof typeof renderers]
 
   if (!Renderer) {
@@ -78,6 +82,7 @@ export function FieldRenderer({ field, value, onChange, error, readOnly, hideLab
       error={error}
       readOnly={readOnly}
       hideLabel={hideLabel}
+      context={context}
     />
   )
 }

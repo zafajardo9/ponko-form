@@ -4,6 +4,7 @@ import type { EmailTemplateSnapshot } from '../../db/schema'
 import type { InvoiceConfigDraft, TemplateVariable } from '../../lib/invoicing/types'
 import { InvoicePreview } from './InvoicePreview'
 import { TemplateRichTextEditor } from './TemplateRichTextEditor'
+import { Switch } from '../ui/Switch'
 
 const inputClass = 'h-10 w-full rounded-md border border-[#e6dfd8] bg-white px-3 text-sm text-[#141413] outline-none focus:border-[#cc785c] focus:ring-2 focus:ring-[#cc785c]/20 disabled:bg-[#f5f0e8] disabled:text-[#8e8b82]'
 
@@ -45,23 +46,15 @@ export function InvoiceTemplateBuilder({
               <span className="rounded-lg bg-[#cc785c]/10 p-2 text-[#cc785c]"><ReceiptText size={20} /></span>
               <div><h2 className="font-medium text-[#141413]">Invoice email</h2><p className="mt-1 text-xs text-[#8e8b82]">Sent after a verified payment completes.</p></div>
             </div>
-            <label className={`flex cursor-pointer items-center gap-2.5 text-sm ${!prerequisites ? 'cursor-not-allowed' : ''}`}>
-              <span className="relative inline-flex flex-none">
-                <input
-                  type="checkbox"
-                  checked={invoice.enabled}
-                  disabled={!prerequisites}
-                  aria-label={invoice.enabled ? 'Disable invoice email' : 'Enable invoice email'}
-                  onChange={(event) => onInvoiceChange({ ...invoice, enabled: event.target.checked })}
-                  className="peer sr-only"
-                />
-                <span className="h-6 w-11 rounded-full bg-[#d8cec3] transition-colors hover:bg-[#c9c3ba] peer-checked:bg-[#cc785c] peer-checked:hover:bg-[#cc785c] peer-focus-visible:ring-2 peer-focus-visible:ring-[#cc785c]/30 peer-focus-visible:ring-offset-2 peer-disabled:opacity-50" />
-                <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5" />
-              </span>
-              <span className={invoice.enabled ? 'font-semibold text-[#a9583e]' : 'text-[#6c6a64]'}>
-                {invoice.enabled ? 'Enabled' : 'Disabled'}
-              </span>
-            </label>
+            <Switch
+              checked={invoice.enabled}
+              disabled={!prerequisites}
+              onCheckedChange={(enabled) => onInvoiceChange({ ...invoice, enabled })}
+              checkedLabel="Enabled"
+              uncheckedLabel="Disabled"
+              size="md"
+              aria-label={invoice.enabled ? 'Disable invoice email' : 'Enable invoice email'}
+            />
           </div>
           {!prerequisites && (
             <div className="mx-5 mt-5 rounded-lg border border-[#e2c49f] bg-[#fff8eb] px-4 py-3 text-sm text-[#79572e]">

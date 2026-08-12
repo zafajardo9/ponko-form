@@ -10,7 +10,7 @@
  *   6. Computes: grand total = total_with_vat + security_deposit_total
  *   7. Displays a summary with all computed values
  *
- * Run with:  npx tsx scripts/seed-service-flow.ts
+ * Run with:  pnpm exec tsx scripts/seed-service-flow.ts
  *
  * Idempotent — re-running deletes the existing flow on the target form
  * and rebuilds from scratch.

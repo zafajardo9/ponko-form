@@ -332,7 +332,7 @@ export function FieldSettings({ field, pages, fields, references, onUpdate, onMo
 
   const paletteItem = fieldPaletteItem(field.fieldType)
   const collectsAnswer = !isContentField(field) && field.fieldType !== 'recaptcha'
-  const supportsPlaceholder = ['text', 'email', 'number', 'textarea', 'select'].includes(field.fieldType)
+  const supportsPlaceholder = ['text', 'email', 'number', 'textarea', 'select', 'discount'].includes(field.fieldType)
   const supportsRules = collectsAnswer && !['computation', 'satisfaction'].includes(field.fieldType)
   const supportsLogic = !isContentField(field) && field.fieldType !== 'computation'
 
@@ -697,7 +697,6 @@ export function FieldSettings({ field, pages, fields, references, onUpdate, onMo
     </div>
   )
 }
-
 
 
 

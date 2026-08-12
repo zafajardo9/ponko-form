@@ -17,6 +17,7 @@ export type PageFieldType =
   | 'file_upload'
   | 'satisfaction'
   | 'recaptcha'
+  | 'discount'
 
 export type ConditionOperator =
   | 'equals'

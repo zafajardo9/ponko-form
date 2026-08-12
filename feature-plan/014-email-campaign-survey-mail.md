@@ -517,7 +517,7 @@ const SATISFACTION_PRESETS: Record<string, PageFieldOption[]> = {
 - Add `'satisfaction'` to `ensurePageBuilderFieldTypes()` in `src/lib/server-fns/page-forms.ts` (after line 179, following the existing pattern)
 - Add `'satisfaction'` to `FieldConfig.type` union in `src/components/form-builder/fields/FieldRenderer.tsx` (line 31)
 - Add optional `emoji?: string | null` to `FieldOption` interface in `FieldRenderer.tsx` (line 20+)
-- Run `npm run db:generate` → `npm run db:migrate`
+- Run `pnpm run db:generate` → `pnpm run db:migrate`
 - Verify the app loads without TypeScript errors
 
 ### Task 2: Add to Field Palette

@@ -41,6 +41,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "theme-color", content: "#faf9f5" },
       { title: `${appConfig.name} — Build forms that collect more` },
       {
         name: "description",
@@ -64,11 +65,15 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      style={{ backgroundColor: "#faf9f5" }}
+    >
       <head>
         <HeadContent />
       </head>
-      <body>
+      <body style={{ margin: 0, backgroundColor: "#faf9f5" }}>
         <ToastProvider>
           <ApplicationShell>{children}</ApplicationShell>
         </ToastProvider>
@@ -105,7 +110,9 @@ function ShellLoading() {
     <div
       role="status"
       aria-label="Loading application"
-      className="h-16 animate-pulse border-b border-[#e6dfd8] bg-[#faf9f5]"
-    />
+      className="min-h-dvh bg-[#faf9f5]"
+    >
+      <div className="h-16 animate-pulse border-b border-[#e6dfd8] bg-[#faf9f5] motion-reduce:animate-none" />
+    </div>
   )
 }

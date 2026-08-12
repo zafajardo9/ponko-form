@@ -45,6 +45,8 @@ async function main() {
       '0035_response_email_automations.sql',
       '0036_better_auth_and_collaboration.sql',
       '0037_final_contact_email.sql',
+  '0038_discount_codes.sql',
+  '0039_central_discounts.sql',
     ]) {
       const migration = await readFile(resolve(import.meta.dirname, `../drizzle/${filename}`), 'utf8')
       for (const statement of migration.split('--> statement-breakpoint')) {

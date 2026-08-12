@@ -211,37 +211,71 @@ export function HeroFormMockup() {
 export function WorkflowMockup({ type }: { type: WorkflowStep["mockup"] }) {
   if (type === "templates") {
     return (
-      <div className="grid h-28 grid-cols-2 gap-2 p-3" aria-hidden="true">
-        {["Contact", "Support", "Deal", "Blank"].map((label, index) => (
-          <div
-            key={label}
-            className={`rounded-md border p-2 text-[9px] ${index === 0 ? "border-primary bg-primary/10 text-primary" : "border-hairline bg-canvas text-muted"}`}
-          >
-            <FileText size={12} className="mb-2" />
-            {label}
+      <div className="grid min-h-52 grid-cols-[7.5rem_1fr] overflow-hidden rounded-xl border border-hairline bg-canvas shadow-[0_12px_32px_rgba(20,20,19,0.07)] sm:grid-cols-[9rem_1fr]" aria-hidden="true">
+        <div className="border-r border-hairline bg-surface-soft/80 p-3 sm:p-4">
+          <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-muted-soft">Templates</p>
+          <div className="mt-3 space-y-1.5">
+            {["Contact intake", "Support ticket", "Deal qualification", "Blank form"].map((label, index) => (
+              <div key={label} className={`flex items-center gap-2 rounded-lg px-2 py-2 text-[9px] font-medium ${index === 0 ? "bg-canvas text-primary shadow-sm" : "text-muted"}`}>
+                <FileText size={11} className="shrink-0" />
+                <span className="truncate">{label}</span>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
+        <div className="p-4 sm:p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-primary">Selected template</p>
+              <p className="mt-1 text-sm font-semibold text-ink">Contact intake</p>
+            </div>
+            <span className="rounded-full bg-success/12 px-2 py-1 text-[8px] font-medium text-success">Ready</span>
+          </div>
+          <div className="mt-4 space-y-2">
+            {["Full name", "Email address", "How can we help?"].map((label, index) => (
+              <div key={label} className={`rounded-md border border-hairline bg-surface-soft/55 px-3 py-2 text-[9px] text-muted ${index === 2 ? "h-10" : ""}`}>{label}</div>
+            ))}
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <span className="text-[8px] text-muted-soft">3 fields · 1 page</span>
+            <span className="rounded-md bg-primary px-2.5 py-1.5 text-[8px] font-medium text-white">Use template</span>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (type === "builder") {
     return (
-      <div className="grid h-28 grid-cols-[48px_1fr_56px] gap-2 p-3" aria-hidden="true">
-        <div className="space-y-1.5 rounded bg-surface-card p-1.5">
-          {[1, 2, 3].map((item) => (
-            <div key={item} className="h-3 rounded bg-canvas" />
-          ))}
+      <div className="grid min-h-52 grid-cols-[4.75rem_1fr] overflow-hidden rounded-xl border border-hairline bg-canvas shadow-[0_12px_32px_rgba(20,20,19,0.07)] sm:grid-cols-[5.5rem_1fr_7rem]" aria-hidden="true">
+        <div className="border-r border-hairline bg-surface-soft/80 p-2.5 sm:p-3">
+          <p className="text-[8px] font-semibold uppercase tracking-[0.13em] text-muted-soft">Add field</p>
+          <div className="mt-3 space-y-2">
+            {["Text", "Email", "Choice", "Payment"].map((label, index) => (
+              <div key={label} className={`rounded-md border px-2 py-2 text-[8px] font-medium ${index === 3 ? "border-primary/30 bg-primary/8 text-primary" : "border-hairline bg-canvas text-muted"}`}>{label}</div>
+            ))}
+          </div>
         </div>
-        <div className="space-y-2 rounded border border-hairline bg-canvas p-2">
-          <div className="h-2 w-1/2 rounded bg-ink/70" />
-          <div className="h-5 rounded border border-primary bg-primary/5" />
-          <div className="h-5 rounded border border-hairline" />
+        <div className="p-3 sm:p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="text-[8px] uppercase tracking-[0.13em] text-primary">Page 1</p>
+              <p className="mt-1 text-xs font-semibold text-ink">Event registration</p>
+            </div>
+            <span className="rounded border border-hairline px-2 py-1 text-[8px] text-muted">Preview</span>
+          </div>
+          <div className="mt-3 space-y-2">
+            <div className="rounded-lg border border-hairline bg-surface-soft/55 p-2.5"><p className="text-[8px] text-muted-soft">Full name</p><div className="mt-1.5 h-5 rounded border border-hairline bg-canvas" /></div>
+            <div className="rounded-lg border-2 border-primary/45 bg-primary/5 p-2.5 shadow-[0_5px_14px_rgba(169,88,62,0.08)]"><div className="flex items-center justify-between"><p className="text-[8px] font-medium text-primary">Payment</p><span className="text-[8px] text-primary">PHP</span></div><p className="mt-1 text-[10px] font-semibold text-ink">Registration fee</p></div>
+          </div>
         </div>
-        <div className="space-y-2 rounded bg-surface-soft p-1.5">
-          <div className="h-2 rounded bg-muted-soft/40" />
-          <div className="h-4 rounded bg-canvas" />
-          <div className="h-2 w-2/3 rounded bg-muted-soft/30" />
+        <div className="hidden border-l border-hairline bg-surface-soft/55 p-3 sm:block">
+          <p className="text-[8px] font-semibold uppercase tracking-[0.13em] text-muted-soft">Settings</p>
+          <div className="mt-3 space-y-3">
+            <div><p className="text-[8px] text-muted">Amount</p><div className="mt-1 rounded-md border border-hairline bg-canvas px-2 py-1.5 text-[8px] text-ink">2,450.00</div></div>
+            <div><p className="text-[8px] text-muted">Required</p><div className="mt-1 flex h-4 w-7 items-center justify-end rounded-full bg-primary p-0.5"><span className="h-3 w-3 rounded-full bg-white" /></div></div>
+            <div className="rounded-md bg-success/10 px-2 py-1.5 text-[8px] text-success">Auto-saved</div>
+          </div>
         </div>
       </div>
     );
@@ -249,37 +283,48 @@ export function WorkflowMockup({ type }: { type: WorkflowStep["mockup"] }) {
 
   if (type === "share") {
     return (
-      <div className="flex h-28 items-center justify-center p-3" aria-hidden="true">
-        <div className="w-full rounded-lg border border-hairline bg-canvas p-3 shadow-sm">
-          <p className="text-[10px] font-medium text-ink">Your form is published</p>
-          <div className="mt-2 flex items-center gap-2 rounded bg-surface-soft px-2 py-1.5 text-[8px] text-muted">
-            ponkoform.app/forms/submit/...
-            <Copy size={10} className="ml-auto text-primary" />
+      <div className="flex min-h-52 items-center justify-center rounded-xl border border-hairline bg-[radial-gradient(circle_at_top,#ffffff_0%,#f5f0e8_74%)] p-4 shadow-[0_12px_32px_rgba(20,20,19,0.07)] sm:p-6" aria-hidden="true">
+        <div className="w-full max-w-md rounded-xl border border-hairline bg-canvas p-4 shadow-[0_12px_30px_rgba(20,20,19,0.09)] sm:p-5">
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-success/12 text-success"><CircleCheck size={17} /></span>
+            <div><p className="text-xs font-semibold text-ink">Your form is live</p><p className="mt-1 text-[9px] leading-4 text-muted">Anyone with the link can open the published version.</p></div>
           </div>
-          <div className="mt-2 flex gap-1">
-            <span className="rounded bg-primary px-2 py-1 text-[8px] text-white">Copy link</span>
-            <span className="rounded border border-hairline px-2 py-1 text-[8px] text-muted">Embed</span>
+          <div className="mt-4 flex items-center gap-2 rounded-lg border border-hairline bg-surface-soft px-3 py-2.5 text-[9px] text-muted">
+            <span className="truncate">ponkoform.app/f/event-registration</span>
+            <Copy size={11} className="ml-auto shrink-0 text-primary" />
           </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <span className="rounded-md bg-primary px-3 py-2 text-center text-[9px] font-medium text-white">Copy link</span>
+            <span className="rounded-md border border-hairline bg-canvas px-3 py-2 text-center text-[9px] font-medium text-muted">Get embed code</span>
+          </div>
+          <p className="mt-3 text-center text-[8px] text-muted-soft">Previewed on desktop and mobile · Published just now</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-28 p-3" aria-hidden="true">
-      <div className="overflow-hidden rounded-lg border border-hairline bg-canvas">
-        <div className="grid grid-cols-[1fr_56px] border-b border-hairline bg-surface-soft px-2 py-1.5 text-[8px] text-muted">
-          <span>Response</span>
-          <span>Payment</span>
+    <div className="min-h-52 overflow-hidden rounded-xl border border-hairline bg-canvas shadow-[0_12px_32px_rgba(20,20,19,0.07)]" aria-hidden="true">
+      <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3 sm:px-5">
+        <div><p className="text-xs font-semibold text-ink">Responses</p><p className="mt-0.5 text-[8px] text-muted-soft">Event registration</p></div>
+        <div className="flex gap-2">
+          <span className="rounded-md bg-surface-soft px-2 py-1 text-[8px] text-muted">24 total</span>
+          <span className="rounded-md bg-success/12 px-2 py-1 text-[8px] text-success">18 paid</span>
         </div>
-        {["Contact inquiry", "Event registration", "Task request"].map((label, index) => (
-          <div key={label} className="grid grid-cols-[1fr_56px] border-b border-hairline px-2 py-1.5 text-[8px] text-ink last:border-0">
-            <span>{label}</span>
-            <span className={index === 2 ? "text-warning" : "text-success"}>
-              {index === 2 ? "Pending" : "Paid"}
-            </span>
-          </div>
-        ))}
+      </div>
+      <div className="grid grid-cols-[1fr_4.5rem_4rem] border-b border-hairline bg-surface-soft/70 px-4 py-2 text-[8px] font-medium uppercase tracking-[0.1em] text-muted-soft sm:grid-cols-[1.2fr_1fr_5rem] sm:px-5">
+        <span>Respondent</span><span>Submitted</span><span>Payment</span>
+      </div>
+      {[['Jamie Rivera', 'Today, 10:42', 'Paid'], ['Alex Morgan', 'Today, 09:18', 'Pending'], ['Sam Lee', 'Yesterday', 'Paid']].map(([name, submitted, status]) => (
+        <div key={name} className="grid grid-cols-[1fr_4.5rem_4rem] items-center border-b border-hairline px-4 py-3 last:border-0 sm:grid-cols-[1.2fr_1fr_5rem] sm:px-5">
+          <div><p className="text-[9px] font-medium text-ink">{name}</p><p className="mt-0.5 text-[8px] text-muted-soft">General admission</p></div>
+          <span className="text-[8px] text-muted">{submitted}</span>
+          <span className={`justify-self-start rounded-full px-2 py-1 text-[8px] font-medium ${status === 'Paid' ? 'bg-success/12 text-success' : 'bg-warning/12 text-warning'}`}>{status}</span>
+        </div>
+      ))}
+      <div className="flex items-center justify-between border-t border-hairline bg-surface-soft/45 px-4 py-2.5 text-[8px] text-muted sm:px-5">
+        <span>Showing the latest 3 responses</span>
+        <span className="font-medium text-primary">Open workspace →</span>
       </div>
     </div>
   );

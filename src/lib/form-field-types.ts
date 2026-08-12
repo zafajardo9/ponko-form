@@ -31,7 +31,7 @@ export interface FieldOption {
 
 export interface FieldConfig {
   id: number
-  type: 'text' | 'email' | 'number' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'payment' | 'date' | 'time' | 'datetime' | 'content' | 'media' | 'address' | 'computation' | 'file_upload' | 'satisfaction' | 'recaptcha'
+  type: 'text' | 'email' | 'number' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'payment' | 'date' | 'time' | 'datetime' | 'content' | 'media' | 'address' | 'computation' | 'file_upload' | 'satisfaction' | 'recaptcha' | 'discount'
   label: string
   placeholder?: string | null
   required: boolean

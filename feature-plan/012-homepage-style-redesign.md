@@ -133,7 +133,7 @@ Completed:
 
 - [x] Focused homepage render tests pass: 2 tests.
 - [x] Full Vitest suite passes: 18 files, 89 tests.
-- [x] `npm run build` completes successfully.
+- [x] `pnpm run build` completes successfully.
 - [x] Local signed-out request to `/` returns HTTP 200.
 - [x] Server-rendered HTML contains the new hero and `#how-it-works` anchor.
 - [x] Server-rendered HTML does not contain Pricing, Help Center, Privacy, Terms, or Cookies links.
@@ -149,4 +149,4 @@ Follow-up visual QA:
 Known unrelated validation output:
 
 - TanStack reports existing `createServerFn().inputValidator()` deprecation warnings in server-function files during the otherwise successful production build.
-- A standalone `npx tsc --noEmit` check remains red because of existing type errors in seed scripts, form rendering, integrations, payment-route props, and other pre-existing files. After removing one unused homepage import found by that check, no reported TypeScript error points to the homepage implementation.
+- A standalone `pnpm exec tsc --noEmit` check remains red because of existing type errors in seed scripts, form rendering, integrations, payment-route props, and other pre-existing files. After removing one unused homepage import found by that check, no reported TypeScript error points to the homepage implementation.

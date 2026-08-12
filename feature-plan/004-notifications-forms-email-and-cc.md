@@ -423,8 +423,8 @@ The email service converts Markdown → HTML before sending. The textarea editor
 ## 12. DB Migration
 
 ```bash
-npm run db:generate  # generates the migration for form_notification_configs
-npm run db:migrate   # applies it
+pnpm run db:generate  # generates the migration for form_notification_configs
+pnpm run db:migrate   # applies it
 ```
 
 ---

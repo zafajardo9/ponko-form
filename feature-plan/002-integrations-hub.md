@@ -273,7 +273,7 @@ SELECT profile_id, 'smtp', smtp_config FROM integration_settings WHERE smtp_conf
 ON CONFLICT (profile_id, provider) DO NOTHING;
 ```
 
-**Verification:** `npx drizzle-kit generate && npx tsc --noEmit`
+**Verification:** `pnpm exec drizzle-kit generate && pnpm exec tsc --noEmit`
 
 **Commit:** `git add -A && git commit -m "feat: add integrations table + migrate existing data"`
 
@@ -309,7 +309,7 @@ export interface IntegrationStatus {
 }
 ```
 
-**Verification:** `npx tsc --noEmit`
+**Verification:** `pnpm exec tsc --noEmit`
 
 **Commit:** `git add -A && git commit -m "feat: add integration type definitions for all providers"`
 
@@ -327,7 +327,7 @@ export interface IntegrationStatus {
   - Update `deleteIntegration` to accept any `ProviderSlug`
   - Keep existing `saveXenditSettings`, `savePaypalSettings`, `saveSmtpSettings` as aliases (backward compat)
 
-**Verification:** `npx tsc --noEmit`
+**Verification:** `pnpm exec tsc --noEmit`
 
 **Commit:** `git add -A && git commit -m "feat: generic integration CRUD server functions"`
 
@@ -383,7 +383,7 @@ export const PROVIDER_FORMS: Record<ProviderSlug, ProviderFormConfig> = {
 }
 ```
 
-**Verification:** `npx tsc --noEmit`
+**Verification:** `pnpm exec tsc --noEmit`
 
 **Commit:** `git add -A && git commit -m "feat: provider form definitions for all integrations"`
 
@@ -511,8 +511,8 @@ function IntegrationsPage() {
 | Click Edit → modal pre-fills masked values | Modal shows `Saved (sk_****)` placeholders |
 | Click Remove → card resets to "Configure" | Row deleted, UI updates |
 | Xendit from old settings page still works | Old `saveXenditSettings` fn still works (backward compat) |
-| Build passes | `npm run build` exits 0 |
-| TypeScript | `npx tsc --noEmit` = 0 errors |
+| Build passes | `pnpm run build` exits 0 |
+| TypeScript | `pnpm exec tsc --noEmit` = 0 errors |
 
 ---
 

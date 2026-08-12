@@ -523,7 +523,7 @@ export const serviceExecutionLogs = pgTable('service_execution_logs', {
 
 ### Task 1: DB Migration — `form_service_configs` + `service_execution_logs`
 - Add enums and tables to `src/db/schema.ts`
-- Run `npm run db:generate` + `db:migrate`
+- Run `pnpm run db:generate` + `db:migrate`
 
 ### Task 2: Service Module Interfaces (with Cali coordination)
 - Define shared interfaces in `src/integrations/services/` (email, sheets, calendar, ai, storage)

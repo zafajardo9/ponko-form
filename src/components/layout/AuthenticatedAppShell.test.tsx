@@ -13,6 +13,10 @@ vi.mock('../../lib/auth-client', () => ({
   authClient: { signOut: vi.fn() },
 }))
 
+vi.mock('../auth/UserMenu', () => ({
+  UserMenu: () => <button type="button" aria-label="Open account menu">T</button>,
+}))
+
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
     to,
@@ -30,7 +34,7 @@ afterEach(cleanup)
 
 describe('authenticated application navigation', () => {
   it('exposes every workspace destination from the mobile menu', () => {
-    render(<TopNav />)
+    render(<TopNav signedIn />)
 
     const trigger = screen.getByRole('button', { name: 'Open navigation menu' })
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
@@ -50,7 +54,7 @@ describe('authenticated application navigation', () => {
   })
 
   it('closes on Escape and restores focus to the trigger', () => {
-    render(<TopNav />)
+    render(<TopNav signedIn />)
 
     const trigger = screen.getByRole('button', { name: 'Open navigation menu' })
     fireEvent.click(trigger)
@@ -61,7 +65,7 @@ describe('authenticated application navigation', () => {
   })
 
   it('closes after choosing a mobile destination', () => {
-    render(<TopNav />)
+    render(<TopNav signedIn />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation menu' }))
     const navigation = screen.getByRole('navigation', { name: 'Mobile navigation' })

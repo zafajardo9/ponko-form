@@ -1,5 +1,6 @@
 import { useEffect, useId, type ReactNode } from 'react'
 import { X } from 'lucide-react'
+import { useTransitionClose } from './useTransitionClose'
 
 /**
  * PreviewDialog
@@ -16,31 +17,32 @@ interface PreviewDialogProps {
 
 export function PreviewDialog({ title, children, onClose }: PreviewDialogProps) {
   const titleId = useId()
+  const { requestClose, transitionClass } = useTransitionClose(onClose)
 
   // Close on Escape.
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') requestClose()
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [onClose])
+  }, [requestClose])
 
   // Close on backdrop click.
   function handleBackdrop(e: React.MouseEvent) {
-    if (e.target === e.currentTarget) onClose()
+    if (e.target === e.currentTarget) requestClose()
   }
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-2 backdrop-blur-[2px] sm:p-4"
+      className={`t-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-2 backdrop-blur-[2px] sm:p-4 ${transitionClass}`}
       onClick={handleBackdrop}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="flex max-h-[calc(100dvh-1rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-white/60 bg-[#f5f0e8] shadow-[0_24px_80px_rgba(20,20,19,0.24)] sm:max-h-[90vh]"
+        className={`t-modal flex max-h-[calc(100dvh-1rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-white/60 bg-[#f5f0e8] shadow-[0_24px_80px_rgba(20,20,19,0.24)] sm:max-h-[90vh] ${transitionClass}`}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#e6dfd8] bg-[#faf9f5] px-4 py-3 sm:px-6">
@@ -57,7 +59,7 @@ export function PreviewDialog({ title, children, onClose }: PreviewDialogProps) 
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#8e8b82] transition-colors hover:bg-[#e8e0d2] hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]"
             aria-label="Close preview"
           >

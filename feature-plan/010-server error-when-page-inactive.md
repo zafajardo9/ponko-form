@@ -115,9 +115,9 @@ export const healthCheck = createServerFn({ method: 'GET' }).handler(async () =>
 
 ```json
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "pnpm run build",
   "outputDirectory": "dist/client",
-  "installCommand": "npm install",
+  "installCommand": "pnpm install",
   "regions": ["iad1"],
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index" }
@@ -373,9 +373,9 @@ In `vercel.json`, add a cron job that hits `/api/health` every 4 minutes:
 
 ```json
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "pnpm run build",
   "outputDirectory": "dist/client",
-  "installCommand": "npm install",
+  "installCommand": "pnpm install",
   "regions": ["iad1"],
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index" }
@@ -451,7 +451,7 @@ On Hobby plan, max is 10s (default). The `withTimeout` guards at 10-15s will cut
 - [ ] **3.5** In `src/lib/server-fns/page-forms.ts`, wrap `getPagePaymentOptions` with `withTimeout(..., 12_000)`
 - [ ] **3.6** Verify `initiatePagePayment` already has `withTimeout` (line 943) — ensure timeout is 15_000
 - [ ] **3.7** Wrap `finalizePagePayment` with `withTimeout(..., 15_000)`
-- [ ] **3.8** Run `npm run build` to verify no import errors
+- [ ] **3.8** Run `pnpm run build` to verify no import errors
 
 ### Task 4: Upgrade PagePaymentStep with Retry UI
 

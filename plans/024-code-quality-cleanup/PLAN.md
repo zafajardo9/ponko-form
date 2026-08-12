@@ -249,7 +249,7 @@ Step 12 — Split schema.ts (880 lines)
 ## 7. Verification Checklist
 
 - [ ] `pnpm run build` — passes (<1s)
-- [ ] `npx tsc --noEmit` — 0 errors
+- [ ] `pnpm exec tsc --noEmit` — 0 errors
 - [ ] `pnpm run test` — 292/292 pass (smtp fixed or removed)
 - [ ] `git status` — clean, expected changes only
 - [ ] No new `console.error` without structured prefix

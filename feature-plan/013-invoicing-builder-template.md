@@ -825,7 +825,7 @@ export const getSentInvoices = createServerFn({ method: 'GET' })
 ### Task 1: DB Migration — Invoice Tables
 - Add `formInvoiceConfigs` Drizzle definition to `src/db/schema.ts`
 - Add `invoiceSentLog` Drizzle definition to `src/db/schema.ts`
-- Run `npm run db:generate` → `npm run db:migrate`
+- Run `pnpm run db:generate` → `pnpm run db:migrate`
 - Verify: `SELECT * FROM form_invoice_configs LIMIT 0` and `SELECT * FROM invoice_sent_log LIMIT 0` succeed
 
 ### Task 2: Template Interpolation Engine

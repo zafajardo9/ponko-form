@@ -6,7 +6,7 @@
  * every concept from the feature: variables, a form-field input, a decision
  * branch, two calculators, a payment node, and a summary.
  *
- * Run with:  npx tsx scripts/seed-flow.ts
+ * Run with:  pnpm exec tsx scripts/seed-flow.ts
  *
  * The script is idempotent — re-running it deletes any existing flow on the
  * target form (cascade removes its nodes/edges/variables/executions) and

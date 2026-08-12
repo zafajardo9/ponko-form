@@ -1,6 +1,8 @@
 import { useEffect, type ReactNode } from 'react'
 import { Button } from '../ui/Button'
 import { ChevronRight, X } from 'lucide-react'
+import { Switch } from '../ui/Switch'
+import { useTransitionClose } from '../ui/useTransitionClose'
 
 export const inputClass =
   'h-10 w-full rounded-md border border-[#e6dfd8] bg-[#faf9f5] px-3 py-2 text-sm text-[#141413] outline-none focus:border-[#cc785c] focus:ring-2 focus:ring-[#cc785c]/20'
@@ -45,24 +47,26 @@ export function FieldDialog({
   children: ReactNode
   wide?: boolean
 }) {
+  const { requestClose, transitionClass } = useTransitionClose(onClose)
+
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') requestClose()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [requestClose])
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-0 backdrop-blur-[2px] sm:p-4"
-      onClick={(event) => event.target === event.currentTarget && onClose()}
+      className={`t-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-0 backdrop-blur-[2px] sm:p-4 ${transitionClass}`}
+      onClick={(event) => event.target === event.currentTarget && requestClose()}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="field-dialog-title"
-        className={`flex h-full max-h-none w-full flex-col bg-[#f5f0e8] shadow-2xl sm:h-auto sm:max-h-[92vh] sm:rounded-2xl ${
+        className={`t-modal flex h-full max-h-none w-full flex-col bg-[#f5f0e8] shadow-2xl sm:h-auto sm:max-h-[92vh] sm:rounded-2xl ${transitionClass} ${
           wide ? 'sm:max-w-6xl' : 'sm:max-w-3xl'
         }`}
       >
@@ -73,7 +77,7 @@ export function FieldDialog({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="flex h-8 w-8 items-center justify-center rounded-md text-[#8e8b82] hover:bg-[#e8e0d2] hover:text-[#141413]"
             aria-label="Close"
           >
@@ -82,7 +86,7 @@ export function FieldDialog({
         </div>
         <div className={`flex-1 overflow-y-auto ${wide ? 'p-0' : 'p-4 sm:p-5'}`}>{children}</div>
         <div className="flex justify-end border-t border-[#e6dfd8] bg-[#faf9f5] px-4 py-3 sm:rounded-b-2xl sm:px-5">
-          <Button type="button" size="sm" onClick={onClose}>
+          <Button type="button" size="sm" onClick={requestClose}>
             Done
           </Button>
         </div>
@@ -159,21 +163,12 @@ export function SettingsToggle({
   onChange: (checked: boolean) => void
 }) {
   return (
-    <label className="flex cursor-pointer items-start justify-between gap-4 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 transition-colors hover:border-[#cc785c]/60">
+    <div className="flex items-start justify-between gap-4 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 transition-colors hover:border-[#cc785c]/60">
       <span>
         <span className="block text-sm font-medium text-[#141413]">{label}</span>
         <span className="mt-0.5 block text-xs leading-5 text-[#8e8b82]">{description}</span>
       </span>
-      <span className="relative mt-0.5 inline-flex flex-none">
-        <input
-          type="checkbox"
-          checked={checked}
-          onChange={(event) => onChange(event.target.checked)}
-          className="peer sr-only"
-        />
-        <span className="h-6 w-11 rounded-full bg-[#d8cec3] transition-colors peer-checked:bg-[#cc785c] peer-focus-visible:ring-2 peer-focus-visible:ring-[#cc785c]/30 peer-focus-visible:ring-offset-2" />
-        <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5" />
-      </span>
-    </label>
+      <Switch checked={checked} onCheckedChange={onChange} stateLabel="hidden" size="md" aria-label={label} className="-mr-1 -mt-1" />
+    </div>
   )
 }

@@ -6,9 +6,9 @@
  *
  * This full-history runner is intended for databases whose Drizzle migration
  * journal was initialized from the beginning. Existing production databases
- * should use `npm run db:prepare` for compatibility migrations.
+ * should use `pnpm run db:prepare` for compatibility migrations.
  *
- * Usage: npx tsx scripts/migrate.ts
+ * Usage: pnpm exec tsx scripts/migrate.ts
  */
 import { config } from 'dotenv'
 import { resolve } from 'path'

@@ -250,8 +250,8 @@ The earlier hotfix in `src/components/page-form/PageFormView.tsx` removed the bl
 - [ ] **1.4** Delete `src/db.ts` (the old `getClient()` raw neon client — dead code now)
 - [ ] **1.5** Delete `neon-vite-plugin.ts` (the Vite plugin aliasing `pg` is no longer needed)
 - [ ] **1.6** In `vite.config.ts`, remove the `neon` import and plugin entry (lines 9, 15-16)
-- [ ] **1.7** Run `npm run build` and verify the build succeeds with no `pg`-related or `drizzle-orm/node-postgres` imports in `dist/server/assets/db-*.js`
-- [ ] **1.8** Run `npm run dev` and verify the dashboard, form editor, and public forms work locally
+- [ ] **1.7** Run `pnpm run build` and verify the build succeeds with no `pg`-related or `drizzle-orm/node-postgres` imports in `dist/server/assets/db-*.js`
+- [ ] **1.8** Run `pnpm run dev` and verify the dashboard, form editor, and public forms work locally
 
 ### Task 2: Add Query Timeout Utility
 
@@ -317,8 +317,8 @@ The earlier hotfix in `src/components/page-form/PageFormView.tsx` removed the bl
 
 ## 7. Validation / Testing
 
-- [ ] **Local dev**: `npm run dev` → dashboard loads, form editor saves fields, public form renders and submits
-- [ ] **Local build**: `npm run build` succeeds with no `drizzle-orm/node-postgres` or `pg` in dist
+- [ ] **Local dev**: `pnpm run dev` → dashboard loads, form editor saves fields, public form renders and submits
+- [ ] **Local build**: `pnpm run build` succeeds with no `drizzle-orm/node-postgres` or `pg` in dist
 - [ ] **Public form — cold load**: Open published page form URL in an incognito window → form renders within 5 seconds
 - [ ] **Public form — multi-page navigation**: Click through all pages, verify data persists between pages
 - [ ] **Public form — submission**: Complete all pages and submit → see "Thank you!" screen

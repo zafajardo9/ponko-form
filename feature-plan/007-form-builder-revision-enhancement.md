@@ -638,7 +638,7 @@ export function evaluateConditions(
 
 ### Task 1: DB Schema — New Tables
 - Add `form_pages`, `form_page_fields`, `field_conditions`, `form_submission_sessions` to `src/db/schema.ts`
-- Run `npm run db:generate` + `db:migrate`
+- Run `pnpm run db:generate` + `db:migrate`
 
 ### Task 2: Server Functions — Pages, Fields, Conditions CRUD
 - Build `src/lib/server-fns/form-pages.ts` — create/update/delete/reorder pages, add/update/remove/reorder fields, manage conditions

@@ -18,6 +18,7 @@ import {
   Smile,
   Type,
   Upload,
+  Percent,
 } from 'lucide-react'
 
 export type FieldPaletteItem = {
@@ -47,6 +48,7 @@ export const FIELD_ITEMS: FieldPaletteItem[] = [
   { type: 'content', label: 'Instructions', description: 'Formatted text that does not collect an answer.', category: 'Content', icon: <FileText size={14} /> },
   { type: 'media', label: 'Media', description: 'An image, video, or embedded resource.', category: 'Content', icon: <Image size={14} /> },
   { type: 'computation', label: 'Calculated value', description: 'A total or formula built from other answers.', category: 'Advanced', icon: <Calculator size={14} /> },
+  { type: 'discount', label: 'Discount code', description: 'Let respondents apply a discount to a payment.', category: 'Advanced', icon: <Percent size={14} /> },
   { type: 'recaptcha', label: 'Spam protection', description: 'Google reCAPTCHA verification.', category: 'Advanced', icon: <ShieldCheck size={14} /> },
 ]
 
@@ -83,4 +85,3 @@ export function setFieldOption(field: PageField, key: string, value: string) {
   const rest = (field.options ?? []).filter((option) => option.label !== key)
   return [...rest, { label: key, value }]
 }
-

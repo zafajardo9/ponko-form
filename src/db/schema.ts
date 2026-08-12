@@ -35,7 +35,9 @@ export const fieldTypeEnum = pgEnum('field_type', [
   'file_upload',
   'satisfaction',
   'recaptcha',
+  'discount',
 ])
+export const discountTypeEnum = pgEnum('discount_type', ['percentage', 'fixed'])
 export const paymentStatusEnum = pgEnum('payment_status', [
   'pending',
   'completed',
@@ -636,6 +638,79 @@ export const payments = pgTable(
     uniqueIndex('payments_subscription_plan_id_idx').on(table.subscriptionPlanId),
     index('payments_subscription_status_sync_idx').on(table.subscriptionStatus, table.subscriptionLastSyncedAt),
     index('payments_payment_link_id_idx').on(table.paymentLinkId),
+  ],
+)
+
+export const discountCodes = pgTable(
+  'discount_codes',
+  {
+    id: serial().primaryKey(),
+    profileId: integer('profile_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    formId: integer('form_id').references(() => forms.id, { onDelete: 'set null' }),
+    code: varchar('code', { length: 50 }).notNull(),
+    description: varchar('description', { length: 500 }).notNull().default(''),
+    type: discountTypeEnum('type').notNull(),
+    value: integer('value').notNull(),
+    maxDiscount: integer('max_discount'),
+    minAmount: integer('min_amount'),
+    maxUses: integer('max_uses'),
+    currentUses: integer('current_uses').notNull().default(0),
+    isActive: boolean('is_active').notNull().default(true),
+    startsAt: timestamp('starts_at'),
+    expiresAt: timestamp('expires_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('discount_codes_profile_id_code_idx').on(table.profileId, table.code),
+    index('discount_codes_profile_id_active_idx').on(table.profileId, table.isActive),
+  ],
+)
+
+export const discountCodeForms = pgTable(
+  'discount_code_forms',
+  {
+    discountCodeId: integer('discount_code_id')
+      .notNull()
+      .references(() => discountCodes.id, { onDelete: 'cascade' }),
+    formId: integer('form_id')
+      .notNull()
+      .references(() => forms.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('discount_code_forms_code_form_idx').on(table.discountCodeId, table.formId),
+    index('discount_code_forms_form_id_idx').on(table.formId),
+  ],
+)
+
+export const discountRedemptions = pgTable(
+  'discount_redemptions',
+  {
+    id: serial().primaryKey(),
+    discountCodeId: integer('discount_code_id')
+      .notNull()
+      .references(() => discountCodes.id, { onDelete: 'cascade' }),
+    formId: integer('form_id')
+      .notNull()
+      .references(() => forms.id, { onDelete: 'cascade' }),
+    paymentId: integer('payment_id').references(() => payments.id, { onDelete: 'set null' }),
+    pageSessionId: integer('page_session_id').references(() => formSubmissionSessions.id, { onDelete: 'set null' }),
+    formSubmissionId: integer('form_submission_id').notNull().references(() => formSubmissions.id, { onDelete: 'cascade' }),
+    respondentEmail: varchar('respondent_email', { length: 255 }),
+    currency: varchar('currency', { length: 3 }).notNull(),
+    originalAmount: integer('original_amount').notNull(),
+    discountAmount: integer('discount_amount').notNull(),
+    finalAmount: integer('final_amount').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('discount_redemptions_payment_id_idx').on(table.paymentId),
+    index('discount_redemptions_code_id_idx').on(table.discountCodeId),
+    index('discount_redemptions_form_id_idx').on(table.formId),
+    index('discount_redemptions_session_id_idx').on(table.pageSessionId),
   ],
 )
 

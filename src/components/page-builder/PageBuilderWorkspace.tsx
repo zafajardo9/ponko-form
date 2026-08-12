@@ -347,6 +347,8 @@ export function PageBuilderWorkspace({
                 ? 'How satisfied are you?'
               : fieldType === 'recaptcha'
                 ? ''
+              : fieldType === 'discount'
+                ? 'Discount code'
               : '',
       placeholder: fieldType === 'content'
         ? '<p>Add helpful details for this page.</p>'
@@ -354,6 +356,8 @@ export function PageBuilderWorkspace({
           ? 'Calculated from selected fields.'
           : fieldType === 'file_upload'
             ? 'Upload an image or file.'
+          : fieldType === 'discount'
+            ? 'Enter a code to reduce the payment amount.'
           : null,
       required: (isTerms || fieldType === 'file_upload' || fieldType === 'recaptcha') && fieldType !== 'computation',
       options: isTerms
@@ -382,7 +386,7 @@ export function PageBuilderWorkspace({
             { label: 'Option 2', value: 'option_2' },
           ]
         : null,
-      bindVariable: slugForBinding(isTerms ? 'terms_and_conditions' : fieldType, used),
+      bindVariable: slugForBinding(isTerms ? 'terms_and_conditions' : fieldType === 'discount' ? 'discount_code' : fieldType, used),
       position: insertAt,
       width: 'full',
       validationRules: fieldType === 'computation'

@@ -2,7 +2,7 @@
 
 > **Feature Plan** — Form creators create discount codes (percentage off or fixed amount off) with descriptions, usage limits, and date ranges. Codes appear as a **draggable form field** in the page builder — respondents enter a code on any page before the payment page to reduce their total. The system automatically validates codes server-side, adjusts the payment amount, tracks redemptions, and prevents overselling with atomic database operations.
 
-**Status:** 🚧 **Planned** — not yet implemented
+**Status:** ✅ **Redesigned and implemented** — discounts are centrally managed, each code can be assigned to multiple forms, per-respondent limits have been removed, and the database migration, payment integration, focused tests, and production build are complete.
 
 **References:**
 - `src/db/schema.ts` — all tables, `fieldTypeEnum`
@@ -64,7 +64,6 @@ As a form field, the discount code input:
 | **Max Discount Cap** | `integer` or `null` | ❌ No | For percentage codes: max absolute discount. E.g., `100000` = cap discount at ₱1,000 even if 30% of ₱5,000 = ₱1,500 |
 | **Starts At** | `timestamp` or `null` | ❌ No | When the code becomes active. `null` = immediately |
 | **Expires At** | `timestamp` or `null` | ❌ No | When the code stops working. `null` = never |
-| **Per-Respondent Limit** | `integer` or `null` | ❌ No | Max uses per respondent email/IP. Default `1`. `null` = unlimited per person |
 | **Active** | `boolean` | ✅ Yes | Master on/off toggle |
 
 ### 2.2 Discount Calculation Logic
@@ -912,58 +911,58 @@ When the analytics dashboard is built, discount data can surface:
 
 ## 9. Step-by-Step Tasks
 
-### Task 1: DB Schema
+### Task 1: DB Schema — complete locally
 - Add `discountCodes` + `discountRedemptions` tables to `src/db/schema.ts`
 - Add `'discount'` to `fieldTypeEnum` in `src/db/schema.ts`
 - Run `pnpm db:generate`
 - Run `pnpm db:migrate`
 
-### Task 2: Server Functions
+### Task 2: Server Functions — complete locally
 - Create `src/lib/server-fns/discounts.ts`
 - Implement `listDiscountCodes`, `createDiscountCode`, `toggleDiscountCode`, `deleteDiscountCode`
 - Implement `validateDiscountCode` (public, no auth)
 - Add comprehensive validation: code format, percentage range, positive fixed amounts, uniqueness
 
-### Task 3: Discount Management UI
+### Task 3: Discount Management UI — complete locally
 - Add "Discounts" tab in `FormSectionNav.tsx` — icon: `Percent` from lucide-react
 - Create `src/routes/forms/$formId/discounts.tsx` route
 - Create `CreateDiscountDialog.tsx` with all config fields
 - Create `DiscountCodeRow.tsx` showing code, type, usage, expiry, status
 
-### Task 4: Field Type Registration
+### Task 4: Field Type Registration — complete locally
 - Add `'discount'` to all field type unions (FieldRenderer, GroupFieldsEditor, FormFieldConfig, BuilderPalette)
 - Register `FIELD_ICON['discount']` in `GroupFieldsEditor.tsx`
 - Add discount item to `FIELD_ITEMS` in `BuilderPalette.tsx`
 
-### Task 5: Field Renderer
+### Task 5: Field Renderer — complete locally
 - Create `src/components/form-builder/fields/renderers/DiscountCodeField.tsx`
 - Input + Apply button, loading state, success banner, error messages
 - Emits `onDiscountApplied` callback with full discount result
 - Stores code in form's `collectedData` through standard `onChange`
 
-### Task 6: Payment Amount Integration
+### Task 6: Payment Amount Integration — complete locally
 - Modify `calculatePagePayment` in `references.ts` to read `__discount` from dataScope
 - Add discount line to breakdown (negative amount, `kind: 'adjustment'`)
 - Cap final amount at 0 (never negative)
 - Pass `formId` to `getPagePaymentOptions` so the payment page receives discount info
 
-### Task 7: Payment Initiation Integration
+### Task 7: Payment Initiation Integration — complete locally
 - Modify `initiatePagePayment` validator to accept optional `discountCodeId` + `discountCode`
 - Add atomic redemption with `UPDATE ... RETURNING` before payment creation
 - Handle "code just ran out" race condition gracefully
 - After payment success, record `discount_redemptions` row
 
-### Task 8: Payment Step UI
+### Task 8: Payment Step UI — complete locally
 - Modify `PagePaymentStep.tsx` to check session's `collectedData.__discount`
 - If discount is present, show it in the price breakdown with original → discount → total
 - The payment buttons show the discounted amount
 
-### Task 9: Per-Respondent Limits
-- At `createDiscountCode`, store `usageLimitPerRespondent`
-- At redemption time, check `discount_redemptions` for existing redemptions by `respondent_email`
-- If limit exceeded, reject with "You've already used this code"
+### Task 9: Centralized Multi-Form Assignment — complete
+- Manage discounts from `/discounts`
+- Assign each code to one or multiple forms
+- Validate the assignment server-side before saving
 
-### Task 10: Test End-to-End
+### Task 10: Test End-to-End — focused automated/database coverage complete
 - Create a percentage discount (20%) → validate returns correct discounted amount
 - Create a fixed discount (₱500) → validate returns correct discounted amount
 - Apply code on form page → discount shows in session data

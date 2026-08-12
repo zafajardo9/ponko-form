@@ -770,8 +770,8 @@ When interpolating templates (summary page `finalTemplate`, redirect URLs), the 
 ### Task 1: DB Migration — `form_constants` Table
 - Add `formConstants` table definition to `src/db/schema.ts`
 - Update the schema exports (add to the barrel export)
-- Run `npx drizzle-kit generate` to create migration
-- Run `npx drizzle-kit migrate` to apply
+- Run `pnpm exec drizzle-kit generate` to create migration
+- Run `pnpm exec drizzle-kit migrate` to apply
 - Add `FormConstant` TypeScript type to `src/lib/page-builder/types.ts` + utility functions
 
 ### Task 2: Server Functions — Constants CRUD

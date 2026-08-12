@@ -243,7 +243,7 @@ async function main() {
     !compatibility?.has_replace_page_form
   ) {
     throw new Error(
-      'Database schema is incompatible: run npm run db:prepare before starting the app.',
+      'Database schema is incompatible: run pnpm run db:prepare before starting the app.',
     )
   }
 

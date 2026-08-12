@@ -6,6 +6,7 @@ import {
   completePageSubmission,
   getPageSessionData,
   startPageSession,
+  validateDiscountCode,
 } from '@/lib/server-fns/page-forms'
 import {
   isFieldVisible,
@@ -18,6 +19,7 @@ import {
 import {
   applyComputedFieldValues,
   buildReferenceMap,
+  calculatePagePayment,
 } from '@/lib/page-builder/references'
 import type { FormPage, FormReference, PageField } from '@/lib/page-builder/types'
 import { Card } from '../ui/Card'
@@ -315,6 +317,11 @@ export function PageFormView({
     () => applyComputedFieldValues(allFields, data, references),
     [allFields, data, references],
   )
+  const basePaymentAmount = useMemo(() => {
+    const paymentPage = pages.find((page) => page.hasPayment)
+    if (!paymentPage) return 0
+    return calculatePagePayment(paymentPage, allFields, { ...referenceMap, ...computedData }, references).amount
+  }, [allFields, computedData, pages, referenceMap, references])
   const submissionDetails = useMemo(
     () => buildSubmissionDetails(allFields, computedData),
     [allFields, computedData],
@@ -549,6 +556,15 @@ export function PageFormView({
                   value={currentValues[field.bindVariable] ?? ''}
                   onChange={(value) => updateValue(field, value)}
                   error={errors[field.bindVariable]}
+                  context={field.fieldType === 'discount' ? {
+                    formId,
+                    amountMajor: basePaymentAmount,
+                    validate: (code, amountMinor) => validateDiscountCode({ data: { formId: formId!, code, amountMinor } }),
+                    onDiscountApplied: (discount) => setData((current) => ({
+                      ...current,
+                      ...(discount ? { __discount: discount } : { __discount: undefined }),
+                    })),
+                  } : undefined}
                 />
               ))}
             </div>

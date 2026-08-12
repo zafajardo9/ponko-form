@@ -199,29 +199,49 @@ function FeaturesSection() {
 
 function WorkflowSection() {
   return (
-    <section id="how-it-works" className="scroll-mt-20 bg-surface-card py-20 sm:py-28">
+    <section id="how-it-works" className="scroll-mt-20 overflow-hidden bg-surface-card py-20 sm:py-28">
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeading
-          eyebrow="How it works"
-          title="From a blank page to useful answers"
-          description={`Start with a template, make it yours, and publish when the experience feels right. ${appConfig.name} keeps the operational work just as straightforward.`}
-          centered
-        />
-        <ol className="mt-16 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid items-end gap-8 lg:grid-cols-[1fr_0.72fr] lg:gap-16">
+          <SectionHeading
+            eyebrow="How it works"
+            title="One connected path, from first field to final follow-up"
+            description={`Build, publish, and manage without handing the response between disconnected tools. Every stage stays attached to the same form and the same operational context.`}
+          />
+          <div className="border-l-2 border-primary/30 pl-5">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-primary">The workflow</p>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Four focused stages. Each one produces something useful for the next.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-medium text-muted">
+              {['Choose', 'Build', 'Publish', 'Manage'].map((label) => (
+                <span key={label} className="rounded-full border border-hairline bg-canvas px-3 py-1.5">{label}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <ol className="mt-14 space-y-5 sm:mt-16">
           {WORKFLOW_STEPS.map(({ number, icon: Icon, title, description, mockup }, index) => (
-            <li key={number} className="relative flex flex-col rounded-xl border border-hairline bg-canvas">
-              {index < WORKFLOW_STEPS.length - 1 && (
-                <div className="absolute -right-5 top-8 z-10 hidden h-px w-5 bg-primary/40 lg:block" />
-              )}
-              <div className="flex-1 p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium tracking-[0.14em] text-primary">{number}</span>
-                  <Icon size={17} className="text-muted-soft" aria-hidden="true" />
+            <li
+              key={number}
+              className="group relative grid overflow-hidden rounded-2xl border border-hairline bg-canvas shadow-[0_12px_38px_rgba(20,20,19,0.04)] transition-[transform,border-color,box-shadow] duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_18px_46px_rgba(20,20,19,0.08)] motion-reduce:transform-none motion-reduce:transition-none lg:grid-cols-[0.72fr_1.28fr]"
+            >
+              <div className="relative flex flex-col p-6 sm:p-8">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-xs font-semibold tracking-[0.08em] text-white shadow-[0_7px_18px_rgba(169,88,62,0.2)]">{number}</span>
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-soft text-primary">
+                    <Icon size={17} aria-hidden="true" />
+                  </span>
+                  <span className="ml-auto text-[10px] font-medium uppercase tracking-[0.15em] text-muted-soft">Stage {index + 1} of {WORKFLOW_STEPS.length}</span>
                 </div>
-                <h3 className="mt-4 text-base font-medium text-ink">{title}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted">{description}</p>
+                <h3 className="mt-6 font-[var(--font-display)] text-3xl font-normal leading-tight tracking-[-0.02em] text-ink">{title}</h3>
+                <p className="mt-3 max-w-sm text-sm leading-6 text-muted">{description}</p>
+                <div className="mt-7 flex items-center gap-2 text-xs font-medium text-primary lg:mt-auto lg:pt-8">
+                  {index < WORKFLOW_STEPS.length - 1 ? 'Carries forward to the next stage' : 'Ready for review and follow-up'}
+                  {index < WORKFLOW_STEPS.length - 1 ? <ArrowRight size={14} className="transition-transform duration-250 group-hover:translate-x-1 motion-reduce:transition-none" aria-hidden="true" /> : <Check size={14} aria-hidden="true" />}
+                </div>
               </div>
-              <div className="border-t border-hairline bg-surface-soft">
+              <div className="border-t border-hairline bg-surface-soft/70 p-3 sm:p-5 lg:border-l lg:border-t-0">
                 <WorkflowMockup type={mockup} />
               </div>
             </li>

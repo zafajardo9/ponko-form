@@ -1,10 +1,16 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Menu, X } from 'lucide-react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useId, useRef, useState } from 'react'
 import { useSession } from '../../lib/auth-client'
 import { appConfig } from '../../utils/app-config'
 import { UserMenu } from '../auth/UserMenu'
 import { AppLogo } from '../ui/AppLogo'
+
+const FloatingQuickActions = lazy(() =>
+  import('./FloatingQuickActions').then((module) => ({
+    default: module.FloatingQuickActions,
+  })),
+)
 
 export default function AuthenticatedAppShell({
   children,
@@ -15,11 +21,28 @@ export default function AuthenticatedAppShell({
   const focusedEditor = /^\/forms\/[^/]+\/edit\/?$/.test(pathname)
   const authPage = pathname === '/sign-in' || pathname.startsWith('/sign-in/')
   const progressPage = pathname === '/progress'
+  const { data: session } = useSession()
+  const signedIn = Boolean(session)
+  const workspacePage = pathname === '/dashboard'
+    || pathname.startsWith('/dashboard/')
+    || pathname === '/forms'
+    || pathname.startsWith('/forms/')
+    || pathname === '/discounts'
+    || pathname.startsWith('/settings/')
+  const showQuickActions = signedIn
+    && workspacePage
+    && !focusedEditor
+    && pathname !== '/forms/new'
 
   return (
     <>
-      {!focusedEditor && !authPage && !progressPage && <TopNav />}
+      {!focusedEditor && !authPage && !progressPage && <TopNav signedIn={signedIn} />}
       {children}
+      {showQuickActions ? (
+        <Suspense fallback={null}>
+          <FloatingQuickActions />
+        </Suspense>
+      ) : null}
     </>
   )
 }
@@ -27,9 +50,7 @@ export default function AuthenticatedAppShell({
 const navLinkClass =
   'text-sm text-[#6c6a64] transition-colors hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2 [&.active]:font-medium [&.active]:text-[#141413]'
 
-export function TopNav() {
-  const { data: session } = useSession()
-  const signedIn = Boolean(session)
+export function TopNav({ signedIn }: { signedIn: boolean }) {
   return (
     <header className="sticky top-0 z-50 flex h-16 items-center border-b border-[#e6dfd8] bg-[#faf9f5]/95 px-4 backdrop-blur-sm sm:px-6">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between">
@@ -63,6 +84,9 @@ export function TopNav() {
                 className={navLinkClass}
               >
                 Payment Links
+              </Link>
+              <Link to="/discounts" className={navLinkClass}>
+                Discounts
               </Link>
               <Link
                 to="/settings/integrations"
@@ -167,6 +191,7 @@ function MobileNavigation({ signedIn }: { signedIn: boolean }) {
             <MobileNavLink to="/dashboard" onSelect={close}>Dashboard</MobileNavLink>
             <MobileNavLink to="/forms" onSelect={close}>Forms</MobileNavLink>
             <MobileNavLink to="/dashboard/payment-links" onSelect={close}>Payment Links</MobileNavLink>
+            <MobileNavLink to="/discounts" onSelect={close}>Discounts</MobileNavLink>
             <MobileNavLink to="/settings/integrations" onSelect={close}>Integrations</MobileNavLink>
             <div className="my-2 h-px bg-[#e6dfd8]" />
           </> : null}
@@ -192,7 +217,7 @@ function MobileNavLink({
   onSelect,
   children,
 }: {
-  to: '/dashboard' | '/dashboard/payment-links' | '/forms' | '/settings/integrations' | '/docs' | '/progress'
+  to: '/dashboard' | '/dashboard/payment-links' | '/discounts' | '/forms' | '/settings/integrations' | '/docs' | '/progress'
   onSelect: () => void
   children: React.ReactNode
 }) {

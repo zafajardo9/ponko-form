@@ -295,7 +295,7 @@ Each GIF loops, muted, no audio. Alternative: use MP4 (smaller) with `autoPlay l
 - Modify: `src/db/schema.ts` — add `onboardingCompleted: boolean('onboarding_completed').default(false).notNull()` to profiles table
 - Create: `drizzle/NNNN_onboarding.sql` — `ALTER TABLE profiles ADD COLUMN onboarding_completed boolean DEFAULT false NOT NULL;`
 
-**Verification:** `npx drizzle-kit generate` produces the migration, `npx tsc --noEmit` passes.
+**Verification:** `pnpm exec drizzle-kit generate` produces the migration, `pnpm exec tsc --noEmit` passes.
 
 **Commit:** `git add -A && git commit -m "feat: add onboarding_completed column to profiles"`
 
@@ -305,7 +305,7 @@ Each GIF loops, muted, no audio. Alternative: use MP4 (smaller) with `autoPlay l
 - `completeOnboarding` (POST) — sets `profiles.onboarding_completed = true` for `auth().userId`
 - `getOnboardingStatus` (GET) — returns `{ completed: boolean }`
 
-**Verification:** `npx tsc --noEmit` passes.
+**Verification:** `pnpm exec tsc --noEmit` passes.
 
 **Commit:** `git add -A && git commit -m "feat: onboarding server fns"`
 
@@ -322,7 +322,7 @@ Each GIF loops, muted, no audio. Alternative: use MP4 (smaller) with `autoPlay l
 
 **Create:** `src/components/onboarding/index.ts` — barrel export
 
-**Verification:** `npx tsc --noEmit` passes. Build: `npm run build`.
+**Verification:** `pnpm exec tsc --noEmit` passes. Build: `pnpm run build`.
 
 **Commit:** `git add -A && git commit -m "feat: onboarding overlay component + steps"`
 
@@ -413,5 +413,5 @@ Each GIF loops, muted, no audio. Alternative: use MP4 (smaller) with `autoPlay l
 | Click `?` in top nav → overlay re-opens | Even after completion, the help icon triggers the tour |
 | Close with X → overlay closes, no DB change | `onboarding_completed` stays `false` |
 | Tab navigation inside overlay → focus trapped | Tab cycles through Back/Next/Skip/Close only |
-| Build passes | `npm run build` exits 0 |
-| No TypeScript errors | `npx tsc --noEmit` produces 0 errors |
+| Build passes | `pnpm run build` exits 0 |
+| No TypeScript errors | `pnpm exec tsc --noEmit` produces 0 errors |

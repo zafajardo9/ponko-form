@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { ensurePagePaymentDraft, getPagePaymentOptions, initiatePagePayment } from '../../lib/server-fns/page-forms'
+import { completeFreePagePayment, ensurePagePaymentDraft, getPagePaymentOptions, initiatePagePayment } from '../../lib/server-fns/page-forms'
 import { Button } from '../ui/Button'
 import { AlertTriangle, CheckCircle2, Info, LockKeyhole, RotateCcw, X } from 'lucide-react'
 import { appConfig } from '../../utils/app-config'
@@ -213,6 +213,13 @@ export function PagePaymentStep({
       )
     },
   })
+  const freePayment = useMutation({
+    mutationFn: () => completeFreePagePayment({ data: { sessionId, clientToken, pageId } }),
+    onSuccess: () => {
+      onPaymentStatusChange?.(true)
+      void refetch()
+    },
+  })
 
   if (isLoading) {
     return loadingSlow ? (
@@ -297,7 +304,13 @@ export function PagePaymentStep({
         </div>
       )}
 
-      {data.showBreakdown && data.breakdown.length > 0 && (
+      {data.discountError && (
+        <p className="mt-4 rounded-lg border border-[#f0b8b8] bg-[#fdf0f0] px-3 py-2 text-sm text-[#a33434]" role="alert">
+          {data.discountError}
+        </p>
+      )}
+
+      {(data.showBreakdown || data.discount) && data.breakdown.length > 0 && (
         <div className="mt-4 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
           <p className="mb-2 text-sm font-medium text-[#141413]">Price breakdown</p>
           <div className="flex flex-col gap-1.5">
@@ -326,7 +339,14 @@ export function PagePaymentStep({
         </p>
       )}
 
-      {data.gateways.length === 0 ? (
+      {data.amount <= 0 ? (
+        <div className="mt-5">
+          <Button onClick={() => freePayment.mutate()} disabled={freePayment.isPending || paid}>
+            {paid ? 'Discount applied' : freePayment.isPending ? 'Applying discount…' : 'Continue for free'}
+          </Button>
+          {freePayment.isError && <p className="mt-3 text-sm text-[#c64545]" role="alert">{(freePayment.error as Error)?.message ?? 'Free checkout could not be completed.'}</p>}
+        </div>
+      ) : data.gateways.length === 0 ? (
         <p className="mt-4 text-sm text-[#c64545]">
           {data.paymentMode === 'subscription'
             ? 'Xendit subscription checkout is not available for this form.'

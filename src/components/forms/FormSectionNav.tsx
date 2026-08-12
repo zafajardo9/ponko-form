@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { BarChart3, ChevronDown, CreditCard, FileEdit, MailCheck, ReceiptText } from 'lucide-react'
 
-export type FormSection = 'build' | 'responses' | 'emails' | 'payments' | 'invoicing'
+export type FormSection = 'build' | 'responses' | 'emails' | 'payments' | 'invoicing' | 'discounts'
 
 const sections = [
   { id: 'build', label: 'Build', to: '/forms/$formId/edit', icon: FileEdit },
