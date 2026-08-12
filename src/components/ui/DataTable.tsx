@@ -58,6 +58,9 @@ export function DataTable<T>({
     initialFilters ?? {},
   );
 
+  // Client-side page (only used when server-driven pagination is off)
+  const [clientPage, setClientPage] = useState(1);
+
   // Column visibility
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
     const initial = new Set<string>();
@@ -91,15 +94,16 @@ export function DataTable<T>({
     externalSearchValue !== undefined
       ? externalSearchValue
       : internalSearchValue;
-  const handleSearchChange = externalOnSearchChange ?? setInternalSearchValue;
+  function handleSearchChange(value: string) {
+    if (externalOnSearchChange) externalOnSearchChange(value);
+    else setInternalSearchValue(value);
+    setClientPage(1);
+  }
 
   // Row selection
   const [selectedRows, setSelectedRows] = useState<Set<string | number>>(
     new Set(),
   );
-
-  // Client-side page (only used when server-driven pagination is off)
-  const [clientPage, setClientPage] = useState(1);
 
   const isServerDriven = !!onSortChange || !!onFilterChange;
 
@@ -171,14 +175,19 @@ export function DataTable<T>({
   // Compute pagination values
   const effectiveTotalCount =
     totalCount ?? (isServerDriven ? data.length : processedData.length);
+  const clientTotalPages = Math.max(
+    1,
+    Math.ceil(effectiveTotalCount / pageSize),
+  );
+  const effectiveClientPage = Math.min(clientPage, clientTotalPages);
 
   const displayData = useMemo(() => {
     if (isServerDriven) return data;
-    const start = (clientPage - 1) * pageSize;
+    const start = (effectiveClientPage - 1) * pageSize;
     return processedData.slice(start, start + pageSize);
-  }, [isServerDriven, data, processedData, clientPage, pageSize]);
+  }, [isServerDriven, data, processedData, effectiveClientPage, pageSize]);
 
-  const displayPage = serverPage ?? clientPage;
+  const displayPage = serverPage ?? effectiveClientPage;
 
   useEffect(() => {
     const availableKeys = new Set(

@@ -7,6 +7,7 @@ import { createDiscountCode, deleteDiscountCode, getDiscountWorkspace, toggleDis
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Switch } from '@/components/ui/Switch'
+import { DataTable, type DataTableColumn } from '@/components/ui/DataTable'
 import { useTransitionClose } from '@/components/ui/useTransitionClose'
 
 export const Route = createFileRoute('/discounts')({ beforeLoad: ({ location }) => requireAuth({ data: { returnTo: location.href } }), component: DiscountsPage })
@@ -19,11 +20,85 @@ function fromCode(code: Code): Draft { return { id: code.id, code: code.code, de
 function minor(value: string) { return value.trim() ? Math.round(Number(value) * 100) : null }
 
 function DiscountsPage() {
-  const queryClient = useQueryClient(); const query = useQuery({ queryKey: ['discount-workspace'], queryFn: () => getDiscountWorkspace() }); const [draft, setDraft] = useState<Draft | null>(null)
+  const queryClient = useQueryClient(); const query = useQuery({ queryKey: ['discount-workspace'], queryFn: () => getDiscountWorkspace(), staleTime: 30_000 }); const [draft, setDraft] = useState<Draft | null>(null)
+  const [searchValue, setSearchValue] = useState('')
+  const [pageSize, setPageSize] = useState(10)
   const codes = query.data?.codes ?? []; const forms = query.data?.forms ?? []; const canEdit = forms.some((form) => form.canEdit)
   const mutation = useMutation({ mutationFn: (value: Draft) => { const payload = { code: value.code, description: value.description, type: value.type, value: value.type === 'fixed' ? Math.round(Number(value.value) * 100) : Number(value.value), maxDiscount: value.type === 'percentage' ? minor(value.maxDiscount) : null, minAmount: minor(value.minAmount), maxUses: value.maxUses.trim() ? Number(value.maxUses) : null, startsAt: value.startsAt || null, expiresAt: value.expiresAt || null, isActive: value.isActive, formIds: value.formIds }; return value.id ? updateDiscountCode({ data: { ...payload, id: value.id } }) : createDiscountCode({ data: payload }) }, onSuccess: async () => { setDraft(null); await queryClient.invalidateQueries({ queryKey: ['discount-workspace'] }) } })
   const toggle = useMutation({ mutationFn: (code: Code) => toggleDiscountCode({ data: { id: code.id, isActive: !code.isActive } }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['discount-workspace'] }) })
   const remove = useMutation({ mutationFn: (code: Code) => deleteDiscountCode({ data: { id: code.id } }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['discount-workspace'] }) })
+  const term = searchValue.trim().toLocaleLowerCase()
+  const visibleCodes = term ? codes.filter((code) => [
+      code.code,
+      code.description,
+      code.type,
+      code.isActive ? 'active' : 'inactive',
+      ...code.formNames,
+      String(code.currentUses),
+      code.maxUses == null ? 'unlimited' : String(code.maxUses),
+      code.expiresAt?.toISOString(),
+    ].some((value) => value?.toLocaleLowerCase().includes(term))) : codes
+  const columns: DataTableColumn<Code>[] = [
+    {
+      key: 'code',
+      header: 'Code',
+      width: '170px',
+      accessor: (code) => (
+        <div className="min-w-0">
+          <code className="inline-flex rounded-md bg-[#f5f0e8] px-2.5 py-1.5 text-xs font-semibold tracking-[0.08em] text-[#242320]">{code.code}</code>
+          <p className="mt-1.5 max-w-40 truncate text-xs text-[#77736c]">{code.description}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'value',
+      header: 'Discount',
+      width: '110px',
+      accessor: (code) => <span className="font-semibold tabular-nums text-[#242320]">{formatDiscountValue(code)}</span>,
+    },
+    {
+      key: 'forms',
+      header: 'Available on',
+      width: '190px',
+      accessor: (code) => (
+        <div className="flex max-w-44 items-center gap-1.5 overflow-hidden">
+          {code.formNames.slice(0, 2).map((name, index) => <span key={code.formIds[index] ?? name} className="max-w-20 truncate rounded-full bg-[#f5f0e8] px-2.5 py-1 text-xs font-medium text-[#6c6962]">{name}</span>)}
+          {code.formNames.length > 2 && <span className="shrink-0 text-xs text-[#8e8b82]">+{code.formNames.length - 2}</span>}
+        </div>
+      ),
+    },
+    {
+      key: 'usage',
+      header: 'Uses',
+      width: '80px',
+      accessor: (code) => <span className="tabular-nums text-[#57544d]">{code.currentUses}{code.maxUses == null ? '' : ` / ${code.maxUses}`}</span>,
+    },
+    {
+      key: 'expires',
+      header: 'Expires',
+      width: '110px',
+      accessor: (code) => <span className="text-[#77736c]">{code.expiresAt ? code.expiresAt.toLocaleDateString() : 'No expiry'}</span>,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      width: '90px',
+      accessor: (code) => <Badge variant={code.isActive ? 'published' : 'draft'}>{code.isActive ? 'Active' : 'Inactive'}</Badge>,
+    },
+    ...(canEdit ? [{
+      key: 'actions',
+      header: <span className="sr-only">Actions</span>,
+      width: '205px',
+      align: 'right' as const,
+      accessor: (code: Code) => (
+        <div className="flex justify-end gap-1.5">
+          <Button type="button" variant="secondary" size="sm" onClick={() => setDraft(fromCode(code))}>Edit</Button>
+          <Button type="button" variant="secondary" size="sm" disabled={toggle.isPending} onClick={() => toggle.mutate(code)}><Power size={13} aria-hidden="true" />{code.isActive ? 'Disable' : 'Enable'}</Button>
+          <button type="button" disabled={remove.isPending} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-[#b33d3d] transition-colors hover:bg-[#fdf0f0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c64545]/40 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => { if (confirm(`Delete ${code.code}?`)) remove.mutate(code) }}><Trash2 size={13} aria-hidden="true" /><span className="sr-only">Delete {code.code}</span></button>
+        </div>
+      ),
+    }] : []),
+  ]
   if (query.isLoading) return <DiscountLoading />
   if (query.error || !query.data) return <DiscountError onRetry={() => query.refetch()} />
 
@@ -69,26 +144,27 @@ function DiscountsPage() {
             {canEdit && <Button type="button" className="mt-6" onClick={() => setDraft({ ...emptyDraft })}><Plus size={16} aria-hidden="true" />Create discount</Button>}
           </div>
         ) : (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {codes.map((code) => (
-              <article key={code.id} className="flex min-h-52 flex-col rounded-xl border border-[#e1dbd2] bg-white p-5 shadow-[0_1px_2px_rgba(20,20,19,0.03)]">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><code className="rounded-md bg-[#f5f0e8] px-2.5 py-1.5 text-sm font-semibold tracking-[0.08em] text-[#242320]">{code.code}</code><Badge variant={code.isActive ? 'published' : 'draft'}>{code.isActive ? 'Active' : 'Inactive'}</Badge></div><p className="mt-3 text-sm leading-6 text-[#6c6962]">{code.description}</p></div>
-                  <div className="shrink-0 text-right"><p className="text-xl font-semibold tabular-nums text-[#242320]">{code.type === 'percentage' ? `${code.value}%` : code.value % 100 === 0 ? (code.value / 100).toFixed(0) : (code.value / 100).toFixed(2)}</p><p className="text-xs text-[#8e8b82]">off</p></div>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2 border-t border-[#eee9e2] pt-4">
-                  {code.formNames.map((name, index) => <span key={code.formIds[index] ?? `${name}-${index}`} className="rounded-full bg-[#f5f0e8] px-2.5 py-1 text-xs font-medium text-[#6c6962]">{name}</span>)}
-                </div>
-                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#8e8b82]"><span>{code.currentUses}{code.maxUses == null ? '' : ` / ${code.maxUses}`} uses</span>{code.expiresAt && <span>Expires {code.expiresAt.toLocaleDateString()}</span>}</div>
-                {canEdit && <div className="mt-auto flex flex-wrap gap-2 pt-5"><Button type="button" variant="secondary" size="sm" onClick={() => setDraft(fromCode(code))}>Edit</Button><Button type="button" variant="secondary" size="sm" disabled={toggle.isPending} onClick={() => toggle.mutate(code)}><Power size={13} aria-hidden="true" />{code.isActive ? 'Disable' : 'Enable'}</Button><button type="button" className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-[#b33d3d] transition-colors hover:bg-[#fdf0f0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c64545]/40" onClick={() => { if (confirm(`Delete ${code.code}?`)) remove.mutate(code) }}><Trash2 size={13} aria-hidden="true" />Delete</button></div>}
-              </article>
-            ))}
-          </div>
+          <DataTable
+            columns={columns}
+            data={visibleCodes}
+            keyField="id"
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+            searchValue={searchValue}
+            onSearchChange={setSearchValue}
+            emptyMessage="No discount codes match your search."
+          />
         )}
       </div>
       {draft && <DiscountDialog draft={draft} forms={forms} pending={mutation.isPending} error={mutation.error instanceof Error ? mutation.error.message : null} onChange={(next) => { mutation.reset(); setDraft(next) }} onClose={() => { mutation.reset(); setDraft(null) }} onSave={() => mutation.mutate(draft)} />}
     </main>
   )
+}
+
+function formatDiscountValue(code: Code) {
+  if (code.type === 'percentage') return `${code.value}% off`
+  const amount = code.value / 100
+  return `${amount % 1 === 0 ? amount.toFixed(0) : amount.toFixed(2)} off`
 }
 
 const controlClass = 'h-10 w-full rounded-md border border-[#ded8cf] bg-[#fdfcf9] px-3 text-sm text-[#242320] outline-none transition placeholder:text-[#918c84] focus:border-[#cc785c] focus:ring-2 focus:ring-[#cc785c]/15'
@@ -219,9 +295,8 @@ function FormSelector({ forms, selectedIds, onSelectedIdsChange, onClose }: { fo
           {visibleForms.length ? <div className="space-y-3">{visibleForms.map((form, index) => {
             const selected = selectedIds.includes(form.id)
             return (
-              <label key={form.id} style={{ animationDelay: `${70 + index * 32}ms` }} className={`ponko-list-item-enter block cursor-pointer rounded-xl border p-4 transition-[background-color,border-color,box-shadow,transform] duration-150 active:scale-[0.995] ${selected ? 'border-[#d5a28f] bg-[#fff8f5] shadow-[0_0_0_1px_rgba(204,120,92,0.08)]' : 'border-[#dfd8ce] bg-white hover:-translate-y-0.5 hover:border-[#cfc5b9] hover:shadow-[0_5px_16px_rgba(20,20,19,0.06)]'}`}>
-                <div className="flex items-start gap-3">
-                  <input type="checkbox" checked={selected} onChange={() => toggleForm(form.id)} className="mt-1 h-4 w-4 shrink-0 rounded border-[#d9d0c5] text-[#cc785c] focus:ring-[#cc785c]/30" />
+              <button key={form.id} type="button" aria-pressed={selected} onClick={() => toggleForm(form.id)} style={{ animationDelay: `${70 + index * 32}ms` }} className={`ponko-list-item-enter block w-full cursor-pointer rounded-xl border p-4 text-left transition-[background-color,border-color,box-shadow,transform] duration-150 active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]/30 ${selected ? 'border-[#d5a28f] bg-[#fff8f5] shadow-[0_0_0_1px_rgba(204,120,92,0.08)]' : 'border-[#dfd8ce] bg-white hover:-translate-y-0.5 hover:border-[#cfc5b9] hover:shadow-[0_5px_16px_rgba(20,20,19,0.06)]'}`}>
+                <span className="flex items-start gap-3">
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2"><span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#242320]">{form.title}</span><Badge variant={form.status === 'published' ? 'published' : 'draft'}>{form.status === 'published' ? 'Published' : 'Draft'}</Badge></span>
                     {form.description && <span className="mt-1 block line-clamp-2 text-xs leading-5 text-[#77736c]">{form.description}</span>}
@@ -231,8 +306,8 @@ function FormSelector({ forms, selectedIds, onSelectedIdsChange, onClose }: { fo
                     </span>
                   </span>
                   {selected && <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#cc785c] text-white"><Check size={14} aria-hidden="true" /></span>}
-                </div>
-              </label>
+                </span>
+              </button>
             )
           })}</div> : <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed border-[#d7cfc5] bg-white px-6 text-center"><Search size={22} className="text-[#b4ada4]" aria-hidden="true" /><h3 className="mt-3 text-sm font-semibold text-[#35322e]">No matching forms</h3><p className="mt-1 text-xs leading-5 text-[#858078]">Try a form name, payment type, gateway, or status.</p></div>}
         </div>

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DataTable } from "./DataTable";
 import type { DataTableColumn } from "./DataTableTypes";
@@ -84,5 +85,45 @@ describe("DataTable selection", () => {
       screen.getByRole("button", { name: "Clear response selection" }),
     );
     expect(selectAll.getAttribute("aria-checked")).toBe("false");
+  });
+});
+
+describe("DataTable client pagination", () => {
+  const paginatedRows = Array.from({ length: 12 }, (_, index) => ({
+    id: index + 1,
+    name: `Discount ${index + 1}`,
+  }));
+
+  function SearchableTable() {
+    const [search, setSearch] = useState("");
+    const filteredRows = paginatedRows.filter((row) =>
+      row.name.toLowerCase().includes(search.toLowerCase()),
+    );
+
+    return (
+      <DataTable
+        columns={columns}
+        data={filteredRows}
+        keyField="id"
+        pageSize={10}
+        searchValue={search}
+        onSearchChange={setSearch}
+      />
+    );
+  }
+
+  it("paginates locally and resets to the first page when search changes", () => {
+    render(<SearchableTable />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText("Discount 11")).toBeTruthy();
+    expect(screen.queryByText("Discount 1")).toBeNull();
+
+    fireEvent.change(screen.getByPlaceholderText("Search all fields..."), {
+      target: { value: "Discount 1" },
+    });
+
+    expect(screen.getByText("Discount 1")).toBeTruthy();
+    expect(screen.getByText("Page 1 of 1")).toBeTruthy();
   });
 });
