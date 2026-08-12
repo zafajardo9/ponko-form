@@ -1,9 +1,9 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { ChevronRight, GripVertical, X } from 'lucide-react'
+import { ChevronRight, GitBranch, GripVertical, ShieldCheck, X } from 'lucide-react'
 import type { FormPage, PageField, PageFieldType } from '../../lib/page-builder/types'
 import type { FieldConfig } from '../../lib/form-field-types'
-import { richTextHtml } from '../form-builder/fields/FieldRenderer'
+import { contentFieldHtml } from '../form-builder/fields/FieldRenderer'
 import { FieldPreview } from '../form-builder/fields/FieldPreview'
 import { fieldPaletteItem, isContentField } from './PageBuilderConfig'
 
@@ -88,15 +88,18 @@ export function SortableFieldCard({ field, selected, onSelect, onDelete }: Sorta
   })
   const paletteItem = fieldPaletteItem(field.fieldType)
   const showControlPreview = !NO_CONTROL_PREVIEW.includes(field.fieldType)
+  const hasValidationRules = Boolean(
+    field.validationRules && Object.keys(field.validationRules).length > 0,
+  )
 
   return (
     <div
       ref={setNodeRef}
       data-field-card-id={field.id}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`group flex min-w-0 rounded-lg border bg-[#faf9f5] text-left transition-colors ${
+      className={`group flex min-w-0 rounded-lg border text-left transition-colors ${
         selected ? 'border-[#cc785c] shadow-sm' : 'border-[#e6dfd8] hover:border-[#cc785c]/60'
-      } ${field.width === 'full' ? 'sm:col-span-2' : ''} ${isDragging ? 'opacity-70' : ''}`}
+      } ${field.fieldType === 'content' ? 'bg-transparent' : 'bg-[#faf9f5]'} ${field.width === 'full' ? 'sm:col-span-2' : ''} ${isDragging ? 'opacity-70' : ''}`}
     >
       <button
         type="button"
@@ -131,11 +134,28 @@ export function SortableFieldCard({ field, selected, onSelect, onDelete }: Sorta
                 </span>
               </div>
             </div>
-            {!isContentField(field) && field.fieldType !== 'recaptcha' && (
-              <p className="mt-2 truncate text-xs text-[#8e8b82]">
-                Saves to {field.bindVariable ? `{{${field.bindVariable}}}` : 'no variable'}
-                {field.conditions.length > 0 ? ` · ${field.conditions.length} logic ${field.conditions.length === 1 ? 'rule' : 'rules'}` : ''}
-              </p>
+            {(!isContentField(field) || field.conditions.length > 0 || hasValidationRules) && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+                {!isContentField(field) && field.fieldType !== 'recaptcha' && (
+                  <span className="inline-flex min-w-0 items-center rounded-full border border-[#ddd5cb] bg-[#f1ede7] px-2 py-1 font-medium text-[#6c6a64]">
+                    <span className="truncate font-mono text-[11px]">
+                      {field.bindVariable ? `{{${field.bindVariable}}}` : 'No variable'}
+                    </span>
+                  </span>
+                )}
+                {field.conditions.length > 0 && (
+                  <span className="inline-flex flex-none items-center gap-1 rounded-full border border-[#d7c8e5] bg-[#f4eff9] px-2 py-1 font-medium text-[#6f4c87]">
+                    <GitBranch size={12} aria-hidden="true" />
+                    {field.conditions.length} logic {field.conditions.length === 1 ? 'rule' : 'rules'}
+                  </span>
+                )}
+                {hasValidationRules && (
+                  <span className="inline-flex flex-none items-center gap-1 rounded-full border border-[#e8cbbf] bg-[#fff2ec] px-2 py-1 font-medium text-[#a9583e]">
+                    <ShieldCheck size={12} aria-hidden="true" />
+                    Validation rules
+                  </span>
+                )}
+              </div>
             )}
           </button>
           <button
@@ -151,8 +171,8 @@ export function SortableFieldCard({ field, selected, onSelect, onDelete }: Sorta
         {field.fieldType === 'content' && field.placeholder ? (
           <div className="px-4 pb-4">
             <div
-              className="rich-text-content max-h-40 overflow-hidden rounded-md border border-[#e6dfd8] bg-white p-3 text-sm leading-6 text-[#6c6a64]"
-              dangerouslySetInnerHTML={{ __html: richTextHtml(field.placeholder) }}
+              className="content-field-transparent rich-text-content max-h-40 overflow-hidden rounded-md border border-[#e6dfd8] bg-transparent p-3 text-sm leading-6 text-[#6c6a64]"
+              dangerouslySetInnerHTML={{ __html: contentFieldHtml(field.placeholder) }}
             />
           </div>
         ) : showControlPreview ? (

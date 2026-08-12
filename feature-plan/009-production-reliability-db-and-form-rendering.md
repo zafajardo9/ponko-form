@@ -2,7 +2,7 @@
 
 > **Feature Plan** — Fixes production-only database connection timeouts in Vercel serverless that cause page forms to appear as a blank loading screen. Replaces the `pg` TCP driver with Neon's HTTP-based serverless driver and makes the `PageFormView` resilient to slow session initialization.
 
-**Status:** 🚧 **Planned** — not yet implemented
+**Status:** ✅ **Implemented** — Neon HTTP driver (`src/db/index.ts` + `driver.ts`), `withTimeout` query guards (`src/db/with-timeout.ts`), and resilient page form rendering
 
 **Dependencies:**
 - ✅ **FT-007 (Form Builder Revision)** — the page forms system (`formPages`, `formPageFields`, `formSubmissionSessions`) this fix protects. The session-based multi-page runtime is from FT-007.

@@ -83,6 +83,7 @@ import { ReferencesPanel, PageSettings } from './PageSettings'
 import { SortableFieldCard, SortablePageTab } from './SortableComponents'
 import { FieldSettings } from './FieldSettings'
 import { FormSuccessCard } from '../page-form/FormSuccessCard'
+import { CanvasAskMenu } from './CanvasAskMenu'
 
 const FIELD_DRAG_TYPE = 'application/x-ponkoform-field'
 
@@ -399,8 +400,9 @@ export function PageBuilderWorkspace({
               terms: [],
               showBreakdown: true,
             },
-          }
+        }
         : null,
+      conditionMatch: 'all',
       conditions: [],
     }
     setDraftPages((items) =>
@@ -729,7 +731,7 @@ export function PageBuilderWorkspace({
         </div>
       </aside>
 
-      <main className="flex min-h-[520px] flex-1 flex-col overflow-hidden bg-[#f5f0e8]">
+      <main className="relative flex min-h-[520px] flex-1 flex-col overflow-hidden bg-[#f5f0e8]">
         <div className="flex items-center gap-2 border-b border-[#e6dfd8] bg-[#faf9f5] px-4 py-3">
           <div className="flex flex-1 gap-2 overflow-x-auto">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handlePageDragEnd}>
@@ -871,6 +873,7 @@ export function PageBuilderWorkspace({
             )}
           </div>
         </div>
+        <CanvasAskMenu />
       </main>
 
       {mobileSettingsOpen && (

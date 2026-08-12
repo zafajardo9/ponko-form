@@ -1,7 +1,7 @@
 # AI Knowledge Bank — PonkoForm
 
 > **Comprehensive reference of all form fields, flow mechanics, and system behaviors.**
-> Verified against `main` at `7d2cbe3` on 2026-07-28.
+> Verified against `main` at `26d1fa2` on 2026-08-12.
 
 ---
 
@@ -26,6 +26,8 @@
 17. [Data Model Reference](#17-data-model-reference)
 18. [Route Structure](#18-route-structure)
 19. [Safety Limits & Constraints](#19-safety-limits-constraints)
+20. [Discount Codes](#20-discount-codes)
+21. [Payment Links](#21-payment-links)
 
 ---
 
@@ -555,8 +557,9 @@ Per-field validation configuration (`FieldValidationRules`):
 | `maxLength` | Maximum character length |
 | `minValue` | Minimum numeric value |
 | `maxValue` | Maximum numeric value |
+| `matchesFieldBinding` | Answer variable of an earlier field that this value must exactly match |
 | `allowedCharacters` | `'any'`, `'letters'`, `'numbers'`, `'alphanumeric'`, `'custom'` |
-| `customPattern` | Custom regex pattern (used when `allowedCharacters = 'custom'`) |
+| `customPattern` | Regex format applied independently of character filtering; includes builder presets for Philippine mobile, E.164 phone, digits, whole numbers, and decimals |
 | `addressRequired` | Per sub-field required flags (currentAddress, apartment, city, stateProvince, zipPostalCode, country) |
 | `uploadAccept` | File type filter: `'any'`, `'image'`, `'document'`, `'custom'` |
 | `uploadAcceptCustom` | Custom MIME types string |
@@ -762,6 +765,10 @@ When `emailSurveyToken` + `emailSurveyRating` URL params are present:
 | `/forms/$formId/submissions` | Responses |
 | `/forms/$formId/payments` | Payments and recovery actions |
 | `/forms/$formId/invoicing` | Confirmation/invoice configuration and delivery history |
+| `/forms/$formId/emails` | Confirmation email configuration |
+| `/forms/$formId/discounts` | Discount codes for this form |
+| `/discounts` | Central discount code management |
+| `/dashboard/payment-links` | Payment link management |
 | `/settings/integrations` | Third-party integrations |
 | `/docs` | Documentation |
 
@@ -775,6 +782,8 @@ When `emailSurveyToken` + `emailSurveyRating` URL params are present:
 | `/sign-in` | Better Auth email/password sign-in and account creation |
 | `/api/auth/$` | Better Auth session and credential endpoints |
 | `/sign-out` | Ends the Better Auth session |
+| `/pay/$publicId` | Standalone payment-link checkout |
+| `/pay/$publicId/success` | Payment-link success page |
 
 ### API Routes
 
@@ -823,6 +832,25 @@ When `emailSurveyToken` + `emailSurveyRating` URL params are present:
 
 Not in the palette but available in-editor (pre-configured): Content, Media, Address, File Upload, Satisfaction, Computation, reCAPTCHA.
 
+## 20. Discount Codes
+
+Discount codes let creators offer price reductions on form checkouts. Manage all codes at `/discounts` or per form at `/forms/$formId/discounts`.
+
+- **Types:** `percentage` (1–100) or `fixed` (minor units). Fixed discounts never exceed the order amount.
+- **Scope:** codes are profile-scoped and assigned to forms through `discount_code_forms`; a code can cover multiple forms.
+- **Controls:** optional `maxDiscount` cap (percentage only), `minAmount` minimum order, `maxUses` usage limit, `startsAt`/`expiresAt` window, and an active flag.
+- **Validation:** codes are normalized to uppercase and validated server-side (`src/lib/discounts.ts` + the `validateDiscountCode` server function) against form assignment, lifecycle, and amount.
+- **Redemptions:** one `discount_redemptions` row per payment (unique `payment_id`), storing original/discount/final amounts in minor units.
+- Discount codes do **not** apply to payment links or subscription cycles.
+
+## 21. Payment Links
+
+Standalone checkout without a form. Creators manage links at `/dashboard/payment-links`; respondents pay at `/pay/$publicId` and see `/pay/$publicId/success`.
+
+- Each link stores title, amount (minor units), currency (default `PHP`), gateway, optional custom-amount toggle with `minAmount`/`maxAmount`, `redirectUrl`, `successMessage`, and `isActive`.
+- `totalPayments` and `totalRevenue` counters update per completed checkout.
+- Link payments reference `payment_links.id` via `payments.payment_link_id`. Server functions: `src/lib/server-fns/payment-links.ts`.
+
 ---
 
 ## Quick Reference Card
@@ -842,6 +870,12 @@ SUBMISSION STATUS: incomplete | pending_payment | payment_failed | completed
 PAYMENT STATUS:    pending | completed | failed | refunded
 
 GATEWAYS:          PayPal (multi-currency) | Xendit (PHP, incl. subscriptions)
+
+DISCOUNT CODES:   percentage | fixed — profile-scoped, per-form assignment, caps,
+                   minimums, usage limits, schedules; one redemption per payment
+
+PAYMENT LINKS:     standalone checkout at /pay/$publicId; managed at
+                   /dashboard/payment-links; no discount codes
 
 SUBSCRIPTION:      weekly | monthly | quarterly | semiannual | annual (Xendit/PHP only)
 ```

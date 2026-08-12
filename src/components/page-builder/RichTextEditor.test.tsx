@@ -41,11 +41,25 @@ describe('page-builder RichTextEditor', () => {
 
     const editor = screen.getByRole('textbox', { name: 'Rich text content' })
     expect(editor.innerHTML).toBe('<p>Hello builder</p>')
+    expect(editor.className).toContain('bg-transparent')
+    expect(editor.closest('.content-field-transparent')).toBeTruthy()
     editor.innerHTML = '<h2>Updated locally</h2>'
     fireEvent.input(editor)
 
     expect(onChange).toHaveBeenLastCalledWith('<h2>Updated locally</h2>')
     expect(document.querySelector('.ProseMirror')).toBeNull()
+  })
+
+  it('removes imported inline backgrounds from the editable content', () => {
+    render(
+      <RichTextEditor
+        value={'<div class="forminator-field" style="background-color: #fff !important; font-weight: 700">Clean me</div>'}
+        onChange={vi.fn()}
+      />,
+    )
+
+    const importedField = screen.getByText('Clean me')
+    expect(importedField.getAttribute('style')).toBe('font-weight: 700')
   })
 
   it('runs every supported formatting command from accessible controls', () => {

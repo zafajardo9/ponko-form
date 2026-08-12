@@ -24,7 +24,7 @@ import {
 } from './renderers'
 
 // Utilities re-exported for external consumers (PageBuilderWorkspace, etc.)
-export { richTextHtml, formatDateValue } from './FieldRendererUtils'
+export { contentFieldHtml, richTextHtml, formatDateValue } from './FieldRendererUtils'
 
 export type { AddressValue, FieldConfig, FieldOption, FieldValue, UploadFileValue }
 

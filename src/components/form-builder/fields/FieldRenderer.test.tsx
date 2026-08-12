@@ -18,6 +18,27 @@ const choiceField: FieldConfig = {
 }
 
 describe('FieldRenderer choice and calendar controls', () => {
+  it('preserves leading zeroes and country prefixes for regex-formatted number fields', () => {
+    render(
+      <FieldRenderer
+        field={{
+          id: 12,
+          type: 'number',
+          label: 'Mobile number',
+          required: true,
+          validationRules: { customPattern: '^(?:\\+63|0)9\\d{9}$' },
+        }}
+        value="09171234567"
+        onChange={vi.fn()}
+      />,
+    )
+
+    const input = screen.getByRole('textbox')
+    expect(input.getAttribute('type')).toBe('text')
+    expect(input.getAttribute('inputmode')).toBe('tel')
+    expect(input.getAttribute('value')).toBe('09171234567')
+  })
+
   it('adds and removes checkbox card values', () => {
     const onChange = vi.fn()
     const { rerender } = render(

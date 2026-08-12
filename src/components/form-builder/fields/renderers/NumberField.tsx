@@ -1,4 +1,5 @@
 import type { FieldConfig, FieldValue } from '../../../../lib/form-field-types'
+import { validationPatternIsPhone } from '../../../../lib/page-builder/validation-patterns'
 import { inputBase, getStrValue } from './utils'
 
 interface Props {
@@ -16,6 +17,8 @@ export function NumberField({ field, value, onChange, error, readOnly, hideLabel
   const labelId = `field-label-${field.id}`
   const errorId = `field-error-${field.id}`
   const errorClass = error ? 'border-[#c64545] focus:border-[#c64545] focus:ring-[#c64545]/20' : ''
+  const hasCustomFormat = Boolean(field.validationRules?.customPattern)
+  const isPhoneFormat = validationPatternIsPhone(field.validationRules?.customPattern)
 
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
@@ -32,7 +35,9 @@ export function NumberField({ field, value, onChange, error, readOnly, hideLabel
       )}
       <input
         id={inputId}
-        type="number"
+        type={hasCustomFormat ? 'text' : 'number'}
+        inputMode={isPhoneFormat ? 'tel' : hasCustomFormat ? 'decimal' : undefined}
+        autoComplete={isPhoneFormat ? 'tel' : undefined}
         placeholder={field.placeholder ?? ''}
         value={strValue}
         onChange={(e) => onChange(e.target.value)}

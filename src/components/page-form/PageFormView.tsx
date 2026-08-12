@@ -384,7 +384,7 @@ export function PageFormView({
           : 'This field is required.'
       }
       if (!empty) {
-        const ruleError = validateFieldRules(field, value)
+        const ruleError = validateFieldRules(field, value, scopedData)
         if (ruleError) nextErrors[field.bindVariable] = ruleError
       }
     }
@@ -393,6 +393,7 @@ export function PageFormView({
   }
 
   async function goNext() {
+    if (advanceMut.isPending || completeMut.isPending) return
     const nextData = pruneHiddenValues(allFields, applyComputedFieldValues(allFields, data, references), referenceMap)
     if (!currentPage.isFinal && !currentPage.hasPayment && !validatePage(currentPage, nextData)) {
       return
@@ -590,12 +591,15 @@ export function PageFormView({
               type="button"
               onClick={goNext}
               disabled={
+                advanceMut.isPending ||
                 completeMut.isPending ||
                 (!preview && currentPage.hasPayment && !currentPaymentPaid) ||
                 (!preview && currentPageIndex >= pages.length - 1 && startMut.isError)
               }
             >
-              {currentPageIndex >= pages.length - 1
+              {advanceMut.isPending
+                ? 'Saving progress…'
+                : currentPageIndex >= pages.length - 1
                 ? completeMut.isPending
                   ? 'Saving response…'
                   : !preview && startMut.isError

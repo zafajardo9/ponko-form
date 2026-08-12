@@ -1,7 +1,7 @@
 # PonkoForm Architecture
 
 > Part of [`memory-ponko/`](README.md) — System Memory
-> **Verified against:** `main` at `7d2cbe3` on 2026-07-28.
+> **Verified against:** `main` at `26d1fa2` on 2026-08-12.
 
 ## 1. System Overview
 
@@ -57,7 +57,7 @@ Internal numeric `forms.id` values are used on authenticated creator routes. Pub
 | Expressions | `src/lib/flow-engine/safe-expression.ts` |
 | Email | Resend HTTP API and Nodemailer SMTP |
 | PDF/invoice download | jsPDF-based invoice utilities |
-| Deployment | Render long-running Node web service |
+| Deployment | Render Node web service (primary) and Vercel (TanStack Start); Cloudflare Workers build |
 | Package/runtime | pnpm 10.34.5; Node.js 22+ |
 
 Do not describe the expression system as `math.js`: that dependency is not installed. The parser accepts a deliberately small language and evaluates an AST without property access, assignment, constructors, or global-object access.
@@ -122,7 +122,7 @@ ponkoform/
 - When flow data exists, the editor offers List and Canvas views, node configuration, variables, validation, and flow preview.
 - When no flow exists, `ensurePageForm` creates the page-form structure and `PageBuilderWorkspace` edits pages, fields, references, conditions, computation, payment, and final-page behavior.
 - `/forms/$formId/flow` is a compatibility redirect to the unified editor.
-- The workspace navigation links to Build, Responses, Payments, and Invoicing.
+- The workspace navigation links to Build, Responses, Payments, Invoicing, Emails, and Discounts.
 
 ### Creation
 
@@ -163,6 +163,14 @@ Stripe, PayMongo, and Maya appear in the integration configuration catalog, but 
 
 Payment status is recovered from return verification, Xendit webhooks, creator verification actions, and the protected reconciliation job. `payment_events` provides idempotent audit history.
 
+### Discount codes
+
+`discount_codes` are profile-scoped and assignable to multiple forms through `discount_code_forms`. Domain rules live in `src/lib/discounts.ts` (normalization, eligibility, percentage/fixed application with caps); CRUD and validation server functions live in `src/lib/server-fns/discounts.ts`. Each applied discount records one `discount_redemptions` row (unique per `payment_id`). Codes apply to form checkouts (page and flow), not to payment links or subscription cycles.
+
+### Payment links
+
+`payment_links` provide standalone checkout at `/pay/$publicId` (success at `/pay/$publicId/success`), managed at `/dashboard/payment-links`. A link carries its own amount/currency/gateway, optional custom-amount bounds, redirect URL, success message, and active flag, plus `total_payments`/`total_revenue` counters. Server functions live in `src/lib/server-fns/payment-links.ts`.
+
 ### Email
 
 Respondent confirmation and invoice email use `src/lib/email/transactional.ts`. Resend is preferred when configured; SMTP is the fallback. `email_delivery_logs` snapshots the template and tracks attempts/status. There is no creator-notification email workflow in the current implementation.
@@ -198,7 +206,7 @@ Required production values are `DATABASE_URL`, `BETTER_AUTH_SECRET`,
 credentials are normally connected per creator in Settings, with limited
 environment fallbacks for PayPal and Xendit.
 
-`vercel.json` remains in the repository, but the old `api/index.ts` Vercel bridge was removed. Do not document Vercel serverless as the current production architecture.
+Vercel is a live production target. `vercel.json` declares the `tanstack-start` framework, `pnpm install --frozen-lockfile`, `pnpm run build`, and `pnpm dev`; functions run in `iad1`, and the `/api/internal/reconcile-payments` cron runs daily at 02:00 UTC (`CRON_SECRET` guards the handler). A Cloudflare Workers build (`build:cloudflare`) is available through `wrangler.jsonc` but is not the primary path. The same required environment values apply across targets.
 
 ## 9. Key Contracts
 
@@ -211,8 +219,10 @@ environment fallbacks for PayPal and Xendit.
 | Public mode selection | `src/components/public-form/PublicFormView.tsx` |
 | Unified editor mode selection | `src/routes/forms/$formId/edit.tsx` |
 | Supported payment gateways | `src/integrations/payments/index.ts` |
+| Discount rules | `src/lib/discounts.ts`, `src/lib/server-fns/discounts.ts` |
+| Payment links | `src/lib/server-fns/payment-links.ts` |
 | Integration catalog and credential shapes | `src/lib/integrations/types.ts`, `ProviderForms.ts` |
-| Deployment | `render.yaml`, `package.json`, `vite.config.ts` |
+| Deployment | `render.yaml`, `vercel.json`, `wrangler.jsonc`, `package.json`, `vite.config.ts` |
 
 ## 10. Known Product Boundaries
 

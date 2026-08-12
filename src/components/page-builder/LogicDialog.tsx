@@ -10,6 +10,10 @@ import { Button } from '../ui/Button'
 import { Field, FieldDialog, inputClass } from './Shared'
 import type { EditablePageField } from './PageBuilderTypes'
 
+export function fieldCanDriveLogic(field: Pick<PageField, 'fieldType'>) {
+  return !['content', 'media', 'recaptcha', 'payment'].includes(field.fieldType)
+}
+
 export function LogicDialog({
   field,
   fields,
@@ -19,6 +23,7 @@ export function LogicDialog({
   onAdd,
   onUpdate,
   onRemove,
+  onMatchChange,
 }: {
   field: EditablePageField
   fields: PageField[]
@@ -28,13 +33,22 @@ export function LogicDialog({
   onAdd: () => void
   onUpdate: (index: number, patch: Partial<FieldCondition>) => void
   onRemove: (index: number) => void
+  onMatchChange: (match: 'all' | 'any') => void
 }) {
+  const targetName = ['content', 'media'].includes(field.fieldType) ? 'block' : 'field'
   return (
     <FieldDialog title={field.label || 'Untitled field'} subtitle="Logic" onClose={onClose}>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <p className="text-sm text-[#6c6a64]">
-          Multiple logic rules use AND matching.
-        </p>
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <Field label="Match multiple rules">
+          <select
+            value={field.conditionMatch ?? 'all'}
+            onChange={(event) => onMatchChange(event.target.value as 'all' | 'any')}
+            className={`${inputClass} min-w-48`}
+          >
+            <option value="all">All rules (AND)</option>
+            <option value="any">Any rule (OR)</option>
+          </select>
+        </Field>
         <Button type="button" size="sm" onClick={onAdd}>
           Add Rule
         </Button>
@@ -62,7 +76,7 @@ export function LogicDialog({
                       className={inputClass}
                     >
                       <option value="">Choose field...</option>
-                      {fields.filter((item) => item.id !== field.id && item.fieldType !== 'recaptcha').map((item) => (
+                      {fields.filter((item) => item.id !== field.id && fieldCanDriveLogic(item)).map((item) => (
                         <option key={item.id} value={item.bindVariable}>
                           {item.label || item.bindVariable}
                         </option>
@@ -127,8 +141,8 @@ export function LogicDialog({
                       onChange={(e) => onUpdate(index, { action: e.target.value as ConditionAction })}
                       className={inputClass}
                     >
-                      <option value="show">Show field</option>
-                      <option value="hide">Hide field</option>
+                      <option value="show">Show {targetName}</option>
+                      <option value="hide">Hide {targetName}</option>
                     </select>
                   </Field>
                   <button

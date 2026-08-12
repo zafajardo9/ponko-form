@@ -59,6 +59,23 @@ describe('page-builder conditions', () => {
     ).toBe(false)
   })
 
+  it('can show a field when any one of several rules matches', () => {
+    const conditions = [
+      { ...base, id: 1, sourceFieldBinding: 'legal_service', operator: 'equals' as const, value: 'civil' },
+      { ...base, id: 2, sourceFieldBinding: 'verification', operator: 'equals' as const, value: 'address' },
+      { ...base, id: 3, sourceFieldBinding: 'specialized', operator: 'equals' as const, value: 'kasambahay' },
+    ]
+
+    expect(isFieldVisible(
+      { conditions, conditionMatch: 'any' },
+      { legal_service: 'other', verification: 'address', specialized: 'other' },
+    )).toBe(true)
+    expect(isFieldVisible(
+      { conditions, conditionMatch: 'all' },
+      { legal_service: 'other', verification: 'address', specialized: 'other' },
+    )).toBe(false)
+  })
+
   it('prunes values for hidden fields', () => {
     const fields = [
       { bindVariable: 'name', conditions: [] },
@@ -128,5 +145,40 @@ describe('page-builder conditions', () => {
 
     expect(validateFieldRules(field, '5')).toBeNull()
     expect(validateFieldRules(field, '3')).toContain('valid rating')
+  })
+
+  it('requires confirmation fields to exactly match the selected answer', () => {
+    const field = {
+      label: 'Confirm email',
+      validationRules: { matchesFieldBinding: 'email' },
+    } as PageField
+
+    expect(validateFieldRules(field, 'person@example.com', { email: 'person@example.com' })).toBeNull()
+    expect(validateFieldRules(field, 'other@example.com', { email: 'person@example.com' })).toContain('must match')
+    expect(validateFieldRules(field, 'person@example.com', {})).toContain('must match')
+    expect(
+      validateFieldRules(
+        { ...field, validationRules: { matchesFieldBinding: 'email', message: 'Email addresses do not match.' } },
+        'other@example.com',
+        { email: 'person@example.com' },
+      ),
+    ).toBe('Email addresses do not match.')
+  })
+
+  it('validates reusable and custom regex formats independently of character filtering', () => {
+    const field = {
+      label: 'Mobile number',
+      validationRules: { customPattern: '^(?:\\+63|0)9\\d{9}$' },
+    } as PageField
+
+    expect(validateFieldRules(field, '09171234567')).toBeNull()
+    expect(validateFieldRules(field, '+639171234567')).toBeNull()
+    expect(validateFieldRules(field, '12345')).toContain('required format')
+    expect(
+      validateFieldRules(
+        { ...field, validationRules: { customPattern: '[', message: 'Use a valid phone number.' } },
+        '09171234567',
+      ),
+    ).toContain('invalid validation pattern')
   })
 })

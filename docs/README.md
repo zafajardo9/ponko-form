@@ -1,6 +1,6 @@
 # PonkoForm Documentation
 
-> User guides and codebase-aligned technical references. Current-state docs were verified on 2026-07-28.
+> User guides and codebase-aligned technical references. Current-state docs were verified on 2026-08-12.
 
 ## Start Here
 
@@ -8,7 +8,7 @@
 |---|---|
 | [**Getting Started**](getting-started.md) | Create, preview, publish, and share a page form |
 | [**Current System Overview**](current-system.md) | What is operational today, what is configuration-only, and where it lives |
-| [**Payments Guide**](payments-guide.md) | PayPal/Xendit setup, one-time checkout, Xendit subscriptions, recovery |
+| [**Payments Guide**](payments-guide.md) | PayPal/Xendit setup, one-time checkout, Xendit subscriptions, discount codes, payment links, recovery |
 
 ## Builder Guides
 

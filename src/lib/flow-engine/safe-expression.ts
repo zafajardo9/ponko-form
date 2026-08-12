@@ -57,7 +57,7 @@ class Tokenizer {
       throw new Error(`Unsupported operator "${three}" at position ${position}`)
     }
     const two = this.source.slice(this.index, this.index + 2)
-    if (['>=', '<=', '==', '!=', '&&', '||', '**'].includes(two)) {
+    if (['>=', '<=', '==', '!=', '&&', '||', '**', '+%'].includes(two)) {
       this.index += 2
       return { kind: 'operator', value: two, position }
     }
@@ -210,7 +210,7 @@ class Parser {
 
   private parseAdditive(): ExpressionNode {
     let left = this.parseMultiplicative()
-    while (this.current.value === '+' || this.current.value === '-') {
+    while (this.current.value === '+' || this.current.value === '-' || this.current.value === '+%') {
       const operator = this.advance().value
       left = this.node({ type: 'binary', operator, left, right: this.parseMultiplicative() })
     }
@@ -404,6 +404,7 @@ export function evaluateSafeExpression(
         const rightNumber = finiteNumber(right, 'Right operand')
         switch (node.operator) {
           case '+': return leftNumber + rightNumber
+          case '+%': return leftNumber + leftNumber * rightNumber
           case '-': return leftNumber - rightNumber
           case '*': return leftNumber * rightNumber
           case '/': return leftNumber / rightNumber

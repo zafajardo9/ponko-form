@@ -1,7 +1,7 @@
 # PonkoForm Database Schema
 
 > Part of [`memory-ponko/`](README.md) — System Memory
-> **Verified against:** `src/db/schema.ts` at `7d2cbe3` on 2026-07-28.
+> **Verified against:** `src/db/schema.ts` at `26d1fa2` on 2026-08-12.
 
 ---
 
@@ -425,6 +425,91 @@ Tracks email delivery (invoices, confirmations) per submission.
 
 **Indexes:** `unique` on `(form_submission_id, template_kind)`, `unique` on `(form_id, invoice_number)`, `index` on `(form_id, created_at)`, `status`, `payment_id`
 
+### 3.8 `discount_codes` (FT-021)
+
+Profile-scoped discount codes assignable to one or more forms via `discount_code_forms`. Money columns are minor units.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `serial` PK | |
+| `profile_id` | `integer` NOT NULL → `profiles.id` (CASCADE) | Owner |
+| `form_id` | `integer` → `forms.id` (SET NULL) | Legacy single-form link; multi-form assignment lives in `discount_code_forms` |
+| `code` | `varchar(50)` NOT NULL | Stored uppercase, normalized |
+| `description` | `varchar(500)` NOT NULL DEFAULT '' | |
+| `type` | `discount_type` NOT NULL | `'percentage'` or `'fixed'` |
+| `value` | `integer` NOT NULL | Percentage 1–100, or fixed minor units |
+| `max_discount` | `integer` | Cap on percentage discounts (minor units) |
+| `min_amount` | `integer` | Minimum order amount (minor units) |
+| `max_uses` | `integer` | Usage limit; NULL = unlimited |
+| `current_uses` | `integer` NOT NULL DEFAULT 0 | Incremented per redemption |
+| `is_active` | `boolean` NOT NULL DEFAULT true | |
+| `starts_at` | `timestamp` | Availability window start |
+| `expires_at` | `timestamp` | Availability window end |
+| `created_at` | `timestamp` DEFAULT now | |
+| `updated_at` | `timestamp` DEFAULT now | |
+
+**Indexes:** `unique(profile_id, code)`, `index(profile_id, is_active)`
+
+### 3.9 `discount_code_forms` (FT-021)
+
+Join table assigning a code to a form.
+
+| Column | Type | Notes |
+|---|---|---|
+| `discount_code_id` | `integer` NOT NULL → `discount_codes.id` (CASCADE) | |
+| `form_id` | `integer` NOT NULL → `forms.id` (CASCADE) | |
+| `created_at` | `timestamp` DEFAULT now | |
+
+**Indexes:** `unique(discount_code_id, form_id)`, `index(form_id)`
+
+### 3.10 `discount_redemptions` (FT-021)
+
+One row per applied discount; at most one redemption per payment.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `serial` PK | |
+| `discount_code_id` | `integer` NOT NULL → `discount_codes.id` (CASCADE) | |
+| `form_id` | `integer` NOT NULL → `forms.id` (CASCADE) | |
+| `payment_id` | `integer` → `payments.id` (SET NULL) | Unique per payment |
+| `page_session_id` | `integer` → `form_submission_sessions.id` (SET NULL) | |
+| `form_submission_id` | `integer` NOT NULL → `form_submissions.id` (CASCADE) | |
+| `respondent_email` | `varchar(255)` | |
+| `currency` | `varchar(3)` NOT NULL | |
+| `original_amount` | `integer` NOT NULL | Minor units |
+| `discount_amount` | `integer` NOT NULL | Minor units |
+| `final_amount` | `integer` NOT NULL | Minor units |
+| `created_at` | `timestamp` DEFAULT now | |
+
+**Indexes:** `unique(payment_id)`, `index(discount_code_id)`, `index(form_id)`, `index(page_session_id)`
+
+### 3.11 `payment_links` (FT-018)
+
+Standalone checkout without a form. `payments.payment_link_id` links checkout payments back to a link.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `serial` PK | |
+| `profile_id` | `integer` NOT NULL → `profiles.id` (CASCADE) | |
+| `public_id` | `varchar(16)` NOT NULL UNIQUE | Used in `/pay/$publicId` |
+| `title` | `varchar(255)` NOT NULL | |
+| `description` | `text` | |
+| `amount` | `integer` NOT NULL | Minor units |
+| `currency` | `varchar(3)` NOT NULL DEFAULT 'PHP' | |
+| `payment_gateway_id` | `integer` NOT NULL → `payment_gateways.id` | |
+| `allow_custom_amount` | `boolean` NOT NULL DEFAULT false | |
+| `min_amount` | `integer` | Custom-amount bounds |
+| `max_amount` | `integer` | Custom-amount bounds |
+| `redirect_url` | `text` | Post-payment redirect |
+| `success_message` | `text` | |
+| `is_active` | `boolean` NOT NULL DEFAULT true | |
+| `total_payments` | `integer` NOT NULL DEFAULT 0 | Counter |
+| `total_revenue` | `integer` NOT NULL DEFAULT 0 | Counter (minor units) |
+| `created_at` | `timestamp` DEFAULT now | |
+| `updated_at` | `timestamp` DEFAULT now | |
+
+**Indexes:** `unique(public_id)`, `index(profile_id)`
+
 ---
 
 ## 4. Page Builder Tables (FT-007)
@@ -693,6 +778,7 @@ Defined in `src/db/schema.ts` via `pgEnum`:
 | `form_status` | `'draft'`, `'published'` |
 | `field_type` | `'text'`, `'email'`, `'number'`, `'textarea'`, `'select'`, `'checkbox'`, `'radio'`, `'payment'`, `'date'`, `'time'`, `'datetime'`, `'content'`, `'media'`, `'address'`, `'computation'`, `'file_upload'`, `'satisfaction'`, `'recaptcha'` |
 | `payment_status` | `'pending'`, `'completed'`, `'failed'`, `'refunded'` |
+| `discount_type` | `'percentage'`, `'fixed'` |
 | `submission_status` | `'pending_payment'`, `'incomplete'`, `'completed'`, `'payment_failed'` |
 | `flow_node_type` | (varchar — not a pg enum; uses `.$type<>()` in Drizzle for type safety) |
 

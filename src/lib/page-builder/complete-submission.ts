@@ -94,7 +94,7 @@ export async function completePageSubmissionRecord(
           : `Field "${field.label}" is required`,
       )
     }
-    const ruleError = validateFieldRules(field, value)
+    const ruleError = validateFieldRules(field, value, pruned)
     if (!empty && ruleError) throw new Error(ruleError)
   }
 

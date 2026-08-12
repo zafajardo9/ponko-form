@@ -3,7 +3,7 @@ import type {
   FormReference,
   PageField,
 } from '../../lib/page-builder/types'
-import { calculatePagePayment } from '../../lib/page-builder/references'
+import { buildPaymentReceiptDetails, calculatePagePayment } from '../../lib/page-builder/references'
 import { Button } from '../ui/Button'
 import { formatMoney } from './PagePaymentStep'
 
@@ -36,6 +36,11 @@ export function PagePaymentPreview({
   )
   const subscription = page.subscriptionConfig
   const isSubscription = Boolean(subscription?.enabled)
+  const receiptDetails = buildPaymentReceiptDetails(
+    fields,
+    dataScope,
+    page.paymentComputation?.receiptFieldBindings,
+  )
 
   return (
     <section
@@ -86,6 +91,22 @@ export function PagePaymentPreview({
                 ? ` This subscription ends after ${subscription.maxCycles} billing cycles.`
                 : ' Billing continues until the subscription is cancelled.'}
             </p>
+          </div>
+        )}
+
+        {page.paymentComputation?.showBreakdown && receiptDetails.length > 0 && (
+          <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#8e8b82]">
+              Receipt details
+            </p>
+            <dl className="space-y-1.5">
+              {receiptDetails.map((detail) => (
+                <div key={detail.binding} className="flex items-start justify-between gap-4 text-sm">
+                  <dt className="text-[#6c6a64]">{detail.label}</dt>
+                  <dd className="max-w-[60%] text-right font-medium text-[#141413]">{detail.value}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
         )}
 

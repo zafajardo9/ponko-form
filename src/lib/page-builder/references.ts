@@ -8,6 +8,7 @@ import type {
   ReferenceMap,
   ReferenceValue,
 } from './types'
+import { evaluateSafeExpression, parseSafeExpression } from '../flow-engine/safe-expression'
 
 export interface PaymentBreakdownLine {
   label: string
@@ -20,6 +21,12 @@ export interface PaymentCalculation {
   subtotal: number
   breakdown: PaymentBreakdownLine[]
   missingReferences: string[]
+}
+
+export interface PaymentReceiptDetail {
+  binding: string
+  label: string
+  value: string
 }
 
 export interface ComputedFieldResult {
@@ -77,6 +84,40 @@ function selectedSet(value: unknown): Set<string> {
   if (Array.isArray(value)) return new Set(value.filter((item): item is string => typeof item === 'string'))
   if (value == null) return new Set()
   return new Set([String(value)])
+}
+
+function receiptValue(field: PageField, raw: unknown): string {
+  if (raw == null) return ''
+  const optionLabels = new Map((field.options ?? []).map((option) => [option.value, option.label]))
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item) => optionLabels.get(String(item)) || String(item))
+      .filter(Boolean)
+      .join(', ')
+  }
+  if (typeof raw === 'object') {
+    return Object.values(raw as Record<string, unknown>)
+      .flatMap((value) => Array.isArray(value) ? value : [value])
+      .map((value) => String(value ?? '').trim())
+      .filter(Boolean)
+      .join(', ')
+  }
+  if (typeof raw === 'boolean') return raw ? 'Yes' : 'No'
+  return optionLabels.get(String(raw)) || String(raw)
+}
+
+export function buildPaymentReceiptDetails(
+  fields: PageField[],
+  dataScope: Record<string, unknown>,
+  bindings: string[] = [],
+): PaymentReceiptDetail[] {
+  return bindings.flatMap((binding) => {
+    const field = fields.find((item) => item.bindVariable === binding)
+    if (!field) return []
+    const value = receiptValue(field, dataScope[binding]).trim()
+    if (!value) return []
+    return [{ binding, label: field.label || binding, value }]
+  })
 }
 
 interface OptionPriceResult {
@@ -264,6 +305,52 @@ export function calculatePagePayment(
         missingReferences: computed.missingReferences,
       }
     }
+    if (
+      field &&
+      ['select', 'checkbox', 'radio'].includes(field.fieldType) &&
+      field.validationRules?.optionPricesEnabled
+    ) {
+      let amount = 0
+      const selected = selectedSet(dataScope[field.bindVariable])
+      for (const option of field.options ?? []) {
+        if (!selected.has(option.value)) continue
+        const resolved = optionPrice(option, referenceMap)
+        if (resolved.missing) missingReferences.add(resolved.missing)
+        amount += resolved.value
+        breakdown.push({
+          label: option.label || field.label || binding || 'Selected option',
+          amount: resolved.base,
+          kind: 'item',
+        })
+        if (resolved.additional > 0) {
+          breakdown.push({
+            label: `${option.label || field.label || binding} additional`,
+            amount: resolved.additional,
+            kind: 'adjustment',
+          })
+        }
+      }
+      return {
+        amount,
+        subtotal: amount,
+        breakdown: [...breakdown, { label: 'Total', amount, kind: 'total' }],
+        missingReferences: [...missingReferences],
+      }
+    }
+    if (!field && binding && referencesByKey.has(binding)) {
+      const resolved = referenceNumber(binding, referenceMap)
+      const reference = referencesByKey.get(binding)
+      return {
+        amount: resolved.value,
+        subtotal: resolved.value,
+        breakdown: [{
+          label: reference?.label || reference?.key || binding,
+          amount: resolved.value,
+          kind: 'total',
+        }],
+        missingReferences: resolved.missing ? [resolved.missing] : [],
+      }
+    }
     const raw = binding ? dataScope[binding] : undefined
     const amount = Number(raw ?? 0)
     const safeAmount = Number.isFinite(amount) ? amount : 0
@@ -447,6 +534,70 @@ export function calculateFieldComputation(
 
     const useSyntax = computation.editorMode === 'syntax' ||
       (computation.editorMode == null && Boolean(computation.expression?.trim()))
+    if (useSyntax && computation.expression?.includes('(')) {
+      const variables: Record<string, number> = {}
+      let variableIndex = 0
+      const normalizedExpression = computation.expression.replace(
+        /\{\{\s*([a-z][a-z0-9_]*)\s*\}\}/gi,
+        (_match, binding: string) => {
+          const variableName = `__ponko_calc_${variableIndex++}`
+          const field = fields.find((item) => item.bindVariable === binding)
+          const reference = referencesByKey.get(binding)
+          let value = 0
+
+          if (field?.fieldType === 'computation') {
+            if (!stack.includes(field.bindVariable)) {
+              const nested = calculateFieldComputation(
+                field.validationRules?.computation,
+                fields,
+                dataScope,
+                references,
+                [...stack, field.bindVariable],
+              )
+              value = Number(nested.value)
+              nested.missingReferences.forEach((key) => missingReferences.add(key))
+            }
+          } else if (
+            field &&
+            ['select', 'checkbox', 'radio'].includes(field.fieldType) &&
+            field.validationRules?.optionPricesEnabled
+          ) {
+            const selected = selectedSet(dataScope[field.bindVariable])
+            for (const option of field.options ?? []) {
+              if (!selected.has(option.value)) continue
+              const resolved = optionPrice(option, referenceMap)
+              if (resolved.missing) missingReferences.add(resolved.missing)
+              value += resolved.value
+            }
+          } else if (!field && reference) {
+            const resolved = referenceNumber(binding, referenceMap)
+            if (resolved.missing) missingReferences.add(resolved.missing)
+            value = resolved.value
+          } else if (field || Object.hasOwn(dataScope, binding)) {
+            value = Number(dataScope[binding] ?? 0)
+          } else {
+            missingReferences.add(binding)
+          }
+
+          variables[variableName] = Number.isFinite(value) ? value : 0
+          return variableName
+        },
+      )
+
+      let evaluated = 0
+      try {
+        const result = evaluateSafeExpression(parseSafeExpression(normalizedExpression), variables)
+        evaluated = typeof result === 'number' && Number.isFinite(result) ? result : 0
+      } catch {
+        evaluated = 0
+      }
+      const safeAmount = formatNumericComputationValue(Math.max(0, evaluated), computation)
+      return {
+        value: safeAmount,
+        breakdown: [{ label: 'Formula result', amount: safeAmount, kind: 'total' }],
+        missingReferences: [...missingReferences],
+      }
+    }
     const terms = useSyntax && computation.expression?.trim()
       ? parseFormulaExpression(computation.expression)
       : computation.terms ?? []
@@ -486,8 +637,10 @@ export function calculateFieldComputation(
             const resolved = optionPrice(option, referenceMap)
             if (resolved.missing) missingReferences.add(resolved.missing)
             value += resolved.value
-            breakdown.push({ label: option.label || field.label || field.bindVariable, amount: resolved.base, kind: 'item' })
-            if (resolved.additional > 0) {
+            if (operator !== 'percent') {
+              breakdown.push({ label: option.label || field.label || field.bindVariable, amount: resolved.base, kind: 'item' })
+            }
+            if (resolved.additional > 0 && operator !== 'percent') {
               breakdown.push({
                 label: `${option.label || field.label || field.bindVariable} additional`,
                 amount: resolved.additional,
@@ -526,6 +679,7 @@ export function calculateFieldComputation(
         breakdown.push(...nestedBreakdown)
       } else if (!(
         term.source === 'field' &&
+        operator !== 'percent' &&
         fields.find((item) => item.bindVariable === term.fieldBinding)?.validationRules?.optionPricesEnabled &&
         ['select', 'checkbox', 'radio'].includes(fields.find((item) => item.bindVariable === term.fieldBinding)?.fieldType ?? '')
       )) {

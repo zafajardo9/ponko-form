@@ -175,4 +175,28 @@ describe('PagePaymentStep recovery', () => {
     expect(screen.getByText(/ends after 12 billing cycles/i)).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Subscribe with Xendit' })).toBeTruthy()
   })
+
+  it('shows selected receipt details above the price breakdown', async () => {
+    serverFns.getPagePaymentOptions.mockResolvedValue({
+      amount: 500,
+      currency: 'PHP',
+      gateways: [{ slug: 'xendit', name: 'Xendit' }],
+      receiptDetails: [{ binding: 'plan', label: 'Selected plan', value: 'Premium' }],
+      breakdown: [{ label: 'Total', amount: 500, kind: 'total' }],
+      showBreakdown: true,
+      missingReferences: [],
+      paymentStatus: null,
+      paymentMode: 'one_time',
+      subscription: null,
+      discount: null,
+      discountError: null,
+    })
+    renderPaymentStep()
+
+    expect(await screen.findByText('Selected plan')).toBeTruthy()
+    expect(screen.getByText('Premium')).toBeTruthy()
+    const receiptHeading = screen.getByText('Receipt details')
+    const priceHeading = screen.getByText('Price breakdown')
+    expect(receiptHeading.compareDocumentPosition(priceHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
 })

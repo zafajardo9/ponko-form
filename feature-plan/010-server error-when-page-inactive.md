@@ -2,7 +2,7 @@
 
 > **Feature Plan** — Prevents the "server error" and stuck loading states that occur when public shared/embedded forms are left idle. Addresses Neon free-tier database sleep, Vercel serverless cold starts, and payment step hang recovery so respondents always see a working form, even after inactivity.
 
-**Status:** 🚧 **Planned** — not yet implemented
+**Status:** ⚠️ **Partially implemented** — payment-step retry UI (`PagePaymentStep`) and the `reconcile-payments` cron exist; keep-alive layer missing: `/api/health` does not ping the DB, no `*/4` cron, no `RetryableQuery`
 
 **Dependencies:**
 - 🚧 **FT-009 (Production Reliability — DB & Form Rendering)** — this plan builds on FT-009's database driver switch and timeout guards. FT-009 fixes the TCP hang; FT-010 fixes the cold-start wake-up delay and idle timeout.

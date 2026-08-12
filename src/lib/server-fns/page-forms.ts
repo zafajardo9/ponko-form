@@ -36,6 +36,7 @@ import {
 import {
   applyComputedFieldValues,
   buildReferenceMap,
+  buildPaymentReceiptDetails,
   calculatePagePayment,
 } from '../page-builder/references'
 import { completePageSubmissionRecord, completePaidPageSubmission } from '../page-builder/complete-submission'
@@ -515,6 +516,7 @@ export const updatePageField = createServerFn({ method: 'POST', strict: false })
       bindVariable?: string
       width?: 'full' | 'half'
       validationRules?: FieldValidationRules | null
+      conditionMatch?: 'all' | 'any'
     }) => data,
   )
   .handler(async ({ data }) => {
@@ -576,6 +578,7 @@ export const saveFieldConditions = createServerFn({ method: 'POST', strict: fals
     (data: {
       formId: number
       fieldId: number
+      conditionMatch?: 'all' | 'any'
       conditions: {
         sourceFieldBinding: string
         operator: ConditionOperator
@@ -594,6 +597,10 @@ export const saveFieldConditions = createServerFn({ method: 'POST', strict: fals
       .where(ownedPageFieldWhere(data.formId, data.fieldId))
       .limit(1)
     if (!field) throw new Error('Field not found')
+    await db
+      .update(formPageFields)
+      .set({ conditionMatch: data.conditionMatch ?? 'all', updatedAt: new Date() })
+      .where(eq(formPageFields.id, data.fieldId))
     await db.delete(fieldConditions).where(eq(fieldConditions.fieldId, data.fieldId))
     if (data.conditions.length > 0) {
       await db.insert(fieldConditions).values(
@@ -639,6 +646,7 @@ export const savePageForm = createServerFn({ method: 'POST', strict: false })
           position: number
           width: 'full' | 'half'
           validationRules?: FieldValidationRules | null
+          conditionMatch?: 'all' | 'any'
           conditions: {
             sourceFieldBinding: string
             operator: ConditionOperator
@@ -778,6 +786,7 @@ export const savePageForm = createServerFn({ method: 'POST', strict: false })
             position: fieldIndex,
             width: field.width,
             validationRules: field.validationRules ?? null,
+            conditionMatch: field.conditionMatch ?? 'all',
             conditions: field.conditions
               .filter((condition) => condition.sourceFieldBinding)
               .map((condition) => ({
@@ -1004,9 +1013,12 @@ export const advancePageSession = createServerFn({ method: 'POST', strict: false
         })
         .where(sessionAccessWhere(data.sessionId, data.clientToken))
         .returning(),
-      10_000,
+      // Neon may need more than ten seconds to resume or cross regions. The
+      // update is idempotent, so let the in-flight request finish instead of
+      // showing a timeout while it may still be committing in the background.
+      25_000,
       'advancePageSession.updateSession',
-      { sessionId: data.sessionId },
+      { formId: existing.formId, sessionId: data.sessionId, pageId: previousPage?.id },
     )
     if (!session) throw new Error('Session not found')
     if (session.formSubmissionId) {
@@ -1128,6 +1140,11 @@ export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: fal
       currency,
       gateways,
       breakdown: calculation.breakdown,
+      receiptDetails: buildPaymentReceiptDetails(
+        allFields,
+        dataScope,
+        computation?.receiptFieldBindings,
+      ),
       discount: resolvedDiscount.application ? {
         code: resolvedDiscount.application.code,
         description: resolvedDiscount.application.description,

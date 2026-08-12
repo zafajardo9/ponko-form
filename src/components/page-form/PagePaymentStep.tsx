@@ -310,6 +310,20 @@ export function PagePaymentStep({
         </p>
       )}
 
+      {data.showBreakdown && (data.receiptDetails?.length ?? 0) > 0 && (
+        <div className="mt-4 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
+          <p className="mb-2 text-sm font-medium text-[#141413]">Receipt details</p>
+          <dl className="flex flex-col gap-1.5">
+            {data.receiptDetails?.map((detail) => (
+              <div key={detail.binding} className="flex items-start justify-between gap-4 text-sm">
+                <dt className="text-[#6c6a64]">{detail.label}</dt>
+                <dd className="max-w-[60%] text-right font-medium text-[#141413]">{detail.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
+
       {(data.showBreakdown || data.discount) && data.breakdown.length > 0 && (
         <div className="mt-4 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
           <p className="mb-2 text-sm font-medium text-[#141413]">Price breakdown</p>

@@ -56,7 +56,7 @@ import {
 } from './PageBuilderUtils'
 import type { EditablePageField } from './PageBuilderTypes'
 import { ComputationDialog } from './ComputationDialog'
-import { LogicDialog } from './LogicDialog'
+import { fieldCanDriveLogic, LogicDialog } from './LogicDialog'
 import { OptionsDialog } from './OptionsDialog'
 import { RulesDialog } from './RulesDialog'
 
@@ -270,6 +270,22 @@ export function FieldSettings({ field, pages, fields, references, onUpdate, onMo
   const rules = field.validationRules ?? {}
   const editablePages = pages.filter((page) => !page.isFinal)
   const addressRequired = addressRequiredParts(field)
+  const confirmationFieldTypes = new Set<PageFieldType>([
+    'text',
+    'email',
+    'number',
+    'textarea',
+    'select',
+    'radio',
+    'date',
+    'time',
+    'datetime',
+    'discount',
+  ])
+  const currentFieldIndex = fields.findIndex((candidate) => candidate.id === field.id)
+  const matchableFields = fields
+    .slice(0, currentFieldIndex < 0 ? 0 : currentFieldIndex)
+    .filter((candidate) => confirmationFieldTypes.has(candidate.fieldType))
 
   useEffect(() => {
     setConditions(field.conditions)
@@ -287,7 +303,7 @@ export function FieldSettings({ field, pages, fields, references, onUpdate, onMo
       {
         id: tempId(),
         fieldId: field.id,
-        sourceFieldBinding: fields.find((item) => item.id !== field.id)?.bindVariable ?? '',
+        sourceFieldBinding: fields.find((item) => item.id !== field.id && fieldCanDriveLogic(item))?.bindVariable ?? '',
         operator: 'equals' as ConditionOperator,
         value: '',
         action: 'show' as ConditionAction,
@@ -334,7 +350,7 @@ export function FieldSettings({ field, pages, fields, references, onUpdate, onMo
   const collectsAnswer = !isContentField(field) && field.fieldType !== 'recaptcha'
   const supportsPlaceholder = ['text', 'email', 'number', 'textarea', 'select', 'discount'].includes(field.fieldType)
   const supportsRules = collectsAnswer && !['computation', 'satisfaction'].includes(field.fieldType)
-  const supportsLogic = !isContentField(field) && field.fieldType !== 'computation'
+  const supportsLogic = field.fieldType !== 'payment'
 
   return (
     <div className="flex flex-col gap-5 pb-2">
@@ -625,7 +641,7 @@ export function FieldSettings({ field, pages, fields, references, onUpdate, onMo
           {supportsRules && (
             <SettingsAction
               title="Validation rules"
-              description="Set allowed characters, lengths, ranges, and a helpful error message."
+              description="Set confirmation matching, allowed characters, lengths, ranges, and an error message."
               status={field.validationRules ? 'Configured' : 'Optional'}
               onClick={() => setRulesOpen(true)}
             />
@@ -649,13 +665,16 @@ export function FieldSettings({ field, pages, fields, references, onUpdate, onMo
           onClear={() => onUpdate({ validationRules: null })}
           onUpdate={updateRules}
           numberRule={numberRule}
+          matchableFields={matchableFields}
         />
       )}
 
       {optionsOpen && (
         <OptionsDialog
           field={field}
-          references={references.filter((reference) => reference.type === 'number')}
+          references={references.filter((reference) =>
+            reference.type === 'number' || reference.type === 'percentage'
+          )}
           showPrices={Boolean(rules.optionPricesEnabled)}
           onClose={() => setOptionsOpen(false)}
           onChange={(options) => onUpdate({ options })}
@@ -692,17 +711,12 @@ export function FieldSettings({ field, pages, fields, references, onUpdate, onMo
           onAdd={addCondition}
           onUpdate={updateCondition}
           onRemove={removeCondition}
+          onMatchChange={(conditionMatch) => onUpdate({ conditionMatch })}
         />
       )}
     </div>
   )
 }
-
-
-
-
-
-
 
 
 

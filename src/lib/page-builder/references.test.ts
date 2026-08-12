@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   applyComputedFieldValues,
+  buildPaymentReceiptDetails,
   buildReferenceMap,
   calculateFieldComputation,
   calculatePagePayment,
@@ -104,6 +105,20 @@ describe('page-builder references', () => {
     })
   })
 
+  it('builds selected receipt details with respondent-facing option labels', () => {
+    const details = buildPaymentReceiptDetails(
+      [servicesField],
+      { services: ['identity', 'address'] },
+      ['services'],
+    )
+
+    expect(details).toEqual([{
+      binding: 'services',
+      label: 'Services',
+      value: 'Identity Check, Address Check',
+    }])
+  })
+
   it('calculates selected option totals and formula adjustments', () => {
     const page = {
       paymentAmountVariable: null,
@@ -127,6 +142,37 @@ describe('page-builder references', () => {
     expect(result.breakdown).toContainEqual({ label: 'Identity Check additional', amount: 50, kind: 'adjustment' })
     expect(result.breakdown.map((line) => line.label)).toContain('Total')
     expect(result.missingReferences).toEqual([])
+  })
+
+  it('uses a numeric reference as the complete payment amount', () => {
+    const result = calculatePagePayment(
+      {
+        paymentAmountVariable: 'nbi_price',
+        paymentComputation: { mode: 'field', fieldBindings: ['nbi_price'] },
+      },
+      [],
+      {},
+      references,
+    )
+
+    expect(result.amount).toBe(450)
+    expect(result.breakdown).toEqual([{ label: 'NBI price', amount: 450, kind: 'total' }])
+  })
+
+  it('uses one priced choice field as the complete payment amount', () => {
+    const result = calculatePagePayment(
+      {
+        paymentAmountVariable: 'services',
+        paymentComputation: { mode: 'field', fieldBindings: ['services'] },
+      },
+      [servicesField],
+      { services: ['identity', 'address'] },
+      references,
+    )
+
+    expect(result.amount).toBe(700)
+    expect(result.breakdown).toContainEqual({ label: 'Identity Check', amount: 450, kind: 'item' })
+    expect(result.breakdown).toContainEqual({ label: 'Total', amount: 700, kind: 'total' })
   })
 
   it('applies computation field values to the submission data scope', () => {
@@ -159,6 +205,99 @@ describe('page-builder references', () => {
     )
 
     expect(data.total_due).toBe(784)
+  })
+
+  it('uses an option price reference in a selected-prices calculated field', () => {
+    const totalField = {
+      id: 12,
+      pageId: 1,
+      fieldType: 'computation',
+      label: 'Selected service total',
+      placeholder: null,
+      required: false,
+      bindVariable: 'service_total',
+      position: 1,
+      width: 'full',
+      options: null,
+      conditions: [],
+      validationRules: {
+        computation: {
+          mode: 'sum_priced_options',
+          fieldBindings: ['services'],
+          showBreakdown: true,
+        },
+      },
+    } satisfies PageField
+
+    const data = applyComputedFieldValues(
+      [servicesField, totalField],
+      { services: ['identity'] },
+      references,
+    )
+
+    expect(data.service_total).toBe(500)
+  })
+
+  it('applies a selected option percentage reference to the running calculation', () => {
+    const rateReferences: FormReference[] = [{
+      id: 6,
+      formId: 1,
+      key: 'premium_rate',
+      type: 'percentage',
+      value: '25%',
+      label: 'Premium rate',
+      description: null,
+      position: 0,
+    }]
+    const planField = {
+      ...servicesField,
+      id: 13,
+      fieldType: 'radio',
+      label: 'Plan',
+      bindVariable: 'plan',
+      options: [
+        { label: 'Standard', value: 'standard', price: 0 },
+        { label: 'Premium', value: 'premium', priceReference: 'premium_rate' },
+      ],
+    } satisfies PageField
+    const totalField = {
+      id: 14,
+      pageId: 1,
+      fieldType: 'computation',
+      label: 'Plan total',
+      placeholder: null,
+      required: false,
+      bindVariable: 'plan_total',
+      position: 1,
+      width: 'full',
+      options: null,
+      conditions: [],
+      validationRules: {
+        computation: {
+          mode: 'expression',
+          editorMode: 'visual',
+          outputMode: 'number',
+          terms: [
+            { operator: 'set', source: 'fixed', fixedValue: 1000 },
+            { operator: 'percent', source: 'field', fieldBinding: 'plan' },
+          ],
+        },
+      },
+    } satisfies PageField
+
+    const result = calculateFieldComputation(
+      totalField.validationRules.computation,
+      [planField, totalField],
+      { plan: 'premium' },
+      rateReferences,
+    )
+
+    expect(result.value).toBe(1250)
+    expect(result.breakdown).toContainEqual({
+      label: 'Add percent Plan',
+      amount: 250,
+      kind: 'adjustment',
+    })
   })
 
   it('keeps computation breakdown when payment uses a computation amount field', () => {
@@ -356,6 +495,57 @@ describe('page-builder references', () => {
       {},
       [],
     ).value).toBe(3.33)
+  })
+
+  it('evaluates nested parentheses in calculation studio formulas', () => {
+    const result = calculateFieldComputation(
+      {
+        mode: 'expression',
+        editorMode: 'syntax',
+        expression: '(100 + 20) * (3 + 2)',
+        outputMode: 'number',
+      },
+      [],
+      {},
+      [],
+    )
+
+    expect(result.value).toBe(600)
+  })
+
+  it('evaluates grouped field values and selected option percentage rates', () => {
+    const rateReferences: FormReference[] = [{
+      id: 9,
+      formId: 1,
+      key: 'premium_rate',
+      type: 'percentage',
+      value: '25%',
+      label: 'Premium rate',
+      description: null,
+      position: 0,
+    }]
+    const planField = {
+      ...servicesField,
+      id: 30,
+      fieldType: 'radio',
+      label: 'Plan',
+      bindVariable: 'plan',
+      options: [{ label: 'Premium', value: 'premium', priceReference: 'premium_rate' }],
+    } satisfies PageField
+
+    const result = calculateFieldComputation(
+      {
+        mode: 'expression',
+        editorMode: 'syntax',
+        expression: '(1000 +% {{plan}}) * 2',
+        outputMode: 'number',
+      },
+      [planField],
+      { plan: 'premium' },
+      rateReferences,
+    )
+
+    expect(result.value).toBe(2500)
   })
 
   it('preserves syntax and visual formulas while evaluating the selected editor', () => {

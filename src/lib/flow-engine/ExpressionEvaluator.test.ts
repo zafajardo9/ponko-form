@@ -9,6 +9,11 @@ describe('ExpressionEvaluator', () => {
     expect(result).toEqual({ success: true, value: 14 })
   })
 
+  it('supports the add-percent operator inside grouped arithmetic', () => {
+    expect(evaluator.evaluate('(1000 +% 0.25) * 2', { variables: {} }))
+      .toEqual({ success: true, value: 2500 })
+  })
+
   it('resolves variable references', () => {
     const result = evaluator.evaluate('{{subtotal}} * 0.12', {
       variables: { subtotal: 1000 },

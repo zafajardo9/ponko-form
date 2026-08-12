@@ -1,7 +1,7 @@
 # PonkoForm — System Memory
 
 > **Purpose:** Codebase-grounded context for developers and AI agents working on PonkoForm.
-> **Verified against:** `main` at `7d2cbe3` on 2026-07-28.
+> **Verified against:** `main` at `26d1fa2` on 2026-08-12.
 
 ## Read Order
 
@@ -18,7 +18,7 @@ User-facing and extended technical guides live in [`../docs/`](../docs/README.md
 
 | Aspect | Current implementation |
 |---|---|
-| **Product** | Multi-tenant form builder with page forms, branching flow forms, payments, subscriptions, invoicing, and respondent email |
+| **Product** | Multi-tenant form builder with page forms, branching flow forms, payments, subscriptions, discount codes, payment links, invoicing, and respondent email |
 | **Builders** | Page Builder for linear multi-page forms; Flow Builder for node-graph journeys |
 | **Editor** | Unified route at `/forms/$formId/edit`; `/forms/$formId/flow` redirects there |
 | **Public runtime** | `/forms/submit/$publicId` and `/forms/embed/$publicId`; selects page or flow runtime from persisted form data |
@@ -26,9 +26,11 @@ User-facing and extended technical guides live in [`../docs/`](../docs/README.md
 | **Flow canvas** | `@xyflow/react`; list reordering uses dnd-kit |
 | **Expressions** | In-house tokenizer/parser/evaluator in `safe-expression.ts`; no JavaScript `eval` and no `math.js` dependency |
 | **Payments** | Working PayPal and Xendit one-time payments; Xendit/PHP subscriptions on page forms |
+| **Discount codes** | Percentage/fixed codes scoped to a profile, assignable to multiple forms; caps, minimums, usage limits, schedules; one redemption per payment |
+| **Payment links** | Standalone checkout at `/pay/$publicId`; managed at `/dashboard/payment-links` |
 | **Email** | Resend preferred, SMTP fallback; confirmation and invoice templates with delivery logs |
 | **Integrations** | 14 providers can be represented in the hub; only a subset has operational runtime behavior—see `ARCHITECTURE.md` |
-| **Deploy** | Render Node web service using Nitro output; health check at `/api/health` |
+| **Deploy** | Render Node web service (primary) and Vercel (`tanstack-start`) using Nitro output; Cloudflare Workers build available; health check at `/api/health` |
 | **Package manager** | pnpm 10.34.5; Node.js 22+ |
 
 ## Common Commands

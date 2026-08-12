@@ -346,6 +346,7 @@ export const formPages = pgTable(
       fixedAmount?: number | null
       adjustments?: { type: 'add' | 'subtract' | 'multiply'; referenceKey: string }[]
       showBreakdown?: boolean
+      receiptFieldBindings?: string[]
     }>(),
     subscriptionConfig: jsonb('subscription_config').$type<SubscriptionConfig>(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -387,6 +388,7 @@ export const formPageFields = pgTable(
       maxLength?: number | null
       minValue?: number | null
       maxValue?: number | null
+      matchesFieldBinding?: string | null
       message?: string | null
       optionPricesEnabled?: boolean | null
       addressRequired?: {
@@ -401,6 +403,10 @@ export const formPageFields = pgTable(
       uploadAcceptCustom?: string | null
       uploadMultiple?: boolean | null
     }>(),
+    conditionMatch: varchar('condition_match', { length: 10 })
+      .notNull()
+      .default('all')
+      .$type<'all' | 'any'>(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },

@@ -2,7 +2,7 @@
 
 > **Feature Plan** — A fundamental simplification of the form builder. Replace the graph-based Flow Builder (8 node types, edges, canvas, `FlowEngine`) with a **pages-based model** where a form is a linear sequence of pages (like Google Sheets tabs), each containing fields. Fields get per-field conditional visibility rules instead of a global Decision node graph. The result: simpler to build, simpler to understand, simpler to maintain.
 
-**Status:** 🚧 **Planned** — major architectural revision
+**Status:** ✅ **Implemented** — pages-based form builder, per-page fields, field conditions, form references, and the flow editor are live
 
 **Dependencies:**
 - ✅ **FT-001 (Onboarding)** — onboarding overlays will need updating for the new builder UX

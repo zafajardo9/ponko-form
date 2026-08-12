@@ -99,6 +99,8 @@ export interface FieldValidationRules {
   maxLength?: number | null
   minValue?: number | null
   maxValue?: number | null
+  /** Answer variable for an earlier field whose value this field must exactly match. */
+  matchesFieldBinding?: string | null
   message?: string | null
 }
 
@@ -133,6 +135,8 @@ export interface PageField {
   position: number
   width: 'full' | 'half'
   validationRules: FieldValidationRules | null
+  /** How multiple conditional visibility rules are combined. Defaults to `all`. */
+  conditionMatch?: 'all' | 'any'
   conditions: FieldCondition[]
 }
 
@@ -177,6 +181,8 @@ export interface PaymentComputation {
   fixedAmount?: number | null
   adjustments?: { type: PaymentAdjustmentType; referenceKey: string }[]
   showBreakdown?: boolean
+  /** Answer/calculation fields displayed as non-monetary details on the payment receipt. */
+  receiptFieldBindings?: string[]
 }
 
 export interface PageForm {

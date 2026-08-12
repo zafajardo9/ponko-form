@@ -391,6 +391,64 @@ body {
   overflow-wrap: anywhere;
 }
 
+/* Imported content can include Forminator section wrappers with inline
+   backgrounds. Content blocks should remain part of the form canvas rather
+   than drawing a second card-like surface. */
+.content-field-transparent,
+.content-field-transparent .rich-text-content,
+.content-field-transparent .forminator-field,
+.content-field-transparent .forminator-field * {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+.content-field-transparent .forminator-field {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.content-field-transparent .forminator-field > :first-child {
+  margin-top: 0 !important;
+}
+
+.content-field-transparent .forminator-field > :last-child {
+  margin-bottom: 0 !important;
+}
+
+.content-field-transparent .forminator-field p {
+  max-width: 72ch;
+  margin: 0.5rem 0 0 !important;
+  color: inherit;
+  line-height: 1.65 !important;
+}
+
+.content-field-transparent .forminator-field h1,
+.content-field-transparent .forminator-field h2,
+.content-field-transparent .forminator-field h3,
+.content-field-transparent .forminator-field h4 {
+  margin: 1.35rem 0 0 !important;
+  color: var(--color-ink);
+  font-family: inherit !important;
+  letter-spacing: -0.015em;
+}
+
+.content-field-transparent .forminator-field h1:first-child,
+.content-field-transparent .forminator-field h2:first-child,
+.content-field-transparent .forminator-field h3:first-child,
+.content-field-transparent .forminator-field h4:first-child {
+  margin-top: 0 !important;
+}
+
+.content-field-transparent .forminator-field h3,
+.content-field-transparent .forminator-field h4 {
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  line-height: 1.4 !important;
+}
+
 .rich-text-content :first-child {
   margin-top: 0;
 }

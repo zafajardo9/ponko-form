@@ -2,7 +2,7 @@
 
 > **Feature Plan** — Per-form email notification settings. Form creators configure up to two notification channels: a **respondent confirmation** sent to the person who submitted the form, and **admin alerts** sent to the form owner and any additional recipients (with CC support). Both channels have independent toggles, subject lines, and message body templates that can interpolate submitted form values.
 
-**Status:** 🚧 **Planned** — not yet implemented
+**Status:** ✅ **Implemented** — respondent confirmation emails (subject/body templates, CC, test send) via `form_confirmation_configs` + `src/lib/email/`; dispatched on every submission path (page, flow, linear)
 
 **Dependencies:**
 - ✅ **FT-002 (Integrations Hub)** — email credentials (SMTP or Resend) must be configured before emails can send

@@ -11,6 +11,14 @@ vi.mock('../../lib/server-fns/page-forms', () => ({
   savePageForm: vi.fn(),
 }))
 
+vi.mock('liquid-gooey', () => {
+  const Liquid = ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
+  Liquid.Item = ({ children, x, y, transition, delay, ...props }: React.HTMLAttributes<HTMLDivElement> & { x?: number; y?: number; transition?: string; delay?: number }) => (
+    <div data-x={x} data-y={y} data-transition={transition} data-delay={delay} {...props}>{children}</div>
+  )
+  return { Liquid }
+})
+
 afterEach(() => {
   cleanup()
 })
@@ -125,6 +133,62 @@ describe('PageBuilderWorkspace field configuration UX', () => {
     expect(screen.getByRole('region', { name: 'Questions' })).toBeTruthy()
   })
 
+  it('configures a content block to appear when a choice option is selected', () => {
+    const conditionalPages: FormPage[] = [{
+      ...pages[0],
+      fields: [
+        {
+          id: 21,
+          pageId: 1,
+          fieldType: 'radio',
+          label: 'Service type',
+          placeholder: null,
+          required: true,
+          options: [
+            { label: 'Individual', value: 'individual' },
+            { label: 'Business', value: 'business' },
+          ],
+          bindVariable: 'service_type',
+          position: 0,
+          width: 'full',
+          validationRules: null,
+          conditions: [],
+        },
+        {
+          id: 22,
+          pageId: 1,
+          fieldType: 'content',
+          label: 'Business instructions',
+          placeholder: '<p>Bring your business documents.</p>',
+          required: false,
+          options: null,
+          bindVariable: 'business_instructions',
+          position: 1,
+          width: 'full',
+          validationRules: null,
+          conditions: [],
+        },
+      ],
+    }]
+    renderBuilder(conditionalPages)
+
+    const contentCardButton = screen.getByText('Business instructions').closest('button')
+    expect(contentCardButton).toBeTruthy()
+    fireEvent.click(contentCardButton!)
+    fireEvent.click(screen.getByRole('button', { name: /Conditional visibility/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Rule' }))
+
+    const matchMode = screen.getByLabelText('Match multiple rules') as HTMLSelectElement
+    expect(matchMode.value).toBe('all')
+    fireEvent.change(matchMode, { target: { value: 'any' } })
+    expect(matchMode.value).toBe('any')
+    expect((screen.getByLabelText('When field') as HTMLSelectElement).value).toBe('service_type')
+    fireEvent.change(screen.getByLabelText('Value'), { target: { value: 'business' } })
+    expect(screen.getByRole('option', { name: 'Show block' })).toBeTruthy()
+
+    expect(screen.getByText('1 logic rule')).toBeTruthy()
+  })
+
   it('adds a palette field when it is dragged onto the canvas', () => {
     renderBuilder()
 
@@ -164,6 +228,42 @@ describe('PageBuilderWorkspace field configuration UX', () => {
     expect(screen.getByRole('heading', { name: 'Data and logic' })).toBeTruthy()
     expect((screen.getByLabelText(/Answer variable/) as HTMLInputElement).value).toBe('full_name')
     expect(screen.queryByLabelText('Accepted files')).toBeNull()
+  })
+
+  it('highlights conditional logic and validation as badges on field cards', () => {
+    renderBuilder([{
+      ...pages[0],
+      fields: [{
+        ...pages[0].fields[0],
+        validationRules: { minLength: 2 },
+        conditions: [{
+          id: 91,
+          fieldId: pages[0].fields[0].id,
+          sourceFieldBinding: 'customer_type',
+          operator: 'equals',
+          value: 'business',
+          action: 'show',
+        }],
+      }],
+    }])
+
+    const logicBadge = screen.getByText('1 logic rule')
+    const validationBadge = screen.getByText('Validation rules')
+    expect(logicBadge.className).toContain('rounded-full')
+    expect(logicBadge.className).toContain('bg-[#f4eff9]')
+    expect(validationBadge.className).toContain('rounded-full')
+    expect(validationBadge.className).toContain('bg-[#fff2ec]')
+  })
+
+  it('shows the answer variable as a neutral code badge', () => {
+    renderBuilder()
+
+    const variable = screen.getByText('{{full_name}}')
+    const badge = variable.parentElement
+    expect(variable.className).toContain('font-mono')
+    expect(badge?.className).toContain('rounded-full')
+    expect(badge?.className).toContain('bg-[#f1ede7]')
+    expect(badge?.querySelector('svg')).toBeNull()
   })
 
   it('hides answer storage and validation controls for spam protection', () => {

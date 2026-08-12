@@ -3,6 +3,7 @@ import {
   buildReferenceMap,
   calculateFieldComputation,
 } from '../../lib/page-builder/references'
+import { parseSafeExpression } from '../../lib/flow-engine/safe-expression'
 import type {
   FieldComputation,
   FormulaOperator,
@@ -262,7 +263,7 @@ export function FormulaComposer({
           className="mt-2 min-h-28 w-full resize-y rounded-xl border border-[#d9d0c5] bg-[#1f2421] px-4 py-3 font-mono text-sm leading-7 text-[#f8f3ea] outline-none transition-shadow placeholder:text-[#89908a] focus:border-[#cc785c] focus:ring-4 focus:ring-[#cc785c]/15"
           placeholder={outputMode === 'text'
             ? '{{first_name}} concat " " concat {{last_name}}'
-            : '{{subtotal}} +% {{vat_rate}} + {{processing_fee}}'}
+            : '({{subtotal}} +% {{vat_rate}}) + {{processing_fee}}'}
         />
         <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Formula operators">
           {(outputMode === 'text'
@@ -351,7 +352,7 @@ export function checkFormulaExpression(
   const textMode = outputMode === 'text'
   const tokenPattern = textMode
     ? /\{\{\s*[a-z][a-z0-9_]*\s*\}\}|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\bconcat\b|\+/gi
-    : /\+%|\{\{\s*[a-z][a-z0-9_]*\s*\}\}|[+\-*/]|-?\d+(?:\.\d+)?/gi
+    : /\+%|\{\{\s*[a-z][a-z0-9_]*\s*\}\}|[()+\-*/]|-?\d+(?:\.\d+)?/gi
   const tokens = trimmed.match(tokenPattern) ?? []
 
   if (!trimmed) {
@@ -370,6 +371,7 @@ export function checkFormulaExpression(
   let valueCount = 0
   let lastOperator = ''
   for (const token of tokens) {
+    if (!textMode && (token === '(' || token === ')')) continue
     const isOperator = textMode
       ? token === '+' || token.toLowerCase() === 'concat'
       : ['+', '-', '*', '/', '+%'].includes(token)
@@ -419,6 +421,14 @@ export function checkFormulaExpression(
   }
   if (expectingValue && tokens.length > 0) {
     errors.push('Formula ends with an operator.')
+  }
+
+  if (!textMode && !leftovers) {
+    try {
+      parseSafeExpression(trimmed.replace(/\{\{\s*[a-z][a-z0-9_]*\s*\}\}/gi, '1'))
+    } catch (error) {
+      errors.push(`Invalid formula: ${error instanceof Error ? error.message : 'Check the parentheses and operators'}.`)
+    }
   }
 
   return { errors: [...new Set(errors)], warnings: [...new Set(warnings)] }

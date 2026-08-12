@@ -63,6 +63,7 @@ export async function hydratePages(formId: number): Promise<FormPage[]> {
         position: field.position,
         width: field.width,
         validationRules: (field.validationRules as FieldValidationRules | null) ?? null,
+        conditionMatch: field.conditionMatch ?? 'all',
         conditions: conditionsByField.get(field.id) ?? [],
       },
     ])

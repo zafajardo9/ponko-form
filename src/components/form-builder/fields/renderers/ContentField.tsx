@@ -1,5 +1,5 @@
 import type { FieldConfig, FieldValue } from '../../../../lib/form-field-types'
-import { richTextHtml } from '../FieldRendererUtils'
+import { contentFieldHtml } from '../FieldRendererUtils'
 
 interface Props {
   field: FieldConfig
@@ -10,9 +10,9 @@ interface Props {
 }
 
 export function ContentField({ field }: Props) {
-  const html = richTextHtml(field.placeholder)
+  const html = contentFieldHtml(field.placeholder)
   return (
-    <div>
+    <div className="content-field-transparent">
       {html && (
         <div
           className="rich-text-content text-sm leading-6 text-[#6c6a64]"

@@ -50,6 +50,7 @@ export function snapshotBuilder(pages: EditablePage[], references: FormReference
         position: fieldIndex,
         width: field.width,
         validationRules: field.validationRules ?? null,
+        conditionMatch: field.conditionMatch ?? 'all',
         conditions: field.conditions.map((condition) => ({
           sourceFieldBinding: condition.sourceFieldBinding,
           operator: condition.operator,

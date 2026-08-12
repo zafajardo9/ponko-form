@@ -252,7 +252,20 @@ export function PageSettings({ page, gateways, pages, references, onUpdate, onDe
   )
   const numberFields = availablePaymentFields.filter((field) =>
     field.fieldType === 'number' ||
+    field.fieldType === 'satisfaction' ||
     (field.fieldType === 'computation' && field.validationRules?.computation?.outputMode !== 'text'),
+  )
+  const singleAmountFields = [
+    ...numberFields,
+    ...pricedOptionFields.filter((field) => !numberFields.some((item) => item.id === field.id)),
+  ]
+  const amountReferences = references.filter((reference) =>
+    reference.type === 'number' || reference.type === 'percentage'
+  )
+  const firstAmountSource = singleAmountFields[0]?.bindVariable ?? amountReferences[0]?.key ?? ''
+  const receiptFields = availablePaymentFields.filter((field) =>
+    !['content', 'media', 'recaptcha', 'payment', 'discount', 'file_upload'].includes(field.fieldType) &&
+    (field.pageId !== page.id || field.fieldType === 'computation')
   )
   const earlierFields = pages
     .filter((candidate) => candidate.position < page.position)
@@ -282,6 +295,13 @@ export function PageSettings({ page, gateways, pages, references, onUpdate, onDe
     if (checked) current.add(binding)
     else current.delete(binding)
     updatePaymentComputation({ fieldBindings: [...current] })
+  }
+
+  function toggleReceiptBinding(binding: string, checked: boolean) {
+    const current = new Set(paymentComputation.receiptFieldBindings ?? [])
+    if (checked) current.add(binding)
+    else current.delete(binding)
+    updatePaymentComputation({ receiptFieldBindings: [...current] })
   }
 
   return (
@@ -498,7 +518,7 @@ export function PageSettings({ page, gateways, pages, references, onUpdate, onDe
                         updatePaymentComputation({
                           mode,
                           fieldBindings: mode === 'field'
-                            ? [page.paymentAmountVariable ?? numberFields[0]?.bindVariable ?? ''].filter(Boolean)
+                            ? [page.paymentAmountVariable ?? firstAmountSource].filter(Boolean)
                             : mode === 'sum_priced_options' || mode === 'formula'
                               ? pricedOptionFields.map((field) => field.bindVariable)
                               : mode === 'sum_number_fields'
@@ -513,30 +533,52 @@ export function PageSettings({ page, gateways, pages, references, onUpdate, onDe
                       <option value="sum_priced_options">Sum selected option prices</option>
                       <option value="sum_number_fields">Sum number fields</option>
                       <option value="formula">Formula builder</option>
-                      <option value="field">Use one amount field</option>
+                      <option value="field">Use one amount source</option>
                       <option value="fixed">Fixed amount</option>
                     </select>
                   </Field>
 
                   {paymentComputation.mode === 'field' && (
-                    <Field label="Amount field">
+                    <Field label="Amount source">
                       <select
                         value={paymentComputation.fieldBindings?.[0] ?? ''}
                         onChange={(e) => updatePaymentComputation({ fieldBindings: e.target.value ? [e.target.value] : [] })}
                         className={inputClass}
                       >
-                        <option value="">Select amount field...</option>
-                        {numberFields.map((field) => (
-                          <option key={field.id} value={field.bindVariable}>
-                            {field.label || field.bindVariable} {`{{${field.bindVariable}}}`}
-                          </option>
-                        ))}
+                        <option value="">Select amount source...</option>
+                        {singleAmountFields.length > 0 && (
+                          <optgroup label="Form and calculated values">
+                            {singleAmountFields.map((field) => (
+                              <option key={field.id} value={field.bindVariable}>
+                                {field.label || field.bindVariable} {`{{${field.bindVariable}}}`} — {field.fieldType === 'computation'
+                                  ? 'Calculated'
+                                  : field.validationRules?.optionPricesEnabled
+                                    ? 'Selected option prices'
+                                    : field.fieldType === 'satisfaction'
+                                      ? 'Rating'
+                                      : 'Number'}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {amountReferences.length > 0 && (
+                          <optgroup label="References">
+                            {amountReferences.map((reference) => (
+                              <option key={reference.id} value={reference.key}>
+                                {reference.label || reference.key} {`{{${reference.key}}}`} = {reference.value}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
                       </select>
-                      {numberFields.length === 0 && (
+                      {singleAmountFields.length === 0 && amountReferences.length === 0 && (
                         <p className="mt-1 text-xs leading-relaxed text-[#a9583e]">
-                          Add a number field or a numeric calculation on this page or an earlier page.
+                          Add a number, rating, numeric calculation, priced choice, or numeric reference.
                         </p>
                       )}
+                      <p className="mt-1 text-xs leading-relaxed text-[#8e8b82]">
+                        The selected source becomes the final amount sent to the payment gateway.
+                      </p>
                     </Field>
                   )}
 
@@ -619,6 +661,21 @@ export function PageSettings({ page, gateways, pages, references, onUpdate, onDe
                 />
                 Show price breakdown before payment
               </label>
+              {paymentComputation.showBreakdown && (
+                <div>
+                  <p className="mb-2 text-sm font-medium text-[#141413]">Receipt details</p>
+                  <p className="mb-3 text-xs leading-relaxed text-[#8e8b82]">
+                    Choose submitted answers to show above the monetary lines. These fields do not change the payment amount.
+                  </p>
+                  <PaymentFieldChecklist
+                    fields={receiptFields}
+                    selected={paymentComputation.receiptFieldBindings ?? []}
+                    emptyText="Add answer fields on a page before payment to show them on the receipt."
+                    title="Show on receipt"
+                    onToggle={toggleReceiptBinding}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -637,11 +694,13 @@ export function PaymentFieldChecklist({
   fields,
   selected,
   emptyText,
+  title = 'Include fields',
   onToggle,
 }: {
   fields: PageField[]
   selected: string[]
   emptyText: string
+  title?: string
   onToggle: (binding: string, checked: boolean) => void
 }) {
   if (fields.length === 0) {
@@ -651,7 +710,7 @@ export function PaymentFieldChecklist({
   const selectedSet = new Set(selected)
   return (
     <div className="rounded-md border border-[#e6dfd8] bg-[#faf9f5] p-3">
-      <p className="mb-2 text-xs font-medium uppercase text-[#8e8b82]">Include fields</p>
+      <p className="mb-2 text-xs font-medium uppercase text-[#8e8b82]">{title}</p>
       <div className="flex flex-col gap-2">
         {fields.map((field) => (
           <label key={field.id} className="flex items-center gap-2 text-sm text-[#3d3d3a]">

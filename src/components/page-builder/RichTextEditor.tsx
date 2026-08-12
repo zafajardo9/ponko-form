@@ -8,6 +8,7 @@ import {
   ListOrdered,
   Underline as UnderlineIcon,
 } from 'lucide-react'
+import { contentFieldHtml } from '../form-builder/fields/FieldRendererUtils'
 
 type ToolbarState = {
   bold: boolean
@@ -30,7 +31,7 @@ const EMPTY_TOOLBAR: ToolbarState = {
 }
 
 function normalizedHtml(value: string) {
-  return value || '<p></p>'
+  return contentFieldHtml(value) || '<p></p>'
 }
 
 function commandState(command: string) {
@@ -138,7 +139,7 @@ export default function RichTextEditor({
   }, [updateToolbar])
 
   return (
-    <div className="overflow-hidden rounded-md border border-[#e6dfd8] focus-within:border-[#cc785c] focus-within:ring-2 focus-within:ring-[#cc785c]/20">
+    <div className="content-field-transparent overflow-hidden rounded-md border border-[#e6dfd8] focus-within:border-[#cc785c] focus-within:ring-2 focus-within:ring-[#cc785c]/20">
       <div
         className="flex flex-wrap gap-1 border-b border-[#e6dfd8] bg-white p-1.5"
         role="toolbar"
@@ -189,7 +190,7 @@ export default function RichTextEditor({
         aria-multiline="true"
         contentEditable
         suppressContentEditableWarning
-        className="rich-text-content min-h-40 bg-[#faf9f5] px-3 py-3 text-sm leading-6 text-[#141413] outline-none"
+        className="rich-text-content min-h-40 bg-transparent px-3 py-3 text-sm leading-6 text-[#141413] outline-none"
         onInput={emitChange}
         onFocus={rememberSelection}
         onKeyUp={rememberSelection}
@@ -205,7 +206,7 @@ export function RichTextEditorLoading() {
     <div
       role="status"
       aria-label="Loading rich text editor"
-      className="h-48 animate-pulse rounded-md border border-[#e6dfd8] bg-[#faf9f5]"
+      className="h-48 animate-pulse rounded-md border border-[#e6dfd8] bg-transparent"
     />
   )
 }

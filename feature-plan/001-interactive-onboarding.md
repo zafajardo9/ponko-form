@@ -2,6 +2,8 @@
 
 > **Feature Plan** — Interactive walkthrough that introduces new users to PonkoForm's concepts, UI areas, and capabilities before they start building.
 
+**Status:** 🚧 **Planned** — not yet implemented (no `onboarding_completed` column, overlay component, or server function exists in the codebase)
+
 **Goal:** When a user first signs up (or first visits the dashboard with zero forms), show a stepped, dismissible, interactive overlay that introduces the app's key surfaces — what they are, why they matter, and how to use them — optionally with short GIF/video demos.
 
 ---

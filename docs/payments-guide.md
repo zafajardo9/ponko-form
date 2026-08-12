@@ -1,7 +1,7 @@
 # Payments Guide
 
-> **Accept one-time payments through flow or page-builder forms, and Xendit subscriptions through page-builder forms.** Connect your own gateway and track transactions in PonkoForm.
-> Verified against `main` at `7d2cbe3` on 2026-07-28.
+> **Accept one-time payments through flow or page-builder forms, Xendit subscriptions through page-builder forms, discount codes, and standalone payment links.** Connect your own gateway and track transactions in PonkoForm.
+> Verified against `main` at `26d1fa2` on 2026-08-12.
 
 ---
 
@@ -71,6 +71,37 @@ Cancellation remains managed in Xendit for phase 1. When Xendit reports that a r
 
 ---
 
+## Discount Codes
+
+Offer price reductions with discount codes managed at **`/discounts`** (all your codes) or **`/forms/{formId}/discounts`** (a single form).
+
+1. Create a code with a **percentage off** or **fixed amount off** type.
+2. Optionally set a maximum discount cap, a minimum order amount, a maximum number of uses, and a start/expiry window.
+3. Assign the code to one or more forms — a code can work across several forms.
+4. Respondents enter the code at checkout; the amount updates before payment is initiated.
+
+Rules:
+
+- Codes are normalized to uppercase; validity (active, within window, usage remaining, minimum amount) is checked server-side before checkout.
+- A fixed discount never exceeds the order amount; a percentage discount applies to the original amount and can be capped.
+- Each successful redemption is recorded once per payment — the same payment cannot redeem the same discount twice.
+- Discount codes apply to form payments (page and flow). They do **not** apply to standalone payment links, and subscription billing cycles are not discounted.
+
+---
+
+## Payment Links
+
+Take payment without a form using a standalone **payment link**, managed at **`/dashboard/payment-links`**.
+
+1. Create a link with a title, amount, and currency (PHP by default).
+2. Choose the gateway and optionally allow a custom amount within min/max bounds.
+3. Optionally set a redirect URL and a success message; deactivate links when needed.
+4. Share the public URL — respondents pay at **`/pay/{publicId}`** and land on the success page.
+
+Each link tracks total payments and total revenue. Payment-link checkouts do not accept discount codes.
+
+---
+
 ## Step 2: Add a Payment Node to Your Flow
 
 Once a gateway is connected, add a **Payment** node to your flow:
@@ -136,7 +167,7 @@ All payment transactions are recorded and viewable from the **Payments** page.
 From the form editor, click the **Payments** tab in the top navigation:
 
 ```
-[ Build ] [ Responses ] [ Payments ]    Preview  Settings  Share  Publish
+[ Build ] [ Responses ] [ Payments ] [ Invoicing ] [ Emails ] [ Discounts ]    Preview  Settings  Share  Publish
 ```
 
 Or navigate directly to: `/forms/{formId}/payments`
@@ -211,6 +242,9 @@ No. Xendit performs the automatic recurring debit. PonkoForm verifies Xendit's s
 
 ### Q: How does a subscriber cancel?
 Cancellation is handled in Xendit in this release. PonkoForm reflects the inactive/cancelled state after receiving the plan webhook; it does not yet provide an in-app cancellation control.
+
+### Q: Can respondents use discount codes on payment links?
+No — discount codes apply to form checkouts only. Payment links are standalone and do not accept codes.
 
 ## Subscription Operations
 

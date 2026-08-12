@@ -1,7 +1,7 @@
 # Current System Overview
 
 > **What PonkoForm supports today, what is partially connected, and which implementation files define each capability.**
-> Verified against `main` at `7d2cbe3` on 2026-07-28.
+> Verified against `main` at `26d1fa2` on 2026-08-12.
 
 ## Product Modes
 
@@ -21,7 +21,7 @@ New forms start from a built-in template or as a blank page form. Flow forms alr
 3. Build at `/forms/$formId/edit`.
 4. Preview, validate where applicable, customize the theme, and publish.
 5. Share the public URL or iframe embed.
-6. Review Responses, Payments, and Invoicing from the form workspace.
+6. Review Responses, Payments, Invoicing, Emails, and Discounts from the form workspace.
 
 Form owners can invite existing PonkoForm users as editors or viewers. Editors
 can change form content and configuration; viewers have read-only access.
@@ -50,6 +50,23 @@ PonkoForm uses the creator's own gateway account.
 | Maya | No | No | Configuration UI/storage only |
 
 Payment state is tracked through hosted-checkout return verification, Xendit webhooks, manual verification/recovery actions, and protected reconciliation. Refunds are performed in the gateway dashboard; PonkoForm can represent the resulting `refunded` status.
+
+## Discount Codes
+
+Creators manage discount codes centrally at `/discounts` and per form at `/forms/$formId/discounts`. Codes are scoped to a creator profile and can be assigned to multiple forms through a join table.
+
+- **Types:** percentage off or fixed amount off; fixed discounts clamp to the order amount.
+- **Controls:** optional maximum discount cap, minimum order amount, maximum uses, and a start/expiry window; codes can be deactivated.
+- **Validation:** codes are normalized (trimmed, uppercased) and validated server-side against the form, amount, and lifecycle before checkout.
+- **Redemptions:** each applied discount records one `discount_redemptions` row (unique per payment) with the original, discounted, and final amounts.
+- Payment links do not accept discount codes; subscriptions are not discounted.
+
+## Payment Links
+
+Payment links provide standalone checkout without a form. Creators manage them at `/dashboard/payment-links`; respondents pay at `/pay/$publicId` and land on `/pay/$publicId/success`.
+
+- Each link has a title, amount, currency (default PHP), gateway, optional custom-amount toggle with min/max bounds, optional redirect URL, and success message.
+- Links can be deactivated; `total_payments` and `total_revenue` counters track usage.
 
 ## Email and Invoicing
 
@@ -90,19 +107,20 @@ Credentials are AES-256-GCM encrypted with `CREDENTIALS_ENCRYPTION_KEY`. Secrets
 | `/forms/embed/$publicId` | Transparent responsive iframe form |
 | `/forms/payment-return` | Hosted-checkout return and runtime resume |
 | `/flow/$executionId/complete` | Flow completion/receipt |
+| `/pay/$publicId` | Standalone payment-link checkout |
+| `/pay/$publicId/success` | Payment-link completion page |
 
 The Xendit webhook route uses an owner-specific endpoint key. The internal reconciliation route requires `CRON_SECRET`.
 
 ## Deployment
 
-The maintained production target is a Render Node web service:
+The project has three deployment targets:
 
-```bash
-pnpm run build:render
-pnpm run start
-```
+- **Render** (maintained Node web service): `render.yaml` builds with `pnpm install --frozen-lockfile && pnpm run build:render`, starts with `pnpm run start`, and checks `/api/health`.
+- **Vercel**: `vercel.json` declares the `tanstack-start` framework, `pnpm install --frozen-lockfile`, `pnpm run build`, and `pnpm dev`; functions run in `iad1` and the `/api/internal/reconcile-payments` cron runs daily at 02:00 UTC.
+- **Cloudflare Workers**: `wrangler.jsonc` with the `build:cloudflare` Vite mode.
 
-The build compiles Nitro output, prepares/migrates the database, validates the schema, and seeds built-in templates. Render checks `/api/health`. The application supports Neon and standard PostgreSQL connections.
+The build compiles Nitro output, prepares/migrates the database, validates the schema, and seeds built-in templates. The application supports Neon and standard PostgreSQL connections.
 
 ## Authoritative Implementation Map
 
@@ -114,8 +132,10 @@ The build compiles Nitro output, prepares/migrates the database, validates the s
 | Page types/runtime | `src/lib/page-builder/types.ts`, `src/components/page-form/` |
 | Flow types/runtime | `src/lib/flow-engine/`, `src/components/flow-execution/` |
 | Payment registry | `src/integrations/payments/index.ts` |
+| Discount domain/rules | `src/lib/discounts.ts`, `src/lib/server-fns/discounts.ts` |
+| Payment links | `src/lib/payment-links/`, `src/lib/server-fns/payment-links.ts` |
+| Email dispatch | `src/lib/email/transactional.ts`, `src/lib/invoicing/delivery.ts` |
 | Integration catalog/config | `src/lib/integrations/types.ts`, `src/components/integrations/ProviderForms.ts` |
-| Email dispatch | `src/lib/email/transactional.ts` |
-| Deployment | `render.yaml`, `package.json`, `vite.config.ts` |
+| Deployment | `render.yaml`, `vercel.json`, `wrangler.jsonc`, `package.json`, `vite.config.ts` |
 
 For deeper technical context, read the [AI Knowledge Bank](AI-KNOWLEDGE-BANK.md) and [system memory](../memory-ponko/README.md).

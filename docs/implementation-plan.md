@@ -1,7 +1,7 @@
 # Implementation Status & Roadmap — PonkoForm
 
 > The original greenfield sprint plan has been replaced by this implementation-status document because its foundation, builder, submission, and payment phases are already present in the codebase.
-> Verified against `main` at `7d2cbe3` on 2026-07-28.
+> Verified against `main` at `26d1fa2` on 2026-08-12.
 
 ## Current Baseline
 
@@ -17,6 +17,8 @@
 | One-time payments | Complete for PayPal/Xendit | Hosted checkout, verification, events, reconciliation, recovery |
 | Subscriptions | Complete for page-form Xendit/PHP | Recurring plan/cycle tracking and reconciliation |
 | Invoicing/respondent email | Complete baseline | Resend/SMTP, templates, delivery logs, retry |
+| Discount codes | Complete | Central management at `/discounts`, per-form at `/forms/$formId/discounts`; percentage/fixed, caps, minimums, usage limits, schedules |
+| Payment links | Complete | Standalone checkout at `/pay/$publicId`; management at `/dashboard/payment-links` |
 | reCAPTCHA | Complete | Page-field rendering and server verification |
 | Render deployment | Complete | Blueprint, health check, DB preparation, Node start |
 
@@ -42,6 +44,7 @@
 - Xendit/PHP subscriptions are available on page forms.
 - Refunds are carried out in the payment provider dashboard.
 - Respondent confirmation/invoice email exists; creator notification email does not.
+- Discount codes apply to form payments (one redemption per payment); standalone payment links do not accept discount codes.
 - Dashboard analytics are aggregate/time-series metrics, not visit or funnel analytics.
 - Google Sheets OAuth does not yet mean automatic response export.
 - File-upload values do not yet use the configurable cloud-storage providers.
@@ -72,9 +75,7 @@
 ### Phase 4 — Commerce expansion
 
 1. In-app refund initiation only after provider-specific idempotency/audit design.
-2. Discount/coupon model.
-3. Standalone payment links.
-4. Flow subscription semantics, if the graph UX and resume model are specified first.
+2. Flow subscription semantics, if the graph UX and resume model are specified first.
 
 ## Definition of Done for a Capability
 

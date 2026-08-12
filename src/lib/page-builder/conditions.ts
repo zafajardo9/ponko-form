@@ -91,13 +91,14 @@ export function evaluateCondition(
 }
 
 export function isFieldVisible(
-  field: Pick<PageField, 'conditions'>,
+  field: Pick<PageField, 'conditions' | 'conditionMatch'>,
   data: Record<string, unknown>,
   references: ReferenceMap = {},
 ): boolean {
   if (field.conditions.length === 0) return true
   const action = field.conditions[0]?.action ?? 'show'
-  const passes = field.conditions.every((condition) => evaluateCondition(condition, data, references))
+  const matches = field.conditions.map((condition) => evaluateCondition(condition, data, references))
+  const passes = field.conditionMatch === 'any' ? matches.some(Boolean) : matches.every(Boolean)
   return action === 'show' ? passes : !passes
 }
 
@@ -193,6 +194,7 @@ export function sanitizeFieldValue(field: PageField, value: unknown): unknown {
 export function validateFieldRules(
   field: PageField,
   value: unknown,
+  values: Record<string, unknown> = {},
 ): string | null {
   if (
     field.fieldType === 'satisfaction' &&
@@ -213,9 +215,28 @@ export function validateFieldRules(
     : typeof value === 'object'
       ? Object.values(value as Record<string, unknown>).map((item) => String(item ?? '')).join(',')
       : String(value)
+
+  if (rules.matchesFieldBinding) {
+    const targetValue = values[rules.matchesFieldBinding]
+    if (targetValue == null || String(value) !== String(targetValue)) {
+      const targetLabel = rules.matchesFieldBinding.replaceAll('_', ' ')
+      return message || defaultRuleMessage(field, `must match ${targetLabel}.`)
+    }
+  }
+
   const allowed = allowedRegex(rules)
   if (allowed && !allowed.test(text)) {
     return message || defaultRuleMessage(field, 'contains characters that are not allowed.')
+  }
+
+  if (rules.customPattern) {
+    const pattern = regexFromPattern(rules.customPattern)
+    if (!pattern) {
+      return defaultRuleMessage(field, 'has an invalid validation pattern.')
+    }
+    if (!pattern.test(text)) {
+      return message || defaultRuleMessage(field, 'does not match the required format.')
+    }
   }
 
   if (rules.minLength != null && text.length < rules.minLength) {

@@ -77,22 +77,14 @@ export function OptionsEditor({
 
   return (
     <div className="rounded-xl border border-[#ded7ce] bg-[#faf9f5] p-3 sm:p-4">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="mb-4">
         <div className="min-w-0">
           <p className="text-sm font-medium text-[#141413]">Options</p>
           <p className="mt-1 max-w-xl text-xs leading-5 text-[#7d7972]">
             Labels are shown to respondents. Values are used by logic and submissions.
-            {showPrices ? ' Prices can be used by payment totals.' : ''}
+            {showPrices ? ' Prices can be used by payment and calculated totals.' : ''}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={addOption}
-          className="inline-flex h-9 w-full shrink-0 items-center justify-center gap-1.5 rounded-md border border-[#d9d1c7] bg-white px-3 text-xs font-medium text-[#3d3d3a] transition-colors hover:border-[#cc785c] hover:bg-[#fffaf7] hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]/30 sm:w-auto"
-        >
-          <Plus size={14} aria-hidden="true" />
-          Add option
-        </button>
       </div>
 
       <div className="flex flex-col gap-3">
@@ -156,7 +148,7 @@ export function OptionsEditor({
                 >
                   <select
                     aria-label={`Base price mode for ${option.label || `option ${index + 1}`}`}
-                    value={option.priceReference ? 'reference' : 'direct'}
+                    value={option.priceReference != null ? 'reference' : 'direct'}
                     onChange={(e) =>
                       updateOption(
                         index,
@@ -168,22 +160,15 @@ export function OptionsEditor({
                     className={inputClass}
                   >
                     <option value="direct">Direct price</option>
-                    <option value="reference">Reference</option>
+                    <option value="reference" disabled={references.length === 0}>Reference</option>
                   </select>
-                  {option.priceReference ? (
-                    <select
-                      aria-label={`Base price reference for ${option.label || `option ${index + 1}`}`}
+                  {option.priceReference != null ? (
+                    <ReferencePricePicker
+                      ariaLabel={`Base price reference for ${option.label || `option ${index + 1}`}`}
                       value={option.priceReference}
-                      onChange={(e) => updateOption(index, { priceReference: e.target.value || null })}
-                      className={inputClass}
-                    >
-                      <option value="">Select reference...</option>
-                      {references.map((reference) => (
-                        <option key={reference.id} value={reference.key}>
-                          {reference.label || reference.key} = {reference.value}
-                        </option>
-                      ))}
-                    </select>
+                      references={references}
+                      onChange={(value) => updateOption(index, { priceReference: value })}
+                    />
                   ) : (
                     <input
                       aria-label={`Base price amount for ${option.label || `option ${index + 1}`}`}
@@ -203,7 +188,7 @@ export function OptionsEditor({
                 >
                   <select
                     aria-label={`Additional price mode for ${option.label || `option ${index + 1}`}`}
-                    value={option.additionalPriceReference ? 'reference' : 'direct'}
+                    value={option.additionalPriceReference != null ? 'reference' : 'direct'}
                     onChange={(e) =>
                       updateOption(
                         index,
@@ -215,22 +200,15 @@ export function OptionsEditor({
                     className={inputClass}
                   >
                     <option value="direct">Direct extra</option>
-                    <option value="reference">Reference</option>
+                    <option value="reference" disabled={references.length === 0}>Reference</option>
                   </select>
-                  {option.additionalPriceReference ? (
-                    <select
-                      aria-label={`Additional price reference for ${option.label || `option ${index + 1}`}`}
+                  {option.additionalPriceReference != null ? (
+                    <ReferencePricePicker
+                      ariaLabel={`Additional price reference for ${option.label || `option ${index + 1}`}`}
                       value={option.additionalPriceReference}
-                      onChange={(e) => updateOption(index, { additionalPriceReference: e.target.value || null })}
-                      className={inputClass}
-                    >
-                      <option value="">Select reference...</option>
-                      {references.map((reference) => (
-                        <option key={reference.id} value={reference.key}>
-                          {reference.label || reference.key} = {reference.value}
-                        </option>
-                      ))}
-                    </select>
+                      references={references}
+                      onChange={(value) => updateOption(index, { additionalPriceReference: value })}
+                    />
                   ) : (
                     <input
                       aria-label={`Additional price amount for ${option.label || `option ${index + 1}`}`}
@@ -254,6 +232,64 @@ export function OptionsEditor({
           </div>
         ))}
       </div>
+
+      <button
+        type="button"
+        onClick={addOption}
+        className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#cfc5ba] bg-white text-sm font-medium text-[#6c5a51] transition-[border-color,background-color,color,transform] duration-[var(--duration-quick)] ease-[var(--ease-smooth-out)] hover:border-[#cc785c] hover:bg-[#fff7f3] hover:text-[#a9583e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]/30 active:scale-[0.995] motion-reduce:transform-none motion-reduce:transition-none"
+      >
+        <Plus size={16} aria-hidden="true" />
+        Add option
+      </button>
+    </div>
+  )
+}
+
+function ReferencePricePicker({
+  ariaLabel,
+  value,
+  references,
+  onChange,
+}: {
+  ariaLabel: string
+  value: string
+  references: FormReference[]
+  onChange: (value: string | null) => void
+}) {
+  const selectedReference = references.find((reference) => reference.key === value)
+
+  return (
+    <div className="min-w-0">
+      <select
+        aria-label={ariaLabel}
+        value={value}
+        onChange={(event) => onChange(event.target.value || null)}
+        className={inputClass}
+      >
+        <option value="">Select reference...</option>
+        {!selectedReference && value && <option value={value}>{value} (missing)</option>}
+        {references.map((reference) => (
+          <option key={reference.id} value={reference.key}>
+            {reference.label || reference.key} = {reference.value}
+          </option>
+        ))}
+      </select>
+      {selectedReference ? (
+        <div className="mt-1.5 text-[11px] font-medium text-[#65756c]" role="status">
+          <p className="truncate">
+            Active value: {selectedReference.value} from {'{{'}{selectedReference.key}{'}}'}
+          </p>
+          {selectedReference.type === 'percentage' && (
+            <p className="mt-1 leading-4 text-[#7b6a61]">
+              In a calculated field, use this option after <span className="font-mono">+%</span> to apply the rate to the running amount.
+            </p>
+          )}
+        </div>
+      ) : value ? (
+        <p className="mt-1.5 text-[11px] font-medium text-[#b84b42]" role="alert">
+          This reference no longer exists. Select another reference.
+        </p>
+      ) : null}
     </div>
   )
 }
