@@ -223,6 +223,28 @@ body {
   .t-toggle-thumb { animation: none !important; }
 }
 
+/* transitions.dev checkbox check (25-checkbox-check.md): the box fills, then
+   the check stroke draws itself in; unchecking reverses quickly with no draw. */
+.t-check {
+  transition:
+    background var(--duration-quick) var(--ease-smooth-out),
+    border-color var(--duration-quick) var(--ease-smooth-out),
+    box-shadow var(--duration-quick) var(--ease-smooth-out);
+}
+.t-check svg path {
+  stroke-dasharray: var(--check-len, 15);
+  stroke-dashoffset: var(--check-len, 15);
+  transition: stroke-dashoffset var(--duration-quick) var(--ease-smooth-out);
+}
+.t-check[aria-checked="true"] svg path {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset var(--duration-medium) var(--ease-smooth-out) var(--duration-stagger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-check, .t-check svg path { transition: none !important; }
+}
+
 .ponko-list-item-enter {
   animation: ponko-list-item-in var(--duration-fast) var(--ease-smooth-out) both;
 }

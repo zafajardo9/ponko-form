@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type ComponentType } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   BarChart3,
-  Check,
   CreditCard,
   Eye,
   FilePenLine,
@@ -146,13 +145,15 @@ export function FormCard({
               aria-label={`Select ${form.title}`}
               disabled={!isOwner}
               onClick={() => onSelectionChange?.(form.id, !selected)}
-              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-[background-color,border-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2 ${
+              className={`t-check flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
                 selected
-                  ? "border-[#cc785c] bg-[#cc785c] text-white shadow-[0_2px_6px_rgba(204,120,92,0.28)]"
-                  : "border-[#d7cec5] bg-white text-transparent hover:border-[#bb8b79] hover:bg-[#fff8f4]"
+                  ? "border-[#cc785c] bg-[#cc785c] text-white shadow-[0_2px_8px_rgba(204,120,92,0.3)]"
+                  : "border-[#d7cec5] bg-white text-[#cc785c] hover:border-[#bb8b79] hover:bg-[#fff8f4]"
               }`}
             >
-              <Check size={15} strokeWidth={3} aria-hidden="true" />
+              <svg viewBox="0 0 10.1668 10.1668" className="h-[15px] w-[15px]" fill="none" aria-hidden="true">
+                <path d="M1 5.52L3.92 9.17L9.17 1" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
             <Badge variant={form.status}>{form.status}</Badge>
             <span className="rounded-full bg-[#eee8df] px-2 py-1 text-[11px] font-medium capitalize text-[#6c6258]">
