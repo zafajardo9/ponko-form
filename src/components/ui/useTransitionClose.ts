@@ -22,6 +22,7 @@ export function useTransitionClose(
   onClose: () => void,
   durationVariable = '--modal-close-dur',
   fallbackMs = 150,
+  active = true,
 ) {
   const [phase, setPhase] = useState<TransitionPhase>('entering')
   const phaseRef = useRef<TransitionPhase>('entering')
@@ -33,6 +34,14 @@ export function useTransitionClose(
   }, [onClose])
 
   useEffect(() => {
+    if (!active) {
+      phaseRef.current = 'entering'
+      setPhase('entering')
+      return
+    }
+
+    phaseRef.current = 'entering'
+    setPhase('entering')
     const frame = requestAnimationFrame(() => {
       phaseRef.current = 'open'
       setPhase('open')
@@ -42,7 +51,7 @@ export function useTransitionClose(
       cancelAnimationFrame(frame)
       if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
     }
-  }, [])
+  }, [active])
 
   const requestClose = useCallback(() => {
     if (phaseRef.current === 'closing') return

@@ -207,7 +207,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
   );
 }
 
-function renderMarkdown(md: string): string {
+export function renderMarkdown(md: string): string {
   const lines = md.split("\n");
   const html: string[] = [];
   let i = 0;

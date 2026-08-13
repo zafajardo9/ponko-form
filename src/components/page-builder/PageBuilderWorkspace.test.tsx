@@ -6,9 +6,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PageBuilderWorkspace } from './PageBuilderWorkspace'
 import { ToastProvider } from '../ui/Toast'
 import type { FormPage } from '../../lib/page-builder/types'
+import { chatWithBuilderAI } from '../../lib/server-fns/ai-assistant'
 
 vi.mock('../../lib/server-fns/page-forms', () => ({
   savePageForm: vi.fn(),
+}))
+
+vi.mock('../../lib/server-fns/ai-assistant', () => ({
+  chatWithBuilderAI: vi.fn(),
 }))
 
 vi.mock('liquid-gooey', () => {
@@ -82,6 +87,7 @@ function renderBuilder(builderPages = pages) {
       <ToastProvider>
         <PageBuilderWorkspace
           formId={10}
+          formTitle={null}
           pages={builderPages}
           references={[]}
           gateways={[]}
@@ -93,6 +99,57 @@ function renderBuilder(builderPages = pages) {
 }
 
 describe('PageBuilderWorkspace field configuration UX', () => {
+  it('previews, applies, and undoes an AI-generated draft without saving', async () => {
+    vi.mocked(chatWithBuilderAI).mockResolvedValue({
+      kind: 'generation',
+      message: 'A registration draft is ready.',
+      candidate: {
+        pages: [
+          {
+            title: 'Registration',
+            description: null,
+            isFinal: false,
+            finalTemplate: null,
+            fields: [{
+              fieldType: 'email',
+              label: 'Registration email',
+              placeholder: null,
+              required: true,
+              options: null,
+              bindVariable: 'registration_email',
+              width: 'full',
+              validationRules: null,
+            }],
+          },
+          {
+            title: 'Registered',
+            description: null,
+            isFinal: true,
+            finalTemplate: '<p>Your place is confirmed.</p>',
+            fields: [],
+          },
+        ],
+      },
+    })
+    renderBuilder()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ask Ponko' }))
+    fireEvent.click(screen.getByLabelText('Generate Form'))
+    fireEvent.change(screen.getByLabelText('Describe or refine your form'), {
+      target: { value: 'Create a registration form' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    expect(await screen.findByRole('region', { name: 'Generated form preview' })).toBeTruthy()
+    expect(screen.getByText('Full name')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Replace draft' }))
+
+    expect(await screen.findByText('Registration email')).toBeTruthy()
+    expect(screen.getByText('Unsaved')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(await screen.findByText('Full name')).toBeTruthy()
+  })
+
   it('searches field types and switches between list and grid views', () => {
     renderBuilder()
 

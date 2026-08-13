@@ -1,15 +1,17 @@
 import { createServerFn } from '@tanstack/react-start'
-import { currentAuth as auth } from '../auth.server'
 import {
   assistantRequestSchema,
   type AIAssistantResponse,
 } from '../ai/contracts'
-import { AIProviderError, runAIAssistant } from '../ai/provider.server'
-import { assertFormEditor } from './flow-helpers'
 
 export const chatWithBuilderAI = createServerFn({ method: 'POST' })
   .validator((data: unknown) => assistantRequestSchema.parse(data))
   .handler(async ({ data }): Promise<AIAssistantResponse> => {
+    const [{ currentAuth: auth }, { assertFormEditor }, provider] = await Promise.all([
+      import('../auth.server'),
+      import('./flow-helpers'),
+      import('../ai/provider.server'),
+    ])
     const { userId } = await auth()
     if (!userId) {
       return { kind: 'error', code: 'unauthorized', message: 'Sign in again to use the assistant.' }
@@ -21,9 +23,9 @@ export const chatWithBuilderAI = createServerFn({ method: 'POST' })
     }
 
     try {
-      return await runAIAssistant(data)
+      return await provider.runAIAssistant(data)
     } catch (error) {
-      if (error instanceof AIProviderError) {
+      if (error instanceof provider.AIProviderError) {
         if (error.category === 'authentication') {
           return {
             kind: 'error',

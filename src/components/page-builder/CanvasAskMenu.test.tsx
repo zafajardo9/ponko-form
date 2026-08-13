@@ -16,19 +16,25 @@ import { CanvasAskMenu } from './CanvasAskMenu'
 afterEach(cleanup)
 
 describe('CanvasAskMenu', () => {
-  it('reveals builder help actions and returns focus when closed with Escape', () => {
-    render(<CanvasAskMenu />)
+  it('reveals AI actions, selects a mode, and returns focus when closed with Escape', () => {
+    const onSelect = vi.fn()
+    render(<CanvasAskMenu onSelect={onSelect} />)
 
     const trigger = screen.getByRole('button', { name: 'Ask Ponko' })
-    const docs = screen.getByLabelText('Documentation', { selector: 'a' })
+    const guide = screen.getByLabelText('AI Guide')
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
-    expect(docs.getAttribute('tabindex')).toBe('-1')
+    expect(guide.getAttribute('tabindex')).toBe('-1')
 
     fireEvent.click(trigger)
     expect(screen.getByRole('button', { name: 'Close Ask menu' }).getAttribute('aria-expanded')).toBe('true')
-    expect(docs.getAttribute('tabindex')).toBe('0')
-    expect(docs.getAttribute('target')).toBe('_blank')
-    expect(screen.getByLabelText('Form builder guide', { selector: 'a' }).getAttribute('href')).toBe('/docs/flow-builder-guide')
+    expect(guide.getAttribute('tabindex')).toBe('0')
+    expect(screen.getByRole('button', { name: 'Generate Form' }).getAttribute('tabindex')).toBe('0')
+
+    fireEvent.click(guide)
+    expect(onSelect).toHaveBeenCalledWith('guide')
+    expect(screen.getByRole('button', { name: 'Ask Ponko' }).getAttribute('aria-expanded')).toBe('false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ask Ponko' }))
 
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.getByRole('button', { name: 'Ask Ponko' })).toBe(document.activeElement)

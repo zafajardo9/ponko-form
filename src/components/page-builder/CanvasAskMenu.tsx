@@ -1,11 +1,12 @@
 import { Liquid } from 'liquid-gooey'
-import { BookOpen, MessageCircleQuestion, Workflow, X } from 'lucide-react'
+import { MessageCircleQuestion, Sparkles, WandSparkles, X } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import type { AIAssistantMode } from '../../lib/ai/contracts'
 
 const actionClass =
   'group/ask-action pointer-events-auto relative grid h-11 w-11 place-items-center rounded-full bg-transparent text-white outline-none transition-[opacity,transform] duration-[var(--duration-quick)] ease-[var(--ease-smooth-out)] hover:scale-105 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#cc785c] active:scale-95 motion-reduce:transition-none'
 
-export function CanvasAskMenu() {
+export function CanvasAskMenu({ onSelect }: { onSelect?: (mode: AIAssistantMode) => void }) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -51,9 +52,12 @@ export function CanvasAskMenu() {
           transition="bouncy"
           className="absolute bottom-0 right-0"
         >
-          <AskLink href="/docs" label="Documentation" open={open} onSelect={() => setOpen(false)}>
-            <BookOpen size={18} aria-hidden="true" />
-          </AskLink>
+          <AskAction label="AI Guide" open={open} onSelect={() => {
+            setOpen(false)
+            onSelect?.('guide')
+          }}>
+            <Sparkles size={18} aria-hidden="true" />
+          </AskAction>
         </Liquid.Item>
 
         <Liquid.Item
@@ -63,14 +67,16 @@ export function CanvasAskMenu() {
           delay={40}
           className="absolute bottom-0 right-0"
         >
-          <AskLink
-            href="/docs/flow-builder-guide"
-            label="Form builder guide"
+          <AskAction
+            label="Generate Form"
             open={open}
-            onSelect={() => setOpen(false)}
+            onSelect={() => {
+              setOpen(false)
+              onSelect?.('generate')
+            }}
           >
-            <Workflow size={18} aria-hidden="true" />
-          </AskLink>
+            <WandSparkles size={18} aria-hidden="true" />
+          </AskAction>
         </Liquid.Item>
 
         <Liquid.Item className="absolute bottom-0 right-0">
@@ -106,24 +112,20 @@ export function CanvasAskMenu() {
   )
 }
 
-function AskLink({
-  href,
+function AskAction({
   label,
   open,
   onSelect,
   children,
 }: {
-  href: '/docs' | '/docs/flow-builder-guide'
   label: string
   open: boolean
   onSelect: () => void
   children: ReactNode
 }) {
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
+    <button
+      type="button"
       aria-label={label}
       aria-hidden={!open}
       tabIndex={open ? 0 : -1}
@@ -134,6 +136,6 @@ function AskLink({
       <span className="pointer-events-none absolute right-[calc(100%+0.625rem)] top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md bg-[#242320] px-2.5 py-1.5 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-[var(--duration-quick)] group-hover/ask-action:opacity-100 group-focus-visible/ask-action:opacity-100 motion-reduce:transition-none">
         {label}
       </span>
-    </a>
+    </button>
   )
 }

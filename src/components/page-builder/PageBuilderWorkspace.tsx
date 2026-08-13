@@ -36,6 +36,7 @@ import type {
   FormPage,
   PageField,
 } from '../../lib/page-builder/types'
+import type { AIAssistantMode, GeneratedFormCandidate } from '../../lib/ai/contracts'
 import { Button } from '../ui/Button'
 import { useToast } from '../ui/Toast'
 import {
@@ -59,6 +60,7 @@ import {
 
 interface PageBuilderWorkspaceProps {
   formId: number
+  formTitle: string | null
   pages: FormPage[]
   references: FormReference[]
   gateways: { id: number; name: string; slug: string }[]
@@ -84,6 +86,7 @@ import { SortableFieldCard, SortablePageTab } from './SortableComponents'
 import { FieldSettings } from './FieldSettings'
 import { FormSuccessCard } from '../page-form/FormSuccessCard'
 import { CanvasAskMenu } from './CanvasAskMenu'
+import { BuilderAIAssistant } from './BuilderAIAssistant'
 
 const FIELD_DRAG_TYPE = 'application/x-ponkoform-field'
 
@@ -93,6 +96,7 @@ function fieldDragKey(item: FieldPaletteItem) {
 
 export function PageBuilderWorkspace({
   formId,
+  formTitle,
   pages,
   references,
   gateways,
@@ -109,6 +113,10 @@ export function PageBuilderWorkspace({
   const [draftPages, setDraftPages] = useState<EditablePage[]>(incomingPages)
   const [draftReferences, setDraftReferences] = useState<FormReference[]>(incomingReferences)
   const [savedSnapshot, setSavedSnapshot] = useState(incomingSnapshot)
+  const [assistantOpen, setAssistantOpen] = useState(false)
+  const [assistantMode, setAssistantMode] = useState<AIAssistantMode>('guide')
+  const [aiUndoPages, setAIUndoPages] = useState<EditablePage[] | null>(null)
+  const [aiAppliedSnapshot, setAIAppliedSnapshot] = useState<string | null>(null)
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -131,6 +139,13 @@ export function PageBuilderWorkspace({
 
   const currentSnapshot = useMemo(() => snapshotBuilder(draftPages, draftReferences), [draftPages, draftReferences])
   const isDirty = currentSnapshot !== savedSnapshot
+
+  useEffect(() => {
+    if (aiUndoPages && aiAppliedSnapshot && currentSnapshot !== aiAppliedSnapshot) {
+      setAIUndoPages(null)
+      setAIAppliedSnapshot(null)
+    }
+  }, [aiAppliedSnapshot, aiUndoPages, currentSnapshot])
 
   useEffect(() => {
     onDraftChange?.({ pages: draftPages, references: draftReferences })
@@ -237,6 +252,8 @@ export function PageBuilderWorkspace({
       setDraftPages(nextPages)
       setDraftReferences(nextReferences)
       setSavedSnapshot(snapshotBuilder(nextPages, nextReferences))
+      setAIUndoPages(null)
+      setAIAppliedSnapshot(null)
       setSelectedPageId(nextPage?.id ?? 0)
       setSelection(
         nextField
@@ -263,6 +280,67 @@ export function PageBuilderWorkspace({
         return { ...page, ...patch }
       }),
     )
+  }
+
+  function applyAICandidate(candidate: GeneratedFormCandidate) {
+    const previousPages = structuredClone(draftPages)
+    const nextPages: EditablePage[] = candidate.pages.map((page, pageIndex) => {
+      const pageId = tempId()
+      return {
+        id: pageId,
+        formId,
+        title: page.title,
+        description: page.description,
+        position: pageIndex,
+        isFinal: page.isFinal,
+        finalTemplate: page.finalTemplate,
+        finalRedirectUrl: null,
+        finalContactEmail: null,
+        hasPayment: false,
+        paymentGatewayId: null,
+        paymentAmountVariable: null,
+        paymentCurrency: 'USD',
+        paymentComputation: null,
+        subscriptionConfig: null,
+        fields: page.fields.map((field, fieldIndex) => ({
+          id: tempId(),
+          pageId,
+          fieldType: field.fieldType,
+          label: field.label,
+          placeholder: field.placeholder,
+          required: field.required,
+          options: field.options,
+          bindVariable: field.bindVariable,
+          position: fieldIndex,
+          width: field.width,
+          validationRules: field.validationRules,
+          conditionMatch: 'all',
+          conditions: [],
+        })),
+      }
+    })
+    const firstPage = nextPages.find((page) => !page.isFinal) ?? nextPages[0]
+    setAIUndoPages(previousPages)
+    setAIAppliedSnapshot(snapshotBuilder(nextPages, draftReferences))
+    setDraftPages(nextPages)
+    setSelectedPageId(firstPage?.id ?? 0)
+    setSelection(firstPage ? { type: 'page', pageId: firstPage.id } : null)
+    setPanelMode('settings')
+    setMobileSettingsOpen(false)
+    setAssistantOpen(false)
+    toast.info('AI draft placed on the canvas', 'Review it, then use Save changes when you are ready.')
+  }
+
+  function undoAICandidate() {
+    if (!aiUndoPages) return
+    const restored = aiUndoPages
+    const firstPage = restored.find((page) => !page.isFinal) ?? restored[0]
+    setDraftPages(restored)
+    setSelectedPageId(firstPage?.id ?? 0)
+    setSelection(firstPage ? { type: 'page', pageId: firstPage.id } : null)
+    setAIUndoPages(null)
+    setAIAppliedSnapshot(null)
+    toast.info('Previous draft restored')
   }
 
   function updateFieldLocal(fieldId: number, patch: Partial<PageField>) {
@@ -873,8 +951,35 @@ export function PageBuilderWorkspace({
             )}
           </div>
         </div>
-        <CanvasAskMenu />
+        {aiUndoPages && (
+          <div className="pointer-events-auto absolute bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(5.5rem,calc(env(safe-area-inset-right)+5.5rem))] z-30 flex items-center gap-3 rounded-xl border border-[#dfd3c8] bg-white px-3 py-2 shadow-[0_10px_30px_rgba(46,36,29,0.14)]">
+            <span className="text-xs text-[#6c6a64]">AI draft applied</span>
+            <button
+              type="button"
+              onClick={undoAICandidate}
+              className="text-xs font-semibold text-[#a9583e] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]"
+            >
+              Undo
+            </button>
+          </div>
+        )}
+        <CanvasAskMenu onSelect={(nextMode) => {
+          setAssistantMode(nextMode)
+          setAssistantOpen(true)
+        }} />
       </main>
+
+      <BuilderAIAssistant
+        formId={formId}
+        formTitle={formTitle}
+        open={assistantOpen}
+        mode={assistantMode}
+        pages={draftPages}
+        references={draftReferences}
+        onModeChange={setAssistantMode}
+        onApply={applyAICandidate}
+        onClose={() => setAssistantOpen(false)}
+      />
 
       {mobileSettingsOpen && (
         <button

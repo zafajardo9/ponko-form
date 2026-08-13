@@ -12,6 +12,7 @@ export interface AIAssistantMessage {
 }
 
 export interface AIDraftContext {
+  formTitle: string | null
   pages: Array<{
     title: string
     description: string | null
@@ -21,9 +22,18 @@ export interface AIDraftContext {
       label: string
       required: boolean
       bindVariable: string
+      placeholder?: string | null
+      options?: Array<{ label: string; value: string }> | null
+      width?: 'full' | 'half'
     }>
   }>
-  referenceKeys: string[]
+  references: Array<{
+    key: string
+    type: string
+    value: string
+    label: string | null
+    description: string | null
+  }>
 }
 
 export interface GeneratedFieldCandidate {
@@ -84,19 +94,34 @@ const messageSchema = z.object({
   content: z.string().trim().min(1).max(AI_MESSAGE_LENGTH),
 }).strict()
 
+const draftFieldSchema = z.object({
+  fieldType: z.string().max(40),
+  label: z.string().max(255),
+  required: z.boolean(),
+  bindVariable: z.string().max(80),
+  placeholder: z.string().max(2_000).nullable().optional(),
+  options: z.array(z.object({
+    label: z.string().max(255),
+    value: z.string().max(80),
+  }).strict()).max(20).nullable().optional(),
+  width: z.enum(['full', 'half']).optional(),
+}).strict()
+
 const draftSchema = z.object({
+  formTitle: z.string().max(255).nullable(),
   pages: z.array(z.object({
     title: z.string().max(255),
     description: z.string().max(1_000).nullable(),
     isFinal: z.boolean(),
-    fields: z.array(z.object({
-      fieldType: z.string().max(40),
-      label: z.string().max(255),
-      required: z.boolean(),
-      bindVariable: z.string().max(80),
-    }).strict()).max(30),
+    fields: z.array(draftFieldSchema).max(30),
   }).strict()).min(1).max(8),
-  referenceKeys: z.array(z.string().max(80)).max(50),
+  references: z.array(z.object({
+    key: z.string().max(80),
+    type: z.string().max(20),
+    value: z.string().max(255),
+    label: z.string().max(255).nullable(),
+    description: z.string().max(1_000).nullable(),
+  }).strict()).max(50),
 }).strict()
 
 const safeRulesSchema = z.object({
@@ -144,6 +169,8 @@ export const assistantRequestSchema = z.object({
   messages: z.array(messageSchema).min(1).max(AI_MESSAGE_LIMIT),
   draft: draftSchema,
   candidate: generatedFormCandidateSchema.optional(),
-}).strict()
+}).strict().refine((value) => JSON.stringify(value).length <= 400_000, {
+  message: 'Assistant request is too large',
+})
 
 export type AIAssistantRequest = z.infer<typeof assistantRequestSchema>

@@ -1,7 +1,6 @@
 import sanitizeHtml from 'sanitize-html'
 import { z } from 'zod'
 import type { GeneratedFormCandidate, GeneratedPageCandidate } from './contracts'
-import { slugForOptionValue } from '../../components/page-builder/PageBuilderUtils'
 
 const safeFieldTypes = [
   'text', 'email', 'number', 'textarea', 'select', 'checkbox', 'radio',
@@ -92,6 +91,14 @@ export const FORM_RESPONSE_JSON_SCHEMA = {
 } as const
 
 function bindingFor(label: string, requested: string | undefined, used: Set<string>) {
+  if (requested) {
+    if (!/^[a-z][a-z0-9_]{0,79}$/.test(requested)) {
+      throw new Error(`${requested} is not a valid field binding`)
+    }
+    if (used.has(requested)) throw new Error(`${requested} is used by more than one field`)
+    used.add(requested)
+    return requested
+  }
   let base = (requested || label)
     .toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 64)
   if (!base || !/^[a-z]/.test(base)) base = 'field'
@@ -100,6 +107,11 @@ function bindingFor(label: string, requested: string | undefined, used: Set<stri
   while (used.has(candidate)) candidate = `${base}_${suffix++}`
   used.add(candidate)
   return candidate
+}
+
+function optionValue(label: string, index: number) {
+  return label.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60)
+    || `option_${index + 1}`
 }
 
 function safeContent(value: string | null | undefined) {
@@ -134,11 +146,11 @@ export function parseGeneratedForm(value: unknown): { message: string; candidate
         throw new Error(`${field.label} has duplicate options`)
       }
       const options = needsOptions
-        ? optionLabels.map((label, index, all) => ({
+        ? optionLabels.map((label, index) => ({
             label,
             value: field.fieldType === 'satisfaction'
               ? String(index + 1)
-              : slugForOptionValue(label || `option_${index + 1}`),
+              : optionValue(label, index),
           })).filter((option, index, all) => all.findIndex((item) => item.value === option.value) === index)
         : null
       if (needsOptions && options!.length !== optionLabels.length) {

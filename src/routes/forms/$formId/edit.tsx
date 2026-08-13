@@ -931,6 +931,7 @@ function UnifiedEditorPage() {
         >
           <PageBuilderWorkspace
             formId={Number(formId)}
+            formTitle={form?.title ?? null}
             pages={pageForm.pages}
             references={pageForm.references ?? []}
             gateways={gateways as { id: number; name: string; slug: string }[]}
