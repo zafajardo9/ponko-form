@@ -16,8 +16,9 @@ dist-ssr
 *.local
 .DS_Store
 
-# Documentation & plans (not needed for the deployment)
-docs
+# Plans & analysis (not needed for the deployment).
+# NOTE: do not ignore `docs` — both `src/components/docs` (imported by app code)
+# and the root `docs/*.md` (bundled at build time via import.meta.glob) are required.
 feature-plan
 plans
 memory-ponko
