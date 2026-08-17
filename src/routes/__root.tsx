@@ -11,7 +11,7 @@ import { lazy, Suspense } from "react";
 import { ErrorBoundary } from "../components/layout/ErrorBoundary";
 import { ToastProvider } from "../components/ui/Toast";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
-import { isBarePublicPath } from "../lib/public-route";
+import { isBarePublicPath, isEmbeddableFormPath } from "../lib/public-route";
 import { appConfig } from "../utils/app-config";
 
 import appCss from "../styles.css?url";
@@ -64,16 +64,21 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // Embedded forms live in a host site's <iframe>: keep the document canvas
+  // transparent there so the host background shows through around the form,
+  // and only the form container's own theme color paints.
+  const canvasColor = isEmbeddableFormPath(pathname) ? "transparent" : "#faf9f5";
   return (
     <html
       lang="en"
       suppressHydrationWarning
-      style={{ backgroundColor: "#faf9f5" }}
+      style={{ backgroundColor: canvasColor }}
     >
       <head>
         <HeadContent />
       </head>
-      <body style={{ margin: 0, backgroundColor: "#faf9f5" }}>
+      <body style={{ margin: 0, backgroundColor: canvasColor }}>
         <ToastProvider>
           <ApplicationShell>{children}</ApplicationShell>
         </ToastProvider>

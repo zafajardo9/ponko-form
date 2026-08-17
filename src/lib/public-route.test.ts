@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { isBarePublicPath } from './public-route'
+import { isBarePublicPath, isEmbeddableFormPath } from './public-route'
 
 describe('isBarePublicPath', () => {
   it.each([
@@ -43,5 +43,37 @@ describe('isBarePublicPath', () => {
     expect(rootSource).not.toMatch(/AuthProvider/)
     expect(authenticatedShellSource).not.toMatch(/AuthProvider/)
     expect(authenticatedShellSource).toContain("../../lib/auth-client")
+  })
+})
+
+describe('isEmbeddableFormPath', () => {
+  it.each(['/forms/embed/public-form', '/forms/embed/abc123'])(
+    'renders %s on a transparent document canvas',
+    (pathname) => {
+      expect(isEmbeddableFormPath(pathname)).toBe(true)
+    },
+  )
+
+  it.each(['/', '/forms', '/forms/submit/public-form', '/pay/abc123def45'])(
+    'keeps %s on the default opaque canvas',
+    (pathname) => {
+      expect(isEmbeddableFormPath(pathname)).toBe(false)
+    },
+  )
+
+  it('is always a bare public path (no authenticated shell inside the iframe)', () => {
+    expect(isEmbeddableFormPath('/forms/embed/public-form')).toBe(true)
+    expect(isBarePublicPath('/forms/embed/public-form')).toBe(true)
+  })
+
+  it('keeps the root document canvas transparent for embeds and opaque elsewhere', () => {
+    const rootSource = readFileSync(
+      fileURLToPath(new URL('../routes/__root.tsx', import.meta.url)),
+      'utf8',
+    )
+
+    expect(rootSource).toContain('isEmbeddableFormPath(pathname) ? "transparent" : "#faf9f5"')
+    expect(rootSource).toMatch(/backgroundColor: canvasColor/)
+    expect(rootSource).not.toMatch(/backgroundColor: "#faf9f5"/)
   })
 })
