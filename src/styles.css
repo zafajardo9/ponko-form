@@ -628,6 +628,65 @@ body {
   animation: ponko-step-back 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* Grouped top navigation (hover mega-menu). The panel decelerates in from
+   just above its trigger while the destinations cascade up behind it; the
+   exit is shorter and accelerates away. Disabled for reduced motion. */
+@keyframes ponko-nav-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ponko-nav-panel-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.99);
+  }
+}
+
+@keyframes ponko-nav-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ponko-nav-panel-in {
+  animation: ponko-nav-panel-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ponko-nav-panel-out {
+  animation: ponko-nav-panel-out 130ms cubic-bezier(0.3, 0, 1, 1) both;
+}
+
+/* Items wait for the panel to start landing, then stagger in (micro-cascade
+   budget: 40ms base + 28ms per item stays well under 500ms total). */
+.ponko-nav-item-in {
+  animation: ponko-nav-item-in 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(40ms + var(--nav-i, 0) * 28ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ponko-nav-panel-in,
+  .ponko-nav-panel-out,
+  .ponko-nav-item-in {
+    animation: none;
+  }
+}
+
 /* Progress bar shine sweep — replayed once per page change via re-keying. */
 @keyframes ponko-progress-shine {
   from {

@@ -1,10 +1,11 @@
 import { Link, useRouterState } from '@tanstack/react-router'
-import { Menu, X } from 'lucide-react'
+import { BadgePercent, BookOpen, CreditCard, FilePlus2, LayoutList, Menu, Rocket, X } from 'lucide-react'
 import { lazy, Suspense, useEffect, useId, useRef, useState } from 'react'
 import { useSession } from '../../lib/auth-client'
 import { appConfig } from '../../utils/app-config'
 import { UserMenu } from '../auth/UserMenu'
 import { AppLogo } from '../ui/AppLogo'
+import { NavMenu, type NavMenuItem } from './NavMenu'
 
 const FloatingQuickActions = lazy(() =>
   import('./FloatingQuickActions').then((module) => ({
@@ -50,6 +51,58 @@ export default function AuthenticatedAppShell({
 const navLinkClass =
   'text-sm text-[#6c6a64] transition-colors hover:text-[#141413] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2 [&.active]:font-medium [&.active]:text-[#141413]'
 
+// Workspace destinations are grouped behind one hover menu so the top bar
+// stays short; each entry gets an icon tile and a one-line description.
+const workspaceItems: NavMenuItem[] = [
+  {
+    to: '/forms',
+    label: 'Forms',
+    description: 'Open, edit, and share every form',
+    icon: LayoutList,
+    tileClass: 'bg-[#f5e4dc] text-[#a9583e]',
+    activeWhen: (pathname) => pathname === '/forms' || (pathname.startsWith('/forms/') && pathname !== '/forms/new'),
+  },
+  {
+    to: '/forms/new',
+    label: 'New form',
+    description: 'Start a form from a blank canvas',
+    icon: FilePlus2,
+    tileClass: 'bg-[#eaf4ec] text-[#3f7048]',
+    activeWhen: (pathname) => pathname === '/forms/new',
+  },
+  {
+    to: '/dashboard/payment-links',
+    label: 'Payment Links',
+    description: 'Charge directly, no form needed',
+    icon: CreditCard,
+    tileClass: 'bg-[#e8eefc] text-[#2f5fc4]',
+  },
+  {
+    to: '/discounts',
+    label: 'Discounts',
+    description: 'Codes, percent-off, and deals',
+    icon: BadgePercent,
+    tileClass: 'bg-[#fff3d6] text-[#96731d]',
+  },
+]
+
+const resourcesItems: NavMenuItem[] = [
+  {
+    to: '/docs',
+    label: 'Documentation',
+    description: 'Guides, concepts, and how-tos',
+    icon: BookOpen,
+    tileClass: 'bg-[#f1ecfd] text-[#6d4fc9]',
+  },
+  {
+    to: '/progress',
+    label: 'Progress',
+    description: 'Roadmap and what shipped lately',
+    icon: Rocket,
+    tileClass: 'bg-[#fde8e4] text-[#b3543c]',
+  },
+]
+
 export function TopNav({ signedIn }: { signedIn: boolean }) {
   return (
     <header className="sticky top-0 z-50 flex h-16 items-center border-b border-[#e6dfd8] bg-[#faf9f5]/95 px-4 backdrop-blur-sm sm:px-6">
@@ -65,7 +118,7 @@ export function TopNav({ signedIn }: { signedIn: boolean }) {
             </span>
           </Link>
 
-          <nav className="hidden items-center gap-6 sm:flex">
+          <nav className="hidden items-center gap-5 sm:flex" aria-label="Primary">
             {signedIn ? <>
               <Link
                 to="/dashboard"
@@ -73,40 +126,12 @@ export function TopNav({ signedIn }: { signedIn: boolean }) {
               >
                 Dashboard
               </Link>
-              <Link
-                to="/forms"
-                className={navLinkClass}
-              >
-                Forms
-              </Link>
-              <Link
-                to="/dashboard/payment-links"
-                className={navLinkClass}
-              >
-                Payment Links
-              </Link>
-              <Link to="/discounts" className={navLinkClass}>
-                Discounts
-              </Link>
-              <Link
-                to="/settings/integrations"
-                className={navLinkClass}
-              >
+              <NavMenu label="Workspace" items={workspaceItems} />
+              <Link to="/settings/integrations" className={navLinkClass}>
                 Integrations
               </Link>
             </> : null}
-            <Link
-              to="/docs"
-              className={navLinkClass}
-            >
-              Docs
-            </Link>
-            <Link
-              to="/progress"
-              className={navLinkClass}
-            >
-              Progress
-            </Link>
+            <NavMenu label="Resources" items={resourcesItems} />
           </nav>
         </div>
 
@@ -190,11 +215,15 @@ function MobileNavigation({ signedIn }: { signedIn: boolean }) {
             </p>
             <MobileNavLink to="/dashboard" onSelect={close}>Dashboard</MobileNavLink>
             <MobileNavLink to="/forms" onSelect={close}>Forms</MobileNavLink>
+            <MobileNavLink to="/forms/new" onSelect={close}>New form</MobileNavLink>
             <MobileNavLink to="/dashboard/payment-links" onSelect={close}>Payment Links</MobileNavLink>
             <MobileNavLink to="/discounts" onSelect={close}>Discounts</MobileNavLink>
             <MobileNavLink to="/settings/integrations" onSelect={close}>Integrations</MobileNavLink>
             <div className="my-2 h-px bg-[#e6dfd8]" />
           </> : null}
+          <p className="px-3 pb-2 pt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-[#8e8b82]">
+            Resources
+          </p>
           <MobileNavLink to="/docs" onSelect={close}>Documentation</MobileNavLink>
           <MobileNavLink to="/progress" onSelect={close}>Progress</MobileNavLink>
           {!signedIn ? (
@@ -217,7 +246,7 @@ function MobileNavLink({
   onSelect,
   children,
 }: {
-  to: '/dashboard' | '/dashboard/payment-links' | '/discounts' | '/forms' | '/settings/integrations' | '/docs' | '/progress'
+  to: '/dashboard' | '/dashboard/payment-links' | '/discounts' | '/forms' | '/forms/new' | '/settings/integrations' | '/docs' | '/progress'
   onSelect: () => void
   children: React.ReactNode
 }) {
