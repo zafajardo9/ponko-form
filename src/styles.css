@@ -75,6 +75,14 @@
   --blur-small: 2px;
   --blur-medium: 3px;
   --blur-large: 8px;
+  --page-slide-dur: 250ms;
+  --page-fade-dur: 250ms;
+  --page-slide-distance: 8px;
+  --page-blur: 3px;
+  --page-stagger: 0ms;
+  --page-exit-enabled: 1;
+  --page-slide-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --page-fade-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --modal-open-dur: 250ms;
   --modal-close-dur: 150ms;
   --modal-scale: 0.96;
@@ -115,6 +123,62 @@ body {
   font-family: var(--font-body);
   color: var(--color-body);
   background: var(--color-canvas);
+}
+
+/* transitions.dev page slide (08-page-side-by-side.md), adapted to the
+   browser View Transitions API so outgoing and incoming routes can overlap. */
+.t-route-page {
+  min-width: 0;
+  view-transition-name: ponko-route-page;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-group(ponko-route-page) {
+  animation-duration: var(--page-slide-dur);
+  animation-timing-function: var(--page-slide-ease);
+}
+
+::view-transition-old(ponko-route-page) {
+  animation: t-route-page-out var(--page-fade-dur) var(--page-fade-ease) both;
+  will-change: opacity, transform, filter;
+}
+
+::view-transition-new(ponko-route-page) {
+  animation: t-route-page-in var(--page-slide-dur) var(--page-slide-ease) var(--page-stagger) both;
+  will-change: opacity, transform, filter;
+}
+
+@keyframes t-route-page-out {
+  to {
+    opacity: 0;
+    transform: translateX(calc(var(--page-slide-distance) * var(--page-exit-enabled) * -1));
+    filter: blur(calc(var(--page-blur) * var(--page-exit-enabled)));
+  }
+}
+
+@keyframes t-route-page-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--page-slide-distance));
+    filter: blur(var(--page-blur));
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+    filter: blur(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-route-page { view-transition-name: none; }
+  ::view-transition-group(ponko-route-page),
+  ::view-transition-old(ponko-route-page),
+  ::view-transition-new(ponko-route-page) { animation: none !important; }
 }
 
 /* transitions.dev modal open / close (06-modal.md). */

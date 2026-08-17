@@ -104,7 +104,9 @@ function ApplicationShell({ children }: { children: React.ReactNode }) {
   return (
     <ErrorBoundary key={pathname}>
       <Suspense fallback={<ShellLoading />}>
-        <AuthenticatedAppShell>{children}</AuthenticatedAppShell>
+        <AuthenticatedAppShell>
+          <div className="t-route-page">{children}</div>
+        </AuthenticatedAppShell>
       </Suspense>
     </ErrorBoundary>
   )
