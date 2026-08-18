@@ -38,7 +38,7 @@ void main() {
 
 const ORIGINAL_QUALITY = 60;
 
-const buildFragment = (iterations: number) => {
+const buildFragment = () => {
   return `#version 300 es
 precision highp float;
 uniform vec2 iResolution;
@@ -157,7 +157,7 @@ export const Plasma: React.FC<PlasmaProps> = ({
 
     const program = new Program(gl, {
       vertex: vertex,
-      fragment: buildFragment(iterations),
+      fragment: buildFragment(),
       uniforms: {
         iTime: { value: 0 },
         iResolution: { value: new Float32Array([1, 1]) },

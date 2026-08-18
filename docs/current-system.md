@@ -68,6 +68,15 @@ Payment links provide standalone checkout without a form. Creators manage them a
 - Each link has a title, amount, currency (default PHP), gateway, optional custom-amount toggle with min/max bounds, optional redirect URL, and success message.
 - Links can be deactivated; `total_payments` and `total_revenue` counters track usage.
 
+## Popups
+
+Popups are self-contained lead-capture surfaces (decoupled from forms — a button element links to any safe URL, including a form share link). Creators manage them at `/popups` and design them at `/popups/$popupId/edit` on a free-position canvas (heading/text/image/button/divider/sanitized-html elements). Legacy `/dashboard/popups` URLs redirect to these routes.
+
+- Triggers: on load (+delay), exit intent, scroll depth, click on a CSS selector. Frequency: every visit / once per session / day / week.
+- Embedding is a copy-paste `<script data-popup>` snippet; the host-side loader (`public/embed/popup-loader.js`) fetches the config, renders an iframe (`/popups/$publicId/embed`), watches triggers, and reports view/click counters.
+- Only published popups are served publicly; drafts return 404 from public config and embed routes. Owners can exercise drafts through the authenticated real-loader preview.
+- See the [Popup Embed Guide](popup-embed-guide.md) for the creator flow.
+
 ## Email and Invoicing
 
 - Resend and SMTP are operational for respondent email.
@@ -109,6 +118,9 @@ Credentials are AES-256-GCM encrypted with `CREDENTIALS_ENCRYPTION_KEY`. Secrets
 | `/flow/$executionId/complete` | Flow completion/receipt |
 | `/pay/$publicId` | Standalone payment-link checkout |
 | `/pay/$publicId/success` | Payment-link completion page |
+| `/popups/$publicId/embed` | Transparent popup iframe content (loader host script: `public/embed/popup-loader.js`) |
+| `/popups/$publicId/preview` | Popup preview on a mock host page with trigger simulator |
+| `/api/popups/$publicId/{config,view,click}` | Public popup config (CORS-open) and stats beacons |
 
 The Xendit webhook route uses an owner-specific endpoint key. The internal reconciliation route requires `CRON_SECRET`.
 
@@ -134,6 +146,7 @@ The build compiles Nitro output, prepares/migrates the database, validates the s
 | Payment registry | `src/integrations/payments/index.ts` |
 | Discount domain/rules | `src/lib/discounts.ts`, `src/lib/server-fns/discounts.ts` |
 | Payment links | `src/lib/payment-links/`, `src/lib/server-fns/payment-links.ts` |
+| Popups (builder, runtime, loader) | `src/lib/popup-builder/`, `src/components/popup-builder/`, `src/components/popup-runtime/`, `src/lib/server-fns/popups.ts`, `public/embed/popup-loader.js` |
 | Email dispatch | `src/lib/email/transactional.ts`, `src/lib/invoicing/delivery.ts` |
 | Integration catalog/config | `src/lib/integrations/types.ts`, `src/components/integrations/ProviderForms.ts` |
 | Deployment | `render.yaml`, `vercel.json`, `wrangler.jsonc`, `package.json`, `vite.config.ts` |

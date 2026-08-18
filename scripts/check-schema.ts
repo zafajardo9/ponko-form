@@ -182,6 +182,12 @@ async function main() {
         SELECT 1 FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = 'verification'
       ) AS has_better_auth_verification,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'popups'
+          AND column_name = 'schedule'
+      ) AS has_popup_schedule,
       to_regprocedure('public.replace_page_form(integer,jsonb,jsonb)') IS NOT NULL
         AS has_replace_page_form
   `
@@ -240,6 +246,7 @@ async function main() {
     !compatibility?.has_better_auth_session ||
     !compatibility?.has_better_auth_account ||
     !compatibility?.has_better_auth_verification ||
+    !compatibility?.has_popup_schedule ||
     !compatibility?.has_replace_page_form
   ) {
     throw new Error(

@@ -8,6 +8,7 @@ const BARE_PUBLIC_PREFIXES = [
 
 export function isBarePublicPath(pathname: string) {
   return BARE_PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+    || /^\/popups\/[^/]+\/(embed|preview)\/?$/.test(pathname)
 }
 
 /**
@@ -18,4 +19,14 @@ export function isBarePublicPath(pathname: string) {
  */
 export function isEmbeddableFormPath(pathname: string) {
   return pathname.startsWith('/forms/embed/')
+}
+
+/**
+ * Any route whose document canvas must stay transparent inside a host
+ * <iframe>: form embeds and popup embeds (the popup preview page is a mock
+ * host site and keeps the default opaque canvas).
+ */
+export function isTransparentCanvasPath(pathname: string) {
+  return isEmbeddableFormPath(pathname)
+    || (pathname.startsWith('/popups/') && pathname.endsWith('/embed'))
 }

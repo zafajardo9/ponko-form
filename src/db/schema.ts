@@ -1095,3 +1095,67 @@ export const paymentLinks = pgTable(
     index('payment_links_profile_id_idx').on(table.profileId),
   ],
 )
+
+// ── Popups (FT-026) ──
+
+export const popups = pgTable(
+  'popups',
+  {
+    id: serial().primaryKey(),
+    profileId: integer('profile_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    title: varchar('title', { length: 255 }).notNull(),
+    status: formStatusEnum('status').default('draft').notNull(),
+    publicId: varchar('public_id', { length: 32 }).notNull(),
+    /** Design canvas size in px — the box the creator lays out in. */
+    width: integer('width').notNull().default(420),
+    height: integer('height').notNull().default(380),
+    /** Where the popup sits on the host page. */
+    placement: varchar('placement', { length: 20 })
+      .notNull()
+      .default('center')
+      .$type<
+        | 'center'
+        | 'top-left'
+        | 'top-right'
+        | 'bottom-left'
+        | 'bottom-right'
+        | 'fullscreen'
+      >(),
+    /** When it appears (discriminated union — see PopupTriggerConfig). */
+    trigger: jsonb('trigger')
+      .$type<import('../lib/popup-builder/types').PopupTriggerConfig>()
+      .notNull()
+      .default({ type: 'on-load', delayMs: 0 }),
+    /** How often it may appear to the same visitor. */
+    frequency: varchar('frequency', { length: 20 })
+      .notNull()
+      .default('once-per-session')
+      .$type<import('../lib/popup-builder/types').PopupFrequency>(),
+    /** Optional campaign date bounds and visitor-local daily display window. */
+    schedule: jsonb('schedule')
+      .$type<import('../lib/popup-builder/types').PopupSchedule>()
+      .notNull()
+      .default({}),
+    /** Popup-level look & feel (overlay, animation, fonts, closable). */
+    style: jsonb('style')
+      .$type<import('../lib/popup-builder/types').PopupStyle>()
+      .notNull()
+      .default({}),
+    /** The canvas content — absolutely positioned elements. */
+    elements: jsonb('elements')
+      .$type<import('../lib/popup-builder/types').PopupElement[]>()
+      .notNull()
+      .default([]),
+    /** Lead stats (v1 counters; a time-series table is a later enhancement). */
+    viewCount: integer('view_count').notNull().default(0),
+    clickCount: integer('click_count').notNull().default(0),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('popups_profile_id_idx').on(table.profileId),
+    uniqueIndex('popups_public_id_idx').on(table.publicId),
+  ],
+)

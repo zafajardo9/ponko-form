@@ -595,6 +595,68 @@ body {
   text-decoration: underline;
 }
 
+/* Compact TipTap editor and public popup rendering share the same rhythm so
+   auto-height measurement remains genuinely WYSIWYG. */
+.popup-tiptap-content,
+.popup-rich-text {
+  overflow-wrap: anywhere;
+}
+
+.popup-tiptap-content > :first-child,
+.popup-rich-text > :first-child {
+  margin-top: 0;
+}
+
+.popup-tiptap-content > :last-child,
+.popup-rich-text > :last-child {
+  margin-bottom: 0;
+}
+
+.popup-tiptap-content p,
+.popup-rich-text p {
+  margin: 0 0 0.35em;
+}
+
+.popup-tiptap-content ul,
+.popup-tiptap-content ol,
+.popup-rich-text ul,
+.popup-rich-text ol {
+  margin: 0.3em 0 0.45em;
+  padding-left: 1.35em;
+}
+
+.popup-tiptap-content ul,
+.popup-rich-text ul {
+  list-style: disc;
+}
+
+.popup-tiptap-content ol,
+.popup-rich-text ol {
+  list-style: decimal;
+}
+
+.popup-tiptap-content li,
+.popup-rich-text li {
+  margin: 0.12em 0;
+}
+
+.popup-tiptap-content li p,
+.popup-rich-text li p {
+  margin: 0;
+}
+
+.popup-tiptap-content a,
+.popup-rich-text a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.popup-tiptap-content s,
+.popup-rich-text s {
+  text-decoration: line-through;
+}
+
 /* Step transitions for the end-user flow runtime (next / back). Direction-aware
    so forward slides in from the right and back from the left. Disabled for the
    embedded form and when the visitor prefers reduced motion. */
@@ -684,6 +746,84 @@ body {
   .ponko-nav-panel-out,
   .ponko-nav-item-in {
     animation: none;
+  }
+}
+
+/* Popup runtime entrance animations — replayed when the host loader sends
+   `ponkoform:popup:show`. The host-side overlay handles fade/zoom/slide for
+   the box; these animate the content card inside the iframe. */
+@keyframes ponko-popup-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ponko-popup-zoom-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes ponko-popup-slide-up-in {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.ponko-popup-enter-fade {
+  animation: ponko-popup-fade-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ponko-popup-enter-zoom {
+  animation: ponko-popup-zoom-in 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ponko-popup-enter-slide-up {
+  animation: ponko-popup-slide-up-in 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Popup CTA buttons retain canvas rotation while adding an optional, restrained
+   interaction cue. Variables come from the saved element appearance. */
+.ponko-popup-button {
+  box-shadow: var(--popup-button-shadow, none);
+  transform: var(--popup-button-base-transform, none);
+  transition:
+    background-color var(--duration-fast) var(--ease-smooth-out),
+    color var(--duration-fast) var(--ease-smooth-out),
+    border-color var(--duration-fast) var(--ease-smooth-out),
+    box-shadow var(--duration-fast) var(--ease-smooth-out),
+    transform var(--duration-fast) var(--ease-smooth-out);
+}
+
+.ponko-popup-button[data-interactive="true"]:hover {
+  background-color: var(--popup-button-hover-bg);
+  color: var(--popup-button-hover-color);
+}
+
+.ponko-popup-button[data-interactive="true"][data-hover-effect="lift"]:hover {
+  box-shadow: 0 10px 24px rgb(20 20 19 / 0.2);
+  transform: var(--popup-button-base-transform, none) translateY(-2px);
+}
+
+.ponko-popup-button[data-interactive="true"][data-hover-effect="glow"]:hover {
+  box-shadow: var(--popup-button-shadow, none), 0 0 0 4px color-mix(in srgb, var(--popup-button-hover-bg) 22%, transparent);
+}
+
+.ponko-popup-button[data-interactive="true"]:active {
+  transform: var(--popup-button-base-transform, none) scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ponko-popup-enter-fade,
+  .ponko-popup-enter-zoom,
+  .ponko-popup-enter-slide-up {
+    animation: none;
+  }
+
+  .ponko-popup-button {
+    transition: none;
+  }
+
+  .ponko-popup-button[data-interactive="true"]:hover,
+  .ponko-popup-button[data-interactive="true"]:active {
+    transform: var(--popup-button-base-transform, none);
   }
 }
 

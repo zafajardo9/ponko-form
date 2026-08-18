@@ -15,6 +15,7 @@ import { Route as ProgressRouteImport } from './routes/progress'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as DiscountsRouteImport } from './routes/discounts'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PopupsIndexRouteImport } from './routes/popups/index'
 import { Route as FormsIndexRouteImport } from './routes/forms/index'
 import { Route as DocsIndexRouteImport } from './routes/docs/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
@@ -26,6 +27,10 @@ import { Route as FormsNewRouteImport } from './routes/forms/new'
 import { Route as DocsSlugRouteImport } from './routes/docs/$slug'
 import { Route as DashboardPaymentLinksRouteImport } from './routes/dashboard/payment-links'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as DashboardPopupsIndexRouteImport } from './routes/dashboard/popups/index'
+import { Route as PopupsPublicIdPreviewRouteImport } from './routes/popups/$publicId/preview'
+import { Route as PopupsPublicIdEmbedRouteImport } from './routes/popups/$publicId/embed'
+import { Route as PopupsPopupIdEditRouteImport } from './routes/popups/$popupId/edit'
 import { Route as PayPublicIdSuccessRouteImport } from './routes/pay/$publicId/success'
 import { Route as IntegrationsGoogleCallbackRouteImport } from './routes/integrations/google/callback'
 import { Route as FormsSubmitFormIdRouteImport } from './routes/forms/submit/$formId'
@@ -38,9 +43,13 @@ import { Route as FormsFormIdEmailsRouteImport } from './routes/forms/$formId/em
 import { Route as FormsFormIdEditRouteImport } from './routes/forms/$formId/edit'
 import { Route as FormsFormIdDiscountsRouteImport } from './routes/forms/$formId/discounts'
 import { Route as FlowExecutionIdCompleteRouteImport } from './routes/flow/$executionId/complete'
+import { Route as DashboardPopupsPopupIdRouteImport } from './routes/dashboard/popups/$popupId'
 import { Route as ApiInternalReconcilePaymentsRouteImport } from './routes/api/internal/reconcile-payments'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiWebhooksXenditEndpointKeyRouteImport } from './routes/api/webhooks/xendit/$endpointKey'
+import { Route as ApiPopupsPublicIdViewRouteImport } from './routes/api/popups/$publicId/view'
+import { Route as ApiPopupsPublicIdConfigRouteImport } from './routes/api/popups/$publicId/config'
+import { Route as ApiPopupsPublicIdClickRouteImport } from './routes/api/popups/$publicId/click'
 import { Route as ApiFormsFormIdSubmissionsExportRouteImport } from './routes/api/forms/$formId/submissions-export'
 
 const SignOutRoute = SignOutRouteImport.update({
@@ -71,6 +80,11 @@ const DiscountsRoute = DiscountsRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PopupsIndexRoute = PopupsIndexRouteImport.update({
+  id: '/popups/',
+  path: '/popups/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FormsIndexRoute = FormsIndexRouteImport.update({
@@ -126,6 +140,26 @@ const DashboardPaymentLinksRoute = DashboardPaymentLinksRouteImport.update({
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardPopupsIndexRoute = DashboardPopupsIndexRouteImport.update({
+  id: '/dashboard/popups/',
+  path: '/dashboard/popups/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PopupsPublicIdPreviewRoute = PopupsPublicIdPreviewRouteImport.update({
+  id: '/popups/$publicId/preview',
+  path: '/popups/$publicId/preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PopupsPublicIdEmbedRoute = PopupsPublicIdEmbedRouteImport.update({
+  id: '/popups/$publicId/embed',
+  path: '/popups/$publicId/embed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PopupsPopupIdEditRoute = PopupsPopupIdEditRouteImport.update({
+  id: '/popups/$popupId/edit',
+  path: '/popups/$popupId/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PayPublicIdSuccessRoute = PayPublicIdSuccessRouteImport.update({
@@ -189,6 +223,11 @@ const FlowExecutionIdCompleteRoute = FlowExecutionIdCompleteRouteImport.update({
   path: '/flow/$executionId/complete',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DashboardPopupsPopupIdRoute = DashboardPopupsPopupIdRouteImport.update({
+  id: '/dashboard/popups/$popupId',
+  path: '/dashboard/popups/$popupId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiInternalReconcilePaymentsRoute =
   ApiInternalReconcilePaymentsRouteImport.update({
     id: '/api/internal/reconcile-payments',
@@ -206,6 +245,21 @@ const ApiWebhooksXenditEndpointKeyRoute =
     path: '/api/webhooks/xendit/$endpointKey',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPopupsPublicIdViewRoute = ApiPopupsPublicIdViewRouteImport.update({
+  id: '/api/popups/$publicId/view',
+  path: '/api/popups/$publicId/view',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPopupsPublicIdConfigRoute = ApiPopupsPublicIdConfigRouteImport.update({
+  id: '/api/popups/$publicId/config',
+  path: '/api/popups/$publicId/config',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPopupsPublicIdClickRoute = ApiPopupsPublicIdClickRouteImport.update({
+  id: '/api/popups/$publicId/click',
+  path: '/api/popups/$publicId/click',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiFormsFormIdSubmissionsExportRoute =
   ApiFormsFormIdSubmissionsExportRouteImport.update({
     id: '/api/forms/$formId/submissions-export',
@@ -231,8 +285,10 @@ export interface FileRoutesByFullPath {
   '/dashboard/': typeof DashboardIndexRoute
   '/docs/': typeof DocsIndexRoute
   '/forms/': typeof FormsIndexRoute
+  '/popups/': typeof PopupsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/internal/reconcile-payments': typeof ApiInternalReconcilePaymentsRoute
+  '/dashboard/popups/$popupId': typeof DashboardPopupsPopupIdRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/discounts': typeof FormsFormIdDiscountsRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
@@ -245,7 +301,14 @@ export interface FileRoutesByFullPath {
   '/forms/submit/$formId': typeof FormsSubmitFormIdRoute
   '/integrations/google/callback': typeof IntegrationsGoogleCallbackRoute
   '/pay/$publicId/success': typeof PayPublicIdSuccessRoute
+  '/popups/$popupId/edit': typeof PopupsPopupIdEditRoute
+  '/popups/$publicId/embed': typeof PopupsPublicIdEmbedRoute
+  '/popups/$publicId/preview': typeof PopupsPublicIdPreviewRoute
+  '/dashboard/popups/': typeof DashboardPopupsIndexRoute
   '/api/forms/$formId/submissions-export': typeof ApiFormsFormIdSubmissionsExportRoute
+  '/api/popups/$publicId/click': typeof ApiPopupsPublicIdClickRoute
+  '/api/popups/$publicId/config': typeof ApiPopupsPublicIdConfigRoute
+  '/api/popups/$publicId/view': typeof ApiPopupsPublicIdViewRoute
   '/api/webhooks/xendit/$endpointKey': typeof ApiWebhooksXenditEndpointKeyRoute
 }
 export interface FileRoutesByTo {
@@ -266,8 +329,10 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardIndexRoute
   '/docs': typeof DocsIndexRoute
   '/forms': typeof FormsIndexRoute
+  '/popups': typeof PopupsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/internal/reconcile-payments': typeof ApiInternalReconcilePaymentsRoute
+  '/dashboard/popups/$popupId': typeof DashboardPopupsPopupIdRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/discounts': typeof FormsFormIdDiscountsRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
@@ -280,7 +345,14 @@ export interface FileRoutesByTo {
   '/forms/submit/$formId': typeof FormsSubmitFormIdRoute
   '/integrations/google/callback': typeof IntegrationsGoogleCallbackRoute
   '/pay/$publicId/success': typeof PayPublicIdSuccessRoute
+  '/popups/$popupId/edit': typeof PopupsPopupIdEditRoute
+  '/popups/$publicId/embed': typeof PopupsPublicIdEmbedRoute
+  '/popups/$publicId/preview': typeof PopupsPublicIdPreviewRoute
+  '/dashboard/popups': typeof DashboardPopupsIndexRoute
   '/api/forms/$formId/submissions-export': typeof ApiFormsFormIdSubmissionsExportRoute
+  '/api/popups/$publicId/click': typeof ApiPopupsPublicIdClickRoute
+  '/api/popups/$publicId/config': typeof ApiPopupsPublicIdConfigRoute
+  '/api/popups/$publicId/view': typeof ApiPopupsPublicIdViewRoute
   '/api/webhooks/xendit/$endpointKey': typeof ApiWebhooksXenditEndpointKeyRoute
 }
 export interface FileRoutesById {
@@ -302,8 +374,10 @@ export interface FileRoutesById {
   '/dashboard/': typeof DashboardIndexRoute
   '/docs/': typeof DocsIndexRoute
   '/forms/': typeof FormsIndexRoute
+  '/popups/': typeof PopupsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/internal/reconcile-payments': typeof ApiInternalReconcilePaymentsRoute
+  '/dashboard/popups/$popupId': typeof DashboardPopupsPopupIdRoute
   '/flow/$executionId/complete': typeof FlowExecutionIdCompleteRoute
   '/forms/$formId/discounts': typeof FormsFormIdDiscountsRoute
   '/forms/$formId/edit': typeof FormsFormIdEditRoute
@@ -316,7 +390,14 @@ export interface FileRoutesById {
   '/forms/submit/$formId': typeof FormsSubmitFormIdRoute
   '/integrations/google/callback': typeof IntegrationsGoogleCallbackRoute
   '/pay/$publicId/success': typeof PayPublicIdSuccessRoute
+  '/popups/$popupId/edit': typeof PopupsPopupIdEditRoute
+  '/popups/$publicId/embed': typeof PopupsPublicIdEmbedRoute
+  '/popups/$publicId/preview': typeof PopupsPublicIdPreviewRoute
+  '/dashboard/popups/': typeof DashboardPopupsIndexRoute
   '/api/forms/$formId/submissions-export': typeof ApiFormsFormIdSubmissionsExportRoute
+  '/api/popups/$publicId/click': typeof ApiPopupsPublicIdClickRoute
+  '/api/popups/$publicId/config': typeof ApiPopupsPublicIdConfigRoute
+  '/api/popups/$publicId/view': typeof ApiPopupsPublicIdViewRoute
   '/api/webhooks/xendit/$endpointKey': typeof ApiWebhooksXenditEndpointKeyRoute
 }
 export interface FileRouteTypes {
@@ -339,8 +420,10 @@ export interface FileRouteTypes {
     | '/dashboard/'
     | '/docs/'
     | '/forms/'
+    | '/popups/'
     | '/api/auth/$'
     | '/api/internal/reconcile-payments'
+    | '/dashboard/popups/$popupId'
     | '/flow/$executionId/complete'
     | '/forms/$formId/discounts'
     | '/forms/$formId/edit'
@@ -353,7 +436,14 @@ export interface FileRouteTypes {
     | '/forms/submit/$formId'
     | '/integrations/google/callback'
     | '/pay/$publicId/success'
+    | '/popups/$popupId/edit'
+    | '/popups/$publicId/embed'
+    | '/popups/$publicId/preview'
+    | '/dashboard/popups/'
     | '/api/forms/$formId/submissions-export'
+    | '/api/popups/$publicId/click'
+    | '/api/popups/$publicId/config'
+    | '/api/popups/$publicId/view'
     | '/api/webhooks/xendit/$endpointKey'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -374,8 +464,10 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/docs'
     | '/forms'
+    | '/popups'
     | '/api/auth/$'
     | '/api/internal/reconcile-payments'
+    | '/dashboard/popups/$popupId'
     | '/flow/$executionId/complete'
     | '/forms/$formId/discounts'
     | '/forms/$formId/edit'
@@ -388,7 +480,14 @@ export interface FileRouteTypes {
     | '/forms/submit/$formId'
     | '/integrations/google/callback'
     | '/pay/$publicId/success'
+    | '/popups/$popupId/edit'
+    | '/popups/$publicId/embed'
+    | '/popups/$publicId/preview'
+    | '/dashboard/popups'
     | '/api/forms/$formId/submissions-export'
+    | '/api/popups/$publicId/click'
+    | '/api/popups/$publicId/config'
+    | '/api/popups/$publicId/view'
     | '/api/webhooks/xendit/$endpointKey'
   id:
     | '__root__'
@@ -409,8 +508,10 @@ export interface FileRouteTypes {
     | '/dashboard/'
     | '/docs/'
     | '/forms/'
+    | '/popups/'
     | '/api/auth/$'
     | '/api/internal/reconcile-payments'
+    | '/dashboard/popups/$popupId'
     | '/flow/$executionId/complete'
     | '/forms/$formId/discounts'
     | '/forms/$formId/edit'
@@ -423,7 +524,14 @@ export interface FileRouteTypes {
     | '/forms/submit/$formId'
     | '/integrations/google/callback'
     | '/pay/$publicId/success'
+    | '/popups/$popupId/edit'
+    | '/popups/$publicId/embed'
+    | '/popups/$publicId/preview'
+    | '/dashboard/popups/'
     | '/api/forms/$formId/submissions-export'
+    | '/api/popups/$publicId/click'
+    | '/api/popups/$publicId/config'
+    | '/api/popups/$publicId/view'
     | '/api/webhooks/xendit/$endpointKey'
   fileRoutesById: FileRoutesById
 }
@@ -445,8 +553,10 @@ export interface RootRouteChildren {
   DashboardIndexRoute: typeof DashboardIndexRoute
   DocsIndexRoute: typeof DocsIndexRoute
   FormsIndexRoute: typeof FormsIndexRoute
+  PopupsIndexRoute: typeof PopupsIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiInternalReconcilePaymentsRoute: typeof ApiInternalReconcilePaymentsRoute
+  DashboardPopupsPopupIdRoute: typeof DashboardPopupsPopupIdRoute
   FlowExecutionIdCompleteRoute: typeof FlowExecutionIdCompleteRoute
   FormsFormIdDiscountsRoute: typeof FormsFormIdDiscountsRoute
   FormsFormIdEditRoute: typeof FormsFormIdEditRoute
@@ -458,7 +568,14 @@ export interface RootRouteChildren {
   FormsEmbedFormIdRoute: typeof FormsEmbedFormIdRoute
   FormsSubmitFormIdRoute: typeof FormsSubmitFormIdRoute
   IntegrationsGoogleCallbackRoute: typeof IntegrationsGoogleCallbackRoute
+  PopupsPopupIdEditRoute: typeof PopupsPopupIdEditRoute
+  PopupsPublicIdEmbedRoute: typeof PopupsPublicIdEmbedRoute
+  PopupsPublicIdPreviewRoute: typeof PopupsPublicIdPreviewRoute
+  DashboardPopupsIndexRoute: typeof DashboardPopupsIndexRoute
   ApiFormsFormIdSubmissionsExportRoute: typeof ApiFormsFormIdSubmissionsExportRoute
+  ApiPopupsPublicIdClickRoute: typeof ApiPopupsPublicIdClickRoute
+  ApiPopupsPublicIdConfigRoute: typeof ApiPopupsPublicIdConfigRoute
+  ApiPopupsPublicIdViewRoute: typeof ApiPopupsPublicIdViewRoute
   ApiWebhooksXenditEndpointKeyRoute: typeof ApiWebhooksXenditEndpointKeyRoute
 }
 
@@ -504,6 +621,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/popups/': {
+      id: '/popups/'
+      path: '/popups'
+      fullPath: '/popups/'
+      preLoaderRoute: typeof PopupsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forms/': {
@@ -581,6 +705,34 @@ declare module '@tanstack/react-router' {
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/popups/': {
+      id: '/dashboard/popups/'
+      path: '/dashboard/popups'
+      fullPath: '/dashboard/popups/'
+      preLoaderRoute: typeof DashboardPopupsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/popups/$publicId/preview': {
+      id: '/popups/$publicId/preview'
+      path: '/popups/$publicId/preview'
+      fullPath: '/popups/$publicId/preview'
+      preLoaderRoute: typeof PopupsPublicIdPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/popups/$publicId/embed': {
+      id: '/popups/$publicId/embed'
+      path: '/popups/$publicId/embed'
+      fullPath: '/popups/$publicId/embed'
+      preLoaderRoute: typeof PopupsPublicIdEmbedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/popups/$popupId/edit': {
+      id: '/popups/$popupId/edit'
+      path: '/popups/$popupId/edit'
+      fullPath: '/popups/$popupId/edit'
+      preLoaderRoute: typeof PopupsPopupIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pay/$publicId/success': {
@@ -667,6 +819,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FlowExecutionIdCompleteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard/popups/$popupId': {
+      id: '/dashboard/popups/$popupId'
+      path: '/dashboard/popups/$popupId'
+      fullPath: '/dashboard/popups/$popupId'
+      preLoaderRoute: typeof DashboardPopupsPopupIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/internal/reconcile-payments': {
       id: '/api/internal/reconcile-payments'
       path: '/api/internal/reconcile-payments'
@@ -686,6 +845,27 @@ declare module '@tanstack/react-router' {
       path: '/api/webhooks/xendit/$endpointKey'
       fullPath: '/api/webhooks/xendit/$endpointKey'
       preLoaderRoute: typeof ApiWebhooksXenditEndpointKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/popups/$publicId/view': {
+      id: '/api/popups/$publicId/view'
+      path: '/api/popups/$publicId/view'
+      fullPath: '/api/popups/$publicId/view'
+      preLoaderRoute: typeof ApiPopupsPublicIdViewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/popups/$publicId/config': {
+      id: '/api/popups/$publicId/config'
+      path: '/api/popups/$publicId/config'
+      fullPath: '/api/popups/$publicId/config'
+      preLoaderRoute: typeof ApiPopupsPublicIdConfigRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/popups/$publicId/click': {
+      id: '/api/popups/$publicId/click'
+      path: '/api/popups/$publicId/click'
+      fullPath: '/api/popups/$publicId/click'
+      preLoaderRoute: typeof ApiPopupsPublicIdClickRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/forms/$formId/submissions-export': {
@@ -728,8 +908,10 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardIndexRoute: DashboardIndexRoute,
   DocsIndexRoute: DocsIndexRoute,
   FormsIndexRoute: FormsIndexRoute,
+  PopupsIndexRoute: PopupsIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiInternalReconcilePaymentsRoute: ApiInternalReconcilePaymentsRoute,
+  DashboardPopupsPopupIdRoute: DashboardPopupsPopupIdRoute,
   FlowExecutionIdCompleteRoute: FlowExecutionIdCompleteRoute,
   FormsFormIdDiscountsRoute: FormsFormIdDiscountsRoute,
   FormsFormIdEditRoute: FormsFormIdEditRoute,
@@ -741,7 +923,14 @@ const rootRouteChildren: RootRouteChildren = {
   FormsEmbedFormIdRoute: FormsEmbedFormIdRoute,
   FormsSubmitFormIdRoute: FormsSubmitFormIdRoute,
   IntegrationsGoogleCallbackRoute: IntegrationsGoogleCallbackRoute,
+  PopupsPopupIdEditRoute: PopupsPopupIdEditRoute,
+  PopupsPublicIdEmbedRoute: PopupsPublicIdEmbedRoute,
+  PopupsPublicIdPreviewRoute: PopupsPublicIdPreviewRoute,
+  DashboardPopupsIndexRoute: DashboardPopupsIndexRoute,
   ApiFormsFormIdSubmissionsExportRoute: ApiFormsFormIdSubmissionsExportRoute,
+  ApiPopupsPublicIdClickRoute: ApiPopupsPublicIdClickRoute,
+  ApiPopupsPublicIdConfigRoute: ApiPopupsPublicIdConfigRoute,
+  ApiPopupsPublicIdViewRoute: ApiPopupsPublicIdViewRoute,
   ApiWebhooksXenditEndpointKeyRoute: ApiWebhooksXenditEndpointKeyRoute,
 }
 export const routeTree = rootRouteImport

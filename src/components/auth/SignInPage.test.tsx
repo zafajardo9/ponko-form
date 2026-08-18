@@ -33,7 +33,7 @@ describe('email and password authentication page', () => {
 
     fireEvent.change(screen.getByLabelText('Email address'), { target: { value: ' USER@Example.COM ' } })
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password123' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
 
     await waitFor(() => expect(auth.signIn).toHaveBeenCalledWith({
       email: 'user@example.com',
@@ -50,7 +50,7 @@ describe('email and password authentication page', () => {
       error: { code: 'USER_ALREADY_EXISTS', message: 'Already exists' },
     })
     render(<SignInPage returnTo="/dashboard" configured />)
-    fireEvent.click(screen.getByRole('tab', { name: 'Create account' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create one' }))
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'A' } })
     fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'not-an-email' } })
@@ -88,7 +88,7 @@ describe('email and password authentication page', () => {
 
     fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'user@example.com' } })
     fireEvent.change(password, { target: { value: 'password123' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
     expect(screen.getByRole('alert').textContent).toContain('not configured')
     expect(auth.signIn).not.toHaveBeenCalled()
   })

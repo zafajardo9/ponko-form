@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { isBarePublicPath, isEmbeddableFormPath } from './public-route'
+import { isBarePublicPath, isEmbeddableFormPath, isTransparentCanvasPath } from './public-route'
 
 describe('isBarePublicPath', () => {
   it.each([
@@ -23,6 +23,8 @@ describe('isBarePublicPath', () => {
     '/forms',
     '/forms/42/edit',
     '/sign-in/',
+    '/popups',
+    '/popups/42/edit',
   ])('keeps %s inside the authenticated client shell', (pathname) => {
     expect(isBarePublicPath(pathname)).toBe(false)
   })
@@ -72,8 +74,31 @@ describe('isEmbeddableFormPath', () => {
       'utf8',
     )
 
-    expect(rootSource).toContain('isEmbeddableFormPath(pathname) ? "transparent" : "#faf9f5"')
+    expect(rootSource).toContain('isTransparentCanvasPath(pathname) ? "transparent" : "#faf9f5"')
     expect(rootSource).toMatch(/backgroundColor: canvasColor/)
     expect(rootSource).not.toMatch(/backgroundColor: "#faf9f5"/)
+  })
+})
+
+describe('isTransparentCanvasPath', () => {
+  it.each([
+    '/forms/embed/public-form',
+    '/popups/abc123/embed',
+  ])('renders %s on a transparent canvas', (pathname) => {
+    expect(isTransparentCanvasPath(pathname)).toBe(true)
+  })
+
+  it.each([
+    '/popups/abc123/preview',
+    '/popups/abc123',
+    '/forms/submit/public-form',
+    '/',
+  ])('keeps %s on the default opaque canvas', (pathname) => {
+    expect(isTransparentCanvasPath(pathname)).toBe(false)
+  })
+
+  it('treats popup routes as bare public paths (no authenticated shell)', () => {
+    expect(isBarePublicPath('/popups/abc123/embed')).toBe(true)
+    expect(isBarePublicPath('/popups/abc123/preview')).toBe(true)
   })
 })

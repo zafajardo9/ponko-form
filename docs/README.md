@@ -9,6 +9,7 @@
 | [**Getting Started**](getting-started.md) | Create, preview, publish, and share a page form |
 | [**Current System Overview**](current-system.md) | What is operational today, what is configuration-only, and where it lives |
 | [**Payments Guide**](payments-guide.md) | PayPal/Xendit setup, one-time checkout, Xendit subscriptions, discount codes, payment links, recovery |
+| [**Popup Embed Guide**](popup-embed-guide.md) | Design a popup, set triggers and frequency, embed on any site, measure views/clicks |
 
 ## Builder Guides
 

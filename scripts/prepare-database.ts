@@ -48,6 +48,8 @@ async function main() {
       '0038_discount_codes.sql',
       '0039_central_discounts.sql',
       '0040_condition_match_mode.sql',
+      '0041_popups.sql',
+      '0042_popup_schedule.sql',
     ]) {
       const migration = await readFile(resolve(import.meta.dirname, `../drizzle/${filename}`), 'utf8')
       for (const statement of migration.split('--> statement-breakpoint')) {

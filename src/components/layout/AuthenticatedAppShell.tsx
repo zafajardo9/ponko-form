@@ -1,5 +1,5 @@
 import { Link, useRouterState } from '@tanstack/react-router'
-import { BadgePercent, BookOpen, CreditCard, FilePlus2, LayoutList, Menu, Rocket, X } from 'lucide-react'
+import { BadgePercent, BookOpen, CreditCard, FilePlus2, LayoutList, Menu, MessageSquareDot, Rocket, X } from 'lucide-react'
 import { lazy, Suspense, useEffect, useId, useRef, useState } from 'react'
 import { useSession } from '../../lib/auth-client'
 import { appConfig } from '../../utils/app-config'
@@ -20,6 +20,7 @@ export default function AuthenticatedAppShell({
 }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const focusedEditor = /^\/forms\/[^/]+\/edit\/?$/.test(pathname)
+    || /^\/popups\/[^/]+\/edit\/?$/.test(pathname)
   const authPage = pathname === '/sign-in' || pathname.startsWith('/sign-in/')
   const progressPage = pathname === '/progress'
   const { data: session } = useSession()
@@ -71,11 +72,20 @@ const workspaceItems: NavMenuItem[] = [
     activeWhen: (pathname) => pathname === '/forms/new',
   },
   {
+    to: '/popups',
+    label: 'Popups',
+    description: 'Lead-capture popups for any site',
+    icon: MessageSquareDot,
+    tileClass: 'bg-[#e8eefc] text-[#2f5fc4]',
+    activeWhen: (pathname) => pathname === '/popups' || /^\/popups\/[^/]+\/edit\/?$/.test(pathname),
+  },
+  {
     to: '/dashboard/payment-links',
     label: 'Payment Links',
     description: 'Charge directly, no form needed',
     icon: CreditCard,
     tileClass: 'bg-[#e8eefc] text-[#2f5fc4]',
+    activeWhen: (pathname) => pathname === '/dashboard/payment-links',
   },
   {
     to: '/discounts',
@@ -216,6 +226,7 @@ function MobileNavigation({ signedIn }: { signedIn: boolean }) {
             <MobileNavLink to="/dashboard" onSelect={close}>Dashboard</MobileNavLink>
             <MobileNavLink to="/forms" onSelect={close}>Forms</MobileNavLink>
             <MobileNavLink to="/forms/new" onSelect={close}>New form</MobileNavLink>
+            <MobileNavLink to="/popups" onSelect={close}>Popups</MobileNavLink>
             <MobileNavLink to="/dashboard/payment-links" onSelect={close}>Payment Links</MobileNavLink>
             <MobileNavLink to="/discounts" onSelect={close}>Discounts</MobileNavLink>
             <MobileNavLink to="/settings/integrations" onSelect={close}>Integrations</MobileNavLink>
@@ -246,7 +257,7 @@ function MobileNavLink({
   onSelect,
   children,
 }: {
-  to: '/dashboard' | '/dashboard/payment-links' | '/discounts' | '/forms' | '/forms/new' | '/settings/integrations' | '/docs' | '/progress'
+  to: '/dashboard' | '/dashboard/payment-links' | '/popups' | '/discounts' | '/forms' | '/forms/new' | '/settings/integrations' | '/docs' | '/progress'
   onSelect: () => void
   children: React.ReactNode
 }) {

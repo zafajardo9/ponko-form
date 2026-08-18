@@ -13,6 +13,7 @@ import {
   FileCheck2,
   FileText,
   Lightbulb,
+  MessageSquareDot,
   WalletCards,
 } from "lucide-react";
 import { requireAuth } from "@/lib/server-fns/auth";
@@ -584,6 +585,29 @@ function DashboardPage() {
             </div>
             <span className="shrink-0 text-xs font-medium text-[#a9583e] opacity-0 transition-opacity group-hover:opacity-100">
               Manage links &rarr;
+            </span>
+          </Link>
+        </section>
+
+        {/* Popups quick link (FT-026) */}
+        <section className="mt-4">
+          <Link
+            to="/popups"
+            className="group flex items-center justify-between rounded-2xl border border-[#e6dfd8] bg-white p-5 transition-colors hover:border-[#d9d0c5] hover:bg-[#fcfbf8]"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f5ece4] text-[#cc785c]">
+                <MessageSquareDot size={19} />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-[#141413]">Popups</h3>
+                <p className="mt-0.5 text-xs text-[#6c6a64]">
+                  Design lead-capture popups and embed them on any website with one snippet.
+                </p>
+              </div>
+            </div>
+            <span className="shrink-0 text-xs font-medium text-[#a9583e] opacity-0 transition-opacity group-hover:opacity-100">
+              Manage popups &rarr;
             </span>
           </Link>
         </section>

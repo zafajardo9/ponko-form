@@ -461,11 +461,6 @@ export function PageFormView({
     )
   }
 
-  const finalContent =
-    currentPage.isFinal && currentPage.finalTemplate
-      ? interpolate(currentPage.finalTemplate, { ...referenceMap, ...data })
-      : 'Your response has been recorded.'
-
   return (
     <div className={outerClass} style={themed}>
       <div className={wrapperClass}>
