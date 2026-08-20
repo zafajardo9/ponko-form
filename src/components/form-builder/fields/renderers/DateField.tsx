@@ -20,7 +20,7 @@ export function DateField({ field, value, onChange, error, readOnly, hideLabel }
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       {!hideLabel && (
-        <label htmlFor={inputId} id={labelId} className="text-sm font-medium text-[#141413]">
+        <label htmlFor={inputId} id={labelId} className="text-sm font-medium text-[var(--ponko-foreground,#141413)]">
           {field.label || 'Untitled field'}
           {field.required && <span aria-hidden="true" className="ml-1 text-[#c64545]">*</span>}
         </label>
@@ -47,14 +47,14 @@ export function DateField({ field, value, onChange, error, readOnly, hideLabel }
               required={field.required}
               aria-invalid={error ? true : undefined}
               aria-describedby={error ? errorId : undefined}
-              className="min-w-0 flex-1 cursor-pointer bg-transparent py-3 text-sm font-medium text-[#141413] outline-none [color-scheme:light] disabled:cursor-not-allowed"
+              className="min-w-0 flex-1 cursor-pointer bg-transparent py-3 text-sm font-medium text-[var(--ponko-foreground,#141413)] outline-none [color-scheme:light] disabled:cursor-not-allowed"
             />
           </label>
           {strValue && !readOnly && (
             <button
               type="button"
               onClick={() => onChange('')}
-              className="flex h-12 w-10 items-center justify-center rounded-[var(--ponko-radius,8px)] text-[#8e8b82] transition-colors hover:text-[#141413] focus:ring-2 focus:ring-[var(--ponko-primary-soft,#cc785c29)]"
+              className="flex h-12 w-10 items-center justify-center rounded-[var(--ponko-radius,8px)] text-[var(--ponko-foreground-faint,#8e8b82)] transition-colors hover:text-[var(--ponko-foreground,#141413)] focus:ring-2 focus:ring-[var(--ponko-primary-soft,#cc785c29)]"
               aria-label={`Clear ${field.label || 'date'}`}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -64,7 +64,7 @@ export function DateField({ field, value, onChange, error, readOnly, hideLabel }
             </button>
           )}
         </div>
-        {strValue && <p className="mt-1.5 text-xs text-[#6c6a64]">{formatDateValue(strValue)}</p>}
+        {strValue && <p className="mt-1.5 text-xs text-[var(--ponko-foreground-muted,#6c6a64)]">{formatDateValue(strValue)}</p>}
       </div>
     </div>
   )

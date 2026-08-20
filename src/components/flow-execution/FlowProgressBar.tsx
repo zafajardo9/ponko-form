@@ -32,7 +32,7 @@ export function FlowProgressBar({ current, total }: FlowProgressBarProps) {
           )
         })}
       </div>
-      <p className="text-xs text-[#8e8b82]">
+      <p className="text-xs text-[var(--ponko-foreground-faint,#8e8b82)]">
         Step {Math.min(current, count)} of {count}
       </p>
     </div>

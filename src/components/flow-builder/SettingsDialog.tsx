@@ -7,6 +7,7 @@ import {
   BG_PRESETS,
   DEFAULT_THEME,
   RADIUS_OPTIONS,
+  TEXT_PRESETS,
   isHexColor,
   themeVars,
   type FormTheme,
@@ -23,11 +24,13 @@ interface SettingsDialogProps {
 export function SettingsDialog({ formTitle, theme, onSave, onClose, saveError }: SettingsDialogProps) {
   const initialPrimary = theme?.primaryColor || DEFAULT_THEME.primaryColor
   const initialBackground = theme?.backgroundColor || DEFAULT_THEME.backgroundColor
+  const initialText = theme?.textColor || DEFAULT_THEME.textColor
   const initialRadius = theme?.radius || DEFAULT_THEME.radius
   const [title, setTitle] = useState(formTitle)
   const [titleError, setTitleError] = useState('')
   const [primaryColor, setPrimary] = useState(initialPrimary)
   const [backgroundColor, setBg] = useState(initialBackground)
+  const [textColor, setText] = useState(initialText)
   const [radius, setRadius] = useState<NonNullable<FormTheme['radius']>>(initialRadius)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -46,17 +49,19 @@ export function SettingsDialog({ formTitle, theme, onSave, onClose, saveError }:
     }
   }, [onClose])
 
-  const draft: FormTheme = { primaryColor, backgroundColor, radius }
+  const draft: FormTheme = { primaryColor, backgroundColor, textColor, radius }
   const hasChanges =
     title !== formTitle ||
     primaryColor !== initialPrimary ||
     backgroundColor !== initialBackground ||
+    textColor !== initialText ||
     radius !== initialRadius
   const canSave = hasChanges && title.trim().length > 0 && !isSaving
 
   function resetAppearance() {
     setPrimary(DEFAULT_THEME.primaryColor)
     setBg(DEFAULT_THEME.backgroundColor)
+    setText(DEFAULT_THEME.textColor)
     setRadius(DEFAULT_THEME.radius)
   }
 
@@ -152,7 +157,7 @@ export function SettingsDialog({ formTitle, theme, onSave, onClose, saveError }:
             <SettingsSection
               icon={<Palette size={16} aria-hidden="true" />}
               title="Appearance"
-              description="Choose a focused palette that carries through buttons, selections, and surfaces."
+              description="Choose a focused palette that carries through buttons, selections, text, and surfaces."
               action={
                 <button
                   type="button"
@@ -178,6 +183,14 @@ export function SettingsDialog({ formTitle, theme, onSave, onClose, saveError }:
                 value={backgroundColor}
                 onChange={setBg}
                 presets={BG_PRESETS}
+              />
+              <div className="h-px bg-[#ece6de]" />
+              <ColorField
+                label="Text color"
+                description="Used for labels, values, and headings across the form."
+                value={textColor}
+                onChange={setText}
+                presets={TEXT_PRESETS}
               />
               <div className="h-px bg-[#ece6de]" />
               <div className="flex flex-col gap-2.5">
@@ -305,35 +318,35 @@ function PreviewPanel({ title, theme }: { title: string; theme: FormTheme }) {
         >
           <div className="border-b border-black/5 px-5 py-4 sm:px-6">
             <div className="mb-3 flex items-center justify-between gap-4">
-              <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-[#8e8b82]">Step 2 of 4</span>
-              <span className="text-xs text-[#8e8b82]">50% complete</span>
+              <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--ponko-foreground-faint,#8e8b82)]">Step 2 of 4</span>
+              <span className="text-xs text-[var(--ponko-foreground-faint,#8e8b82)]">50% complete</span>
             </div>
             <FlowProgressBar current={2} total={4} />
           </div>
           <div className="p-5 sm:p-6">
             <div className="mb-5">
-              <h4 className="text-xl font-semibold text-[#141413]">{title}</h4>
-              <p className="mt-1 text-sm text-[#77736b]">Tell us a little about your experience.</p>
+              <h4 className="text-xl font-semibold text-[var(--ponko-foreground,#141413)]">{title}</h4>
+              <p className="mt-1 text-sm text-[var(--ponko-foreground-muted,#77736b)]">Tell us a little about your experience.</p>
             </div>
             <div className="flex flex-col gap-5">
-              <label className="flex flex-col gap-2 text-sm font-medium text-[#282622]">
+              <label className="flex flex-col gap-2 text-sm font-medium text-[var(--ponko-foreground,#141413)]">
                 What should we call you?
                 <input
                   readOnly
                   tabIndex={-1}
                   placeholder="Type your answer…"
-                  className="h-11 w-full rounded-[var(--ponko-radius,8px)] border border-[#ded7ce] bg-white px-3.5 text-sm text-[#141413] outline-none placeholder:text-[#99948b]"
+                  className="h-11 w-full rounded-[var(--ponko-radius,8px)] border border-[#ded7ce] bg-white px-3.5 text-sm text-[var(--ponko-foreground,#141413)] outline-none placeholder:text-[var(--ponko-foreground-faint,#99948b)]"
                 />
               </label>
               <fieldset className="flex flex-col gap-2">
-                <legend className="mb-2 text-sm font-medium text-[#282622]">How was your experience?</legend>
+                <legend className="mb-2 text-sm font-medium text-[var(--ponko-foreground,#141413)]">How was your experience?</legend>
                 {['Great', 'It was okay', 'Needs improvement'].map((option, index) => (
                   <div
                     key={option}
                     className={`flex items-center gap-3 rounded-[var(--ponko-radius,8px)] border px-3 py-2.5 text-sm ${
                       index === 0
-                        ? 'border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary-soft,#cc785c29)] text-[#282622]'
-                        : 'border-[#ded7ce] bg-white text-[#666159]'
+                        ? 'border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary-soft,#cc785c29)] text-[var(--ponko-foreground,#141413)]'
+                        : 'border-[#ded7ce] bg-white text-[var(--ponko-foreground-muted,#666159)]'
                     }`}
                   >
                     <span

@@ -49,6 +49,7 @@ describe('SettingsDialog', () => {
       theme: {
         primaryColor: '#2563eb',
         backgroundColor: DEFAULT_THEME.backgroundColor,
+        textColor: DEFAULT_THEME.textColor,
         radius: DEFAULT_THEME.radius,
       },
     })

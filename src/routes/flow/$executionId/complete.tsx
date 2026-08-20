@@ -52,8 +52,8 @@ function CompletePage() {
   if (!executionClientToken || isError || !data) {
     return (
       <div className="mx-auto max-w-xl px-6 py-24 text-center">
-        <h1 className="text-2xl font-medium text-[#141413]">Receipt unavailable</h1>
-        <p className="mt-2 text-[#6c6a64]">We couldn't load this completion record.</p>
+        <h1 className="text-2xl font-medium text-[var(--ponko-foreground,#141413)]">Receipt unavailable</h1>
+        <p className="mt-2 text-[var(--ponko-foreground-muted,#6c6a64)]">We couldn't load this completion record.</p>
       </div>
     )
   }
@@ -101,23 +101,23 @@ function CompletePage() {
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#d8f0e0] text-2xl text-[#2f7d52]">
           ✓
         </div>
-        <h1 className="text-2xl font-medium text-[#141413]">
+        <h1 className="text-2xl font-medium text-[var(--ponko-foreground,#141413)]">
           {data.summary?.title ?? (payment ? 'Payment successful' : 'All done!')}
         </h1>
-        {rendered && <p className="max-w-md text-[#6c6a64]">{rendered}</p>}
+        {rendered && <p className="max-w-md text-[var(--ponko-foreground-muted,#6c6a64)]">{rendered}</p>}
       </div>
 
       {/* Invoice card */}
       <Card className="!bg-white !p-0 overflow-hidden">
         <div className="flex items-start justify-between gap-4 border-b border-[#e6dfd8] px-7 py-6">
           <div>
-            <p className="text-lg font-semibold text-[#141413]">{invoice.issuer}</p>
-            <p className="mt-0.5 text-xs text-[#8e8b82]">Receipt / Invoice</p>
+            <p className="text-lg font-semibold text-[var(--ponko-foreground,#141413)]">{invoice.issuer}</p>
+            <p className="mt-0.5 text-xs text-[var(--ponko-foreground-faint,#8e8b82)]">Receipt / Invoice</p>
           </div>
           <div className="text-right">
             <p className="text-lg font-semibold tracking-wide text-[var(--ponko-primary,#cc785c)]">INVOICE</p>
-            <p className="mt-0.5 text-xs text-[#8e8b82]">{invoice.invoiceNo}</p>
-            <p className="text-xs text-[#8e8b82]">{invoice.dateText}</p>
+            <p className="mt-0.5 text-xs text-[var(--ponko-foreground-faint,#8e8b82)]">{invoice.invoiceNo}</p>
+            <p className="text-xs text-[var(--ponko-foreground-faint,#8e8b82)]">{invoice.dateText}</p>
             {invoice.paid && (
               <span className="mt-2 inline-block rounded bg-[#d8f0e0] px-2 py-0.5 text-[10px] font-semibold tracking-wide text-[#2f7d52]">
                 PAID
@@ -128,7 +128,7 @@ function CompletePage() {
 
         {invoice.lines.length > 0 && (
           <div className="px-7 py-5">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8e8b82]">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ponko-foreground-faint,#8e8b82)]">
               Details
             </p>
             <dl className="mt-2">
@@ -137,8 +137,8 @@ function CompletePage() {
                   key={i}
                   className="flex items-center justify-between border-b border-[#f0ebe3] py-2 last:border-0"
                 >
-                  <dt className="pr-4 text-sm text-[#6c6a64]">{line.label}</dt>
-                  <dd className="text-right text-sm font-medium text-[#141413]">{line.value}</dd>
+                  <dt className="pr-4 text-sm text-[var(--ponko-foreground-muted,#6c6a64)]">{line.label}</dt>
+                  <dd className="text-right text-sm font-medium text-[var(--ponko-foreground,#141413)]">{line.value}</dd>
                 </div>
               ))}
             </dl>
@@ -147,13 +147,13 @@ function CompletePage() {
 
         {invoice.totalText && (
           <div className="mx-7 mb-6 flex items-center justify-between rounded-lg border border-[#e6dfd8] bg-[#faf9f5] px-5 py-4">
-            <span className="text-sm text-[#6c6a64]">Amount paid</span>
-            <span className="text-2xl font-semibold text-[#141413]">{invoice.totalText}</span>
+            <span className="text-sm text-[var(--ponko-foreground-muted,#6c6a64)]">Amount paid</span>
+            <span className="text-2xl font-semibold text-[var(--ponko-foreground,#141413)]">{invoice.totalText}</span>
           </div>
         )}
 
         {(invoice.gatewayName || invoice.reference) && (
-          <div className="border-t border-[#e6dfd8] px-7 py-4 text-xs text-[#8e8b82]">
+          <div className="border-t border-[#e6dfd8] px-7 py-4 text-xs text-[var(--ponko-foreground-faint,#8e8b82)]">
             {invoice.gatewayName && <p>Paid via {invoice.gatewayName}</p>}
             {invoice.reference && (
               <p>
@@ -198,15 +198,15 @@ function FailedView({
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#fbe4e1] text-3xl text-[#c64545]">
           ✕
         </div>
-        <h1 className="text-2xl font-medium text-[#141413]">
+        <h1 className="text-2xl font-medium text-[var(--ponko-foreground,#141413)]">
           {title ?? 'Payment unsuccessful'}
         </h1>
-        <p className="mt-2 text-[#6c6a64]">
+        <p className="mt-2 text-[var(--ponko-foreground-muted,#6c6a64)]">
           {message ?? 'Your payment didn’t go through. No charge was made — you can try again.'}
         </p>
 
         {(gatewayName || reference) && (
-          <div className="mt-5 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] px-4 py-3 text-left text-xs text-[#8e8b82]">
+          <div className="mt-5 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] px-4 py-3 text-left text-xs text-[var(--ponko-foreground-faint,#8e8b82)]">
             {gatewayName && <p>Provider: {gatewayName}</p>}
             {reference && (
               <p>

@@ -14,7 +14,7 @@ import { SUPPORTED_CURRENCY_OPTIONS } from '../../integrations/payments/currenci
 
 interface PageSettingsProps {
   page: FormPage
-  gateways: { id: number; name: string; slug: string }[]
+  gateways: { id: number; name: string; slug: string; connected: boolean }[]
   pages: FormPage[]
   references: FormReference[]
   onUpdate: (patch: Partial<FormPage>) => void
@@ -381,8 +381,8 @@ export function PageSettings({ page, gateways, pages, references, onUpdate, onDe
                 >
                   {!page.subscriptionConfig && <option value="">Visitor chooses connected gateway</option>}
                   {gateways.filter((gateway) => !page.subscriptionConfig || gateway.slug === 'xendit').map((gateway) => (
-                    <option key={gateway.id} value={gateway.id}>
-                      {gateway.name}
+                    <option key={gateway.id} value={gateway.id} disabled={!gateway.connected}>
+                      {gateway.name}{gateway.connected ? '' : ' (not connected)'}
                     </option>
                   ))}
                 </select>
@@ -419,8 +419,8 @@ export function PageSettings({ page, gateways, pages, references, onUpdate, onDe
               {subscriptionConfig && (
                 <div className="rounded-lg border border-[#e6dfd8] bg-white p-3">
                   <p className="text-sm font-medium text-[#141413]">Subscription schedule</p>
-                  {!xenditGateway && (
-                    <p className="mt-2 text-xs text-[#a9583e]">Xendit must be active before this form can be saved.</p>
+                  {!xenditGateway?.connected && (
+                    <p className="mt-2 text-xs text-[#a9583e]">Xendit must be connected in Integrations before this form can be saved.</p>
                   )}
                   <div className="mt-3 flex flex-col gap-3">
                     <Field label="Billing interval">

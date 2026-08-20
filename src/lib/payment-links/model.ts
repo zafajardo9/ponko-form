@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
-export type PaymentLinkGatewaySlug = 'paypal' | 'xendit'
+export type PaymentLinkGatewaySlug = 'paypal' | 'xendit' | 'maya'
 
-const gatewaySlugSchema = z.enum(['paypal', 'xendit'])
+const gatewaySlugSchema = z.enum(['paypal', 'xendit', 'maya'])
 const currencySchema = z.string().trim().transform((value) => value.toUpperCase())
   .pipe(z.string().regex(/^[A-Z]{3}$/, 'Choose a valid three-letter currency'))
 const optionalText = (max: number) => z.string().trim().max(max).optional()

@@ -4,7 +4,8 @@ import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../../db/index'
 import { paymentGateways, paymentLinks, payments } from '../../db/schema'
-import { loadIntegrationConfigs, requireProfile } from '../integrations/credentials'
+import { getIntegrationConfig, loadIntegrationConfigs, requireProfile } from '../integrations/credentials'
+import type { MayaConfig } from '../integrations/types'
 import { paymentRegistry } from '../../integrations/payments'
 import { claimPaymentCheckout } from '../payments/checkout-claim'
 import { publicRequestOrigin } from './request-origin'
@@ -52,15 +53,20 @@ async function gatewayRowId(slug: GatewaySlug, name: string): Promise<number> {
   return created.id
 }
 
-function credentialsForSlug(
+async function credentialsForSlug(
   slug: GatewaySlug,
+  profileId: number,
   configs: Awaited<ReturnType<typeof loadIntegrationConfigs>>,
-): Record<string, unknown> | null {
+): Promise<Record<string, unknown> | null> {
   if (slug === 'xendit' && configs.xendit) {
     return { secretKey: configs.xendit.secretKey, publicKey: configs.xendit.publicKey, mode: configs.xendit.mode }
   }
   if (slug === 'paypal' && configs.paypal) {
     return { clientId: configs.paypal.clientId, clientSecret: configs.paypal.clientSecret, mode: configs.paypal.mode }
+  }
+  if (slug === 'maya') {
+    const maya = await getIntegrationConfig<MayaConfig>(profileId, 'maya')
+    return maya ? { publicKey: maya.publicKey, secretKey: maya.secretKey, mode: maya.mode } : null
   }
   return null
 }
@@ -78,7 +84,7 @@ export const createPaymentLink = createServerFn({ method: 'POST' })
       throw new Error(`${gateway.getGatewayName()} does not support ${data.currency}`)
     }
     const configs = await loadIntegrationConfigs(profile.id)
-    if (!credentialsForSlug(data.paymentGatewaySlug, configs)) {
+    if (!(await credentialsForSlug(data.paymentGatewaySlug, profile.id, configs))) {
       throw new Error(`Connect ${gateway.getGatewayName()} in Integrations before creating a payment link`)
     }
 
@@ -213,7 +219,7 @@ export const initiatePaymentLinkCheckout = createServerFn({ method: 'POST', stri
     if (!gateway) throw new Error(`Unknown gateway: ${gw.slug}`)
 
     const configs = await loadIntegrationConfigs(link.profileId)
-    const credentials = credentialsForSlug(gw.slug as GatewaySlug, configs)
+    const credentials = await credentialsForSlug(gw.slug as GatewaySlug, link.profileId, configs)
     if (!credentials) throw new Error(`Payment provider ${gw.name} is not connected`)
 
     const origin = publicRequestOrigin()

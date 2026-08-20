@@ -3,6 +3,7 @@ import { ArrowLeft } from 'lucide-react'
 import type { GroupedField } from '../../lib/flow-engine/types'
 import { FieldRenderer, type FieldConfig, type FieldValue } from '../form-builder/fields/FieldRenderer'
 import { Button, navigationBackIconClass } from '../ui/Button'
+import { useSkipValidation } from '../../lib/dev-test-mode'
 
 /**
  * GroupStepView
@@ -41,8 +42,13 @@ export function GroupStepView({
 }: GroupStepViewProps) {
   const [values, setValues] = useState<Record<string, FieldValue>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const skipValidation = useSkipValidation()
 
   function submit() {
+    if (skipValidation) {
+      onSubmit(values)
+      return
+    }
     const errs: Record<string, string> = {}
     for (const f of fields) {
       const v = values[f.id] ?? ''
@@ -64,7 +70,7 @@ export function GroupStepView({
     <div className="flex flex-col gap-6">
       <fieldset className="rounded-[var(--ponko-radius-card,16px)] border border-[#e6dfd8] bg-[#faf9f5] p-4 sm:p-5">
         {title && (
-          <legend className="px-1 text-sm font-semibold text-[#141413]">{title}</legend>
+          <legend className="px-1 text-sm font-semibold text-[var(--ponko-foreground,#141413)]">{title}</legend>
         )}
         <div className="mt-1 grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
           {fields.map((f, i) => (
@@ -88,7 +94,7 @@ export function GroupStepView({
             </div>
           ))}
           {fields.length === 0 && (
-            <p className="text-sm text-[#8e8b82] sm:col-span-2">
+            <p className="text-sm text-[var(--ponko-foreground-faint,#8e8b82)] sm:col-span-2">
               This group has no fields yet.
             </p>
           )}

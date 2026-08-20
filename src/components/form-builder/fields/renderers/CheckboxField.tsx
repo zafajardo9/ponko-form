@@ -27,7 +27,7 @@ export function CheckboxField({ field, value, onChange, error, readOnly, hideLab
     <div className="flex min-w-0 flex-col gap-1.5">
       <fieldset className="flex min-w-0 flex-col gap-1.5">
         {!hideLabel && (
-          <legend id={labelId} className="text-sm font-medium text-[#141413]">
+          <legend id={labelId} className="text-sm font-medium text-[var(--ponko-foreground,#141413)]">
             {field.label || 'Untitled field'}
             {field.required && <span aria-hidden="true" className="ml-1 text-[#c64545]">*</span>}
           </legend>
@@ -43,11 +43,9 @@ export function CheckboxField({ field, value, onChange, error, readOnly, hideLab
             return (
               <label
                 key={opt.value}
-                className={`group flex min-h-12 cursor-pointer items-center gap-3 rounded-[var(--ponko-radius,8px)] border px-3.5 py-3 transition-all focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] ${
-                  selected
-                    ? 'border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary-soft,#cc785c29)] shadow-sm'
-                    : 'border-[#e6dfd8] bg-[#faf9f5] hover:border-[#cfc4b8] hover:bg-white'
-                } ${readOnly ? 'cursor-not-allowed opacity-60' : ''}`}
+                className={`group flex min-h-12 cursor-pointer items-center gap-3 px-3.5 py-3 transition-all focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] ${
+                  readOnly ? 'cursor-not-allowed opacity-60' : ''
+                }`}
               >
                 <input
                   type="checkbox"
@@ -61,10 +59,32 @@ export function CheckboxField({ field, value, onChange, error, readOnly, hideLab
                       onChange(arrValue.filter((v) => v !== opt.value))
                     }
                   }}
-                  className="h-4 w-4 rounded border-[#cfc4b8] text-[var(--ponko-primary,#cc785c)] focus:ring-[var(--ponko-primary-soft,#cc785c29)]"
+                  className="peer sr-only"
                   {...inputAccessibility}
                 />
-                <span className={`text-sm ${selected ? 'font-medium text-[#141413]' : 'text-[#6c6a64]'}`}>{opt.label}</span>
+                <span
+                  aria-hidden="true"
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] border transition-colors duration-150 ${
+                    selected
+                      ? 'border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary,#cc785c)]'
+                      : 'border-[#cfc4b8] bg-white group-hover:border-[var(--ponko-primary,#cc785c)]'
+                  }`}
+                >
+                  <svg
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    className={`h-3 w-3 text-white transition-transform duration-150 ${selected ? 'scale-100' : 'scale-0'}`}
+                  >
+                    <path
+                      d="M2.5 6.5L4.5 8.5L9.5 3.5"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+                <span className={`text-sm ${selected ? 'font-medium text-[var(--ponko-foreground,#141413)]' : 'text-[var(--ponko-foreground-muted,#6c6a64)]'}`}>{opt.label}</span>
               </label>
             )
           })}

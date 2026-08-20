@@ -55,8 +55,10 @@ export interface PayMongoConfig {
 }
 
 export interface MayaConfig {
-  clientId: string
-  clientSecret: string
+  /** Public API key (pk-…) used as the Basic Auth username for Checkout calls. */
+  publicKey: string
+  /** Secret API key (sk-…) used to verify Checkout webhook signatures. */
+  secretKey?: string
   mode: 'sandbox' | 'live'
 }
 

@@ -130,6 +130,7 @@ export const forms = pgTable(
     theme: jsonb('theme').$type<{
       primaryColor?: string
       backgroundColor?: string
+      textColor?: string
       radius?: 'sharp' | 'rounded' | 'pill'
     }>(),
     createdAt: timestamp('created_at').defaultNow().notNull(),

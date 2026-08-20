@@ -28,11 +28,11 @@ export function CalculatorDisplay({ label, value, onDone }: CalculatorDisplayPro
 
   return (
     <div className="flex flex-col items-center gap-3 py-8 text-center">
-      <p className="text-sm text-[#6c6a64]">{label}</p>
+      <p className="text-sm text-[var(--ponko-foreground-muted,#6c6a64)]">{label}</p>
       {revealed ? (
-        <p className="text-3xl font-semibold text-[#141413] transition-opacity duration-300">{value}</p>
+        <p className="text-3xl font-semibold text-[var(--ponko-foreground,#141413)] transition-opacity duration-300">{value}</p>
       ) : (
-        <div className="flex items-center gap-1.5 text-[#8e8b82]">
+        <div className="flex items-center gap-1.5 text-[var(--ponko-foreground-faint,#8e8b82)]">
           <span className="h-2 w-2 animate-bounce rounded-full bg-[#cc785c] [animation-delay:-0.3s]" />
           <span className="h-2 w-2 animate-bounce rounded-full bg-[#cc785c] [animation-delay:-0.15s]" />
           <span className="h-2 w-2 animate-bounce rounded-full bg-[#cc785c]" />

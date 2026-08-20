@@ -180,13 +180,13 @@ export function IntegrationModal({ provider, open, onClose, onSave, onOAuth, sav
               )}
             </section>
           )}
-          {provider === 'xendit' && meta?.webhookPath && (
+          {(provider === 'xendit' || provider === 'maya') && meta?.webhookPath && (
             <details className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] px-3 py-2.5 text-xs text-[#6c6a64]">
               <summary className="cursor-pointer font-medium text-[#141413]">Webhook setup</summary>
               <code className="mt-2 block break-all select-all rounded bg-white p-2">
                 {typeof window === 'undefined' ? meta.webhookPath : `${window.location.origin}${meta.webhookPath}`}
               </code>
-              <p className="mt-2">Use this URL for Xendit invoice, refund, payment session, subscription plan, and recurring cycle webhooks.</p>
+              <p className="mt-2">Use this URL for {cfg.name} payment notifications.</p>
             </details>
           )}
 

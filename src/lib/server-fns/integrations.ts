@@ -4,6 +4,7 @@ import type {
   IntegrationConfig,
   IntegrationSettingsView,
   IntegrationStatus,
+  MayaConfig,
   PayPalConfig,
   ProviderSlug,
   ResendConfig,
@@ -219,6 +220,14 @@ export const getIntegrations = createServerFn({ method: 'GET' }).handler(
         statuses = await getAllIntegrationStatuses(profile.id)
       }
     }
+    const maya = statuses.find((item) => item.provider === 'maya')
+    if (maya?.configured && !maya.meta?.webhookPath) {
+      const config = await getIntegrationConfig<MayaConfig>(profile.id, 'maya')
+      if (config) {
+        await saveIntegrationConfig(profile.id, 'maya', config, crypto.randomUUID().replaceAll('-', ''))
+        statuses = await getAllIntegrationStatuses(profile.id)
+      }
+    }
     return statuses
   },
 )
@@ -299,6 +308,20 @@ export const saveIntegration = createServerFn({ method: 'POST' })
         throw new Error('Google reCAPTCHA credentials are not valid')
       }
       await saveIntegrationConfig(profile.id, 'recaptcha', { siteKey, secretKey })
+    } else if (data.provider === 'maya') {
+      const existing = await getIntegrationConfig<MayaConfig>(profile.id, 'maya')
+      const input = data.config as Partial<MayaConfig>
+      const mode = paymentMode(input.mode ?? existing?.mode)
+      const publicKey = String(input.publicKey ?? '').trim() || existing?.publicKey
+      const secretKey = String(input.secretKey ?? '').trim() || existing?.secretKey
+      if (!publicKey) throw new Error('Maya public API key is required')
+      if (!publicKey.toLowerCase().startsWith('pk-')) {
+        throw new Error('Maya public API key should start with “pk-”')
+      }
+      const statuses = await getAllIntegrationStatuses(profile.id)
+      const existingPath = statuses.find((item) => item.provider === 'maya')?.meta?.webhookPath
+      const endpointKey = existingPath?.split('/').pop() ?? crypto.randomUUID().replaceAll('-', '')
+      await saveIntegrationConfig(profile.id, 'maya', { publicKey, secretKey, mode }, endpointKey)
     } else {
       await saveIntegrationConfig(profile.id, data.provider, data.config as unknown as IntegrationConfig)
     }

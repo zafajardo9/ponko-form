@@ -23,11 +23,12 @@ import type {
   SubscriptionPlanStatus,
 } from '@/integrations/payments/types'
 import {
+  getIntegrationConfig,
   loadIntegrationConfigs,
   paypalCredentialsForEnvironment,
   xenditCredentialsForEnvironment,
 } from '../integrations/credentials'
-import type { PaymentEnvironment } from '../integrations/types'
+import type { MayaConfig, PaymentEnvironment } from '../integrations/types'
 import {
   nextPaymentStatus,
   nextSubscriptionPlanStatus,
@@ -116,11 +117,12 @@ function eventKey(input: {
   ].filter(Boolean).join('|')).digest('hex')
 }
 
-function credentialsForSlug(
+async function credentialsForSlug(
   slug: string,
+  profileId: number,
   configs: Awaited<ReturnType<typeof loadIntegrationConfigs>>,
   environment: PaymentEnvironment,
-): GatewayCredentials | null {
+): Promise<GatewayCredentials | null> {
   if (slug === 'xendit' && configs.xendit) {
     const credentials = xenditCredentialsForEnvironment(configs.xendit, environment)
     return credentials ? { ...credentials, mode: environment } : null
@@ -128,6 +130,10 @@ function credentialsForSlug(
   if (slug === 'paypal' && configs.paypal) {
     const credentials = paypalCredentialsForEnvironment(configs.paypal, environment)
     return credentials ? { ...credentials, mode: environment } : null
+  }
+  if (slug === 'maya') {
+    const maya = await getIntegrationConfig<MayaConfig>(profileId, 'maya')
+    return maya ? { publicKey: maya.publicKey, secretKey: maya.secretKey, mode: maya.mode } : null
   }
   return null
 }
@@ -240,9 +246,13 @@ export async function reconcilePayment(input: {
   if (!gateway) throw new Error(`Unknown payment gateway: ${row.slug}`)
   const configs = await loadIntegrationConfigs(profileId)
   const environment = paymentEnvironment(row.payment) ?? (
-    row.slug === 'xendit' ? configs.xendit?.mode : configs.paypal?.mode
+    row.slug === 'xendit'
+      ? configs.xendit?.mode
+      : row.slug === 'maya'
+        ? (await getIntegrationConfig<MayaConfig>(profileId, 'maya'))?.mode
+        : configs.paypal?.mode
   ) ?? 'sandbox'
-  const credentials = credentialsForSlug(row.slug, configs, environment)
+  const credentials = await credentialsForSlug(row.slug, profileId, configs, environment)
   if (!credentials) throw new Error('Gateway credentials are unavailable')
 
   let details: PaymentDetails
@@ -338,7 +348,7 @@ async function subscriptionContext(paymentId: number, expectedProfileId?: number
   if (!gateway?.supportsSubscriptions()) throw new Error('Subscription gateway is unavailable')
   const configs = await loadIntegrationConfigs(profileId)
   const environment = paymentEnvironment(row.payment) ?? configs.xendit?.mode ?? 'sandbox'
-  const credentials = credentialsForSlug(row.slug, configs, environment)
+  const credentials = await credentialsForSlug(row.slug, profileId, configs, environment)
   if (!credentials) throw new Error('Gateway credentials are unavailable')
   return { ...row, profileId, gateway, environment, credentials }
 }

@@ -262,8 +262,8 @@ export async function getAllIntegrationStatuses(profileId: number): Promise<Inte
       configured: !!row?.config,
       meta: {
         ...integrationMeta(provider, config),
-        ...(provider === 'xendit' && row?.webhookEndpointKey
-          ? { webhookPath: `/api/webhooks/xendit/${row.webhookEndpointKey}` }
+        ...((provider === 'xendit' || provider === 'maya') && row?.webhookEndpointKey
+          ? { webhookPath: `/api/webhooks/${provider}/${row.webhookEndpointKey}` }
           : {}),
       },
     }

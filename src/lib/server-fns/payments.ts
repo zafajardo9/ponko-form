@@ -13,7 +13,8 @@ import {
   payments,
   paymentGateways,
 } from '@/db/schema'
-import { loadIntegrationConfigs } from '../integrations/credentials'
+import { getIntegrationConfig, loadIntegrationConfigs } from '../integrations/credentials'
+import type { MayaConfig } from '../integrations/types'
 import { paymentRegistry } from '@/integrations/payments/index'
 import type { GatewayCredentials } from '@/integrations/payments/types'
 import type { FlowNode, FlowEdge, FlowVariable } from '../flow-engine/types'
@@ -41,7 +42,7 @@ export { paymentAmountMinor } from './validation'
  * Start compiler strips them (and the Postgres driver) from the client bundle.
  */
 
-type GatewaySlug = 'paypal' | 'xendit'
+type GatewaySlug = 'paypal' | 'xendit' | 'maya'
 
 interface ResolvedContext {
   execution: typeof flowExecutions.$inferSelect
@@ -104,10 +105,11 @@ async function resolvePaymentContext(
 }
 
 /** Map a gateway slug to the owner's decrypted credentials (or null if unset). */
-function credentialsForSlug(
+async function credentialsForSlug(
   slug: GatewaySlug,
+  profileId: number,
   configs: Awaited<ReturnType<typeof loadIntegrationConfigs>>,
-): GatewayCredentials | null {
+): Promise<GatewayCredentials | null> {
   if (slug === 'xendit') {
     return configs.xendit
       ? {
@@ -115,6 +117,12 @@ function credentialsForSlug(
           publicKey: configs.xendit.publicKey,
           mode: configs.xendit.mode,
         }
+      : null
+  }
+  if (slug === 'maya') {
+    const maya = await getIntegrationConfig<MayaConfig>(profileId, 'maya')
+    return maya
+      ? { publicKey: maya.publicKey, secretKey: maya.secretKey, mode: maya.mode }
       : null
   }
   return configs.paypal
@@ -161,6 +169,8 @@ export const getPaymentOptions = createServerFn({ method: 'GET', strict: false }
     const connected: { slug: GatewaySlug; name: string }[] = []
     if (configs.paypal) connected.push({ slug: 'paypal', name: configs.paypal.mode === 'live' ? 'PayPal' : 'PayPal Test' })
     if (configs.xendit) connected.push({ slug: 'xendit', name: configs.xendit.mode === 'live' ? 'Xendit' : 'Xendit Test' })
+    const maya = await getIntegrationConfig<MayaConfig>(formProfileId, 'maya')
+    if (maya) connected.push({ slug: 'maya', name: maya.mode === 'live' ? 'Maya' : 'Maya Test' })
 
     // Only offer gateways that can actually process this form's currency. (A USD
     // form with only Xendit connected ends up with no options — handled by the UI.)
@@ -216,7 +226,7 @@ export const initiatePayment = createServerFn({ method: 'POST', strict: false })
       'initiatePayment.loadCredentials',
       context,
     )
-    const credentials = credentialsForSlug(data.gatewaySlug, configs)
+    const credentials = await credentialsForSlug(data.gatewaySlug, formProfileId, configs)
     if (!credentials) {
       throw new Error(`The form owner has not connected ${gateway.getGatewayName()}`)
     }

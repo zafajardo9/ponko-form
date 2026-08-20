@@ -63,7 +63,7 @@ interface PageBuilderWorkspaceProps {
   formTitle: string | null
   pages: FormPage[]
   references: FormReference[]
-  gateways: { id: number; name: string; slug: string }[]
+  gateways: { id: number; name: string; slug: string; connected: boolean }[]
   onChanged: (saved: SavedPageForm) => void
   onDraftChange?: (draft: { pages: FormPage[]; references: FormReference[] }) => void
 }

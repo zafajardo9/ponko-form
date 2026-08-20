@@ -1,7 +1,7 @@
 import type { AddressValue, FieldConfig, FieldOption, FieldValue, UploadFileValue } from '../../../../lib/form-field-types'
 
 export const inputBase =
-  'w-full rounded-[var(--ponko-radius,6px)] border border-[#e6dfd8] bg-[#faf9f5] px-3.5 py-2.5 text-sm text-[#141413] placeholder:text-[#8e8b82] outline-none focus:border-[var(--ponko-primary,#cc785c)] focus:ring-2 focus:ring-[var(--ponko-primary-soft,#cc785c29)] transition-colors disabled:opacity-60'
+  'w-full rounded-[var(--ponko-radius,6px)] border border-[#e6dfd8] bg-[#faf9f5] px-3.5 py-2.5 text-sm text-[var(--ponko-foreground,#141413)] placeholder:text-[var(--ponko-foreground-faint,#8e8b82)] outline-none focus:border-[var(--ponko-primary,#cc785c)] focus:ring-2 focus:ring-[var(--ponko-primary-soft,#cc785c29)] transition-colors disabled:opacity-60'
 
 export function getStrValue(value: FieldValue): string {
   return Array.isArray(value)

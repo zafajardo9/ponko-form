@@ -14,7 +14,7 @@ export function MediaField({ field, hideLabel }: Props) {
   const { mediaType, caption } = getMediaMeta(field)
   return (
     <figure className="overflow-hidden rounded-[var(--ponko-radius,6px)] border border-[#e6dfd8] bg-[#faf9f5]">
-      {field.label && !hideLabel && <figcaption className="border-b border-[#e6dfd8] px-4 py-3 text-sm font-medium text-[#141413]">{field.label}</figcaption>}
+      {field.label && !hideLabel && <figcaption className="border-b border-[#e6dfd8] px-4 py-3 text-sm font-medium text-[var(--ponko-foreground,#141413)]">{field.label}</figcaption>}
       {field.placeholder ? (
         mediaType === 'video' ? (
           <video src={field.placeholder} controls className="max-h-[420px] w-full bg-black" />
@@ -30,9 +30,9 @@ export function MediaField({ field, hideLabel }: Props) {
           <img src={field.placeholder} alt={caption || field.label} className="max-h-[520px] w-full object-contain" />
         )
       ) : (
-        <div className="flex h-36 items-center justify-center text-sm text-[#8e8b82]">No media URL set.</div>
+        <div className="flex h-36 items-center justify-center text-sm text-[var(--ponko-foreground-faint,#8e8b82)]">No media URL set.</div>
       )}
-      {caption && <figcaption className="px-4 py-3 text-sm text-[#6c6a64]">{caption}</figcaption>}
+      {caption && <figcaption className="px-4 py-3 text-sm text-[var(--ponko-foreground-muted,#6c6a64)]">{caption}</figcaption>}
     </figure>
   )
 }

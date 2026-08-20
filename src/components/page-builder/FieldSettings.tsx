@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import type {
   ConditionAction,
   ConditionOperator,
@@ -13,8 +13,10 @@ import type {
 import {
   Check,
   Calculator,
+  ClipboardCheck,
   Eye,
   Info,
+  List,
   Settings2,
   ShieldCheck,
   SlidersHorizontal,
@@ -35,7 +37,6 @@ import {
   Field,
   FieldGroup,
   inputClass,
-  SettingsAction,
   SettingsSection,
   SettingsToggle,
 } from './Shared'
@@ -261,6 +262,34 @@ export function SatisfactionSettings({ field, onUpdate }: Pick<FieldSettingsProp
   )
 }
 
+function QuickAction({
+  icon,
+  label,
+  status,
+  onClick,
+}: {
+  icon: ReactNode
+  label: string
+  status: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-2.5 rounded-lg border border-[#e6dfd8] bg-white px-3 py-2.5 text-left transition-colors hover:border-[#cc785c] hover:bg-[#faf9f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]/30"
+    >
+      <span className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-[#f5f0e8] text-[#cc785c]">
+        {icon}
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-medium text-[#141413]">{label}</span>
+        <span className="block truncate text-xs text-[#8e8b82]">{status}</span>
+      </span>
+    </button>
+  )
+}
+
 export function FieldSettings({ field, pages, fields, references, onUpdate, onMoveToPage, onSaveConditions }: FieldSettingsProps) {
   const [conditions, setConditions] = useState(field.conditions)
   const [rulesOpen, setRulesOpen] = useState(false)
@@ -372,6 +401,50 @@ export function FieldSettings({ field, pages, fields, references, onUpdate, onMo
           </p>
         </div>
       </header>
+
+      <div className="flex flex-col gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8e8b82]">Quick actions</p>
+        <div className="grid grid-cols-2 gap-2">
+          {field.fieldType === 'computation' && (
+            <QuickAction
+              icon={<Calculator size={16} />}
+              label="Open calculation studio"
+              status={rules.computation?.outputMode === 'text'
+                ? 'Text result'
+                : rules.computation?.numericType === 'integer'
+                  ? 'Whole number'
+                  : rules.computation?.numericType === 'decimal'
+                    ? 'Decimal'
+                    : 'Number'}
+              onClick={() => setComputationOpen(true)}
+            />
+          )}
+          {['select', 'checkbox', 'radio'].includes(field.fieldType) && (
+            <QuickAction
+              icon={<List size={16} />}
+              label="Answer options"
+              status={`${(field.options ?? []).length} ${(field.options ?? []).length === 1 ? 'option' : 'options'}`}
+              onClick={() => setOptionsOpen(true)}
+            />
+          )}
+          {supportsRules && (
+            <QuickAction
+              icon={<ClipboardCheck size={16} />}
+              label="Validation rules"
+              status={field.validationRules ? 'Configured' : 'Optional'}
+              onClick={() => setRulesOpen(true)}
+            />
+          )}
+          {supportsLogic && (
+            <QuickAction
+              icon={<Eye size={16} />}
+              label="Conditional visibility"
+              status={`${conditions.length} ${conditions.length === 1 ? 'rule' : 'rules'}`}
+              onClick={() => setLogicOpen(true)}
+            />
+          )}
+        </div>
+      </div>
 
       <SettingsSection
         title="What people see"
@@ -570,20 +643,12 @@ export function FieldSettings({ field, pages, fields, references, onUpdate, onMo
           )}
 
           {['select', 'checkbox', 'radio'].includes(field.fieldType) && (
-            <>
-              <SettingsAction
-                title="Answer options"
-                description="Edit the labels people see and the values saved with their response."
-                status={`${(field.options ?? []).length} ${(field.options ?? []).length === 1 ? 'option' : 'options'}`}
-                onClick={() => setOptionsOpen(true)}
-              />
-              <SettingsToggle
-                label="Use prices in payments"
-                description="Give each option a price that can feed a payment or calculated total."
-                checked={Boolean(rules.optionPricesEnabled)}
-                onChange={(checked) => updateRules({ optionPricesEnabled: checked ? true : null })}
-              />
-            </>
+            <SettingsToggle
+              label="Use prices in payments"
+              description="Give each option a price that can feed a payment or calculated total."
+              checked={Boolean(rules.optionPricesEnabled)}
+              onChange={(checked) => updateRules({ optionPricesEnabled: checked ? true : null })}
+            />
           )}
         </SettingsSection>
       )}
@@ -601,59 +666,20 @@ export function FieldSettings({ field, pages, fields, references, onUpdate, onMo
         </SettingsSection>
       )}
 
-      {field.fieldType === 'computation' && (
-        <SettingsSection
-          title="Calculation"
-          description="Define the value this field produces from answers and references."
-          icon={<Calculator size={15} />}
-        >
-          <SettingsAction
-            title="Open calculation studio"
-            description="Choose the output type, build with typed variables, and preview the result."
-            status={rules.computation?.outputMode === 'text'
-              ? 'Text result'
-              : rules.computation?.numericType === 'integer'
-                ? 'Whole number'
-                : rules.computation?.numericType === 'decimal'
-                  ? 'Decimal'
-                  : 'Number'}
-            onClick={() => setComputationOpen(true)}
-          />
-        </SettingsSection>
-      )}
-
-      {(collectsAnswer || supportsLogic) && (
+      {collectsAnswer && (
         <SettingsSection
           title="Data and logic"
-          description="Control how this field is saved, validated, and shown conditionally."
+          description="How this field's answer is saved and referenced."
           icon={<Settings2 size={15} />}
         >
-          {collectsAnswer && (
-            <Field label="Answer variable" hint={`Use ${variableToken(field.bindVariable || 'variable_name')} in calculations, logic, payments, and exports.`}>
-              <input
-                value={field.bindVariable}
-                onChange={(event) => onUpdate({ bindVariable: slugForOptionValue(event.target.value) })}
-                className={inputClass}
-                placeholder="answer_variable"
-              />
-            </Field>
-          )}
-          {supportsRules && (
-            <SettingsAction
-              title="Validation rules"
-              description="Set confirmation matching, allowed characters, lengths, ranges, and an error message."
-              status={field.validationRules ? 'Configured' : 'Optional'}
-              onClick={() => setRulesOpen(true)}
+          <Field label="Answer variable" hint={`Use ${variableToken(field.bindVariable || 'variable_name')} in calculations, logic, payments, and exports.`}>
+            <input
+              value={field.bindVariable}
+              onChange={(event) => onUpdate({ bindVariable: slugForOptionValue(event.target.value) })}
+              className={inputClass}
+              placeholder="answer_variable"
             />
-          )}
-          {supportsLogic && (
-            <SettingsAction
-              title="Conditional visibility"
-              description="Show or hide this field based on another answer or reference."
-              status={`${conditions.length} ${conditions.length === 1 ? 'rule' : 'rules'}`}
-              onClick={() => setLogicOpen(true)}
-            />
-          )}
+          </Field>
         </SettingsSection>
       )}
 

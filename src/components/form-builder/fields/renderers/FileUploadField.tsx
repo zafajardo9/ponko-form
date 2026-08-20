@@ -25,7 +25,7 @@ export function FileUploadField({ field, value, onChange, error, readOnly, hideL
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       {!hideLabel && (
-        <label htmlFor={inputId} id={labelId} className="text-sm font-medium text-[#141413]">
+        <label htmlFor={inputId} id={labelId} className="text-sm font-medium text-[var(--ponko-foreground,#141413)]">
           {field.label || 'Untitled field'}
           {field.required && <span aria-hidden="true" className="ml-1 text-[#c64545]">*</span>}
         </label>
@@ -37,7 +37,7 @@ export function FileUploadField({ field, value, onChange, error, readOnly, hideL
       )}
       <div className="flex flex-col gap-2">
         <label
-          className={`flex min-h-[52px] cursor-pointer items-center justify-center gap-2 rounded-[var(--ponko-radius,8px)] border-2 border-dashed px-4 py-3 text-sm text-[#6c6a64] transition-colors hover:border-[var(--ponko-primary,#cc785c)] hover:text-[var(--ponko-primary,#cc785c)] ${
+          className={`flex min-h-[52px] cursor-pointer items-center justify-center gap-2 rounded-[var(--ponko-radius,8px)] border-2 border-dashed px-4 py-3 text-sm text-[var(--ponko-foreground-muted,#6c6a64)] transition-colors hover:border-[var(--ponko-primary,#cc785c)] hover:text-[var(--ponko-primary,#cc785c)] ${
             error ? 'border-[#c64545]' : 'border-[#e6dfd8]'
           } ${readOnly ? 'cursor-not-allowed opacity-60' : ''}`}
         >
@@ -56,7 +56,7 @@ export function FileUploadField({ field, value, onChange, error, readOnly, hideL
             className="sr-only"
           />
         </label>
-        {uploadAccept && <p className="text-xs text-[#8e8b82]">Accepted: {uploadAccept}</p>}
+        {uploadAccept && <p className="text-xs text-[var(--ponko-foreground-faint,#8e8b82)]">Accepted: {uploadAccept}</p>}
         {uploadFiles.length > 0 && (
           <div className="flex flex-col gap-1.5">
             {uploadFiles.map((file, i) => (
@@ -65,8 +65,8 @@ export function FileUploadField({ field, value, onChange, error, readOnly, hideL
                 className="flex items-center gap-3 rounded-[var(--ponko-radius,8px)] border border-[#e6dfd8] bg-[#faf9f5] px-3 py-2.5"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="truncate text-sm font-medium text-[#141413]">{file.name}</p>
-                  <p className="text-xs text-[#8e8b82]">{formatFileSize(file.size)}</p>
+                  <p className="truncate text-sm font-medium text-[var(--ponko-foreground,#141413)]">{file.name}</p>
+                  <p className="text-xs text-[var(--ponko-foreground-faint,#8e8b82)]">{formatFileSize(file.size)}</p>
                 </div>
                 {!readOnly && (
                   <button

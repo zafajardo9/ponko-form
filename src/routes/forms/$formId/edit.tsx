@@ -934,7 +934,7 @@ function UnifiedEditorPage() {
             formTitle={form?.title ?? null}
             pages={pageForm.pages}
             references={pageForm.references ?? []}
-            gateways={gateways as { id: number; name: string; slug: string }[]}
+            gateways={gateways as { id: number; name: string; slug: string; connected: boolean }[]}
             onChanged={handlePageSaved}
             onDraftChange={handlePagePreviewDraft}
           />

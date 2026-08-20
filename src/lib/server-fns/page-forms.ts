@@ -24,7 +24,8 @@ import type {
   PaymentResult,
   SubscriptionResult,
 } from '@/integrations/payments/types'
-import { loadIntegrationConfigs } from '../integrations/credentials'
+import { getIntegrationConfig, loadIntegrationConfigs } from '../integrations/credentials'
+import type { MayaConfig } from '../integrations/types'
 import {
   getRecaptchaConfigForForm,
   mergeSubmissionSessionData,
@@ -73,7 +74,7 @@ import { claimPaymentCheckout } from '../payments/checkout-claim'
 import { applyDiscount, discountEligibility, normalizeDiscountCode } from '../discounts'
 export { validateDiscountCode } from './discounts'
 
-type GatewaySlug = 'paypal' | 'xendit'
+type GatewaySlug = 'paypal' | 'xendit' | 'maya'
 
 function assertSessionClientToken(clientToken: string) {
   if (!isValidPublicSessionToken(clientToken)) {
@@ -163,13 +164,20 @@ function paymentCalculationWithDiscount(calculation: ReturnType<typeof calculate
   }
 }
 
-function credentialsForSlug(
+async function credentialsForSlug(
   slug: GatewaySlug,
+  profileId: number,
   configs: Awaited<ReturnType<typeof loadIntegrationConfigs>>,
-): GatewayCredentials | null {
+): Promise<GatewayCredentials | null> {
   if (slug === 'xendit') {
     return configs.xendit
       ? { secretKey: configs.xendit.secretKey, publicKey: configs.xendit.publicKey, mode: configs.xendit.mode }
+      : null
+  }
+  if (slug === 'maya') {
+    const maya = await getIntegrationConfig<MayaConfig>(profileId, 'maya')
+    return maya
+      ? { publicKey: maya.publicKey, secretKey: maya.secretKey, mode: maya.mode }
       : null
   }
   return configs.paypal
@@ -1117,6 +1125,8 @@ export const getPagePaymentOptions = createServerFn({ method: 'GET', strict: fal
     const connected: { slug: GatewaySlug; name: string }[] = []
     if (configs.paypal) connected.push({ slug: 'paypal', name: configs.paypal.mode === 'live' ? 'PayPal' : 'PayPal Test' })
     if (configs.xendit) connected.push({ slug: 'xendit', name: configs.xendit.mode === 'live' ? 'Xendit' : 'Xendit Test' })
+    const maya = await getIntegrationConfig<MayaConfig>(form.profileId, 'maya')
+    if (maya) connected.push({ slug: 'maya', name: maya.mode === 'live' ? 'Maya' : 'Maya Test' })
     let gateways = connected.filter((gateway) =>
       paymentRegistry.get(gateway.slug)?.getSupportedCurrencies().includes(currency),
     )
@@ -1328,7 +1338,7 @@ export const initiatePagePayment = createServerFn({ method: 'POST', strict: fals
     const gateway = paymentRegistry.get(data.gatewaySlug)
     if (!gateway) throw new Error(`Unknown gateway: ${data.gatewaySlug}`)
     const configs = await loadIntegrationConfigs(form.profileId)
-    const credentials = credentialsForSlug(data.gatewaySlug, configs)
+    const credentials = await credentialsForSlug(data.gatewaySlug, form.profileId, configs)
     if (!credentials) throw new Error(`The form owner has not connected ${gateway.getGatewayName()}`)
     const subscriptionConfig = normalizedSubscriptionConfig(page.subscriptionConfig as SubscriptionConfig | null)
     if (subscriptionConfig && !subscriptionPaymentsEnabled()) {

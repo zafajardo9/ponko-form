@@ -47,6 +47,7 @@ import { Route as DashboardPopupsPopupIdRouteImport } from './routes/dashboard/p
 import { Route as ApiInternalReconcilePaymentsRouteImport } from './routes/api/internal/reconcile-payments'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiWebhooksXenditEndpointKeyRouteImport } from './routes/api/webhooks/xendit/$endpointKey'
+import { Route as ApiWebhooksMayaEndpointKeyRouteImport } from './routes/api/webhooks/maya/$endpointKey'
 import { Route as ApiPopupsPublicIdViewRouteImport } from './routes/api/popups/$publicId/view'
 import { Route as ApiPopupsPublicIdConfigRouteImport } from './routes/api/popups/$publicId/config'
 import { Route as ApiPopupsPublicIdClickRouteImport } from './routes/api/popups/$publicId/click'
@@ -245,6 +246,12 @@ const ApiWebhooksXenditEndpointKeyRoute =
     path: '/api/webhooks/xendit/$endpointKey',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiWebhooksMayaEndpointKeyRoute =
+  ApiWebhooksMayaEndpointKeyRouteImport.update({
+    id: '/api/webhooks/maya/$endpointKey',
+    path: '/api/webhooks/maya/$endpointKey',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPopupsPublicIdViewRoute = ApiPopupsPublicIdViewRouteImport.update({
   id: '/api/popups/$publicId/view',
   path: '/api/popups/$publicId/view',
@@ -309,6 +316,7 @@ export interface FileRoutesByFullPath {
   '/api/popups/$publicId/click': typeof ApiPopupsPublicIdClickRoute
   '/api/popups/$publicId/config': typeof ApiPopupsPublicIdConfigRoute
   '/api/popups/$publicId/view': typeof ApiPopupsPublicIdViewRoute
+  '/api/webhooks/maya/$endpointKey': typeof ApiWebhooksMayaEndpointKeyRoute
   '/api/webhooks/xendit/$endpointKey': typeof ApiWebhooksXenditEndpointKeyRoute
 }
 export interface FileRoutesByTo {
@@ -353,6 +361,7 @@ export interface FileRoutesByTo {
   '/api/popups/$publicId/click': typeof ApiPopupsPublicIdClickRoute
   '/api/popups/$publicId/config': typeof ApiPopupsPublicIdConfigRoute
   '/api/popups/$publicId/view': typeof ApiPopupsPublicIdViewRoute
+  '/api/webhooks/maya/$endpointKey': typeof ApiWebhooksMayaEndpointKeyRoute
   '/api/webhooks/xendit/$endpointKey': typeof ApiWebhooksXenditEndpointKeyRoute
 }
 export interface FileRoutesById {
@@ -398,6 +407,7 @@ export interface FileRoutesById {
   '/api/popups/$publicId/click': typeof ApiPopupsPublicIdClickRoute
   '/api/popups/$publicId/config': typeof ApiPopupsPublicIdConfigRoute
   '/api/popups/$publicId/view': typeof ApiPopupsPublicIdViewRoute
+  '/api/webhooks/maya/$endpointKey': typeof ApiWebhooksMayaEndpointKeyRoute
   '/api/webhooks/xendit/$endpointKey': typeof ApiWebhooksXenditEndpointKeyRoute
 }
 export interface FileRouteTypes {
@@ -444,6 +454,7 @@ export interface FileRouteTypes {
     | '/api/popups/$publicId/click'
     | '/api/popups/$publicId/config'
     | '/api/popups/$publicId/view'
+    | '/api/webhooks/maya/$endpointKey'
     | '/api/webhooks/xendit/$endpointKey'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -488,6 +499,7 @@ export interface FileRouteTypes {
     | '/api/popups/$publicId/click'
     | '/api/popups/$publicId/config'
     | '/api/popups/$publicId/view'
+    | '/api/webhooks/maya/$endpointKey'
     | '/api/webhooks/xendit/$endpointKey'
   id:
     | '__root__'
@@ -532,6 +544,7 @@ export interface FileRouteTypes {
     | '/api/popups/$publicId/click'
     | '/api/popups/$publicId/config'
     | '/api/popups/$publicId/view'
+    | '/api/webhooks/maya/$endpointKey'
     | '/api/webhooks/xendit/$endpointKey'
   fileRoutesById: FileRoutesById
 }
@@ -576,6 +589,7 @@ export interface RootRouteChildren {
   ApiPopupsPublicIdClickRoute: typeof ApiPopupsPublicIdClickRoute
   ApiPopupsPublicIdConfigRoute: typeof ApiPopupsPublicIdConfigRoute
   ApiPopupsPublicIdViewRoute: typeof ApiPopupsPublicIdViewRoute
+  ApiWebhooksMayaEndpointKeyRoute: typeof ApiWebhooksMayaEndpointKeyRoute
   ApiWebhooksXenditEndpointKeyRoute: typeof ApiWebhooksXenditEndpointKeyRoute
 }
 
@@ -847,6 +861,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebhooksXenditEndpointKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/webhooks/maya/$endpointKey': {
+      id: '/api/webhooks/maya/$endpointKey'
+      path: '/api/webhooks/maya/$endpointKey'
+      fullPath: '/api/webhooks/maya/$endpointKey'
+      preLoaderRoute: typeof ApiWebhooksMayaEndpointKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/popups/$publicId/view': {
       id: '/api/popups/$publicId/view'
       path: '/api/popups/$publicId/view'
@@ -931,6 +952,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPopupsPublicIdClickRoute: ApiPopupsPublicIdClickRoute,
   ApiPopupsPublicIdConfigRoute: ApiPopupsPublicIdConfigRoute,
   ApiPopupsPublicIdViewRoute: ApiPopupsPublicIdViewRoute,
+  ApiWebhooksMayaEndpointKeyRoute: ApiWebhooksMayaEndpointKeyRoute,
   ApiWebhooksXenditEndpointKeyRoute: ApiWebhooksXenditEndpointKeyRoute,
 }
 export const routeTree = rootRouteImport

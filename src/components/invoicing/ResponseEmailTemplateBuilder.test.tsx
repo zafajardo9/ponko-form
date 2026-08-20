@@ -106,11 +106,8 @@ describe('ResponseEmailTemplateBuilder', () => {
     )
   })
 
-  it('opens the email preview in a dialog', () => {
+  it('shows a live email preview with sample values', () => {
     renderBuilder()
-    expect(screen.queryByRole('dialog')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
-    expect(screen.getByRole('dialog')).toBeTruthy()
     expect(screen.getByTestId('email-preview').textContent).toContain('Thanks for submitting')
   })
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { themeVars, type FormTheme } from '@/lib/theme'
+import { useSkipValidation } from '@/lib/dev-test-mode'
 import {
   advancePageSession,
   completePageSubmission,
@@ -27,6 +28,7 @@ import { Button } from '../ui/Button'
 import { FieldRenderer } from '../form-builder/fields/FieldRenderer'
 import type { FieldValue } from '../form-builder/fields/FieldRenderer'
 import { PageProgressBar } from './PageProgressBar'
+import { SelectedPriceSummary, selectedPriceItems } from './SelectedPriceSummary'
 import { PagePaymentStep } from './PagePaymentStep'
 import { PagePaymentPreview } from './PagePaymentPreview'
 import { RecaptchaField } from './RecaptchaField'
@@ -36,6 +38,7 @@ import {
   type SubmissionDetail,
 } from './FormSuccessCard'
 import { createPublicSessionToken } from '@/lib/public-session-access'
+import { clearPageDraft, loadPageDraft, savePageDraft } from '@/lib/page-builder/local-draft'
 import { FormLoadingIndicator } from '../public-form/FormLoadingIndicator'
 
 interface PageFormViewProps {
@@ -130,11 +133,18 @@ export function PageFormView({
   emailSurvey,
   recaptchaSiteKey: initialRecaptchaSiteKey,
 }: PageFormViewProps) {
-  const [currentPageIndex, setCurrentPageIndex] = useState(0)
-  const [data, setData] = useState<Record<string, unknown>>(() =>
-    emailSurvey ? { [emailSurvey.bindVariable]: emailSurvey.rating } : {},
+  // A previous in-progress response cached in localStorage lets the respondent
+  // pick up where they left off after a reload (without a backend round-trip).
+  const [restoredDraft] = useState(() =>
+    preview || resumeSessionId || emailSurvey || formId == null ? null : loadPageDraft(formId),
   )
+  const [currentPageIndex, setCurrentPageIndex] = useState(() => restoredDraft?.currentPageIndex ?? 0)
+  const [data, setData] = useState<Record<string, unknown>>(() => ({
+    ...(restoredDraft?.collectedData ?? {}),
+    ...(emailSurvey ? { [emailSurvey.bindVariable]: emailSurvey.rating } : {}),
+  }))
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const skipValidation = useSkipValidation()
   const [sessionId, setSessionId] = useState<number | null>(resumeSessionId ?? null)
   const [paidPages, setPaidPages] = useState<Record<number, boolean>>({})
   const [paymentGateMessage, setPaymentGateMessage] = useState('')
@@ -227,7 +237,11 @@ export function PageFormView({
           ? session.collectedData as Record<string, unknown>
           : { ...session.collectedData, ...current })
       }
-      if (typeof session.currentPageIndex === 'number') setCurrentPageIndex(session.currentPageIndex)
+      if (typeof session.currentPageIndex === 'number') {
+        // Prefer the locally-restored page over a fresh server session (which
+        // starts at 0); the server wins only if it is further ahead.
+        setCurrentPageIndex((previous) => Math.max(previous, session.currentPageIndex))
+      }
       if (session.formSubmissionId) setSubmissionId(session.formSubmissionId)
       if (session.status === 'completed') setCompleted(true)
       setPaymentGateMessage('')
@@ -261,6 +275,7 @@ export function PageFormView({
     onSuccess: (result) => {
       setSubmissionId(result.submissionId)
       setCompleted(true)
+      if (formId != null) clearPageDraft(formId)
     },
     onError: resetCaptchaFields,
   })
@@ -289,6 +304,16 @@ export function PageFormView({
       completeMut.mutate(queuedData)
     }
   }, [sessionId])
+
+  // Continuously mirror the in-progress response to localStorage (debounced) so
+  // the respondent's answers survive a reload without a blocking server save.
+  useEffect(() => {
+    if (preview || resumeSessionId || formId == null || completed) return
+    const timer = window.setTimeout(() => {
+      savePageDraft(formId, { currentPageIndex, collectedData: data })
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [preview, resumeSessionId, formId, currentPageIndex, data, completed])
 
   function retrySessionInitialization() {
     if (!formId || startMut.isPending) return
@@ -327,6 +352,13 @@ export function PageFormView({
     [allFields, computedData],
   )
   const currentValues = computedData as Record<string, FieldValue>
+  const pricedSelections = useMemo(
+    () => selectedPriceItems(allFields, computedData, referenceMap),
+    [allFields, computedData, referenceMap],
+  )
+  const displayCurrency = pages.find((page) => page.hasPayment)?.paymentCurrency
+    ?? currentPage?.paymentCurrency
+    ?? 'USD'
   const themed = themeVars(resolvedTheme ?? null)
   const outerClass = embed
     ? 'w-full'
@@ -373,6 +405,10 @@ export function PageFormView({
   }
 
   function validatePage(page: FormPage, scopedData: Record<string, unknown>) {
+    if (skipValidation) {
+      setErrors({})
+      return true
+    }
     const nextErrors: Record<string, string> = {}
     for (const field of visibleFields(page.fields, scopedData, referenceMap)) {
       const value = scopedData[field.bindVariable]
@@ -419,7 +455,11 @@ export function PageFormView({
       return
     }
     const nextIndex = currentPageIndex + 1
-    if (!preview && sessionId) {
+    const nextPage = pages[nextIndex]
+    // Ordinary page transitions stay instant: the response is cached locally and
+    // only flushed to the backend when reaching a payment page (which needs the
+    // server-side amount) or on final submit.
+    if (!preview && sessionId && nextPage?.hasPayment) {
       try {
         await advanceMut.mutateAsync({ currentPageIndex: nextIndex, collectedData: nextData })
       } catch {
@@ -466,12 +506,16 @@ export function PageFormView({
       <div className={wrapperClass}>
         <Card className="min-w-0 max-sm:p-4">
           <div className="mb-8">
-            <h1 className="text-2xl font-medium text-[#141413]">{resolvedTitle}</h1>
-            {visibleDescription && <p className="mt-2 text-[#6c6a64]">{visibleDescription}</p>}
+            <h1 className="text-2xl font-medium text-[var(--ponko-foreground,#141413)]">{resolvedTitle}</h1>
+            {visibleDescription && <p className="mt-2 text-[var(--ponko-foreground-muted,#6c6a64)]">{visibleDescription}</p>}
           </div>
 
           {!currentPage.isFinal && (
             <PageProgressBar current={progressPageCurrent} total={progressPageTotal} />
+          )}
+
+          {!currentPage.isFinal && !currentPage.hasPayment && (
+            <SelectedPriceSummary items={pricedSelections} currency={displayCurrency} />
           )}
 
           {!preview && !resumeSessionId && startMut.isError && (
@@ -493,9 +537,9 @@ export function PageFormView({
             className={embed ? undefined : `ponko-step-${nav.dir}`}
           >
           <div className="mb-6">
-            <h2 className="text-xl font-medium text-[#141413]">{currentPage.title}</h2>
+            <h2 className="text-xl font-medium text-[var(--ponko-foreground,#141413)]">{currentPage.title}</h2>
             {currentPage.description && (
-              <p className="mt-1 text-sm text-[#6c6a64]">{currentPage.description}</p>
+              <p className="mt-1 text-sm text-[var(--ponko-foreground-muted,#6c6a64)]">{currentPage.description}</p>
             )}
           </div>
 
@@ -520,7 +564,7 @@ export function PageFormView({
               />
             ) : (
               <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-5 text-center" role="status">
-                <p className="font-medium text-[#141413]">
+                <p className="font-medium text-[var(--ponko-foreground,#141413)]">
                   {startMut.isError ? 'Payment is unavailable until the submission reconnects.' : 'Preparing secure payment…'}
                 </p>
                 {startMut.isError && (
@@ -636,5 +680,5 @@ function RedirectAfterDelay({ url }: { url: string }) {
     }, 3000)
     return () => window.clearTimeout(timer)
   }, [url])
-  return <p className="mt-4 text-sm text-[#8e8b82]">Redirecting shortly...</p>
+  return <p className="mt-4 text-sm text-[var(--ponko-foreground-faint,#8e8b82)]">Redirecting shortly...</p>
 }

@@ -18,10 +18,12 @@ import { eq, desc, asc, and, or, sql, type SQL } from "drizzle-orm";
 import { reconcilePayment } from "../payments/reconciliation";
 import { paymentRegistry } from "@/integrations/payments";
 import {
+  getIntegrationConfig,
   loadIntegrationConfigs,
   paypalCredentialsForEnvironment,
   xenditCredentialsForEnvironment,
 } from "../integrations/credentials";
+import type { MayaConfig } from "../integrations/types";
 import type { GatewayCredentials } from "@/integrations/payments/types";
 import { paymentReminderMessage } from "../email/resend";
 import { sendTransactionalEmail } from "../email/transactional";
@@ -613,12 +615,16 @@ export const replaceExpiredPaymentLink = createServerFn({ method: "POST", strict
     const response = payment.gatewayResponse ?? {};
     const environment = response.environment === "live" || response.environment === "sandbox"
       ? response.environment
-      : gatewaySlug === "xendit" ? configs.xendit?.mode : configs.paypal?.mode;
-    const credentials: GatewayCredentials | undefined = gatewaySlug === "xendit" && configs.xendit && environment
-      ? { ...xenditCredentialsForEnvironment(configs.xendit, environment), mode: environment }
-      : gatewaySlug === "paypal" && configs.paypal && environment
-        ? { ...paypalCredentialsForEnvironment(configs.paypal, environment), mode: environment }
-        : undefined;
+      : gatewaySlug === "xendit" ? configs.xendit?.mode : gatewaySlug === "maya" ? "sandbox" : configs.paypal?.mode;
+    let credentials: GatewayCredentials | undefined;
+    if (gatewaySlug === "xendit" && configs.xendit && environment) {
+      credentials = { ...xenditCredentialsForEnvironment(configs.xendit, environment), mode: environment };
+    } else if (gatewaySlug === "paypal" && configs.paypal && environment) {
+      credentials = { ...paypalCredentialsForEnvironment(configs.paypal, environment), mode: environment };
+    } else if (gatewaySlug === "maya") {
+      const maya = await getIntegrationConfig<MayaConfig>(profileId, "maya");
+      credentials = maya ? { publicKey: maya.publicKey, secretKey: maya.secretKey, mode: maya.mode } : undefined;
+    }
     if (!credentials) throw new Error("Payment gateway credentials are unavailable")
     const baseUrl = publicRequestOrigin()
     const returnUrl = await recoveryReturnUrl(payment, baseUrl);

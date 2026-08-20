@@ -40,7 +40,7 @@ export function PaymentStep({
   })
 
   const initiate = useMutation({
-    mutationFn: (gatewaySlug: 'paypal' | 'xendit') => {
+    mutationFn: (gatewaySlug: 'paypal' | 'xendit' | 'maya') => {
       if (executionId == null) throw new Error('Missing flow execution')
       return initiatePayment({
         data: { executionId, clientToken, gatewaySlug },
@@ -65,11 +65,11 @@ export function PaymentStep({
   return (
     <div className="flex flex-col items-center gap-5 py-4 text-center">
       <div>
-        <p className="text-sm text-[#6c6a64]">Amount due</p>
-        <p className="mt-1 text-4xl font-semibold text-[#141413]">
+        <p className="text-sm text-[var(--ponko-foreground-muted,#6c6a64)]">Amount due</p>
+        <p className="mt-1 text-4xl font-semibold text-[var(--ponko-foreground,#141413)]">
           {displayCurrency} {formattedAmount}
         </p>
-        <p className="mt-1 text-xs text-[#8e8b82]">
+        <p className="mt-1 text-xs text-[var(--ponko-foreground-faint,#8e8b82)]">
           You’ll be charged in {displayCurrency}.
         </p>
       </div>
@@ -84,7 +84,7 @@ export function PaymentStep({
       ) : (
         <div className="flex w-full max-w-xs flex-col gap-2">
           {gateways.length > 1 && (
-            <p className="text-sm text-[#6c6a64]">Choose how you’d like to pay</p>
+            <p className="text-sm text-[var(--ponko-foreground-muted,#6c6a64)]">Choose how you’d like to pay</p>
           )}
           {gateways.map((g) => (
             <Button key={g.slug} onClick={() => initiate.mutate(g.slug)} disabled={busy}>
@@ -100,7 +100,7 @@ export function PaymentStep({
         </p>
       )}
 
-      <p className="flex items-center gap-1.5 text-xs text-[#8e8b82]">
+      <p className="flex items-center gap-1.5 text-xs text-[var(--ponko-foreground-faint,#8e8b82)]">
         <span aria-hidden>🔒</span> Secure checkout — you’ll be redirected to complete payment
       </p>
     </div>

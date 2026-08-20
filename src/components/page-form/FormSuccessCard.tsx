@@ -53,7 +53,7 @@ export function FormSuccessCard({
 
       {title && (
         <h1
-          className="ponko-success-rise mt-5 text-2xl font-medium text-[#141413] motion-reduce:animate-none"
+          className="ponko-success-rise mt-5 text-2xl font-medium text-[var(--ponko-foreground,#141413)] motion-reduce:animate-none"
           style={{ animationDelay: '60ms' }}
         >
           {title}
@@ -61,7 +61,7 @@ export function FormSuccessCard({
       )}
 
       <p
-        className="ponko-success-rise mx-auto mt-2 max-w-md whitespace-pre-wrap text-[#6c6a64] motion-reduce:animate-none"
+        className="ponko-success-rise mx-auto mt-2 max-w-md whitespace-pre-wrap text-[var(--ponko-foreground-muted,#6c6a64)] motion-reduce:animate-none"
         style={{ animationDelay: '120ms' }}
       >
         {message}
@@ -83,7 +83,7 @@ export function FormSuccessCard({
             <details className="group">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-[#38342f] hover:bg-[var(--ponko-primary-soft,#cc785c29)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--ponko-primary,#cc785c)] sm:px-5">
                 Review submitted details
-                <ChevronDown size={16} className="text-[#8e8b82] transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
+                <ChevronDown size={16} className="text-[var(--ponko-foreground-faint,#8e8b82)] transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
               </summary>
               <SubmissionDetails details={details} />
             </details>
@@ -96,11 +96,11 @@ export function FormSuccessCard({
           className="ponko-success-rise mx-auto mt-8 max-w-md rounded-[var(--ponko-radius-card,16px)] border border-[var(--ponko-primary-soft,#cc785c29)] bg-[var(--ponko-bg,#faf9f5)] px-5 py-4 motion-reduce:animate-none"
           style={{ animationDelay: reference ? '240ms' : '180ms' }}
         >
-          <div className="flex items-center justify-center gap-1.5 text-sm font-medium text-[#141413]">
-            <Mail size={15} className="shrink-0 text-[#8e8b82]" />
+          <div className="flex items-center justify-center gap-1.5 text-sm font-medium text-[var(--ponko-foreground,#141413)]">
+            <Mail size={15} className="shrink-0 text-[var(--ponko-foreground-faint,#8e8b82)]" />
             Need help?
           </div>
-          <p className="mt-1.5 text-center text-sm leading-relaxed text-[#6c6a64]">
+          <p className="mt-1.5 text-center text-sm leading-relaxed text-[var(--ponko-foreground-muted,#6c6a64)]">
             If something went wrong with your response, our team is happy to help. Reach us at{' '}
             <a
               href={`mailto:${supportEmail}`}
@@ -131,14 +131,14 @@ export function SubmissionReviewCard({ details }: { details: SubmissionDetail[] 
           <ClipboardCheck size={16} aria-hidden="true" />
         </span>
         <div className="min-w-0">
-          <h3 id="submission-review-title" className="text-sm font-semibold text-[#282622]">Review before submitting</h3>
-          <p className="mt-0.5 text-xs leading-4 text-[#6c6a64]">Check your details, then submit to record them.</p>
+          <h3 id="submission-review-title" className="text-sm font-semibold text-[var(--ponko-foreground,#141413)]">Review before submitting</h3>
+          <p className="mt-0.5 text-xs leading-4 text-[var(--ponko-foreground-muted,#6c6a64)]">Check your details, then submit to record them.</p>
         </div>
       </div>
       {details.length > 0 ? (
         <SubmissionDetails details={details} compact />
       ) : (
-        <p className="px-3.5 py-3 text-sm text-[#77736b]">No response details were entered.</p>
+        <p className="px-3.5 py-3 text-sm text-[var(--ponko-foreground-muted,#77736b)]">No response details were entered.</p>
       )}
       <div className="flex items-center gap-2 border-t border-[var(--ponko-primary-soft,#cc785c29)] bg-[var(--ponko-primary-soft,#cc785c29)] px-3.5 py-2.5 text-xs font-medium text-[var(--ponko-primary,#a9583e)]">
         <span className="h-1.5 w-1.5 rounded-full bg-[var(--ponko-primary,#cc785c)]" aria-hidden="true" />
@@ -153,7 +153,7 @@ function SubmissionDetails({ details, compact = false }: { details: SubmissionDe
     <dl className={`${compact ? 'max-h-44' : 'max-h-72'} divide-y divide-[var(--ponko-primary-soft,#cc785c29)] overflow-y-auto overscroll-contain border-t border-[var(--ponko-primary-soft,#cc785c29)] px-3.5 sm:px-4`}>
       {details.map((detail, index) => (
         <div key={`${detail.label}-${index}`} className={`grid gap-0.5 ${compact ? 'py-2.5' : 'py-3'} sm:grid-cols-[minmax(110px,0.65fr)_minmax(0,1fr)] sm:gap-3`}>
-          <dt className="text-xs font-medium text-[#8e8b82]">{detail.label}</dt>
+          <dt className="text-xs font-medium text-[var(--ponko-foreground-faint,#8e8b82)]">{detail.label}</dt>
           <dd className="break-words text-sm leading-5 text-[#38342f] sm:text-right">{detail.value}</dd>
         </div>
       ))}

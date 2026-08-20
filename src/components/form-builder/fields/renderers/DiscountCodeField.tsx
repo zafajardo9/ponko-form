@@ -89,7 +89,7 @@ export function DiscountCodeField({ field, value, onChange, readOnly, hideLabel,
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       {!hideLabel && (
-        <label htmlFor={inputId} className="text-sm font-medium text-[#141413]">
+        <label htmlFor={inputId} className="text-sm font-medium text-[var(--ponko-foreground,#141413)]">
           <span className="inline-flex items-center gap-1.5"><Tag size={14} className="text-[#cc785c]" />{field.label || 'Discount code'}</span>
           {field.required && <span aria-hidden="true" className="ml-1 text-[#c64545]">*</span>}
         </label>

@@ -104,13 +104,13 @@ export function RecaptchaField({ label, required, siteKey, error, preview, onCha
   return (
     <div className="flex min-w-0 flex-col gap-2">
       {label.trim() && (
-        <p className="break-words text-sm font-medium text-[#141413]">
+        <p className="break-words text-sm font-medium text-[var(--ponko-foreground,#141413)]">
           {label}
           {required && <span className="ml-0.5 text-[#c64545]">*</span>}
         </p>
       )}
       {preview ? (
-        <div className="flex h-[78px] w-[304px] max-w-full items-center gap-3 rounded border border-[#d8d8d8] bg-[#fafafa] px-4 text-sm text-[#3d3d3a]">
+        <div className="flex h-[78px] w-[304px] max-w-full items-center gap-3 rounded border border-[#d8d8d8] bg-[#fafafa] px-4 text-sm text-[var(--ponko-foreground,#141413)]">
           <span className="h-7 w-7 rounded border-2 border-[#777] bg-white" />
           <span>I’m not a robot</span>
           <span className="ml-auto text-xs text-[#777]">reCAPTCHA</span>

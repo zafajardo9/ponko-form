@@ -1,7 +1,6 @@
 import { useId, useState } from 'react'
 import {
   Check,
-  Eye,
   Mail,
   Plus,
   Settings2,
@@ -12,7 +11,6 @@ import {
 import type { EmailTemplateSnapshot, ResponseEmailTemplate } from '../../db/schema'
 import type { ConfirmationConfigDraft, TemplateVariable } from '../../lib/invoicing/types'
 import { appConfig } from '../../utils/app-config'
-import { PreviewDialog } from '../ui/PreviewDialog'
 import { InvoicePreview } from './InvoicePreview'
 import { TemplateRichTextEditor } from './TemplateRichTextEditor'
 
@@ -55,7 +53,6 @@ export function ResponseEmailTemplateBuilder({
   const [activeTab, setActiveTab] = useState<EditorTab>('email')
   const [ccInput, setCcInput] = useState('')
   const [ccError, setCcError] = useState<string | null>(null)
-  const [previewOpen, setPreviewOpen] = useState(false)
   const [enableMessage, setEnableMessage] = useState<string | null>(null)
   const fieldIdPrefix = useId()
   const templates = confirmation.templates
@@ -189,14 +186,6 @@ export function ResponseEmailTemplateBuilder({
               <p className="mt-0.5 text-xs text-[#8e8b82]">Sent after a successful form submission</p>
             </div>
             <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
-              <button
-                type="button"
-                onClick={() => setPreviewOpen(true)}
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-[#d8cec5] bg-white px-3 text-sm font-medium text-[#4f4c46] hover:bg-[#f5f0e8]"
-              >
-                <Eye size={15} aria-hidden="true" />
-                Preview
-              </button>
               <div className="flex items-center gap-2.5">
                 <span
                   className={`min-w-14 text-right text-xs font-semibold ${
@@ -264,27 +253,36 @@ export function ResponseEmailTemplateBuilder({
 
           <div className="p-4 sm:p-6">
             {activeTab === 'email' ? (
-              <div className="space-y-5">
-                <Field label="Subject" required htmlFor={`${fieldIdPrefix}-subject`}>
-                  <input
-                    id={`${fieldIdPrefix}-subject`}
-                    className={inputClass}
-                    value={selected.subjectTemplate}
-                    maxLength={255}
-                    onChange={(event) => updateSelected({ subjectTemplate: event.target.value })}
-                  />
-                </Field>
-                <Field
-                  label="Email content"
-                  required
-                  helper="Use variables to personalize the message or include selected form answers."
-                >
-                  <TemplateRichTextEditor
-                    value={selected.bodyTemplate}
-                    variables={variables}
-                    onChange={(bodyTemplate) => updateSelected({ bodyTemplate })}
-                  />
-                </Field>
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.8fr)]">
+                <div className="space-y-5">
+                  <Field label="Subject" required htmlFor={`${fieldIdPrefix}-subject`}>
+                    <input
+                      id={`${fieldIdPrefix}-subject`}
+                      className={inputClass}
+                      value={selected.subjectTemplate}
+                      maxLength={255}
+                      onChange={(event) => updateSelected({ subjectTemplate: event.target.value })}
+                    />
+                  </Field>
+                  <Field
+                    label="Email content"
+                    required
+                    helper="Use variables to personalize the message or include selected form answers."
+                  >
+                    <TemplateRichTextEditor
+                      value={selected.bodyTemplate}
+                      variables={variables}
+                      onChange={(bodyTemplate) => updateSelected({ bodyTemplate })}
+                    />
+                  </Field>
+                </div>
+                <div className="min-w-0 xl:sticky xl:top-6 xl:self-start">
+                  <div className="mb-3">
+                    <h2 className="text-sm font-semibold text-[#141413]">Email preview</h2>
+                    <p className="mt-0.5 text-xs text-[#8e8b82]">Sample values replace variables here.</p>
+                  </div>
+                  <InvoicePreview kind="confirmation" snapshot={snapshot} variables={variables} />
+                </div>
               </div>
             ) : null}
 
@@ -453,12 +451,6 @@ export function ResponseEmailTemplateBuilder({
           </div>
         </section>
       </div>
-
-      {previewOpen ? (
-        <PreviewDialog title={selected.name} onClose={() => setPreviewOpen(false)}>
-          <InvoicePreview kind="confirmation" snapshot={snapshot} variables={variables} />
-        </PreviewDialog>
-      ) : null}
     </>
   )
 }

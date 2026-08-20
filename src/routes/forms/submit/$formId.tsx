@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { PublicFormView } from '../../../components/public-form/PublicFormView'
+import { DevSkipValidationToggle } from '../../../components/dev/DevSkipValidationToggle'
 
 export const Route = createFileRoute('/forms/submit/$formId')({
   validateSearch: (search: Record<string, unknown>): { surveyToken?: string; rating?: string } => {
@@ -17,5 +18,10 @@ export const Route = createFileRoute('/forms/submit/$formId')({
 function PublicFormPage() {
   const { formId } = Route.useParams()
   const { surveyToken, rating } = Route.useSearch()
-  return <PublicFormView publicId={formId} emailSurveyToken={surveyToken} emailSurveyRating={rating} />
+  return (
+    <>
+      <PublicFormView publicId={formId} emailSurveyToken={surveyToken} emailSurveyRating={rating} />
+      <DevSkipValidationToggle />
+    </>
+  )
 }

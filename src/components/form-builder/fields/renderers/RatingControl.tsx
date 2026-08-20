@@ -84,7 +84,7 @@ export function RatingControl({ options, value, onChange, name, label, readOnly 
                   ? `min-h-11 min-w-[84px] rounded-lg border px-2.5 py-2 sm:min-h-12 ${
                       isCurrent
                         ? 'border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary-soft,#cc785c29)] text-[var(--ponko-primary,#a9583e)] shadow-sm'
-                        : 'border-[#e6dfd8] bg-white text-[#6c6a64] hover:border-[#cfc4b8] hover:bg-[#faf9f5]'
+                        : 'border-[#e6dfd8] bg-white text-[var(--ponko-foreground-muted,#6c6a64)] hover:border-[#cfc4b8] hover:bg-[#faf9f5]'
                     }`
                   : isNumericOption
                   ? `w-11 rounded-full p-1 sm:w-14 sm:p-2 ${
@@ -149,7 +149,7 @@ export function RatingControl({ options, value, onChange, name, label, readOnly 
                     isNumericOption && isActive
                       ? 'text-[#d59b25]'
                       : isNumericOption
-                        ? 'text-[#8e8b82]'
+                        ? 'text-[var(--ponko-foreground-faint,#8e8b82)]'
                         : ''
                   } ${
                     !isNumericOption && isCurrent ? 'scale-110 drop-shadow-sm' : ''

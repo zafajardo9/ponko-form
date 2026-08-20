@@ -9,11 +9,11 @@ export function PageProgressBar({ current, total }: PageProgressBarProps) {
   const pct = Math.min(100, Math.round((current / total) * 100))
   return (
     <div className="mb-6">
-      <div className="mb-2 flex items-center justify-between text-xs text-[#8e8b82]">
+      <div className="mb-2 flex items-center justify-between text-xs text-[var(--ponko-foreground-faint,#8e8b82)]">
         {/* Re-keyed per page so the labels do a small rise-in on navigation. */}
         <span
           key={`label-${current}`}
-          className="ponko-progress-label font-medium text-[#6c6a64] tabular-nums"
+          className="ponko-progress-label font-medium text-[var(--ponko-foreground-muted,#6c6a64)] tabular-nums"
         >
           Page {current} of {total}
         </span>

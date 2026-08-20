@@ -27,7 +27,7 @@ export function RadioField({ field, value, onChange, error, readOnly, hideLabel 
     <div className="flex min-w-0 flex-col gap-1.5">
       <fieldset className="flex min-w-0 flex-col gap-1.5">
         {!hideLabel && (
-          <legend id={labelId} className="text-sm font-medium text-[#141413]">
+          <legend id={labelId} className="text-sm font-medium text-[var(--ponko-foreground,#141413)]">
             {field.label || 'Untitled field'}
             {field.required && <span aria-hidden="true" className="ml-1 text-[#c64545]">*</span>}
           </legend>
@@ -43,11 +43,9 @@ export function RadioField({ field, value, onChange, error, readOnly, hideLabel 
             return (
               <label
                 key={opt.value}
-                className={`group flex min-h-12 cursor-pointer items-center gap-3 rounded-[var(--ponko-radius,8px)] border px-3.5 py-3 transition-all focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] ${
-                  selected
-                    ? 'border-[var(--ponko-primary,#cc785c)] bg-[var(--ponko-primary-soft,#cc785c29)] shadow-sm'
-                    : 'border-[#e6dfd8] bg-[#faf9f5] hover:border-[#cfc4b8] hover:bg-white'
-                } ${readOnly ? 'cursor-not-allowed opacity-60' : ''}`}
+                className={`group flex min-h-12 cursor-pointer items-center gap-3 px-3.5 py-3 transition-all focus-within:ring-2 focus-within:ring-[var(--ponko-primary-soft,#cc785c29)] ${
+                  readOnly ? 'cursor-not-allowed opacity-60' : ''
+                }`}
               >
                 <input
                   type="radio"
@@ -62,7 +60,7 @@ export function RadioField({ field, value, onChange, error, readOnly, hideLabel 
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors peer-checked:border-[var(--ponko-primary,#cc785c)] peer-checked:bg-[var(--ponko-primary,#cc785c)] group-hover:border-[var(--ponko-primary,#cc785c)]">
                   <span className={`h-2 w-2 rounded-full bg-white transition-transform ${selected ? 'scale-100' : 'scale-0'}`} />
                 </span>
-                <span className={`text-sm ${selected ? 'font-medium text-[#3d3d3a]' : 'text-[#141413]'}`}>{opt.label}</span>
+                <span className={`text-sm ${selected ? 'font-medium text-[var(--ponko-foreground,#141413)]' : 'text-[var(--ponko-foreground,#141413)]'}`}>{opt.label}</span>
               </label>
             )
           })}

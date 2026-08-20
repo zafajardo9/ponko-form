@@ -87,11 +87,15 @@ export const PROVIDER_FORMS: Record<ProviderSlug, ProviderFormConfig> = {
     provider: 'maya',
     name: 'Maya',
     icon: '💳',
-    description: 'Maya Checkout API — direct integration with Maya payments.',
+    description: 'Maya Checkout API — accept Maya wallet, card, and QR Ph payments (PH).',
     category: 'payments',
     fields: [
-      { name: 'clientId', label: 'Client ID', type: 'text', required: true, placeholder: 'your-client-id', docLink: 'https://developers.maya.ph/' },
-      { name: 'clientSecret', label: 'Client secret', type: 'password', required: true, placeholder: 'your-client-secret' },
+      { name: 'mode', label: 'Environment', type: 'select', required: true, placeholder: 'sandbox', options: [
+        { value: 'sandbox', label: 'Sandbox (test payments)' },
+        { value: 'live', label: 'Live (real payments)' },
+      ] },
+      { name: 'publicKey', label: 'Public API key', type: 'text', required: true, placeholder: 'pk-…', docLink: 'https://developers.maya.ph/docs/checkout-api-keys' },
+      { name: 'secretKey', label: 'Secret API key', type: 'password', placeholder: 'sk-… (optional, used to verify webhooks)', docLink: 'https://developers.maya.ph/docs/checkout-api-keys' },
     ],
     docsUrl: 'https://developers.maya.ph/',
   },

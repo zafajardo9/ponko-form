@@ -7,6 +7,7 @@ import { Button, navigationBackIconClass } from '../ui/Button'
 import { FlowProgressBar } from './FlowProgressBar'
 import { GroupStepView } from './GroupStepView'
 import { PaymentStep } from './PaymentStep'
+import { useSkipValidation } from '../../lib/dev-test-mode'
 
 /**
  * FlowStepRenderer
@@ -49,6 +50,7 @@ export function FlowStepRenderer({
   const config = step.config as Record<string, unknown>
   const [value, setValue] = useState<FieldValue>('')
   const [error, setError] = useState<string>('')
+  const skipValidation = useSkipValidation()
 
   useEffect(() => {
     setValue('')
@@ -60,8 +62,8 @@ export function FlowStepRenderer({
     return (
       <div className="flex flex-col gap-5 text-center">
         <div className="text-5xl">✓</div>
-        <h1 className="text-2xl font-medium text-[#141413]">{(config.title as string) ?? 'All done!'}</h1>
-        {step.renderedOutput && <p className="text-[#6c6a64]">{step.renderedOutput}</p>}
+        <h1 className="text-2xl font-medium text-[var(--ponko-foreground,#141413)]">{(config.title as string) ?? 'All done!'}</h1>
+        {step.renderedOutput && <p className="text-[var(--ponko-foreground-muted,#6c6a64)]">{step.renderedOutput}</p>}
       </div>
     )
   }
@@ -70,7 +72,7 @@ export function FlowStepRenderer({
   if (complete && step.nodeType === 'redirect') {
     return (
       <div className="flex flex-col items-center gap-3 py-8 text-center">
-        <div className="flex items-center gap-1.5 text-[#8e8b82]">
+        <div className="flex items-center gap-1.5 text-[var(--ponko-foreground-faint,#8e8b82)]">
           <span className="h-2 w-2 animate-bounce rounded-full bg-[var(--ponko-primary,#cc785c)]" />
           <span className="ml-1 text-sm">Redirecting…</span>
         </div>
@@ -82,7 +84,7 @@ export function FlowStepRenderer({
     return (
       <div className="py-8 text-center">
         <div className="mb-3 text-4xl">✓</div>
-        <p className="text-[#141413]">Thank you! Your submission is complete.</p>
+        <p className="text-[var(--ponko-foreground,#141413)]">Thank you! Your submission is complete.</p>
       </div>
     )
   }
@@ -124,6 +126,10 @@ export function FlowStepRenderer({
     }
 
     function submit() {
+      if (skipValidation) {
+        onNext({ formValue: value })
+        return
+      }
       const empty = Array.isArray(value)
         ? value.length === 0
         : value && typeof value === 'object'
@@ -172,7 +178,7 @@ export function FlowStepRenderer({
       <div className="flex flex-col gap-6">
         {progress}
         <div className="flex flex-col gap-2">
-          <p className="text-base font-medium text-[#141413]">{step.label}</p>
+          <p className="text-base font-medium text-[var(--ponko-foreground,#141413)]">{step.label}</p>
           {branches.map((b) => (
             <label
               key={b.value}
@@ -189,7 +195,7 @@ export function FlowStepRenderer({
                 onChange={() => setValue(b.value)}
                 className="h-4 w-4 accent-[var(--ponko-primary,#cc785c)]"
               />
-              <span className="text-sm text-[#141413]">{b.label}</span>
+              <span className="text-sm text-[var(--ponko-foreground,#141413)]">{b.label}</span>
             </label>
           ))}
           {error && <p className="text-xs text-[#c64545]">{error}</p>}
@@ -213,7 +219,7 @@ export function FlowStepRenderer({
   return (
     <div className="flex flex-col gap-6">
       {progress}
-      <p className="text-[#6c6a64]">{step.label}</p>
+      <p className="text-[var(--ponko-foreground-muted,#6c6a64)]">{step.label}</p>
       <StepNav onBack={onBack} canGoBack={canGoBack} onNext={() => onNext()} nextLabel="Begin" />
     </div>
   )

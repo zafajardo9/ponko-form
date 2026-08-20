@@ -53,13 +53,13 @@ export function PagePaymentPreview({
     >
       {/* Ticket stub — amount due */}
       <div className="rounded-t-2xl bg-[#faf9f5] px-5 pb-6 pt-5 text-center">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8e8b82]">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--ponko-foreground-faint,#8e8b82)]">
           {isSubscription ? 'Subscription amount' : 'Amount due'}
         </p>
-        <p className="mt-2 text-4xl font-semibold tracking-tight text-[#141413]">
+        <p className="mt-2 text-4xl font-semibold tracking-tight text-[var(--ponko-foreground,#141413)]">
           {formatMoney(calculation.amount, page.paymentCurrency)}
           {subscription && (
-            <span className="ml-1.5 text-lg font-normal text-[#6c6a64]">
+            <span className="ml-1.5 text-lg font-normal text-[var(--ponko-foreground-muted,#6c6a64)]">
               /{INTERVAL_LABELS[subscription.interval]}
             </span>
           )}
@@ -80,12 +80,12 @@ export function PagePaymentPreview({
       <div className="flex flex-col gap-4 px-5 py-5">
         {subscription && (
           <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 text-sm leading-relaxed text-[#5f5a53]">
-            <p className="font-medium text-[#141413]">
+            <p className="font-medium text-[var(--ponko-foreground,#141413)]">
               {subscription.trialPeriodDays > 0
                 ? `${subscription.trialPeriodDays}-day trial`
                 : 'Billing starts immediately'}
             </p>
-            <p className="mt-1 text-xs leading-relaxed text-[#6c6a64]">
+            <p className="mt-1 text-xs leading-relaxed text-[var(--ponko-foreground-muted,#6c6a64)]">
               Xendit securely links an eligible auto-debit payment method.
               {subscription.maxCycles
                 ? ` This subscription ends after ${subscription.maxCycles} billing cycles.`
@@ -96,14 +96,14 @@ export function PagePaymentPreview({
 
         {page.paymentComputation?.showBreakdown && receiptDetails.length > 0 && (
           <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#8e8b82]">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--ponko-foreground-faint,#8e8b82)]">
               Receipt details
             </p>
             <dl className="space-y-1.5">
               {receiptDetails.map((detail) => (
                 <div key={detail.binding} className="flex items-start justify-between gap-4 text-sm">
-                  <dt className="text-[#6c6a64]">{detail.label}</dt>
-                  <dd className="max-w-[60%] text-right font-medium text-[#141413]">{detail.value}</dd>
+                  <dt className="text-[var(--ponko-foreground-muted,#6c6a64)]">{detail.label}</dt>
+                  <dd className="max-w-[60%] text-right font-medium text-[var(--ponko-foreground,#141413)]">{detail.value}</dd>
                 </div>
               ))}
             </dl>
@@ -113,7 +113,7 @@ export function PagePaymentPreview({
         {page.paymentComputation?.showBreakdown &&
           calculation.breakdown.length > 0 && (
             <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#8e8b82]">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--ponko-foreground-faint,#8e8b82)]">
                 Price breakdown
               </p>
               <div className="space-y-1.5">
@@ -122,8 +122,8 @@ export function PagePaymentPreview({
                     key={`${line.label}-${index}`}
                     className={`flex items-center justify-between gap-3 text-sm ${
                       line.kind === 'total'
-                        ? 'border-t border-[#e6dfd8] pt-2 font-medium text-[#141413]'
-                        : 'text-[#6c6a64]'
+                        ? 'border-t border-[#e6dfd8] pt-2 font-medium text-[var(--ponko-foreground,#141413)]'
+                        : 'text-[var(--ponko-foreground-muted,#6c6a64)]'
                     }`}
                   >
                     <span>{line.label}</span>
@@ -145,7 +145,7 @@ export function PagePaymentPreview({
         <Button type="button" disabled className="w-full sm:w-auto">
           {isSubscription ? 'Subscribe with Xendit' : 'Continue to payment'}
         </Button>
-        <p className="text-xs leading-relaxed text-[#8e8b82]">
+        <p className="text-xs leading-relaxed text-[var(--ponko-foreground-faint,#8e8b82)]">
           Checkout is disabled in preview. Publish or open the shared form to
           test the secure payment handoff.
         </p>

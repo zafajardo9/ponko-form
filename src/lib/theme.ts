@@ -15,6 +15,8 @@ export interface FormTheme {
   primaryColor?: string
   /** Page/surface background. */
   backgroundColor?: string
+  /** Main text/ink color — labels, values, headings. */
+  textColor?: string
   /** Corner roundness of inputs, buttons, and cards. */
   radius?: 'sharp' | 'rounded' | 'pill'
 }
@@ -22,6 +24,7 @@ export interface FormTheme {
 export const DEFAULT_THEME: Required<FormTheme> = {
   primaryColor: '#cc785c',
   backgroundColor: '#faf9f5',
+  textColor: '#141413',
   radius: 'rounded',
 }
 
@@ -39,6 +42,9 @@ export const ACCENT_PRESETS = [
 
 /** Light background swatches (text stays dark for readability). */
 export const BG_PRESETS = ['#faf9f5', '#ffffff', '#f8fafc', '#f5f3ff', '#f0fdf4', '#fff7ed']
+
+/** Curated text/ink swatches (mostly neutrals; light swatches for dark backgrounds). */
+export const TEXT_PRESETS = ['#141413', '#282622', '#1f2937', '#111827', '#4b5563', '#374151', '#ffffff', '#e5e7eb']
 
 export const RADIUS_OPTIONS: { value: NonNullable<FormTheme['radius']>; label: string }[] = [
   { value: 'sharp', label: 'Sharp' },
@@ -103,6 +109,7 @@ export function deriveSurface(bgHex: string): string {
 export function themeVars(theme?: FormTheme | null): CSSProperties {
   const primary = theme?.primaryColor || DEFAULT_THEME.primaryColor
   const bg = theme?.backgroundColor || DEFAULT_THEME.backgroundColor
+  const ink = theme?.textColor || DEFAULT_THEME.textColor
   const [control, card] = RADIUS_VALUES[theme?.radius ?? 'rounded'] ?? RADIUS_VALUES.rounded
   const style: Record<string, string> = {
     '--ponko-primary': primary,
@@ -112,6 +119,9 @@ export function themeVars(theme?: FormTheme | null): CSSProperties {
     '--ponko-surface': deriveSurface(bg),
     '--ponko-radius': control,
     '--ponko-radius-card': card,
+    '--ponko-foreground': ink,
+    '--ponko-foreground-muted': withAlpha(ink, 0.6),
+    '--ponko-foreground-faint': withAlpha(ink, 0.45),
   }
   return style as CSSProperties
 }

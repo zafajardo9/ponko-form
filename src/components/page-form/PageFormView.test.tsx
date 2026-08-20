@@ -22,13 +22,33 @@ vi.mock('../../lib/server-fns/page-forms', () => serverFns)
 
 vi.mock('../form-builder/fields/FieldRenderer', () => ({
   FieldRenderer: ({ field, value, onChange }: {
-    field: { label: string }
-    value: string
-    onChange: (value: string) => void
-  }) => (
+    field: { label: string; type?: string; options?: { label: string; value: string }[] }
+    value: string | string[]
+    onChange: (value: string | string[]) => void
+  }) => field.type === 'checkbox' ? (
+    <fieldset>
+      <legend>{field.label}</legend>
+      {(field.options ?? []).map((option) => {
+        const selected = Array.isArray(value) && value.includes(option.value)
+        return (
+          <label key={option.value}>
+            <input
+              type="checkbox"
+              aria-label={option.label}
+              checked={selected}
+              onChange={() => onChange(selected
+                ? value.filter((item) => item !== option.value)
+                : [...(Array.isArray(value) ? value : []), option.value])}
+            />
+            {option.label}
+          </label>
+        )
+      })}
+    </fieldset>
+  ) : (
     <label>
       {field.label}
-      <input aria-label={field.label} value={value} onChange={(event) => onChange(event.target.value)} />
+      <input aria-label={field.label} value={String(value)} onChange={(event) => onChange(event.target.value)} />
     </label>
   ),
 }))
@@ -212,6 +232,91 @@ describe('PageFormView session resilience', () => {
     renderPageForm(pages, ' contact FORM ')
 
     expect(screen.getAllByText('Contact form')).toHaveLength(1)
+  })
+
+  it('shows every selected priced option and their total beneath progress', () => {
+    serverFns.startPageSession.mockReturnValue(new Promise(() => undefined))
+    const pricedPages = [{
+      ...pages[0],
+      paymentCurrency: 'PHP',
+      fields: [{
+        ...pages[0].fields[0],
+        fieldType: 'checkbox',
+        label: 'Add-ons',
+        bindVariable: 'addons',
+        validationRules: { optionPricesEnabled: true },
+        options: [
+          { label: 'Gift wrap', value: 'wrap', price: 50 },
+          { label: 'Priority handling', value: 'priority', price: 100, additionalPrice: 25 },
+        ],
+      }],
+    }, pages[1]] as FormPage[]
+
+    renderPageForm(pricedPages)
+    expect(screen.queryByLabelText('Selected options and prices')).toBeNull()
+
+    fireEvent.click(screen.getByLabelText('Gift wrap'))
+    fireEvent.click(screen.getByLabelText('Priority handling'))
+
+    const trigger = screen.getByRole('button', { name: /2 selected options, total ₱175\.00/i })
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    expect(trigger.textContent).toContain('Total')
+    expect(trigger.textContent).toContain('₱175.00')
+
+    fireEvent.mouseEnter(trigger.parentElement!)
+
+    expect(trigger.getAttribute('aria-expanded')).toBe('true')
+    const summary = screen.getByLabelText('Selected options and prices')
+    expect(summary.getAttribute('aria-hidden')).toBe('false')
+    expect(summary.textContent).toContain('Gift wrap')
+    expect(summary.textContent).toContain('₱50.00')
+    expect(summary.textContent).toContain('Priority handling')
+    expect(summary.textContent).toContain('₱125.00')
+
+    fireEvent.mouseLeave(trigger.parentElement!)
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('omits the selected-price summary on payment pages', () => {
+    const paymentPages = [
+      {
+        ...pages[0],
+        fields: [{
+          ...pages[0].fields[0],
+          fieldType: 'checkbox',
+          label: 'Add-ons',
+          bindVariable: 'addons',
+          validationRules: { optionPricesEnabled: true },
+          options: [
+            { label: 'Gift wrap', value: 'wrap', price: 50 },
+            { label: 'Priority handling', value: 'priority', price: 100 },
+          ],
+        }],
+      },
+      {
+        ...pages[1],
+        isFinal: false,
+        hasPayment: true,
+        paymentCurrency: 'PHP',
+        paymentComputation: {
+          mode: 'fixed' as const,
+          fixedAmount: 2500,
+          showBreakdown: true,
+        },
+        fields: [],
+      },
+    ] as FormPage[]
+
+    renderPageFormPreview(paymentPages)
+
+    fireEvent.click(screen.getByLabelText('Gift wrap'))
+    expect(screen.getByRole('button', { name: /1 selected option, total ₱50\.00/i })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+
+    expect(screen.getByText('Amount due')).toBeTruthy()
+    expect(screen.getByText('Price breakdown')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /selected option/i })).toBeNull()
   })
 
   it('preserves entries after failure and retries initialization', async () => {

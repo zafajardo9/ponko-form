@@ -5,6 +5,7 @@ import { submitFormResponse } from '@/lib/server-fns/submissions'
 import { getEmailSurveyPrefill } from '@/lib/server-fns/email-surveys'
 import { FieldRenderer } from '../form-builder/fields/FieldRenderer'
 import { validateForm } from '@/lib/form-utils'
+import { useSkipValidation } from '@/lib/dev-test-mode'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { themeVars, type FormTheme } from '@/lib/theme'
@@ -56,6 +57,7 @@ export function PublicFormView({
   const [submitted, setSubmitted] = useState(false)
   const [loadingSlow, setLoadingSlow] = useState(false)
   const [submissionClientToken] = useState(createPublicSessionToken)
+  const skipValidation = useSkipValidation()
 
   const formQuery = useQuery({
     queryKey: ['public-form', publicId],
@@ -160,7 +162,7 @@ export function PublicFormView({
       <div className={outerClass} style={themed}>
         <div className={wrapperClass}>
           <div className="rounded-xl border border-[#d7a84c] bg-[#fff8e7] p-6 text-[#6b4f16]" role="alert">
-            {form?.title && <h1 className="text-2xl font-medium text-[#141413]">{form.title}</h1>}
+            {form?.title && <h1 className="text-2xl font-medium text-[var(--ponko-foreground,#141413)]">{form.title}</h1>}
             <p className={form?.title ? 'mt-3 text-sm' : 'text-sm font-medium'}>
               The form could not be loaded from the server. Your connection may still be recovering.
             </p>
@@ -187,8 +189,8 @@ export function PublicFormView({
     return (
       <div className={outerClass} style={themed}>
         <div className={embed ? 'w-full px-4 py-12 text-center' : 'mx-auto w-full max-w-5xl px-6 py-24 text-center'}>
-          <h1 className="text-2xl font-medium text-[#141413]">Form not found</h1>
-          <p className="mt-2 text-[#6c6a64]">
+          <h1 className="text-2xl font-medium text-[var(--ponko-foreground,#141413)]">Form not found</h1>
+          <p className="mt-2 text-[var(--ponko-foreground-muted,#6c6a64)]">
             This form is not available or hasn't been published yet.
           </p>
         </div>
@@ -202,10 +204,10 @@ export function PublicFormView({
       <div className={outerClass} style={themed}>
         <div className={wrapperClass}>
           <Card className="py-16 text-center">
-            <h1 className="text-2xl font-medium text-[#141413]">
+            <h1 className="text-2xl font-medium text-[var(--ponko-foreground,#141413)]">
               {expired ? 'This feedback link has expired' : 'This feedback link is not valid'}
             </h1>
-            <p className="mt-2 text-[#6c6a64]">
+            <p className="mt-2 text-[var(--ponko-foreground-muted,#6c6a64)]">
               Ask the sender for a new survey link, or open the regular form without the email rating link.
             </p>
           </Card>
@@ -274,10 +276,12 @@ export function PublicFormView({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const typedFields = fields as FieldConfig[]
-    const formErrors = validateForm(typedFields, values)
-    if (Object.keys(formErrors).length > 0) {
-      setErrors(formErrors)
-      return
+    if (!skipValidation) {
+      const formErrors = validateForm(typedFields, values)
+      if (Object.keys(formErrors).length > 0) {
+        setErrors(formErrors)
+        return
+      }
     }
 
     const formData: Record<string, unknown> = {}
@@ -292,9 +296,9 @@ export function PublicFormView({
       <div className={wrapperClass}>
         <Card className="min-w-0 max-sm:p-4">
           <div className="mb-8">
-            <h1 className="text-2xl font-medium text-[#141413]">{form.title}</h1>
+            <h1 className="text-2xl font-medium text-[var(--ponko-foreground,#141413)]">{form.title}</h1>
             {form.description && (
-              <p className="mt-2 text-[#6c6a64]">{form.description}</p>
+              <p className="mt-2 text-[var(--ponko-foreground-muted,#6c6a64)]">{form.description}</p>
             )}
           </div>
 

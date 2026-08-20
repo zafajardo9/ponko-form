@@ -20,7 +20,7 @@ export function EmailField({ field, value, onChange, error, readOnly, hideLabel 
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       {!hideLabel && (
-        <label htmlFor={inputId} id={labelId} className="text-sm font-medium text-[#141413]">
+        <label htmlFor={inputId} id={labelId} className="text-sm font-medium text-[var(--ponko-foreground,#141413)]">
           {field.label || 'Untitled field'}
           {field.required && <span aria-hidden="true" className="ml-1 text-[#c64545]">*</span>}
         </label>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { completeFreePagePayment, ensurePagePaymentDraft, getPagePaymentOptions, initiatePagePayment } from '../../lib/server-fns/page-forms'
 import { Button } from '../ui/Button'
+import { GatewayLogo } from './GatewayLogo'
 import { AlertTriangle, CheckCircle2, Info, LockKeyhole, RotateCcw, X } from 'lucide-react'
 import { appConfig } from '../../utils/app-config'
 
@@ -34,8 +35,10 @@ function PaymentGuideDialog({
   onClose: () => void
   gateways: { slug: string; name: string }[]
 }) {
-  const hasPayPal = gateways.some((g) => g.slug === 'paypal')
-  const hasXendit = gateways.some((g) => g.slug === 'xendit')
+  const gatewayNames = gateways.map((g) => g.name)
+  const providerLabel = gatewayNames.length <= 1
+    ? gatewayNames.join('')
+    : `${gatewayNames.slice(0, -1).join(', ')} and ${gatewayNames[gatewayNames.length - 1]}`
 
   // Close on Escape
   useEffect(() => {
@@ -60,14 +63,14 @@ function PaymentGuideDialog({
       <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-[#e6dfd8] bg-[#faf9f5] shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#e6dfd8] px-6 py-4">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-[#141413]">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-[var(--ponko-foreground,#141413)]">
             <Info size={18} className="text-[#cc785c]" aria-hidden="true" />
             How payment works
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8e8b82] transition-colors hover:bg-[#efe9de] hover:text-[#141413]"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--ponko-foreground-faint,#8e8b82)] transition-colors hover:bg-[#efe9de] hover:text-[var(--ponko-foreground,#141413)]"
             aria-label="Close"
           >
             <X size={18} />
@@ -75,49 +78,35 @@ function PaymentGuideDialog({
         </div>
 
         {/* Body */}
-        <div className="space-y-4 px-6 py-5 text-sm leading-relaxed text-[#3d3d3a]">
+        <div className="space-y-4 px-6 py-5 text-sm leading-relaxed text-[var(--ponko-foreground,#141413)]">
           <p>
             After you click <strong>Pay</strong>, you'll be redirected to the payment provider's secure
-            checkout page. Your form answers are saved automatically — you won't lose anything.
+            checkout page to complete your payment. Your form answers are saved automatically — you won't
+            lose anything.
           </p>
 
-          {hasPayPal && (
+          {gateways.length > 0 ? (
             <div className="rounded-xl border border-[#d6e0f0] bg-[#f5f8fc] p-4">
-              <p className="flex items-center gap-1.5 font-semibold text-[#003087]">
-                PayPal
-              </p>
+              <p className="font-semibold text-[#003087]">What to expect</p>
               <ul className="mt-2 list-disc space-y-1.5 pl-5 text-[#2c3e5a]">
-                <li>Pay with your PayPal balance, linked bank account, or credit/debit card.</li>
-                <li>You do <strong>not</strong> need a PayPal account — guest checkout with a card is available.</li>
-                <li>After completing payment, you'll be sent back to this form automatically.</li>
-                <li>If you close the page before returning, your payment is still processed — refresh this page to continue.</li>
+                <li>Pay with any method the provider offers — for example a credit/debit card, bank transfer, or e-wallet.</li>
+                <li>After completing your payment, you'll be sent back to this form automatically to continue.</li>
+                <li>If you close the page before returning, your payment is still processed — refresh this page to continue where you left off.</li>
+                <li>Some payment methods may take a few minutes to confirm.</li>
               </ul>
-            </div>
-          )}
-
-          {hasXendit && (
-            <div className="rounded-xl border border-[#d6e0f0] bg-[#f5f8fc] p-4">
-              <p className="flex items-center gap-1.5 font-semibold text-[#003087]">
-                Xendit
+              <p className="mt-3 border-t border-[#d6e0f0] pt-2 text-xs font-medium text-[#003087]">
+                This form accepts payments through {providerLabel}.
               </p>
-              <ul className="mt-2 list-disc space-y-1.5 pl-5 text-[#2c3e5a]">
-                <li>Choose from GCash, bank transfer, credit/debit card, or over-the-counter at convenience stores.</li>
-                <li>For bank transfers, a unique virtual account number is generated. Copy it and pay via your banking app.</li>
-                <li>GCash and card payments confirm instantly. Bank transfers may take a few minutes.</li>
-                <li>After payment, you'll return to this form to continue.</li>
-              </ul>
             </div>
-          )}
-
-          {!hasPayPal && !hasXendit && (
-            <p className="italic text-[#6c6a64]">
+          ) : (
+            <p className="italic text-[var(--ponko-foreground-muted,#6c6a64)]">
               No payment gateways are connected for this form. If payment is expected here, the form
               owner may need to configure their payment settings.
             </p>
           )}
 
-          <div className="flex items-start gap-2 rounded-lg border border-[#e6dfd8] bg-white p-3 text-xs text-[#6c6a64]">
-            <LockKeyhole size={14} className="mt-0.5 shrink-0 text-[#8e8b82]" aria-hidden="true" />
+          <div className="flex items-start gap-2 rounded-lg border border-[#e6dfd8] bg-white p-3 text-xs text-[var(--ponko-foreground-muted,#6c6a64)]">
+            <LockKeyhole size={14} className="mt-0.5 shrink-0 text-[var(--ponko-foreground-faint,#8e8b82)]" aria-hidden="true" />
             <span>
               All payment details are handled securely by the provider. {appConfig.name} never sees your
               payment method, card number, or banking credentials.
@@ -182,7 +171,7 @@ export function PagePaymentStep({
   }, [isLoading])
 
   const initiate = useMutation({
-    mutationFn: (gatewaySlug: 'paypal' | 'xendit') =>
+    mutationFn: (gatewaySlug: 'paypal' | 'xendit' | 'maya') =>
       initiatePagePayment({ data: { sessionId, clientToken, pageId, gatewaySlug } }),
     retry: false,
     onMutate: (gatewaySlug) => {
@@ -229,14 +218,14 @@ export function PagePaymentStep({
           <span className="h-2 w-2 animate-bounce rounded-full bg-[#cc785c] [animation-delay:150ms]" />
           <span className="h-2 w-2 animate-bounce rounded-full bg-[#cc785c] [animation-delay:300ms]" />
         </div>
-        <p className="mt-3 text-sm text-[#6c6a64]">The server is taking longer than expected. We're still loading payment options.</p>
+        <p className="mt-3 text-sm text-[var(--ponko-foreground-muted,#6c6a64)]">The server is taking longer than expected. We're still loading payment options.</p>
       </div>
     ) : <div className="h-24 animate-pulse rounded-lg bg-[#efe9de]" />
   }
 
   if (isError || !data) {
     return (
-      <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-4 text-sm text-[#6c6a64]">
+      <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-4 text-sm text-[var(--ponko-foreground-muted,#6c6a64)]">
         Payment setup could not be loaded.
         <button onClick={() => refetch()} className="ml-2 text-[#cc785c] underline">
           Retry
@@ -249,13 +238,13 @@ export function PagePaymentStep({
     <div className="rounded-2xl border border-[#e6dfd8] bg-white shadow-[0_1px_4px_rgba(20,20,19,0.08)]">
       {/* Ticket stub — amount due */}
       <div className="rounded-t-2xl bg-[#faf9f5] px-5 pb-6 pt-5 text-center">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8e8b82]">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--ponko-foreground-faint,#8e8b82)]">
           {data.paymentMode === 'subscription' ? 'Subscription amount' : 'Amount due'}
         </p>
-        <p className="mt-2 text-4xl font-semibold tracking-tight text-[#141413]">
+        <p className="mt-2 text-4xl font-semibold tracking-tight text-[var(--ponko-foreground,#141413)]">
           {formatMoney(data.amount, data.currency)}
           {data.paymentMode === 'subscription' && data.subscription && (
-            <span className="ml-1.5 text-lg font-normal text-[#6c6a64]">
+            <span className="ml-1.5 text-lg font-normal text-[var(--ponko-foreground-muted,#6c6a64)]">
               /{data.subscription.interval === 'weekly'
                 ? 'week'
                 : data.subscription.interval === 'monthly'
@@ -278,7 +267,7 @@ export function PagePaymentStep({
       {/* Ticket body */}
       <div className="px-5 py-5">
       {data.paymentMode === 'subscription' && data.subscription && (
-        <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 text-xs leading-relaxed text-[#6c6a64]">
+        <div className="rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3 text-xs leading-relaxed text-[var(--ponko-foreground-muted,#6c6a64)]">
           {data.subscription.trialPeriodDays > 0
             ? `Your ${data.subscription.trialPeriodDays}-day trial starts after you securely link an eligible auto-debit payment method with Xendit.`
             : 'Xendit will securely link an eligible auto-debit payment method and attempt charges on this schedule.'}
@@ -312,12 +301,12 @@ export function PagePaymentStep({
 
       {data.showBreakdown && (data.receiptDetails?.length ?? 0) > 0 && (
         <div className="mt-4 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
-          <p className="mb-2 text-sm font-medium text-[#141413]">Receipt details</p>
+          <p className="mb-2 text-sm font-medium text-[var(--ponko-foreground,#141413)]">Receipt details</p>
           <dl className="flex flex-col gap-1.5">
             {data.receiptDetails?.map((detail) => (
               <div key={detail.binding} className="flex items-start justify-between gap-4 text-sm">
-                <dt className="text-[#6c6a64]">{detail.label}</dt>
-                <dd className="max-w-[60%] text-right font-medium text-[#141413]">{detail.value}</dd>
+                <dt className="text-[var(--ponko-foreground-muted,#6c6a64)]">{detail.label}</dt>
+                <dd className="max-w-[60%] text-right font-medium text-[var(--ponko-foreground,#141413)]">{detail.value}</dd>
               </div>
             ))}
           </dl>
@@ -326,17 +315,17 @@ export function PagePaymentStep({
 
       {(data.showBreakdown || data.discount) && data.breakdown.length > 0 && (
         <div className="mt-4 rounded-lg border border-[#e6dfd8] bg-[#faf9f5] p-3">
-          <p className="mb-2 text-sm font-medium text-[#141413]">Price breakdown</p>
+          <p className="mb-2 text-sm font-medium text-[var(--ponko-foreground,#141413)]">Price breakdown</p>
           <div className="flex flex-col gap-1.5">
             {data.breakdown.map((line, index) => (
               <div
                 key={`${line.label}-${index}`}
                 className={`flex items-center justify-between gap-3 text-sm ${
                   line.kind === 'total'
-                    ? 'border-t border-[#e6dfd8] pt-2 font-medium text-[#141413]'
+                    ? 'border-t border-[#e6dfd8] pt-2 font-medium text-[var(--ponko-foreground,#141413)]'
                     : line.kind === 'subtotal'
-                      ? 'mt-1 text-[#141413]'
-                      : 'text-[#6c6a64]'
+                      ? 'mt-1 text-[var(--ponko-foreground,#141413)]'
+                      : 'text-[var(--ponko-foreground-muted,#6c6a64)]'
                 }`}
               >
                 <span>{line.label}</span>
@@ -368,22 +357,30 @@ export function PagePaymentStep({
         </p>
       ) : (
         <div className="mt-5">
-          <div className="flex flex-wrap gap-2">
-            {data.gateways.map((gateway) => (
-              <Button
-                key={gateway.slug}
-                onClick={() => initiate.mutate(gateway.slug)}
-                disabled={initiate.isPending || paid}
-              >
-                {paid
-                  ? data.paymentMode === 'subscription' ? 'Subscribed' : 'Paid'
-                  : initiate.isPending && pendingGateway === gateway.slug
-                    ? `Opening ${gateway.name}…`
-                    : data.paymentMode === 'subscription'
-                      ? `Subscribe with ${gateway.name}`
-                      : `Pay with ${gateway.name}`}
-              </Button>
-            ))}
+          <div className="flex flex-wrap justify-center gap-3">
+            {data.gateways.map((gateway) => {
+              const busy = initiate.isPending && pendingGateway === gateway.slug
+              const isSub = data.paymentMode === 'subscription'
+              const actionLabel = isSub ? `Subscribe with ${gateway.name}` : `Pay with ${gateway.name}`
+              return (
+                <button
+                  key={gateway.slug}
+                  type="button"
+                  aria-label={paid ? (isSub ? 'Subscribed' : 'Paid') : busy ? `Opening ${gateway.name}…` : actionLabel}
+                  onClick={() => initiate.mutate(gateway.slug)}
+                  disabled={initiate.isPending || paid}
+                  className="flex h-14 min-w-[140px] flex-col items-center justify-center gap-1 rounded-xl border border-[#e6dfd8] bg-white px-5 shadow-[0_1px_2px_rgba(20,20,19,0.04)] transition-colors hover:border-[#cc785c] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {paid ? (
+                    <span className="text-sm font-semibold text-[var(--ponko-foreground,#141413)]">{isSub ? 'Subscribed' : 'Paid'}</span>
+                  ) : busy ? (
+                    <span className="text-sm text-[var(--ponko-foreground-muted,#6c6a64)]">Opening…</span>
+                  ) : (
+                    <GatewayLogo slug={gateway.slug} className="text-xl" />
+                  )}
+                </button>
+              )
+            })}
           </div>
           {!paid && (
             <div className="mt-3 flex items-center gap-3">
@@ -394,7 +391,7 @@ export function PagePaymentStep({
               <button
                 type="button"
                 onClick={() => setGuideOpen(true)}
-                className="inline-flex items-center gap-1 rounded-full border border-[#e6dfd8] bg-white px-2.5 py-1 text-xs text-[#6c6a64] transition-colors hover:border-[#cc785c] hover:text-[#cc785c]"
+                className="inline-flex items-center gap-1 rounded-full border border-[#e6dfd8] bg-white px-2.5 py-1 text-xs text-[var(--ponko-foreground-muted,#6c6a64)] transition-colors hover:border-[#cc785c] hover:text-[#cc785c]"
               >
                 <Info size={13} aria-hidden="true" />
                 How this works
