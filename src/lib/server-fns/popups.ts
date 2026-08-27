@@ -17,7 +17,7 @@ import {
   savePopupSchema,
   setPopupStatusSchema,
 } from '../popup-builder/model'
-import { sanitizePopupElements } from '../popup-builder/sanitize'
+import { sanitizePopupElements, sanitizePopupStyle } from '../popup-builder/sanitize'
 
 /**
  * Popup server functions (FT-026). Creator-facing functions follow the
@@ -119,7 +119,7 @@ export const savePopup = createServerFn({ method: 'POST' })
         trigger: data.trigger,
         frequency: data.frequency,
         schedule: data.schedule,
-        style: data.style,
+        style: sanitizePopupStyle(data.style),
         elements: sanitizePopupElements(data.elements),
         updatedAt: new Date(),
       })

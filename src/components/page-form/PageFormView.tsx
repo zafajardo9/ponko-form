@@ -488,10 +488,10 @@ export function PageFormView({
         <div className={wrapperClass}>
           <Card className="py-14 text-center sm:py-16">
             <FormSuccessCard
-              title="Thank you!"
-              message={completedMessage}
-              supportEmail={completedPage?.finalContactEmail}
-              reference={submissionId ? `PF-${String(submissionId).padStart(6, '0')}` : null}
+              title={preview ? 'Test completed' : 'Thank you!'}
+              message={preview ? 'Nothing was recorded or sent.' : completedMessage}
+              supportEmail={preview ? undefined : completedPage?.finalContactEmail}
+              reference={!preview && submissionId ? `PF-${String(submissionId).padStart(6, '0')}` : null}
               details={submissionDetails}
             />
             {completedRedirectUrl && !preview && <RedirectAfterDelay url={completedRedirectUrl} />}

@@ -21,10 +21,10 @@ import type {
 export const DEFAULT_POPUP_WIDTH = 420
 export const DEFAULT_POPUP_HEIGHT = 380
 
-export const POPUP_MIN_WIDTH = 280
-export const POPUP_MAX_WIDTH = 1200
-export const POPUP_MIN_HEIGHT = 200
-export const POPUP_MAX_HEIGHT = 1600
+export const POPUP_MIN_WIDTH = 120
+export const POPUP_MAX_WIDTH = 4000
+export const POPUP_MIN_HEIGHT = 120
+export const POPUP_MAX_HEIGHT = 4000
 
 export function defaultTrigger(): PopupTriggerConfig {
   return { type: 'on-load', delayMs: 0 }
@@ -34,6 +34,11 @@ export function defaultStyle(): PopupStyle {
   return {
     fontFamily: 'sans',
     backgroundColor: '#ffffff',
+    backgroundImage: '',
+    backgroundImageSize: 'cover',
+    backgroundImagePosition: 'center',
+    backgroundImageOverlayColor: '#141413',
+    backgroundImageOverlayOpacity: 0,
     overlayColor: '#141413',
     overlayOpacity: 0.5,
     animation: 'fade',

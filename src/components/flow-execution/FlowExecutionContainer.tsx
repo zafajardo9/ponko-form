@@ -46,6 +46,8 @@ interface FlowExecutionContainerProps {
   theme?: FormTheme | null
   /** Embedded mode — transparent background to blend into the host site. */
   embed?: boolean
+  /** Client-only run: never starts or persists an execution, charges, or redirects. */
+  preview?: boolean
 }
 
 export function FlowExecutionContainer({
@@ -58,6 +60,7 @@ export function FlowExecutionContainer({
   resume,
   theme,
   embed = false,
+  preview = false,
 }: FlowExecutionContainerProps) {
   const navigate = useNavigate()
   const engineRef = useRef<FlowEngine | null>(null)
@@ -144,9 +147,9 @@ export function FlowExecutionContainer({
           if (!flowId || !nodes || !edges || !variables) {
             throw new Error('Missing flow definition')
           }
-          const execution = await startMut.mutateAsync(flowId)
-          executionIdRef.current = execution.id
-          const engine = new FlowEngine(nodes, edges, variables, execution.variables ?? {})
+          const execution = preview ? null : await startMut.mutateAsync(flowId)
+          executionIdRef.current = execution?.id ?? null
+          const engine = new FlowEngine(nodes, edges, variables, execution?.variables ?? {})
           engine.advance() // move past Start to the first interactive step
           engineRef.current = engine
         }
@@ -161,6 +164,7 @@ export function FlowExecutionContainer({
   }, [])
 
   function persist() {
+    if (preview) return
     const engine = engineRef.current
     const id = executionIdRef.current
     if (!engine || id == null) return
@@ -177,9 +181,11 @@ export function FlowExecutionContainer({
   function maybeComplete() {
     const engine = engineRef.current
     const id = executionIdRef.current
-    if (!engine || id == null || completedRef.current) return
+    if (!engine || completedRef.current) return
     if (!engine.isComplete()) return
     completedRef.current = true
+    if (preview) return
+    if (id == null) return
     const snap = engine.getSnapshot()
     const step = engine.getCurrentStep()
 
@@ -273,6 +279,7 @@ export function FlowExecutionContainer({
             canGoBack={engine.getCurrentStepNumber() > 1 && !engine.isComplete()}
             onNext={handleNext}
             onBack={handleBack}
+            preview={preview}
           />
         </div>
       </Card>

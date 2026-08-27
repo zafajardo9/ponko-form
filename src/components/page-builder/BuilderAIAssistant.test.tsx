@@ -86,6 +86,25 @@ describe('BuilderAIAssistant', () => {
     }) })
   })
 
+  it('starts a Guide conversation from a suggested question and keeps follow-up input available', async () => {
+    vi.mocked(chatWithBuilderAI).mockResolvedValue({
+      kind: 'answer',
+      message: 'This form currently has one empty page named Contact.',
+    })
+    renderAssistant()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Summarize what this form currently collects' }))
+
+    expect(await screen.findByText('This form currently has one empty page named Contact.')).toBeTruthy()
+    expect(screen.getByText('Summarize what this form currently collects')).toBeTruthy()
+    expect(screen.queryByRole('group', { name: 'Suggested questions' })).toBeNull()
+    expect(screen.getByLabelText('Ask a builder question')).toBeTruthy()
+    expect(chatWithBuilderAI).toHaveBeenCalledWith({ data: expect.objectContaining({
+      mode: 'guide',
+      messages: [{ role: 'user', content: 'Summarize what this form currently collects' }],
+    }) })
+  })
+
   it('previews generated pages and applies only after confirmation', async () => {
     const candidate = {
       pages: [

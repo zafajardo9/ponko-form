@@ -61,7 +61,7 @@ import { fieldCanDriveLogic, LogicDialog } from './LogicDialog'
 import { OptionsDialog } from './OptionsDialog'
 import { RulesDialog } from './RulesDialog'
 
-const RichTextEditor = lazy(() => import('./RichTextEditor'))
+const FormBlockEditor = lazy(() => import('./FormBlockEditor'))
 interface FieldSettingsProps {
   field: EditablePageField
   pages: FormPage[]
@@ -478,13 +478,19 @@ export function FieldSettings({ field, pages, fields, references, onUpdate, onMo
         {field.fieldType === 'content' ? (
           <FieldGroup label="Instructions">
             <p className="-mt-0.5 text-xs leading-5 text-[#8e8b82]">Use this for context, directions, headings, or links. It does not collect an answer.</p>
-            <Suspense
-              fallback={<div role="status" aria-label="Loading rich text editor" className="h-48 animate-pulse rounded-md border border-[#e6dfd8] bg-[#faf9f5]" />}
-            >
-              <ErrorBoundary key={field.id}>
-                <RichTextEditor value={field.placeholder ?? ''} onChange={(html) => onUpdate({ placeholder: html || null })} />
-              </ErrorBoundary>
-            </Suspense>
+            {!logicOpen && (
+              <Suspense
+                fallback={<div role="status" aria-label="Loading rich text editor" className="h-48 animate-pulse rounded-md border border-[#e6dfd8] bg-[#faf9f5]" />}
+              >
+                <ErrorBoundary key={field.id}>
+                  <FormBlockEditor
+                    value={field.placeholder ?? ''}
+                    label="Instructions content"
+                    onChange={(html) => onUpdate({ placeholder: html || null })}
+                  />
+                </ErrorBoundary>
+              </Suspense>
+            )}
           </FieldGroup>
         ) : field.fieldType === 'media' ? (
           <>
@@ -743,6 +749,4 @@ export function FieldSettings({ field, pages, fields, references, onUpdate, onMo
     </div>
   )
 }
-
-
 

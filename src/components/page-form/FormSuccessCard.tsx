@@ -1,4 +1,5 @@
 import { ChevronDown, ClipboardCheck, Database, Mail } from 'lucide-react'
+import { formRichTextHtml } from '../../lib/form-rich-text'
 
 export interface SubmissionDetail {
   label: string
@@ -34,6 +35,7 @@ export function FormSuccessCard({
   reference,
   details = [],
 }: FormSuccessCardProps) {
+  const messageHtml = formRichTextHtml(message) || '<p>Your response has been recorded.</p>'
   const content = (
     <>
       <div className="ponko-success-pop mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[var(--ponko-primary-soft,#cc785c29)] motion-reduce:animate-none">
@@ -60,12 +62,11 @@ export function FormSuccessCard({
         </h1>
       )}
 
-      <p
-        className="ponko-success-rise mx-auto mt-2 max-w-md whitespace-pre-wrap text-[var(--ponko-foreground-muted,#6c6a64)] motion-reduce:animate-none"
+      <div
+        className="ponko-success-rise rich-text-content mx-auto mt-2 max-w-md text-[var(--ponko-foreground-muted,#6c6a64)] motion-reduce:animate-none [&_blockquote]:border-l-2 [&_blockquote]:border-[var(--ponko-primary,#cc785c)] [&_blockquote]:pl-3 [&_h1]:text-[var(--ponko-foreground,#141413)] [&_h2]:text-[var(--ponko-foreground,#141413)] [&_h3]:text-[var(--ponko-foreground,#141413)] [&_li]:text-left [&_p]:whitespace-pre-wrap"
         style={{ animationDelay: '120ms' }}
-      >
-        {message}
-      </p>
+        dangerouslySetInnerHTML={{ __html: messageHtml }}
+      />
 
       {reference && (
         <div

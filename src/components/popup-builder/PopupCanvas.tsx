@@ -180,7 +180,11 @@ export function PopupCanvas({
     if (drag.kind === 'move') {
       const moving = elements.find((element) => element.id === drag.id)
       if (!moving) return
-      const raw = { ...moving, x: drag.originX + dx, y: drag.originY + dy }
+      const raw = {
+        ...moving,
+        x: moving.type === 'image' && moving.widthMode === 'canvas' ? 0 : drag.originX + dx,
+        y: moving.type === 'image' && moving.heightMode === 'canvas' ? 0 : drag.originY + dy,
+      }
       const aligned = snapRectToAlignmentGuides(
         raw,
         { width, height },
@@ -210,8 +214,12 @@ export function PopupCanvas({
           ...clampToCanvas(
             {
               ...element,
-              width: Math.round((drag.originW + dx) / 4) * 4,
-              height: Math.round((drag.originH + dy) / 4) * 4,
+              width: element.type === 'image' && element.widthMode === 'canvas'
+                ? width
+                : Math.round((drag.originW + dx) / 4) * 4,
+              height: element.type === 'image' && element.heightMode === 'canvas'
+                ? height
+                : Math.round((drag.originH + dy) / 4) * 4,
             },
             { width, height },
           ),

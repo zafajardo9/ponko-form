@@ -3,6 +3,8 @@ import {
   popupRichTextHtml,
   sanitizePopupElements,
   sanitizePopupHtml,
+  sanitizePopupImageUrl,
+  sanitizePopupStyle,
   sanitizePopupRichText,
   sanitizePopupUrl,
 } from './sanitize'
@@ -23,6 +25,18 @@ describe('popup content sanitization', () => {
     expect(sanitizePopupUrl('file:///etc/passwd')).toBe('')
     expect(sanitizePopupUrl('//example.com/escape')).toBe('')
     expect(sanitizePopupUrl('not a url')).toBe('')
+  })
+
+  it('allows web image sources but rejects non-image destination schemes', () => {
+    expect(sanitizePopupImageUrl('https://example.com/art.jpg')).toBe('https://example.com/art.jpg')
+    expect(sanitizePopupImageUrl('/uploads/art.jpg')).toBe('/uploads/art.jpg')
+    expect(sanitizePopupImageUrl('mailto:hello@example.com')).toBe('')
+    expect(sanitizePopupImageUrl('data:image/svg+xml,bad')).toBe('')
+  })
+
+  it('cleans unsafe canvas artwork at the persistence boundary', () => {
+    expect(sanitizePopupStyle({ backgroundImage: 'javascript:alert(1)', backgroundColor: '#fff' }))
+      .toEqual({ backgroundImage: '', backgroundColor: '#fff' })
   })
 
   it('keeps safe formatting and sandboxed iframes while stripping executable markup', () => {

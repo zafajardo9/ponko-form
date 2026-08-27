@@ -148,8 +148,9 @@ describe('snapRectToAlignmentGuides', () => {
 
 describe('clampCanvasSize', () => {
   it('clamps popup canvas dimensions to the persisted bounds', () => {
-    expect(clampCanvasSize(100, 50)).toEqual({ width: 280, height: 200 })
-    expect(clampCanvasSize(4000, 4000)).toEqual({ width: 1200, height: 1600 })
+    expect(clampCanvasSize(100, 50)).toEqual({ width: 120, height: 120 })
+    expect(clampCanvasSize(5000, 5000)).toEqual({ width: 4000, height: 4000 })
+    expect(clampCanvasSize(1920, 1080)).toEqual({ width: 1920, height: 1080 })
     expect(clampCanvasSize(420.4, 380.6)).toEqual({ width: 420, height: 381 })
   })
 })

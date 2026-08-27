@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { ArrowRight, ExternalLink, Mail, Sparkles, X } from 'lucide-react'
 import type { PopupButtonIcon, PopupElement, PopupStyle } from '../../lib/popup-builder/types'
-import { popupRichTextHtml, sanitizePopupHtml, sanitizePopupUrl } from '../../lib/popup-builder/sanitize'
+import { popupRichTextHtml, sanitizePopupHtml, sanitizePopupImageUrl, sanitizePopupUrl } from '../../lib/popup-builder/sanitize'
 
 /**
  * PopupRuntime
@@ -50,6 +50,7 @@ export function PopupRuntime({
 }: PopupRuntimeProps) {
   const embed = mode === 'embed'
   const [showTick, setShowTick] = useState(0)
+  const safeBackgroundImage = sanitizePopupImageUrl(style.backgroundImage ?? '')
 
   function post(message: Record<string, unknown>) {
     if (!embed) return
@@ -81,7 +82,13 @@ export function PopupRuntime({
     position: 'relative',
     width,
     height,
-    background: style.backgroundColor || '#ffffff',
+    backgroundColor: style.backgroundColor || '#ffffff',
+    backgroundImage: safeBackgroundImage
+      ? `url("${safeBackgroundImage.replaceAll('"', '%22')}")`
+      : undefined,
+    backgroundSize: style.backgroundImageSize ?? 'cover',
+    backgroundPosition: style.backgroundImagePosition ?? 'center',
+    backgroundRepeat: 'no-repeat',
     borderRadius: style.borderRadius == null ? 16 : style.borderRadius,
     fontFamily: FONT_STACKS[style.fontFamily ?? 'sans'],
     overflow: 'hidden',
@@ -98,6 +105,20 @@ export function PopupRuntime({
       className={entranceClass}
       data-popup-runtime={publicId}
     >
+      {safeBackgroundImage && (style.backgroundImageOverlayOpacity ?? 0) > 0 ? (
+        <div
+          aria-hidden="true"
+          data-popup-background-overlay="true"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 0,
+            pointerEvents: 'none',
+            backgroundColor: style.backgroundImageOverlayColor ?? '#141413',
+            opacity: style.backgroundImageOverlayOpacity ?? 0,
+          }}
+        />
+      ) : null}
       {elements.map((element) => (
         <ElementView
           key={element.id}

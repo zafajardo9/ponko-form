@@ -8,6 +8,42 @@ import { PopupRuntime } from './PopupRuntime'
 afterEach(cleanup)
 
 describe('PopupRuntime button appearance', () => {
+  it('renders safe canvas artwork with fit, focus, and a readability tint', () => {
+    const { container } = render(
+      <PopupRuntime
+        publicId="builder"
+        width={420}
+        height={380}
+        elements={[]}
+        mode="builder"
+        style={{
+          backgroundImage: 'https://images.example.com/launch.jpg',
+          backgroundImageSize: 'contain',
+          backgroundImagePosition: 'top',
+          backgroundImageOverlayColor: '#112233',
+          backgroundImageOverlayOpacity: 0.4,
+        }}
+      />,
+    )
+
+    const runtime = container.querySelector('[data-popup-runtime="builder"]') as HTMLElement
+    expect(runtime.style.backgroundImage).toContain('https://images.example.com/launch.jpg')
+    expect(runtime.style.backgroundSize).toBe('contain')
+    expect(runtime.style.backgroundPosition).toBe('center top')
+    const tint = container.querySelector('[data-popup-background-overlay="true"]') as HTMLElement
+    expect(tint.style.backgroundColor).toBe('rgb(17, 34, 51)')
+    expect(tint.style.opacity).toBe('0.4')
+  })
+
+  it('does not render unsafe canvas artwork', () => {
+    const { container } = render(
+      <PopupRuntime publicId="builder" width={420} height={380} elements={[]} mode="builder" style={{ backgroundImage: 'javascript:alert(1)' }} />,
+    )
+    const runtime = container.querySelector('[data-popup-runtime="builder"]') as HTMLElement
+    expect(runtime.style.backgroundImage).toBe('')
+    expect(container.querySelector('[data-popup-background-overlay="true"]')).toBeNull()
+  })
+
   it('renders the real button design in the builder before a link is connected', () => {
     const button = createElement('button', 1) as ButtonElement
     render(<PopupRuntime publicId="builder" width={420} height={380} elements={[button]} mode="builder" />)

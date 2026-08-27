@@ -11,6 +11,7 @@
   var API = ORIGIN + '/api/popups/' + encodeURIComponent(popupId)
   var OWNER_PREVIEW = script.getAttribute('data-popup-owner-preview') === 'true'
   var IS_PREVIEW = Boolean(script.getAttribute('data-popup-preview'))
+  var WORDPRESS_ADMIN_TEST = script.getAttribute('data-popup-wordpress-admin-test') === 'true'
   var SESSION_KEY = 'ponkoform:popup:' + popupId + ':session'
   var VIEW_KEY = 'ponkoform:popup:' + popupId + ':viewed'
   var LAST_SHOWN_KEY = 'ponkoform:popup:' + popupId + ':lastShown'
@@ -59,6 +60,25 @@
       var url = new URL(value.trim(), window.location.href)
       return /^(https?:|mailto:|tel:)$/.test(url.protocol) ? url.href : null
     } catch (_) { return null }
+  }
+
+  function isTestMode() {
+    return IS_PREVIEW || Boolean(
+      WORDPRESS_ADMIN_TEST &&
+      document.body &&
+      document.body.classList.contains('logged-in')
+    )
+  }
+
+  function testModeLink(value) {
+    if (!isTestMode()) return value
+    try {
+      var url = new URL(value)
+      var isPonkoForm = url.origin === ORIGIN && /^\/forms\/(submit|embed)\//.test(url.pathname)
+      if (!isPonkoForm) return value
+      url.searchParams.set('ponkoTest', IS_PREVIEW ? 'popup-preview' : 'wordpress-admin')
+      return url.href
+    } catch (_) { return value }
   }
 
   var PLACEMENTS = {
@@ -159,8 +179,8 @@
       })
     })
     sendShow()
-    storageSet(localStorage, LAST_SHOWN_KEY, String(Date.now()))
-    if (!IS_PREVIEW && !storageGet(sessionStorage, VIEW_KEY)) {
+    if (!isTestMode()) storageSet(localStorage, LAST_SHOWN_KEY, String(Date.now()))
+    if (!isTestMode() && !storageGet(sessionStorage, VIEW_KEY)) {
       storageSet(sessionStorage, VIEW_KEY, '1')
       if (navigator.sendBeacon) navigator.sendBeacon(API + '/view')
     }
@@ -182,7 +202,7 @@
   }
 
   function isAllowed() {
-    if (IS_PREVIEW || cfg.frequency === 'every-visit') return true
+    if (isTestMode() || cfg.frequency === 'every-visit') return true
     if (cfg.frequency === 'once-per-session') return !storageGet(sessionStorage, SESSION_KEY)
     var last = Number(storageGet(localStorage, LAST_SHOWN_KEY) || 0)
     if (!last) return true
@@ -191,7 +211,7 @@
   }
 
   function isScheduleAllowed() {
-    if (IS_PREVIEW || !cfg.schedule) return true
+    if (isTestMode() || !cfg.schedule) return true
     var schedule = cfg.schedule
     var now = new Date()
     var timestamp = now.getTime()
@@ -221,7 +241,7 @@
     if (!isScheduleAllowed()) return
     if ((!force && triggerFired) || (!force && !isAllowed())) return
     triggerFired = true
-    storageSet(sessionStorage, SESSION_KEY, '1')
+    if (!isTestMode()) storageSet(sessionStorage, SESSION_KEY, '1')
     show()
   }
 
@@ -256,7 +276,8 @@
     } else if (data.type === 'ponkoform:popup:click') {
       var link = safeLink(data.link)
       if (!link) return
-      if (!IS_PREVIEW && navigator.sendBeacon) navigator.sendBeacon(API + '/click')
+      link = testModeLink(link)
+      if (!isTestMode() && navigator.sendBeacon) navigator.sendBeacon(API + '/click')
       if (data.newTab) window.open(link, '_blank', 'noopener,noreferrer')
       else window.top.location.href = link
       hide()

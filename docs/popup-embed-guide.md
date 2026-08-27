@@ -36,8 +36,9 @@ The loader never sets cookies and reports only aggregate counters (a view per se
 
 - **Add** — drag an element chip from the left onto the canvas (it drops where you let go), or click a chip to add it centered.
 - **Move** — drag any element; positions snap to an 8px grid.
-- **Resize** — drag the corner handle on a selected element.
+- **Resize** — drag the corner handle on a selected element. Images can also be pinned to 100% of the canvas width, height, or both from their element settings.
 - **Restyle** — with an element selected, the right pane shows its contextual controls (text, colors, sizes, alignment, opacity, rotation, corner radius).
+- **Add background artwork** — in **Popup → Look & feel → Canvas background**, paste an HTTPS image URL, choose whether it fills the canvas or shows the whole image, set its focal edge, and add an optional color tint for readable copy.
 - **Layer** — bring forward / send backward, duplicate (⌘D), delete (⌘D's neighbor: the Delete key).
 - **Button links** — a button's *Link URL* accepts any URL. Paste an existing form's share link (`/forms/submit/…`) or embed URL, or any external page. An empty link renders as a dashed "add a link" placeholder until you set one.
 
@@ -47,11 +48,11 @@ In the right pane's **Popup** tab:
 
 | Setting | Options |
 |---|---|
-| **Size** | Canvas width (280–1200) × height (200–1600) px |
+| **Size** | Exact canvas width × height from 120–4,000 px per axis |
 | **Placement** | Center, four corners, or fullscreen |
 | **Trigger** | On load (+ delay), exit intent, scroll depth (%), click on a CSS selector |
 | **Frequency** | Every visit, once per session, once per day, once per week |
-| **Look & feel** | Font, card color, overlay color/opacity, corner radius, entrance animation, ✕ button, overlay-click close |
+| **Look & feel** | Font, card color or background image, image fit/focus/readability tint, overlay color/opacity, corner radius, entrance animation, ✕ button, overlay-click close |
 
 On screens narrower than the popup, it automatically becomes a full-width bottom sheet with the canvas scaled to fit — the layout stays intact.
 
@@ -65,7 +66,7 @@ On screens narrower than the popup, it automatically becomes a full-width bottom
 Click **Embed** and copy the snippet:
 
 ```html
-<script async src="https://ponkoform.com/embed/popup-loader.js" data-popup="abc123…"></script>
+<script async src="https://ponkoform.com/embed/popup-loader.js" data-popup="abc123…" data-popup-wordpress-admin-test="true"></script>
 ```
 
 Paste it anywhere on your site:
@@ -75,6 +76,19 @@ Paste it anywhere on your site:
 - **Plain HTML** — before `</body>`.
 
 One snippet per popup. Multiple popups on one page each run independently (they may overlap — orchestration is on the roadmap).
+
+### WordPress admin test safeguard
+
+The generated snippet detects WordPress's standard `body.logged-in` class. For
+logged-in administrators it runs the popup in test mode: frequency storage,
+popup view/click analytics, form sessions and responses, payments, redirects,
+notifications, and integrations are suppressed. A banner inside linked Ponko
+forms confirms that test mode is active. Logged-out visitors continue through
+the normal production path.
+
+This requires the generated `data-popup-wordpress-admin-test="true"` attribute,
+so existing WordPress installations should copy the latest snippet again. It
+also assumes the active WordPress theme uses the standard `body_class()` output.
 
 ---
 

@@ -69,6 +69,9 @@ export interface ImageElement extends PopupElementBase {
   src: string
   alt: string
   fit: 'cover' | 'contain'
+  /** Pins the image to the canvas edges and follows later canvas resizes. */
+  widthMode?: 'fixed' | 'canvas'
+  heightMode?: 'fixed' | 'canvas'
   /** px. */
   radius: number
 }
@@ -155,6 +158,14 @@ export interface PopupSchedule {
 export interface PopupStyle {
   fontFamily?: 'sans' | 'serif' | 'mono'
   backgroundColor?: string
+  /** Optional card artwork rendered behind every canvas element. */
+  backgroundImage?: string
+  backgroundImageSize?: 'cover' | 'contain'
+  backgroundImagePosition?: 'center' | 'top' | 'bottom' | 'left' | 'right'
+  /** A card-local tint that keeps copy readable over busy artwork. */
+  backgroundImageOverlayColor?: string
+  /** 0–0.9. */
+  backgroundImageOverlayOpacity?: number
   overlayColor?: string
   /** 0–0.9. */
   overlayOpacity?: number

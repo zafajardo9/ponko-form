@@ -1,5 +1,5 @@
 import sanitizeHtml from 'sanitize-html'
-import type { PopupElement } from './types'
+import type { PopupElement, PopupStyle } from './types'
 
 const SAFE_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:'])
 
@@ -16,6 +16,26 @@ export function sanitizePopupUrl(value: string): string {
     return SAFE_PROTOCOLS.has(url.protocol) ? trimmed : ''
   } catch {
     return ''
+  }
+}
+
+/** Image sources are deliberately narrower than button destinations. */
+export function sanitizePopupImageUrl(value: string): string {
+  const safe = sanitizePopupUrl(value)
+  if (!safe) return ''
+  if (safe.startsWith('/') || safe.startsWith('./') || safe.startsWith('../')) return safe
+  try {
+    const url = new URL(safe)
+    return url.protocol === 'http:' || url.protocol === 'https:' ? safe : ''
+  } catch {
+    return ''
+  }
+}
+
+export function sanitizePopupStyle(style: PopupStyle): PopupStyle {
+  return {
+    ...style,
+    backgroundImage: sanitizePopupImageUrl(style.backgroundImage ?? ''),
   }
 }
 
@@ -125,7 +145,7 @@ export function sanitizePopupElements(elements: PopupElement[]): PopupElement[] 
   return elements.map((element) => {
     if (element.type === 'html') return { ...element, html: sanitizePopupHtml(element.html) }
     if (element.type === 'button') return { ...element, link: sanitizePopupUrl(element.link) }
-    if (element.type === 'image') return { ...element, src: sanitizePopupUrl(element.src) }
+    if (element.type === 'image') return { ...element, src: sanitizePopupImageUrl(element.src) }
     if (element.type === 'text') return { ...element, text: popupRichTextHtml(element.text) }
     return element
   })

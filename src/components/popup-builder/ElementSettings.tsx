@@ -1,6 +1,7 @@
 import { ArrowDownToLine, ArrowUpToLine, Copy, Trash2 } from 'lucide-react'
 import type { ButtonElement, PopupButtonIcon, PopupElement } from '../../lib/popup-builder/types'
 import { PopupRichTextEditor } from './PopupRichTextEditor'
+import { CommittedNumberInput } from './CommittedNumberInput'
 
 /**
  * Right pane (element mode) — contextual controls for the selected element,
@@ -14,6 +15,8 @@ const textareaClass =
 
 export function ElementSettings({
   element,
+  canvasWidth,
+  canvasHeight,
   onChange,
   onDelete,
   onDuplicate,
@@ -21,6 +24,8 @@ export function ElementSettings({
   onSendBackward,
 }: {
   element: PopupElement
+  canvasWidth: number
+  canvasHeight: number
   onChange: (patch: Partial<PopupElement>) => void
   onDelete: () => void
   onDuplicate: () => void
@@ -50,14 +55,14 @@ export function ElementSettings({
       </header>
 
       <div className="grid grid-cols-4 gap-2">
-        <NumberField label="X" value={Math.round(element.x)} onChange={(x) => onChange({ x })} />
-        <NumberField label="Y" value={Math.round(element.y)} onChange={(y) => onChange({ y })} />
-        <NumberField label="W" value={Math.round(element.width)} min={24} onChange={(width) => onChange({ width })} />
+        <NumberField label="X" value={Math.round(element.x)} disabled={element.type === 'image' && element.widthMode === 'canvas'} onChange={(x) => onChange({ x })} />
+        <NumberField label="Y" value={Math.round(element.y)} disabled={element.type === 'image' && element.heightMode === 'canvas'} onChange={(y) => onChange({ y })} />
+        <NumberField label="W" value={Math.round(element.width)} min={24} disabled={element.type === 'image' && element.widthMode === 'canvas'} onChange={(width) => onChange({ width })} />
         <NumberField
           label="H"
           value={Math.round(element.height)}
           min={24}
-          disabled={(element.type === 'text' || element.type === 'heading') && element.autoHeight !== false}
+          disabled={((element.type === 'text' || element.type === 'heading') && element.autoHeight !== false) || (element.type === 'image' && element.heightMode === 'canvas')}
           onChange={(height) => onChange(
             element.type === 'text' || element.type === 'heading'
               ? { height, autoHeight: false }
@@ -152,6 +157,25 @@ export function ElementSettings({
         </>
       ) : element.type === 'image' ? (
         <>
+          <section className="flex flex-col gap-2">
+            <SectionEyebrow>Canvas coverage</SectionEyebrow>
+            <CanvasFillControl
+              label="Full canvas width"
+              detail="Pin left and right edges to the popup canvas."
+              checked={element.widthMode === 'canvas'}
+              onChange={(checked) => onChange(checked
+                ? { widthMode: 'canvas', x: 0, width: canvasWidth }
+                : { widthMode: 'fixed' })}
+            />
+            <CanvasFillControl
+              label="Full canvas height"
+              detail="Pin top and bottom edges to the popup canvas."
+              checked={element.heightMode === 'canvas'}
+              onChange={(checked) => onChange(checked
+                ? { heightMode: 'canvas', y: 0, height: canvasHeight }
+                : { heightMode: 'fixed' })}
+            />
+          </section>
           <Field label="Image URL">
             <input className={inputClass} value={element.src} placeholder="https://…" onChange={(e) => onChange({ src: e.target.value })} />
           </Field>
@@ -482,6 +506,33 @@ function AutoHeightControl({ checked, onChange }: { checked: boolean; onChange: 
   )
 }
 
+function CanvasFillControl({
+  label,
+  detail,
+  checked,
+  onChange,
+}: {
+  label: string
+  detail: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <label className="flex items-start justify-between gap-3 rounded-lg border border-[#e6dfd8] bg-[#f7f3ed] px-3 py-2.5">
+      <span className="min-w-0">
+        <span className="block text-xs font-semibold text-[#3d3d3a]">{label}</span>
+        <span className="mt-0.5 block text-[10px] leading-4 text-[#817d76]">{detail}</span>
+      </span>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="mt-0.5 h-4 w-4 shrink-0 accent-[#cc785c]"
+      />
+    </label>
+  )
+}
+
 function ColorField({
   label,
   value,
@@ -536,14 +587,13 @@ function NumberField({
   disabled?: boolean
 }) {
   const input = (
-    <input
-      type="number"
+    <CommittedNumberInput
       value={Number.isFinite(value) ? value : 0}
       min={min}
       max={max}
       step={step}
       disabled={disabled}
-      onChange={(event) => onChange(Number(event.target.value))}
+      onCommit={onChange}
       className={`${inputClass} disabled:cursor-not-allowed disabled:bg-[#f3f0eb] disabled:text-[#9a958d] ${full ? '' : 'h-8 px-2 text-xs'}`}
     />
   )

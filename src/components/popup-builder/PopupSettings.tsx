@@ -5,6 +5,13 @@ import type {
   PopupStyle,
   PopupTriggerConfig,
 } from '../../lib/popup-builder/types'
+import {
+  POPUP_MAX_HEIGHT,
+  POPUP_MAX_WIDTH,
+  POPUP_MIN_HEIGHT,
+  POPUP_MIN_WIDTH,
+} from '../../lib/popup-builder/defaults'
+import { CommittedNumberInput } from './CommittedNumberInput'
 
 /**
  * Right pane (popup mode) — canvas size, placement, trigger, frequency, and
@@ -59,12 +66,12 @@ export function PopupSettings({
       {/* Size */}
       <section className="flex flex-col gap-2">
         <div className="grid grid-cols-2 gap-2">
-          <NumberField label="Width (px)" value={width} min={280} max={1200} onChange={(w) => onChange({ width: w })} />
-          <NumberField label="Height (px)" value={height} min={200} max={1600} onChange={(h) => onChange({ height: h })} />
+          <NumberField label="Width (px)" value={width} min={POPUP_MIN_WIDTH} max={POPUP_MAX_WIDTH} onChange={(w) => onChange({ width: w })} />
+          <NumberField label="Height (px)" value={height} min={POPUP_MIN_HEIGHT} max={POPUP_MAX_HEIGHT} onChange={(h) => onChange({ height: h })} />
         </div>
         <p className="text-[10px] leading-4 text-[#8e8b82]">
-          On screens narrower than the popup, it becomes a bottom sheet and the
-          canvas scales down to fit.
+          Enter an exact size from 120 to 4,000 px. On narrower screens, the
+          canvas scales down to remain visible.
         </p>
       </section>
 
@@ -249,6 +256,89 @@ export function PopupSettings({
             </select>
           </label>
         </div>
+        <div className="rounded-xl border border-[#e6dfd8] bg-[#f7f3ed] p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-[#3d3d3a]">Canvas background</p>
+              <p className="mt-0.5 text-[10px] leading-4 text-[#817d76]">
+                Add artwork behind every element. A subtle tint can keep text readable.
+              </p>
+            </div>
+            {style.backgroundImage ? (
+              <button
+                type="button"
+                onClick={() => onChange({ style: { ...style, backgroundImage: '' } })}
+                className="shrink-0 text-[10px] font-semibold text-[#a9583e] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c]"
+              >
+                Remove
+              </button>
+            ) : null}
+          </div>
+          <label className="mt-2 flex flex-col gap-1 text-[10px] font-medium text-[#55514b]">
+            Image URL
+            <input
+              className={inputClass}
+              type="url"
+              value={style.backgroundImage ?? ''}
+              placeholder="https://example.com/campaign.jpg"
+              onChange={(event) => onChange({ style: { ...style, backgroundImage: event.target.value } })}
+            />
+          </label>
+          {style.backgroundImage ? (
+            <>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <label className="flex flex-col gap-1 text-[10px] font-medium text-[#55514b]">
+                  Fit
+                  <select
+                    className={inputClass}
+                    value={style.backgroundImageSize ?? 'cover'}
+                    onChange={(event) => onChange({ style: { ...style, backgroundImageSize: event.target.value as PopupStyle['backgroundImageSize'] } })}
+                  >
+                    <option value="cover">Fill canvas</option>
+                    <option value="contain">Show whole image</option>
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-[10px] font-medium text-[#55514b]">
+                  Focus
+                  <select
+                    className={inputClass}
+                    value={style.backgroundImagePosition ?? 'center'}
+                    onChange={(event) => onChange({ style: { ...style, backgroundImagePosition: event.target.value as PopupStyle['backgroundImagePosition'] } })}
+                  >
+                    <option value="center">Center</option>
+                    <option value="top">Top</option>
+                    <option value="bottom">Bottom</option>
+                    <option value="left">Left</option>
+                    <option value="right">Right</option>
+                  </select>
+                </label>
+              </div>
+              <div className="mt-2 grid grid-cols-[64px_1fr] items-end gap-2">
+                <label className="flex flex-col gap-1 text-[10px] font-medium text-[#55514b]">
+                  Tint
+                  <input
+                    type="color"
+                    className="h-9 w-full cursor-pointer rounded-md border border-[#dedbd5] bg-white px-1"
+                    value={style.backgroundImageOverlayColor ?? '#141413'}
+                    onChange={(event) => onChange({ style: { ...style, backgroundImageOverlayColor: event.target.value } })}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-[10px] font-medium text-[#55514b]">
+                  Tint strength ({Math.round((style.backgroundImageOverlayOpacity ?? 0) * 100)}%)
+                  <input
+                    type="range"
+                    min={0}
+                    max={0.9}
+                    step={0.05}
+                    value={style.backgroundImageOverlayOpacity ?? 0}
+                    onChange={(event) => onChange({ style: { ...style, backgroundImageOverlayOpacity: Number(event.target.value) } })}
+                    className="h-9 w-full accent-[#cc785c]"
+                  />
+                </label>
+              </div>
+            </>
+          ) : null}
+        </div>
         <div className="grid grid-cols-3 gap-2">
           <label className="flex flex-col gap-1 text-xs font-medium text-[#3d3d3a]">
             Card
@@ -270,12 +360,11 @@ export function PopupSettings({
           </label>
           <label className="flex flex-col gap-1 text-xs font-medium text-[#3d3d3a]">
             Radius
-            <input
-              type="number"
+            <CommittedNumberInput
               min={0}
               max={64}
               value={style.borderRadius ?? 16}
-              onChange={(event) => onChange({ style: { ...style, borderRadius: Number(event.target.value) } })}
+              onCommit={(borderRadius) => onChange({ style: { ...style, borderRadius } })}
               className="h-9 w-full rounded-md border border-[#dedbd5] bg-white px-2 text-sm text-[#141413] outline-none focus:border-[#cc785c]"
             />
           </label>
@@ -371,13 +460,12 @@ function NumberField({
   return (
     <label className="flex flex-col gap-1 text-xs font-medium text-[#3d3d3a]">
       {label}
-      <input
-        type="number"
+      <CommittedNumberInput
         value={Number.isFinite(value) ? value : 0}
         min={min}
         max={max}
         step={step}
-        onChange={(event) => onChange(Number(event.target.value))}
+        onCommit={onChange}
         className={inputClass}
       />
     </label>

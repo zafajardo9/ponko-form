@@ -79,6 +79,20 @@ describe('popup element validation', () => {
     expect(elementSchema.safeParse({ ...button, hoverEffect: 'bounce' }).success).toBe(false)
   })
 
+  it('accepts images pinned to either canvas axis', () => {
+    const image = createElement('image', 1)
+    expect(elementSchema.safeParse({
+      ...image,
+      x: 0,
+      y: 0,
+      width: 1920,
+      height: 1080,
+      widthMode: 'canvas',
+      heightMode: 'canvas',
+    }).success).toBe(true)
+    expect(elementSchema.safeParse({ ...image, widthMode: 'viewport' }).success).toBe(false)
+  })
+
   it('rejects unknown element types and degenerate geometry', () => {
     expect(elementSchema.safeParse({ ...validBase, type: 'video' }).success).toBe(false)
     expect(elementSchema.safeParse({
@@ -116,6 +130,18 @@ describe('popup style + save validation', () => {
     expect(popupStyleSchema.safeParse({ overlayOpacity: 1 }).success).toBe(false)
     expect(popupStyleSchema.safeParse({ borderRadius: 64 }).success).toBe(true)
     expect(popupStyleSchema.safeParse({ borderRadius: 65 }).success).toBe(false)
+  })
+
+  it('accepts bounded canvas background artwork controls', () => {
+    expect(popupStyleSchema.safeParse({
+      backgroundImage: 'https://images.example.com/launch.jpg',
+      backgroundImageSize: 'cover',
+      backgroundImagePosition: 'top',
+      backgroundImageOverlayColor: '#141413',
+      backgroundImageOverlayOpacity: 0.35,
+    }).success).toBe(true)
+    expect(popupStyleSchema.safeParse({ backgroundImageSize: 'stretch' }).success).toBe(false)
+    expect(popupStyleSchema.safeParse({ backgroundImageOverlayOpacity: 1 }).success).toBe(false)
   })
 
   it('saves a full popup config built from the seed layout', () => {

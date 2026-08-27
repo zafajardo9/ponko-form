@@ -5,6 +5,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { FormPage, PageField } from '../../lib/page-builder/types'
 import { PageSettings } from './PageSettings'
 
+vi.mock('@tiptap/extension-drag-handle-react', () => ({
+  DragHandle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}))
+
 const paymentPage: FormPage = {
   id: 1,
   formId: 10,
@@ -47,6 +51,31 @@ describe('PageSettings payment currency', () => {
 
     fireEvent.change(currency, { target: { value: 'PHP' } })
     expect(onUpdate).toHaveBeenCalledWith({ paymentCurrency: 'PHP' })
+  })
+
+  it('uses the block editor for final-page confirmation copy', async () => {
+    const finalPage = {
+      ...paymentPage,
+      id: 2,
+      title: 'Thank you',
+      isFinal: true,
+      hasPayment: false,
+      finalTemplate: '<h2>We received it</h2>',
+    }
+    render(
+      <PageSettings
+        page={finalPage}
+        gateways={[]}
+        pages={[finalPage]}
+        references={[]}
+        onUpdate={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    const editor = await screen.findByRole('textbox', { name: 'Confirmation message' })
+    expect(editor.innerHTML).toBe('<h2>We received it</h2>')
+    expect(screen.queryByRole('textbox', { name: 'Template' })).toBeNull()
   })
 
   it('keeps a legacy saved currency visible', () => {

@@ -148,6 +148,47 @@ describe('PopupBuilderWorkspace', () => {
     expect(screen.getByText('image element')).toBeTruthy()
   })
 
+  it('pins an image to the full canvas width and keeps it pinned after resizing', async () => {
+    renderWorkspace()
+    await screen.findByText('When it appears')
+
+    fireEvent.click(within(screen.getByLabelText('Elements')).getByRole('button', { name: /image/i }))
+    const imageOverlay = await screen.findByLabelText('image element')
+    fireEvent.click(screen.getByLabelText(/Full canvas width/))
+
+    await waitFor(() => {
+      expect(imageOverlay.style.left).toBe('0px')
+      expect(imageOverlay.style.width).toBe('420px')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Popup' }))
+    const canvasWidth = screen.getByLabelText('Width (px)') as HTMLInputElement
+    fireEvent.change(canvasWidth, { target: { value: '1' } })
+    expect(canvasWidth.value).toBe('1')
+    expect(imageOverlay.style.width).toBe('420px')
+    fireEvent.change(canvasWidth, { target: { value: '1920' } })
+    fireEvent.blur(canvasWidth)
+
+    await waitFor(() => expect(imageOverlay.style.width).toBe('1920px'))
+  })
+
+  it('keeps element dimensions as drafts until the exact value is committed', async () => {
+    renderWorkspace()
+    await screen.findByText('When it appears')
+
+    fireEvent.click(within(screen.getByLabelText('Elements')).getByRole('button', { name: /image/i }))
+    const imageOverlay = await screen.findByLabelText('image element')
+    const elementWidth = screen.getByLabelText('W') as HTMLInputElement
+
+    fireEvent.change(elementWidth, { target: { value: '1' } })
+    expect(elementWidth.value).toBe('1')
+    expect(imageOverlay.style.width).toBe('200px')
+
+    fireEvent.change(elementWidth, { target: { value: '333' } })
+    fireEvent.blur(elementWidth)
+    await waitFor(() => expect(imageOverlay.style.width).toBe('333px'))
+  })
+
   it('switches the trigger and keeps the editor usable', async () => {
     renderWorkspace()
     await screen.findByText('When it appears')

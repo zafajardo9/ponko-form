@@ -36,6 +36,8 @@ interface PublicFormViewProps {
   embed?: boolean
   emailSurveyToken?: string | null
   emailSurveyRating?: string | null
+  /** Runs the form locally without sessions, submissions, payments, or side effects. */
+  testMode?: boolean
 }
 
 /**
@@ -51,6 +53,7 @@ export function PublicFormView({
   embed = false,
   emailSurveyToken,
   emailSurveyRating,
+  testMode = false,
 }: PublicFormViewProps) {
   const [values, setValues] = useState<Record<number, FieldValue>>({})
   const [errors, setErrors] = useState<Record<number, string>>({})
@@ -218,6 +221,8 @@ export function PublicFormView({
 
   if (pageForm?.pages?.length && hasResolvedFormId) {
     return (
+      <>
+      <TestModeBanner enabled={testMode} />
       <Suspense fallback={<RuntimeLoadingScreen outerClass={outerClass} wrapperClass={wrapperClass} themed={themed} title={form.title} />}>
         <PageFormView
           formId={resolvedFormId}
@@ -228,6 +233,7 @@ export function PublicFormView({
           recaptchaSiteKey={pageForm.recaptchaSiteKey}
           theme={theme}
           embed={embed}
+          preview={testMode}
           emailSurvey={emailSurveyQuery.data?.valid && emailSurveyToken ? {
             token: emailSurveyToken,
             rating: emailSurveyQuery.data.rating,
@@ -235,12 +241,15 @@ export function PublicFormView({
           } : undefined}
         />
       </Suspense>
+      </>
     )
   }
 
   // Flow-powered legacy forms render the step-by-step runtime instead of the linear form.
   if (flow) {
     return (
+      <>
+      <TestModeBanner enabled={testMode} />
       <Suspense fallback={<RuntimeLoadingScreen outerClass={outerClass} wrapperClass={wrapperClass} themed={themed} title={form.title} />}>
         <FlowExecutionContainer
           flowId={flow.flow.id}
@@ -251,20 +260,28 @@ export function PublicFormView({
           variables={flow.variables}
           theme={theme}
           embed={embed}
+          preview={testMode}
         />
       </Suspense>
+      </>
     )
   }
 
   if (submitted) {
     return (
+      <>
+      <TestModeBanner enabled={testMode} />
       <div className={outerClass} style={themed}>
         <div className={wrapperClass}>
           <Card className="py-14 text-center sm:py-16">
-            <FormSuccessCard title="Thank you!" message="Your response has been recorded." />
+            <FormSuccessCard
+              title={testMode ? 'Test completed' : 'Thank you!'}
+              message={testMode ? 'Nothing was recorded or sent.' : 'Your response has been recorded.'}
+            />
           </Card>
         </div>
       </div>
+      </>
     )
   }
 
@@ -288,10 +305,16 @@ export function PublicFormView({
     for (const field of typedFields) {
       formData[String(field.id)] = values[field.id] ?? ''
     }
+    if (testMode) {
+      setSubmitted(true)
+      return
+    }
     submitMutation.mutate(formData)
   }
 
   return (
+    <>
+    <TestModeBanner enabled={testMode} />
     <div className={outerClass} style={themed}>
       <div className={wrapperClass}>
         <Card className="min-w-0 max-sm:p-4">
@@ -325,6 +348,19 @@ export function PublicFormView({
           </form>
         </Card>
       </div>
+    </div>
+    </>
+  )
+}
+
+function TestModeBanner({ enabled }: { enabled: boolean }) {
+  if (!enabled) return null
+  return (
+    <div
+      role="status"
+      className="sticky top-0 z-50 border-b border-[#d7a84c] bg-[#fff8e7] px-4 py-2 text-center text-sm font-medium text-[#6b4f16]"
+    >
+      Test mode — responses, payments, notifications, integrations, and analytics are not recorded.
     </div>
   )
 }

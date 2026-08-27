@@ -33,6 +33,7 @@ interface FlowStepRendererProps {
   canGoBack: boolean
   onNext: (input?: StepInput) => void
   onBack: () => void
+  preview?: boolean
 }
 
 export function FlowStepRenderer({
@@ -46,6 +47,7 @@ export function FlowStepRenderer({
   canGoBack,
   onNext,
   onBack,
+  preview = false,
 }: FlowStepRendererProps) {
   const config = step.config as Record<string, unknown>
   const [value, setValue] = useState<FieldValue>('')
@@ -74,7 +76,7 @@ export function FlowStepRenderer({
       <div className="flex flex-col items-center gap-3 py-8 text-center">
         <div className="flex items-center gap-1.5 text-[var(--ponko-foreground-faint,#8e8b82)]">
           <span className="h-2 w-2 animate-bounce rounded-full bg-[var(--ponko-primary,#cc785c)]" />
-          <span className="ml-1 text-sm">Redirecting…</span>
+          <span className="ml-1 text-sm">{preview ? 'Test complete — redirect skipped.' : 'Redirecting…'}</span>
         </div>
       </div>
     )
@@ -84,7 +86,9 @@ export function FlowStepRenderer({
     return (
       <div className="py-8 text-center">
         <div className="mb-3 text-4xl">✓</div>
-        <p className="text-[var(--ponko-foreground,#141413)]">Thank you! Your submission is complete.</p>
+        <p className="text-[var(--ponko-foreground,#141413)]">
+          {preview ? 'Test complete. Nothing was recorded.' : 'Thank you! Your submission is complete.'}
+        </p>
       </div>
     )
   }
@@ -98,12 +102,22 @@ export function FlowStepRenderer({
     return (
       <div className="flex flex-col gap-6">
         {progress}
-        <PaymentStep
-          executionId={executionId}
-          clientToken={executionClientToken}
-          amount={amount}
-          currency={(config.currency as string) ?? 'USD'}
-        />
+        {preview ? (
+          <div className="rounded-lg border border-[#d7a84c] bg-[#fff8e7] p-5 text-center text-[#6b4f16]">
+            <p className="font-medium">Payment skipped in test mode</p>
+            <p className="mt-1 text-sm">{String(amount)} {(config.currency as string) ?? 'USD'} will not be charged.</p>
+            <Button className="mt-4" onClick={() => onNext({ paymentResult: { success: true } })}>
+              Continue test
+            </Button>
+          </div>
+        ) : (
+          <PaymentStep
+            executionId={executionId}
+            clientToken={executionClientToken}
+            amount={amount}
+            currency={(config.currency as string) ?? 'USD'}
+          />
+        )}
         {canGoBack && (
           <Button variant="navigation" size="sm" onClick={onBack}>
             <ArrowLeft size={14} className={navigationBackIconClass} />

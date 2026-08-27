@@ -21,7 +21,7 @@ export function SharePopupDialog({
   const [copied, setCopied] = useState(false)
 
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://ponkoform.com'
-  const snippet = `<script async src="${origin}/embed/popup-loader.js" data-popup="${publicId}"></script>`
+  const snippet = `<script async src="${origin}/embed/popup-loader.js" data-popup="${publicId}" data-popup-wordpress-admin-test="true"></script>`
 
   function copySnippet() {
     navigator.clipboard?.writeText(snippet)
@@ -73,6 +73,11 @@ export function SharePopupDialog({
             Paste this snippet anywhere on your site — WordPress (Appearance →
             Custom HTML, or an Elementor HTML widget), Wix, Webflow, or plain
             HTML. The popup appears on the trigger you configured.
+          </p>
+
+          <p className="mt-3 rounded-lg border border-[#d7a84c] bg-[#fff8e7] px-3 py-2 text-xs leading-5 text-[#6b4f16]">
+            WordPress safeguard is on: while you are logged in, popup views,
+            clicks, form responses, payments, and notifications are test-only.
           </p>
 
           <div className="relative mt-3">

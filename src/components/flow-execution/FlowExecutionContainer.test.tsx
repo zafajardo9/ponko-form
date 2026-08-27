@@ -122,4 +122,28 @@ describe('FlowExecutionContainer execution access', () => {
       }),
     )
   })
+
+  it('runs a preview locally without creating or persisting an execution', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { mutations: { retry: false } },
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <FlowExecutionContainer
+          flowId={7}
+          title="Test flow"
+          nodes={[]}
+          edges={[]}
+          variables={[]}
+          preview
+        />
+      </QueryClientProvider>,
+    )
+
+    expect(await screen.findByText('Flow ready')).toBeTruthy()
+    expect(serverFns.startFlowExecution).not.toHaveBeenCalled()
+    expect(serverFns.advanceExecution).not.toHaveBeenCalled()
+    expect(serverFns.completeExecution).not.toHaveBeenCalled()
+  })
 })

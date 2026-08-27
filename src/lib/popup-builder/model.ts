@@ -42,6 +42,11 @@ export const popupScheduleSchema = z.object({
 export const popupStyleSchema = z.object({
   fontFamily: z.enum(['sans', 'serif', 'mono']).optional(),
   backgroundColor: z.string().max(32).optional(),
+  backgroundImage: z.string().max(2_000).optional(),
+  backgroundImageSize: z.enum(['cover', 'contain']).optional(),
+  backgroundImagePosition: z.enum(['center', 'top', 'bottom', 'left', 'right']).optional(),
+  backgroundImageOverlayColor: z.string().max(32).optional(),
+  backgroundImageOverlayOpacity: z.number().min(0).max(0.9).optional(),
   overlayColor: z.string().max(32).optional(),
   overlayOpacity: z.number().min(0).max(0.9).optional(),
   animation: z.enum(['fade', 'zoom', 'slide-up', 'none']).optional(),
@@ -95,6 +100,8 @@ export const elementSchema = z.discriminatedUnion('type', [
     src: z.string().max(2_000),
     alt: z.string().max(500),
     fit: z.enum(['cover', 'contain']),
+    widthMode: z.enum(['fixed', 'canvas']).optional(),
+    heightMode: z.enum(['fixed', 'canvas']).optional(),
     radius: z.number().min(0).max(200),
   }),
   elementBaseSchema.extend({
@@ -138,8 +145,8 @@ export const elementSchema = z.discriminatedUnion('type', [
 export const savePopupSchema = z.object({
   id: z.number().int().positive(),
   title: z.string().trim().min(1).max(255),
-  width: z.number().int().min(280).max(1200),
-  height: z.number().int().min(200).max(1600),
+  width: z.number().int().min(120).max(4000),
+  height: z.number().int().min(120).max(4000),
   placement: placementSchema,
   trigger: triggerSchema,
   frequency: frequencySchema,

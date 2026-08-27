@@ -16,6 +16,10 @@ vi.mock('../../lib/server-fns/ai-assistant', () => ({
   chatWithBuilderAI: vi.fn(),
 }))
 
+vi.mock('@tiptap/extension-drag-handle-react', () => ({
+  DragHandle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}))
+
 vi.mock('liquid-gooey', () => {
   const Liquid = ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
   Liquid.Item = ({ children, x, y, transition, delay, ...props }: React.HTMLAttributes<HTMLDivElement> & { x?: number; y?: number; transition?: string; delay?: number }) => (
@@ -190,7 +194,7 @@ describe('PageBuilderWorkspace field configuration UX', () => {
     expect(screen.getByRole('region', { name: 'Questions' })).toBeTruthy()
   })
 
-  it('configures a content block to appear when a choice option is selected', () => {
+  it('edits a content block with EditorCN and configures when it appears', async () => {
     const conditionalPages: FormPage[] = [{
       ...pages[0],
       fields: [
@@ -232,6 +236,8 @@ describe('PageBuilderWorkspace field configuration UX', () => {
     const contentCardButton = screen.getByText('Business instructions').closest('button')
     expect(contentCardButton).toBeTruthy()
     fireEvent.click(contentCardButton!)
+    expect(await screen.findByRole('textbox', { name: 'Instructions content' })).toBeTruthy()
+    expect(screen.getByLabelText('Block editor tips').textContent).toContain('Type / for blocks')
     fireEvent.click(screen.getByRole('button', { name: /Conditional visibility/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Add Rule' }))
 

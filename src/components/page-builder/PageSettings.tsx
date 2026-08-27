@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import type {
   FormPage,
   FormReference,
@@ -8,9 +8,12 @@ import type {
 } from '../../lib/page-builder/types'
 import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '../ui/Button'
+import { ErrorBoundary } from '../layout/ErrorBoundary'
 import { Field, inputClass } from './Shared'
 import { slugForBinding, slugForOptionValue, tempId } from './PageBuilderUtils'
 import { SUPPORTED_CURRENCY_OPTIONS } from '../../integrations/payments/currencies'
+
+const FormBlockEditor = lazy(() => import('./FormBlockEditor'))
 
 interface PageSettingsProps {
   page: FormPage
@@ -330,13 +333,18 @@ export function PageSettings({ page, gateways, pages, references, onUpdate, onDe
 
       {page.isFinal ? (
         <>
-          <Field label="Template">
-            <textarea
-              value={page.finalTemplate ?? ''}
-              onChange={(e) => onUpdate({ finalTemplate: e.target.value })}
-              rows={6}
-              className={`${inputClass} h-auto resize-none`}
-            />
+          <Field label="Confirmation message" hint="Format the message respondents see after a successful submission.">
+            <Suspense
+              fallback={<div role="status" aria-label="Loading confirmation editor" className="h-52 animate-pulse rounded-lg border border-[#e6dfd8] bg-[#faf9f5] motion-reduce:animate-none" />}
+            >
+              <ErrorBoundary key={page.id}>
+                <FormBlockEditor
+                  value={page.finalTemplate ?? ''}
+                  label="Confirmation message"
+                  onChange={(html) => onUpdate({ finalTemplate: html || null })}
+                />
+              </ErrorBoundary>
+            </Suspense>
           </Field>
           <Field label="Redirect URL">
             <input

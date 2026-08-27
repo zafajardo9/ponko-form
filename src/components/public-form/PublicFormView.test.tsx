@@ -25,7 +25,7 @@ vi.mock('../flow-execution/FlowExecutionContainer', () => ({
 }))
 vi.mock('../page-form/PageFormView', () => ({ PageFormView: serverFns.pageFormView }))
 
-function renderPublicForm(props: { emailSurveyToken?: string; emailSurveyRating?: string } = {}) {
+function renderPublicForm(props: { emailSurveyToken?: string; emailSurveyRating?: string; testMode?: boolean } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
@@ -203,6 +203,30 @@ describe('PublicFormView recovery', () => {
     expect(serverFns.getPublicFormRuntime).toHaveBeenCalledTimes(1)
   })
 
+  it('passes no-record preview mode to page and flow runtimes', async () => {
+    serverFns.getPublicForm.mockResolvedValue({ id: 7, title: 'Test form', description: null, theme: null })
+    serverFns.getPublicFormRuntime.mockResolvedValue({
+      kind: 'page',
+      pages: [{ id: 1 }],
+      references: [],
+      recaptchaSiteKey: null,
+    })
+
+    const pageRender = renderPublicForm({ testMode: true })
+    await waitFor(() => expect(serverFns.pageFormView).toHaveBeenCalled())
+    expect(serverFns.pageFormView.mock.calls.at(-1)?.[0].preview).toBe(true)
+    expect(screen.getByText(/responses, payments, notifications, integrations, and analytics are not recorded/i)).toBeTruthy()
+    pageRender.unmount()
+
+    serverFns.getPublicFormRuntime.mockResolvedValue({
+      kind: 'flow',
+      flow: { flow: { id: 12 }, nodes: [], edges: [], variables: [] },
+    })
+    renderPublicForm({ testMode: true })
+    await waitFor(() => expect(serverFns.flowExecutionView).toHaveBeenCalled())
+    expect(serverFns.flowExecutionView.mock.calls.at(-1)?.[0].preview).toBe(true)
+  })
+
   it('renders legacy fields from the consolidated definition request', async () => {
     serverFns.getPublicForm.mockResolvedValue({
       id: 7,
@@ -267,5 +291,36 @@ describe('PublicFormView recovery', () => {
         formData: { 21: 'Ada' },
       },
     })
+  })
+
+  it('completes a legacy test locally without recording a response', async () => {
+    serverFns.getPublicForm.mockResolvedValue({
+      id: 7,
+      title: 'Legacy contact form',
+      description: null,
+      theme: null,
+    })
+    serverFns.getPublicFormRuntime.mockResolvedValue({
+      kind: 'legacy',
+      fields: [{
+        id: 21,
+        formId: 7,
+        type: 'text',
+        label: 'Full name',
+        placeholder: null,
+        required: true,
+        options: null,
+        order: 0,
+      }],
+    })
+
+    renderPublicForm({ testMode: true })
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Full name' }), {
+      target: { value: 'Test Admin' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+
+    expect(await screen.findByText('Nothing was recorded or sent.')).toBeTruthy()
+    expect(serverFns.submitFormResponse).not.toHaveBeenCalled()
   })
 })

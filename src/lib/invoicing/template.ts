@@ -100,6 +100,21 @@ export function formatDate(value: Date): string {
   }).format(value)
 }
 
+/**
+ * Lighten a hex color toward white. Used to derive soft two-tone backgrounds
+ * from the invoice accent color (email clients don't reliably support
+ * rgba/color-mix, so we emit a solid hex).
+ */
+function tint(hex: string, amount: number): string {
+  const value = hex.replace('#', '')
+  const num = parseInt(value, 16)
+  const r = (num >> 16) & 255
+  const g = (num >> 8) & 255
+  const b = num & 255
+  const mix = (channel: number) => Math.round(channel + (255 - channel) * amount).toString(16).padStart(2, '0')
+  return `#${mix(r)}${mix(g)}${mix(b)}`
+}
+
 function paymentDetails(context: InvoiceTemplateContext, accentColor: string) {
   if (!context.paymentAmount) return ''
   const rows = [
@@ -109,12 +124,14 @@ function paymentDetails(context: InvoiceTemplateContext, accentColor: string) {
     ['Payment method', context.paymentGateway],
     ['Payment ID', context.paymentId],
   ].filter((row): row is [string, string] => Boolean(row[1]))
-  return `<div style="margin:24px 0;border:1px solid #e6dfd8;border-radius:10px;overflow:hidden"><div style="padding:12px 16px;background:${accentColor};color:#fff;font-weight:600">Payment details</div>${rows.map(([label, value]) => `<div style="display:flex;justify-content:space-between;gap:24px;padding:10px 16px;border-top:1px solid #eee"><span style="color:#6c6a64">${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}</div>`
+  const wash = tint(accentColor, 0.9)
+  return `<div style="margin:24px 0;background:${wash};border-radius:12px;overflow:hidden"><div style="padding:12px 16px;background:${accentColor};color:#fff;font-weight:600">Payment details</div>${rows.map(([label, value]) => `<div style="display:flex;justify-content:space-between;gap:24px;padding:10px 16px"><span style="color:#6c6a64">${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}</div>`
 }
 
-function lineItems(snapshot: EmailTemplateSnapshot, context: InvoiceTemplateContext) {
+function lineItems(snapshot: EmailTemplateSnapshot, context: InvoiceTemplateContext, accentColor: string) {
   if (!snapshot.includeLineItems || !snapshot.lineItemFields?.length) return ''
-  return `<div style="margin:24px 0"><h2 style="font-size:16px">Submission details</h2>${snapshot.lineItemFields.map((item) => `<div style="display:flex;justify-content:space-between;gap:24px;padding:8px 0;border-bottom:1px solid #eee"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(stringifyValue(context.values[item.variable]))}</strong></div>`).join('')}</div>`
+  const wash = tint(accentColor, 0.94)
+  return `<div style="margin:24px 0"><h2 style="font-size:15px;margin:0 0 10px;color:${accentColor}">Submission details</h2><div style="background:${wash};border-radius:12px;padding:6px 16px">${snapshot.lineItemFields.map((item) => `<div style="display:flex;justify-content:space-between;gap:24px;padding:9px 0"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(stringifyValue(context.values[item.variable]))}</strong></div>`).join('')}</div></div>`
 }
 
 export function renderTemplateMessage(
@@ -130,8 +147,8 @@ export function renderTemplateMessage(
   const invoiceDetails = kind === 'invoice' && snapshot.includePaymentDetails
     ? paymentDetails(context, accent)
     : ''
-  const items = kind === 'invoice' ? lineItems(snapshot, context) : ''
-  const html = `<div style="background:#f5f0e8;padding:28px 12px"><div style="max-width:640px;margin:0 auto;background:#fff;border-radius:14px;padding:32px;color:#141413;font-family:Arial,sans-serif;line-height:1.6;border-top:5px solid ${accent}">${logo}${body}${items}${invoiceDetails}</div></div>`
+  const items = kind === 'invoice' ? lineItems(snapshot, context, accent) : ''
+  const html = `<div style="background:#faf8f4;padding:28px 12px"><div style="max-width:640px;margin:0 auto;background:#fff;border-radius:16px;padding:32px;color:#141413;font-family:Arial,sans-serif;line-height:1.6">${logo}${body}${items}${invoiceDetails}</div></div>`
   const subject = interpolateText(snapshot.subjectTemplate, context).slice(0, 255)
   const text = snapshot.bodyTemplatePlain
     ? interpolateText(snapshot.bodyTemplatePlain, context)

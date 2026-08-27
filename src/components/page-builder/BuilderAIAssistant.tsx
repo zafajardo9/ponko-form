@@ -37,6 +37,13 @@ const greetings: Record<AIAssistantMode, AIAssistantMessage> = {
   },
 }
 
+const guideStarterQuestions = [
+  'Summarize what this form currently collects',
+  'What could I improve in this form?',
+  'Explain the references used in this form',
+  'How can I add conditional logic?',
+] as const
+
 interface BuilderAIAssistantProps {
   formId: number
   formTitle: string | null
@@ -274,6 +281,30 @@ export function BuilderAIAssistant({
                     </div>
                   </div>
                 ))}
+                {mode === 'guide' && messages.length === 1 && !mutation.isPending && (
+                  <div role="group" aria-label="Suggested questions" className="pt-1">
+                    <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.13em] text-[#8b857d]">
+                      Start with your form
+                    </p>
+                    <div className="grid gap-2">
+                      {guideStarterQuestions.map((question) => (
+                        <button
+                          key={question}
+                          type="button"
+                          onClick={() => send(question)}
+                          className="group flex w-full items-center justify-between gap-3 rounded-xl border border-[#dfd7cd] bg-white px-3.5 py-3 text-left text-xs font-medium leading-5 text-[#4d4943] shadow-[0_2px_8px_rgba(45,37,31,0.03)] transition-[border-color,background-color,color,transform] duration-[var(--duration-quick)] hover:-translate-y-0.5 hover:border-[#d2a18f] hover:bg-[#fffaf7] hover:text-[#8f4b37] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cc785c] focus-visible:ring-offset-2 active:translate-y-0 motion-reduce:transition-none"
+                        >
+                          <span>{question}</span>
+                          <ArrowUp
+                            size={14}
+                            className="shrink-0 rotate-45 text-[#b4ada4] transition-colors group-hover:text-[#cc785c]"
+                            aria-hidden="true"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {mutation.isPending && (
                   <div role="status" className="flex items-center gap-2 text-xs text-[#817d76]">
                     <LoaderCircle size={14} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />

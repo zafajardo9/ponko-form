@@ -467,6 +467,8 @@ export function PopupBuilderWorkspace({ popupId }: { popupId: number }) {
             {rightTab === 'element' && selectedElement ? (
               <ElementSettings
                 element={selectedElement}
+                canvasWidth={draft.width}
+                canvasHeight={draft.height}
                 onChange={patchSelected}
                 onDelete={deleteSelected}
                 onDuplicate={duplicateSelected}
@@ -487,10 +489,16 @@ export function PopupBuilderWorkspace({ popupId }: { popupId: number }) {
                     const size = clampCanvasSize(patch.width ?? draft.width, patch.height ?? draft.height)
                     updateDraft({
                       ...size,
-                      elements: draft.elements.map((element) => ({
-                        ...element,
-                        ...clampToCanvas(element, size),
-                      })),
+                      elements: draft.elements.map((element) => {
+                        const resized = element.type === 'image'
+                          ? {
+                              ...element,
+                              ...(element.widthMode === 'canvas' ? { x: 0, width: size.width } : {}),
+                              ...(element.heightMode === 'canvas' ? { y: 0, height: size.height } : {}),
+                            }
+                          : element
+                        return { ...resized, ...clampToCanvas(resized, size) }
+                      }),
                     })
                   }
                   const { width: _w, height: _h, ...rest } = patch

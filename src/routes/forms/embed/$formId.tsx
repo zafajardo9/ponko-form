@@ -3,6 +3,11 @@ import { useEffect, useRef } from 'react'
 import { PublicFormView } from '../../../components/public-form/PublicFormView'
 
 export const Route = createFileRoute('/forms/embed/$formId')({
+  validateSearch: (search: Record<string, unknown>): { ponkoTest?: string } => ({
+    ponkoTest: search.ponkoTest === 'wordpress-admin' || search.ponkoTest === 'popup-preview'
+      ? search.ponkoTest
+      : undefined,
+  }),
   component: EmbedFormPage,
 })
 
@@ -17,6 +22,7 @@ export const Route = createFileRoute('/forms/embed/$formId')({
  */
 function EmbedFormPage() {
   const { formId } = Route.useParams()
+  const { ponkoTest } = Route.useSearch()
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -45,7 +51,7 @@ function EmbedFormPage() {
 
   return (
     <div ref={containerRef} className="min-h-0 w-full bg-transparent">
-      <PublicFormView publicId={formId} embed />
+      <PublicFormView publicId={formId} embed testMode={Boolean(ponkoTest)} />
     </div>
   )
 }

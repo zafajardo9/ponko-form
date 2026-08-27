@@ -56,7 +56,8 @@ export function ShareDialog({ publicId, title, onClose }: ShareDialogProps) {
   // Responsive iframe + a tiny listener that resizes it to the form's content
   // height (the embed page posts its height via postMessage).
   const embedCode = `<iframe
-  src="${embedUrl}"
+  data-ponko-form="${shareId}"
+  data-src="${embedUrl}"
   title="${title.replace(/"/g, "&quot;")}"
   style="width:100%;border:none;overflow:hidden;"
   width="100%"
@@ -64,12 +65,20 @@ export function ShareDialog({ publicId, title, onClose }: ShareDialogProps) {
   loading="lazy"
 ></iframe>
 <script>
-  window.addEventListener("message", function (e) {
-    if (e.data && e.data.type === "ponkoform:resize" && String(e.data.formId) === "${shareId}") {
-      var f = document.querySelector('iframe[src="${embedUrl}"]');
-      if (f) f.style.height = e.data.height + "px";
+  (function () {
+    var f = document.querySelector('iframe[data-ponko-form="${shareId}"]');
+    if (!f) return;
+    var u = new URL(f.getAttribute("data-src"), window.location.href);
+    if (document.body.classList.contains("logged-in")) {
+      u.searchParams.set("ponkoTest", "wordpress-admin");
     }
-  });
+    f.src = u.href;
+    window.addEventListener("message", function (e) {
+      if (e.data && e.data.type === "ponkoform:resize" && String(e.data.formId) === "${shareId}") {
+        f.style.height = e.data.height + "px";
+      }
+    });
+  })();
 </script>`;
 
   const emailFieldsQuery = useQuery({
@@ -233,6 +242,10 @@ export function ShareDialog({ publicId, title, onClose }: ShareDialogProps) {
                 Paste this snippet into any site. The form is responsive — it
                 fills the container it's placed in and auto-resizes to fit its
                 content.
+              </p>
+              <p className="rounded-lg border border-[#d7a84c] bg-[#fff8e7] px-3 py-2 text-xs leading-5 text-[#6b4f16]">
+                On WordPress, logged-in administrators automatically use test
+                mode, so responses, payments, and notifications are not recorded.
               </p>
               <div className="relative">
                 <textarea
